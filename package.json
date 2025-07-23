@@ -1,0 +1,11 @@
+{
+  "name": "live-chat",
+  "version": "1.0.0",
+  "description": "Live Chat app using MERN stack",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mohammed Ghazal",
+  "license": "ISC"
+}
