@@ -11,6 +11,9 @@
   "license": "ISC",
   "dependencies": {
     "argon2": "^0.43.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "csurf": "^1.11.0",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "express-mongo-sanitize": "^2.2.0",

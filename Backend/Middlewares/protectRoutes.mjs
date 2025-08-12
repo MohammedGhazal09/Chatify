@@ -3,15 +3,16 @@ import jwt from "jsonwebtoken";
 import { CustomError } from "../Utils/customError.mjs";
 
 const protect = asyncErrHandler(async (req, res, next) => {
-  let token;
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    token = req.headers.authorization.split(" ")[1];
+  let token = req.cookies?.accessToken;
+  if (!token) {
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
   }
-  if (!token)
-    return next(new CustomError("Not authorized to access this route", 401));
+  if (!token) return next(new CustomError("Not authorized to access this route", 401));
   let decoded;
   try {
     decoded = jwt.verify(token, process.env.SECRET_JWT_KEY);

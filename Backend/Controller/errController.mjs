@@ -1,4 +1,4 @@
-import { CustomError } from "../utils/customError.mjs";
+import { CustomError } from "../Utils/customError.mjs";
 
 const developmentErrors = (error, req, res) => {
   // Filter sensitive data from body
@@ -65,7 +65,6 @@ const errHandler = (err, req, res, next) => {
     if (err.name === 'ValidationError') err = handleValidationError(err);
     return productionErrors(err, req, res);
   } else {
-    // Fallback for unknown NODE_ENV
     return res.status(500).json({
       status: "error",
       message: "Server configuration error"

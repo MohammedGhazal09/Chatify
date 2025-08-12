@@ -23,6 +23,16 @@ export const signup =asyncErrHandler( async (req, res, next) => {
     password,
     profilePic
   })
+
+  const token = jsonwebtoken.sign({userId:user._id},process.env.SECRET_JWT_KEY,{expiresIn:process.env.EXPIRES_IN})
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie('accessToken', token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: 15 * 60 * 1000,
+    path: '/',
+  });
   return res.status(201).json({
     success: true,
     message: 'User created successfully',
@@ -38,14 +48,31 @@ export const login = asyncErrHandler(async (req, res, next) => {
   const user = await User.findOne({email:email}).select("+password")
   if (!user) return next(CustomError("User doesn't exist",401))
   const credentials = await user.checkPassword(password)
-  const token = jsonwebtoken.sign({userId:user._id},process.env.SECRET_JWT_KEY,{expiresIn:process.env.EXPIRES_IN})
-  if (credentials) {
-    return res.status(200).json({
-      status:"success",
-      message:"Logged in successfully!",
-      token
-    })
-  } else {
+  if (!credentials) {
     return next(new CustomError("Password or email are wrong", 400))
   }
+  const token = jsonwebtoken.sign({userId:user._id},process.env.SECRET_JWT_KEY,{expiresIn:process.env.EXPIRES_IN})
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie('accessToken', token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: 15 * 60 * 1000,
+    path: '/',
+  });
+  return res.status(200).json({
+    status:"success",
+    message:"Logged in successfully!",
+  })
+})
+
+export const logout = asyncErrHandler(async (req, res, next) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('accessToken', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    path: '/',
+  });
+  return res.status(204).end();
 })
