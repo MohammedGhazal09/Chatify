@@ -1,7 +1,6 @@
 import { CustomError } from "../Utils/customError.mjs";
 
 const developmentErrors = (error, req, res) => {
-  // Filter sensitive data from body
   const sanitizedBody = { ...req.body };
   delete sanitizedBody.password;
   delete sanitizedBody.confirmPassword;

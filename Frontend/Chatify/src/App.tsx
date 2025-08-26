@@ -5,6 +5,9 @@ import axiosInstance from './api/index'
 import Home from './pages/home/home'
 import Signup from './pages/signup/signup'
 import Login from './pages/login/login'
+import AuthProvider from './contexts/authContext'
+import ProtectedRoute from './components/protectedRoute'
+import PublicRoute from './components/publicRoute'
 
 function App() {
   useEffect(() => {
@@ -14,15 +17,15 @@ function App() {
   }, [])
 
   return (
-    <>
     <BrowserRouter>
-      <Routes>
-        <Route path='/' element={<Home/>}></Route>
-        <Route path='/signup' element={<Signup/>}></Route>
-        <Route path='/login' element={<Login/>}></Route>
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path='/' element={<ProtectedRoute><Home/></ProtectedRoute>}></Route>
+          <Route path='/signup' element={<PublicRoute><Signup/></PublicRoute>}></Route>
+          <Route path='/login' element={<PublicRoute><Login/></PublicRoute>}></Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
-    </>
   )
 }
 

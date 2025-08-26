@@ -46,7 +46,7 @@ export const login = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError('Please provide email and password', 400));
   }
   const user = await User.findOne({email:email}).select("+password")
-  if (!user) return next(CustomError("User doesn't exist",401))
+  if (!user) return next(new CustomError("User doesn't exist",401))
   const credentials = await user.checkPassword(password)
   if (!credentials) {
     return next(new CustomError("Password or email are wrong", 400))
