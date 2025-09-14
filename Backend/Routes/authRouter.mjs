@@ -1,18 +1,12 @@
 import { Router } from "express";
-import csurf from "csurf";
-import {signup, login, logout } from "../Controller/authController.mjs";
+import {signup, login, logout, refreshToken, isAuthenticated } from "../Controller/authController.mjs";
 const router = Router();
-const isProd = process.env.NODE_ENV === 'production';
-const csrfProtection = csurf({
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isProd,
-  },
-});
 
-router.route("/signup").post(csrfProtection, signup);
-router.route("/login").post(csrfProtection, login);
-router.route("/logout").post(csrfProtection, logout);
+
+router.route("/signup").post( signup);
+router.route("/login").post( login);
+router.route("/logout").post( logout);
+router.route("/refresh-token").post(refreshToken);
+router.route("/is-authenticated").get(isAuthenticated)
 
 export default router;

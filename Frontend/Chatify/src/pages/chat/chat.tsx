@@ -2,7 +2,7 @@ import { useAuth } from '../../hooks/useAuth';
 import AccountsButton from '../../components/accountsButton';
 
 const Home = () => {
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -38,8 +38,7 @@ const Home = () => {
               <div onClick={handleLogout}>
                 <AccountsButton
                   color="#dc2626"
-                  text={isLoading ? 'Logging out...' : 'Logout'}
-                  disabled={isLoading}
+                  text="Logout"
                 />
               </div>
             </div>
@@ -51,8 +50,6 @@ const Home = () => {
           <p className="text-gray-600 text-lg">
             You are now logged in and can access all features of Chatify.
           </p>
-          
-          {/* Add your chat components and functionality here */}
           <div className="mt-8 p-6 bg-gray-50 rounded-lg">
             <h3 className="text-xl font-semibold text-black mb-2">
               User Information

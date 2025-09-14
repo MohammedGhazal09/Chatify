@@ -4,7 +4,7 @@ import protect from "../Middlewares/protectRoutes.mjs";
 
 const router = Router();
 
-router.route('/get-logged-user').get(getLoggedUser)
+router.route('/get-logged-user').get(protect, getLoggedUser)
 router.route('/get-all-users').get(protect, getAllUsers)
 
 export default router;

@@ -28,6 +28,29 @@ const protect = asyncErrHandler(async (req, res, next) => {
     }
   }
   req.userId = decoded.userId;
+
+  // Rolling cookie: if token is close to expiry make a fresh cookie
+  // Threshold: 5 minutes
+  try {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const timeRemainingSeconds = (decoded.exp || 0) - nowSeconds;
+    const thresholdSeconds = 5 * 60;
+    if (timeRemainingSeconds > 0 && timeRemainingSeconds <= thresholdSeconds) {
+      const newToken = jwt.sign({ userId: decoded.userId }, process.env.SECRET_JWT_KEY, {
+        expiresIn: process.env.EXPIRES_IN || "15m",
+      });
+      const isProd = process.env.NODE_ENV === 'production';
+      res.cookie('accessToken', newToken, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        maxAge: 15 * 60 * 1000,
+        path: '/',
+      });
+    }
+  } catch (e) {
+    // If anything goes wrong during refresh attempt, do not block the request; proceed
+  }
   next();
 });
 

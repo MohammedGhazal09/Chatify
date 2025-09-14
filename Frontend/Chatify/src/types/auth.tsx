@@ -9,6 +9,7 @@ export interface User {
 export interface LoginData {
   email: string;
   password: string;
+  rememberMe: boolean;
 }
 
 export interface SignupData {
@@ -20,10 +21,9 @@ export interface SignupData {
 
 export interface AuthContextType {
   user: User | null;
-  isLoading: boolean;
+  // isLoading: boolean;
   isAuthenticated: boolean;
   login: (userData: LoginData) => Promise<void>;
   signup: (userData: SignupData) => Promise<void>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
 }

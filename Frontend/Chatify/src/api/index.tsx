@@ -6,38 +6,36 @@ const axiosInstance = axios.create({
   xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
-axiosInstance.interceptors.request.use((config) => {
-  const method = (config.method || 'get').toUpperCase();
-  const url = config.url || '';
-  console.log(`[HTTP] → ${method} ${url}`);
-  return config;
-});
-
 axiosInstance.interceptors.response.use(
-  (response) => {
-    const method = (response.config.method || 'get').toUpperCase();
-    const url = response.config.url || '';
-    console.log(`[HTTP] ← ${method} ${url} ${response.status}`);
-    return response;
-  },
+  (response) => response,
   async (error) => {
     const status = error?.response?.status;
     const code = error?.response?.data?.code;
     const originalConfig = error?.config || {};
+    
+    // CSRF error: fetch a fresh token and retry once
     if (status === 403 && code === 'EBADCSRFTOKEN' && !originalConfig._retry) {
       try {
         originalConfig._retry = true;
         await axiosInstance.get('/api/csrf-token');
         return axiosInstance(originalConfig);
-      } catch (err) {
-        console.warn('[HTTP] × CSRF token fetch failed', err);
+      } catch {
+        return Promise.reject(error);
       }
     }
-    const method = (originalConfig.method || 'get').toUpperCase();
-    const url = originalConfig.url || '';
-    console.warn(`[HTTP] × ${method} ${url} ${status || ''}`, error?.response?.data || error?.message);
+    // unauthenticated, refresh token and retry once
+    if (status === 401 && !originalConfig._retry && !originalConfig.url?.includes('/refresh-token')) {
+      try {
+        originalConfig._retry = true;
+        await axiosInstance.post('/api/auth/refresh-token');
+        return axiosInstance(originalConfig);
+      } catch {
+        return Promise.reject(error);
+      }
+    }
+    
     return Promise.reject(error);
   }
-);
+ );
 
 export default axiosInstance;

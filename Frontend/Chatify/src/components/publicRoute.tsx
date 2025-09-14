@@ -1,6 +1,5 @@
 import type { FC, ReactNode } from "react";
 import { useAuth } from "../hooks/useAuth";
-import LoadingSpinner from "./loadingSpinner";
 import  { Navigate } from "react-router-dom";
 
 interface PublicRouteProps {
@@ -9,10 +8,7 @@ interface PublicRouteProps {
 }
 
 const PublicRoute : FC<PublicRouteProps> = ({children, redirectTo = '/'}) => {
-  const {isAuthenticated, isLoading } = useAuth();
-  if (isLoading) {
-    return <LoadingSpinner/>
-  }
+  const {isAuthenticated } = useAuth();
 
   if (isAuthenticated) {
     return <Navigate to={redirectTo} replace/>

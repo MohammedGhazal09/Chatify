@@ -54,7 +54,7 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.status(204).end();
 });
 
-app.use('/api/auth', authRouter);
+app.use('/api/auth',csrfProtection, authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, chatRouter);
 app.use('/api/message', protect, messageRouter);

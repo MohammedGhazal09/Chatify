@@ -4,16 +4,16 @@ import { useEffect } from "react";
 
 
 export const useAuthRedirect = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (isAuthenticated) {
       const from = location.state?.from?.pathname || '/';
       navigate(from, { replace: true})
     }
-  }, [isAuthenticated, isLoading, navigate, location]);
+  }, [isAuthenticated, navigate, location]);
 
-  return { isAuthenticated, isLoading };
+  return { isAuthenticated };
 }
