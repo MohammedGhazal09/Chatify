@@ -12,6 +12,9 @@ import errHandler from './Controller/errController.mjs';
 import protect from './Middlewares/protectRoutes.mjs';
 import { CustomError } from './Utils/customError.mjs';
 import sanitization from './Middlewares/sanitization.mjs';
+import passport from 'passport';
+import './Config/passport.mjs'; // Import passport configuration
+import { googleAuth, googleAuthCallback } from './Controller/authController.mjs';
 const app = express();
 
 app.use(helmet());
@@ -35,6 +38,12 @@ app.use(hpp());
 
 
 app.use(sanitization);
+
+app.use(passport.initialize());
+
+app.get('/api/auth/google', googleAuth);
+app.get('/api/auth/google/callback', googleAuthCallback);
+
 
 const isProd = process.env.NODE_ENV === 'production';
 const csrfProtection = csurf({

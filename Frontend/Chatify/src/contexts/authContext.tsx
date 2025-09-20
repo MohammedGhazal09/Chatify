@@ -50,7 +50,7 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
     } else {
       await ensureCSRFToken(signal)
     }
-  }, [])
+  }, [checkAuthStatus])
 
   useEffect(() => {
     const abortController = new AbortController()

@@ -2,6 +2,25 @@ import User from '../Models/userModel.mjs';
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import {CustomError} from '../Utils/customError.mjs';
 import jsonwebtoken from 'jsonwebtoken'
+import passport from 'passport';
+
+const generateTokenAndSetCookie = (user, res, rememberMe = false) => {
+  const expiresIn = rememberMe ? '30d' : process.env.EXPIRES_IN || '15m';
+  const token = jsonwebtoken.sign({userId:user._id}, process.env.SECRET_JWT_KEY, {expiresIn});
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 15 * 60 * 1000;
+  
+  res.cookie('accessToken', token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge,
+    path: '/'
+  })
+
+  return token
+}
 
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
@@ -20,18 +39,11 @@ export const signup =asyncErrHandler( async (req, res, next) => {
     lastName,
     email,
     password,
-    profilePic
+    profilePic,
+    authProvider: 'local',
   })
 
-  const token = jsonwebtoken.sign({userId:user._id},process.env.SECRET_JWT_KEY,{expiresIn:process.env.EXPIRES_IN})
-  const isProd = process.env.NODE_ENV === 'production';
-  res.cookie('accessToken', token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
-    maxAge: 15 * 60 * 1000,
-    path: '/',
-  });
+  generateTokenAndSetCookie(user, res);
   return res.status(201).json({
     success: true,
     message: 'User created successfully',
@@ -44,22 +56,15 @@ export const login = asyncErrHandler(async (req, res, next) => {
   if (!email || !password) {
     return next(new CustomError('Please provide email and password', 400));
   }
-  const user = await User.findOne({email:email}).select("+password")
+  const user = await User.findOne({email:email, authProvider: 'local'}).select("+password")
   if (!user) return next(new CustomError("User doesn't exist",401))
   const credentials = await user.checkPassword(password)
   if (!credentials) {
     return next(new CustomError("Password or email are wrong", 400))
   }
-  const expiresIn = rememberMe ? '30d' : '1h'
-  const token = jsonwebtoken.sign({userId:user._id},process.env.SECRET_JWT_KEY,{expiresIn:expiresIn})
-  const isProd = process.env.NODE_ENV === 'production';
-  res.cookie('accessToken', token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
-    maxAge: 15 * 60 * 1000,
-    path: '/',
-  });
+
+  generateTokenAndSetCookie(user, res, rememberMe);
+
   return res.status(200).json({
     status:"success",
     message:"Logged in successfully!",
@@ -87,7 +92,7 @@ export const refreshToken = asyncErrHandler(async (req, res, next) => {
   let decoded;
   try {
     // Try to verify the token
-    decoded = jsonwebtoken.verify(token, process.env.SECRET_JWT_KEY);    
+    decoded = jsonwebtoken.verify(token, process.env.SECRET_JWT_KEY);
   } catch (error) {
     if (error instanceof jsonwebtoken.TokenExpiredError) {
       // Token is expired, but we can still decode it to get userId
@@ -104,15 +109,8 @@ export const refreshToken = asyncErrHandler(async (req, res, next) => {
   if (!user) {
     return next(new CustomError('User not found', 404));
   }
-  const newToken = jsonwebtoken.sign({userId: user._id}, process.env.SECRET_JWT_KEY, {expiresIn: process.env.EXPIRES_IN});
-  const isProd = process.env.NODE_ENV === 'production';
-  res.cookie('accessToken', newToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
-    maxAge: 15 * 60 * 1000,
-    path: '/',
-  });
+  generateTokenAndSetCookie(user, res)
+
   return res.status(200).json({ status: 'success', message: 'Token refreshed successfully' });
 });
 
@@ -124,3 +122,24 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
     token
   }).end()
 })
+
+export const googleAuth = passport.authenticate('google', {scope: ['profile', 'email']})
+
+export const googleAuthCallback = (req, res, next) => {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  passport.authenticate('google', {session: false}, (err, user, info) => {
+    if (err || !user) {
+
+      if (!isProd) { // if its dev env then show the problem
+        console.error('Google OAuth Error', err);
+      }
+
+      return res.redirect(`${process.env.FRONTEND_ORIGIN || 'http://localhost:5173'}/login?error=oauth_error`)
+    }
+
+    generateTokenAndSetCookie(user, res, true); // rememberMe is true for OAuth logins
+
+    return res.redirect(`${process.env.FRONTEND_ORIGIN || 'http://localhost:5173'}/?auth=success`)
+  })(req, res, next)
+}

@@ -6,8 +6,9 @@ export const loginSchema = z.object({
     .min(1, 'Email is required'),
   password: z
     .string()
-    .min(1, 'Password is required'),
-    rememberMe: z.boolean(),
+    .min(1, 'Password is required')
+    .max(100, 'Password must be less than 100 characters'),
+    rememberMe: z.boolean().optional(),
 })
 
 export const signupSchema = z.object({

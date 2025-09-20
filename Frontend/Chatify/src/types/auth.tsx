@@ -4,12 +4,14 @@ export interface User {
   lastName: string;
   email: string;
   profilePic?: string;
+  authProvider: 'local' | 'google' | 'github' | 'linkedIn';
+  isVerified: boolean;
 }
 
 export interface LoginData {
   email: string;
   password: string;
-  rememberMe: boolean;
+  rememberMe?: boolean;
 }
 
 export interface SignupData {
@@ -21,7 +23,6 @@ export interface SignupData {
 
 export interface AuthContextType {
   user: User | null;
-  // isLoading: boolean;
   isAuthenticated: boolean;
   login: (userData: LoginData) => Promise<void>;
   signup: (userData: SignupData) => Promise<void>;
