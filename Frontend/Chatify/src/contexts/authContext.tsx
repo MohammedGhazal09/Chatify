@@ -2,7 +2,7 @@ import  { useEffect, useState, useCallback } from 'react'
 import axiosInstance from '../api';
 import type { ReactNode, FC  } from 'react'
 import type { User, SignupData, LoginData, AuthContextType } from '../types/auth';
-import { AuthContextDef } from './authContextDef'
+import { AuthContextDef } from './authContextDef';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -10,7 +10,6 @@ interface AuthProviderProps {
 
 // CSRF token fetcher
 const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
-  console.log("Here!");
   try {
     await axiosInstance.get('/api/csrf-token', {signal});
     localStorage.setItem('Visited', 'true');
@@ -52,6 +51,7 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
     }
   }, [checkAuthStatus])
 
+
   useEffect(() => {
     const abortController = new AbortController()
     checkIfCSRFTokenExists(abortController.signal)
@@ -61,15 +61,11 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
 
     const signup = useCallback(async (userData: SignupData): Promise<void> => {
       try {
-        // setIsLoading(true)
-        // await ensureCSRFToken()
         await axiosInstance.post('/api/auth/signup', userData)
-        await checkAuthStatus() // don't check auth status after signup
+        await checkAuthStatus()
       } catch (err: unknown) {
         setUser(null)
         throw err
-      } finally {
-        // setIsLoading(false)
       }
     }, [checkAuthStatus])
 
@@ -77,7 +73,6 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
       
       try {
         // setIsLoading(true)
-        // await ensureCSRFToken()
         await axiosInstance.post('/api/auth/login', userData)
         await checkAuthStatus()
       } catch (err: unknown) {

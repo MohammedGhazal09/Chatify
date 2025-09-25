@@ -14,7 +14,13 @@ import { CustomError } from './Utils/customError.mjs';
 import sanitization from './Middlewares/sanitization.mjs';
 import passport from 'passport';
 import './Config/passport.mjs'; // Import passport configuration
-import { googleAuth, googleAuthCallback } from './Controller/authController.mjs';
+import {googleAuth,
+  googleCallback,
+  githubAuth,
+  githubCallback,
+  linkedinAuth,
+  linkedinCallback
+} from "./Controller/authController.mjs";
 const app = express();
 
 app.use(helmet());
@@ -41,8 +47,18 @@ app.use(sanitization);
 
 app.use(passport.initialize());
 
-app.get('/api/auth/google', googleAuth);
-app.get('/api/auth/google/callback', googleAuthCallback);
+// Google  routes
+app.get("/api/auth/google", googleAuth);
+app.get("/api/auth/google/callback", googleCallback);
+
+// GitHub routes
+app.get("/api/auth/github", githubAuth);
+app.get("/api/auth/github/callback", githubCallback);
+
+// LinkedIn routes
+app.get("/api/auth/linkedin", linkedinAuth);
+app.get("/api/auth/linkedin/callback", linkedinCallback);
+
 
 
 const isProd = process.env.NODE_ENV === 'production';

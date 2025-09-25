@@ -11,7 +11,6 @@ const userSchema = new mongoose.Schema({
    },
     lastName: {
         type: String,
-        required: true,
         trim: true
     },
     email: {
@@ -44,6 +43,14 @@ const userSchema = new mongoose.Schema({
       type: String,
       sparse: true
     },
+    linkedInId: {
+      type: String,
+      sparse: true
+    },
+    githubId: {
+      type: String,
+      sparse: true
+    },
     isVerified: {
       type: Boolean,
       default: function() {
@@ -58,12 +65,16 @@ const userSchema = new mongoose.Schema({
         transform: function (doc, ret) {
             delete ret.password; // Exclude password from the output
             delete ret.googleId;
+            delete ret.linkedInId;
+            delete ret.githubId;
             return ret;
         }
     },
   })
 
   userSchema.index({ googleId: 1, authProvider: 1})
+  userSchema.index({ linkedInId: 1, authProvider: 1})
+  userSchema.index({ githubId: 1, authProvider: 1})
 
   // Hashing Password before saving
   userSchema.pre('save', async function(next) {

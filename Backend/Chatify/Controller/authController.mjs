@@ -2,25 +2,8 @@ import User from '../Models/userModel.mjs';
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import {CustomError} from '../Utils/customError.mjs';
 import jsonwebtoken from 'jsonwebtoken'
+import { generateTokenAndSetCookie } from '../Utils/tokenCookieGenerator.mjs'
 import passport from 'passport';
-
-const generateTokenAndSetCookie = (user, res, rememberMe = false) => {
-  const expiresIn = rememberMe ? '30d' : process.env.EXPIRES_IN || '15m';
-  const token = jsonwebtoken.sign({userId:user._id}, process.env.SECRET_JWT_KEY, {expiresIn});
-
-  const isProd = process.env.NODE_ENV === 'production';
-  const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 15 * 60 * 1000;
-  
-  res.cookie('accessToken', token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
-    maxAge,
-    path: '/'
-  })
-
-  return token
-}
 
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
@@ -120,26 +103,47 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
     status:"success",
     message:"User is authenticated",
     token
-  }).end()
+  })
 })
 
-export const googleAuth = passport.authenticate('google', {scope: ['profile', 'email']})
-
-export const googleAuthCallback = (req, res, next) => {
-  const isProd = process.env.NODE_ENV === 'production';
-
-  passport.authenticate('google', {session: false}, (err, user, info) => {
-    if (err || !user) {
-
-      if (!isProd) { // if its dev env then show the problem
-        console.error('Google OAuth Error', err);
+// Helper function for OAuth callbacks
+const createOAuthCallback = (provider) => {
+  return asyncErrHandler(async (req, res, next) => {
+    passport.authenticate(provider, { session: false }, (err, user, info) => {
+      const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+      
+      if (err) {
+        console.error(`${provider} OAuth error:`, err);
+        return res.redirect(`${frontendOrigin}/login?error=oauth_error`);
       }
+      
+      if (!user) {
+        return res.redirect(`${frontendOrigin}/login?error=oauth_failed`);
+      }
+      
+      // Generate JWT token
+      generateTokenAndSetCookie(user, res, true);
+      
+      // Redirect to frontend
+      return res.redirect(`${frontendOrigin}/?auth=success`);
+    })(req, res, next);
+  });
+};
 
-      return res.redirect(`${process.env.FRONTEND_ORIGIN || 'http://localhost:5173'}/login?error=oauth_error`)
-    }
+// OAuth authentication initiators
+export const googleAuth = passport.authenticate('google', {
+  scope: ['profile', 'email']
+});
 
-    generateTokenAndSetCookie(user, res, true); // rememberMe is true for OAuth logins
+export const githubAuth = passport.authenticate('github', {
+  scope: ['user:email']
+});
 
-    return res.redirect(`${process.env.FRONTEND_ORIGIN || 'http://localhost:5173'}/?auth=success`)
-  })(req, res, next)
-}
+export const linkedinAuth = passport.authenticate('linkedin', {
+  scope: ['r_emailaddress', 'r_liteprofile']
+});
+
+// OAuth callbacks
+export const googleCallback = createOAuthCallback('google');
+export const githubCallback = createOAuthCallback('github');
+export const linkedinCallback = createOAuthCallback('linkedin');

@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthRedirect } from '../../hooks/useAuthRedirect';
+import { useLoading } from '../../hooks/useLoading';
 import { loginSchema, type LoginFormData } from '../../utils/validationSchemas';
 import ChatifyIcon from '../../components/chatifyIcon';
 import axios from 'axios';
@@ -15,6 +16,7 @@ const Login = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { isLoading, withLoading } = useLoading();
 
   const {
     register,
@@ -27,8 +29,8 @@ const Login = () => {
     mode: 'onChange'
   });
 
-  useAuthRedirect();
 
+useAuthRedirect();
   // Handle OAuth callback and errors
   useEffect(() => {
     const authStatus = searchParams.get('auth');
@@ -37,56 +39,64 @@ const Login = () => {
     if (authStatus === 'success') {
       navigate('/', { replace: true });
     } else if (error) {
-      let errorMessage = 'Authentication failed';
-      
-      switch (error) {
-        case 'oauth_error':
-          errorMessage = 'Google authentication failed. Please try again.';
-          break;
-        case 'oauth_failed':
-          errorMessage = 'Google authentication was cancelled.';
-          break;
-        case 'oauth_token_error':
-          errorMessage = 'Failed to get authentication token from Google.';
-          break;
-        default:
-          errorMessage = 'An error occurred during authentication.';
+      try {
+        const errorDetails = JSON.parse(decodeURIComponent(error));
+        console.error('OAuth Error Details:', errorDetails);
+        
+        setError('root', { 
+          type: 'manual', 
+          message: `${errorDetails.message} (Code: ${errorDetails.code})` 
+        });
+      } catch  {
+        // Fallback for simple error strings
+        console.error('OAuth Error:', error);
+        setError('root', { 
+          type: 'manual', 
+          message: `Authentication failed: ${error}` 
+        });
       }
       
-      setError('root', { type: 'manual', message: errorMessage });
       navigate('/login', { replace: true });
     }
   }, [searchParams, navigate, setError]);
-
   const onSubmit = async (data: LoginFormData) => {
     clearErrors('root');
 
-    try {
-      await login(data);
-    } catch (err: unknown) {
-      let message = 'Login failed';
-      
-      if (axios.isAxiosError(err)) {
-        const errorMsg = err.response?.data?.message;
-        if (errorMsg) {
-          message = errorMsg;
-        } else if (err.response?.status === 401) {
-          message = 'Invalid email or password';
-        } else if (err.response?.status && err.response?.status >= 500) {
-          message = 'Server error. Please try again later.';
+    await withLoading(async () => {
+      try {
+        await login(data);
+      } catch (err: unknown) {
+        let message = 'Login failed';
+        
+        if (axios.isAxiosError(err)) {
+          const errorMsg = err.response?.data?.message;
+          if (errorMsg) {
+            message = errorMsg;
+          } else if (err.response?.status === 401) {
+            message = 'Invalid email or password';
+          } else if (err.response?.status && err.response?.status >= 500) {
+            message = 'Server error. Please try again later.';
+          }
+        } else if (err instanceof Error) {
+          message = err.message;
         }
-      } else if (err instanceof Error) {
-        message = err.message;
+        
+        setError('root', { type: 'manual', message });
       }
-      
-      setError('root', { type: 'manual', message });
-    }
-  };
 
+    }
+  );
+  };
   const handleGoogleLogin = () => {
     clearErrors('root');
     window.location.href = '/api/auth/google';
   };
+
+  const handleGitHubLogin = () => {
+    clearErrors('root');
+    window.location.href = '/api/auth/github';
+  }
+
 
   const socialButtons = [
     { 
@@ -99,7 +109,7 @@ const Login = () => {
       icon: FaGithub, 
       label: 'GitHub', 
       color: 'hover:bg-gray-700',
-      onClick: () => console.log('GitHub login not implemented')
+      onClick: handleGitHubLogin
     },
     { 
       icon: FaLinkedin, 
@@ -108,7 +118,7 @@ const Login = () => {
       onClick: () => console.log('LinkedIn login not implemented')
     }
   ];
-
+  
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden">
@@ -216,10 +226,10 @@ const Login = () => {
             {/* Submit button */}
             <button
               onClick={handleSubmit(onSubmit)}
-              disabled={isSubmitting}
+              disabled={isLoading}
               className="w-full bg-gradient-to-r cursor-pointer from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 shadow-lg shadow-green-500/25"
             >
-              {isSubmitting ? (
+              {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
                 <>

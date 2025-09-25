@@ -1,5 +1,11 @@
 import { Router } from "express";
-import {signup, login, logout, refreshToken, isAuthenticated } from "../Controller/authController.mjs";
+import {
+  signup, 
+  login, 
+  logout, 
+  refreshToken, 
+  isAuthenticated,
+} from "../Controller/authController.mjs";
 const router = Router();
 
 
