@@ -115,7 +115,6 @@ passport.use(new GitHubStrategy({
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
     callbackURL: "http://localhost:3000/api/auth/github/callback"
 }, async (accessToken, refreshToken, profile, done) => {
-  writeFileSync("profile.json", JSON.stringify(profile, null, 2));
     try {
         const user = await handleOAuthUser(profile, 'github');
         return done(null, user);

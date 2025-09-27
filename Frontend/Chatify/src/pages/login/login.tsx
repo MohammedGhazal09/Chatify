@@ -4,19 +4,18 @@ import { FaGoogle, FaGithub, FaLinkedin } from "react-icons/fa";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
 import { useAuthRedirect } from '../../hooks/useAuthRedirect';
-import { useLoading } from '../../hooks/useLoading';
 import { loginSchema, type LoginFormData } from '../../utils/validationSchemas';
 import ChatifyIcon from '../../components/chatifyIcon';
 import axios from 'axios';
+import useAuthStore from '../../store/authStor';
+import LoadingSpinner from '../../components/loadingSpinner';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const { isLoading, withLoading } = useLoading();
+  const { setOAuthLoading, isOAuthLoading, login, isLoading } = useAuthStore()
 
   const {
     register,
@@ -59,10 +58,10 @@ useAuthRedirect();
       navigate('/login', { replace: true });
     }
   }, [searchParams, navigate, setError]);
+
+
   const onSubmit = async (data: LoginFormData) => {
     clearErrors('root');
-
-    await withLoading(async () => {
       try {
         await login(data);
       } catch (err: unknown) {
@@ -84,19 +83,22 @@ useAuthRedirect();
         setError('root', { type: 'manual', message });
       }
 
-    }
-  );
-  };
-  const handleGoogleLogin = () => {
-    clearErrors('root');
-    window.location.href = '/api/auth/google';
-  };
+    };
 
-  const handleGitHubLogin = () => {
-    clearErrors('root');
-    window.location.href = '/api/auth/github';
-  }
+const handleGoogleLogin = () => {
+  clearErrors('root');
+  setOAuthLoading(true);
+  localStorage.setItem('oauth-pending', 'true');
+  window.open('/api/auth/google', '_blank', 'width=600,height=600,top=100,left=100, noopener,noreferrer');
+};
 
+// Replace handleGitHubLogin:
+const handleGitHubLogin = () => {
+  clearErrors('root');
+  setOAuthLoading(true);
+  localStorage.setItem('oauth-pending', 'true');
+  window.open('/api/auth/github', '_blank', 'noopener,noreferrer');
+}
 
   const socialButtons = [
     { 
@@ -253,10 +255,15 @@ useAuthRedirect();
               <button
                 key={label}
                 onClick={onClick}
+                disabled={isOAuthLoading}
                 className={`flex items-center justify-center p-3 border border-gray-700 rounded-xl bg-gray-800/50 hover:bg-gray-700 ${color} transition-all transform hover:scale-105 active:scale-95 cursor-pointer`}
                 title={`Continue with ${label}`}
               >
-                <Icon size={20} />
+              {isOAuthLoading ? (
+                <LoadingSpinner/>
+                  ) : (
+                  <Icon size={20} />
+                  )}
               </button>
             ))}
           </div>

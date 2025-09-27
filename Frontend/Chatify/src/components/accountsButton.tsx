@@ -3,7 +3,6 @@ interface AccountsButtonProps {
   text: string;
   disabled?: boolean;
 }
-
 export default function AccountsButton({ color, text, disabled = false }: AccountsButtonProps) {
   return (
     <button
