@@ -4,6 +4,7 @@ import { CustomError } from "../Utils/customError.mjs";
 
 const protect = asyncErrHandler(async (req, res, next) => {
   let token = req.cookies?.accessToken;
+  
   if (!token) {
     if (
       req.headers.authorization &&
