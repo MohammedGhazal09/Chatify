@@ -1,4 +1,4 @@
-import  { useEffect, useState, useCallback } from 'react'
+import  { useEffect, useState, useCallback, useMemo } from 'react'
 import axiosInstance from '../api';
 import type { ReactNode, FC  } from 'react'
 import type { User, SignupData, LoginData, AuthContextType } from '../types/auth';
@@ -20,7 +20,7 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
 
  const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
-  // const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isLoading, setIsLoading] = useState<boolean>(false)
   const isAuthenticated = !!user
 
 
@@ -34,12 +34,14 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
         return
       }
     }
-      // setIsLoading(true)
+      setIsLoading(true)
       const response = await axiosInstance.get('/api/user/get-logged-user', {signal})
       setUser(response.data.user)
     } catch (err: unknown) {
       console.error(err instanceof Error ? err : 'Unknown error')
       setUser(null)
+    } finally {
+      setIsLoading(false)
     }
   }, [])
 
@@ -72,7 +74,7 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
     const login =useCallback( async (userData:LoginData): Promise<void> => {
       
       try {
-        // setIsLoading(true)
+        setIsLoading(true) 
         await axiosInstance.post('/api/auth/login', userData)
         await checkAuthStatus()
       } catch (err: unknown) {
@@ -80,32 +82,32 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
         setUser(null)
         throw err
       } finally {
-        // setIsLoading(false)
+        setIsLoading(false)
       }
       }, [checkAuthStatus])
 
       const logout = useCallback( async (): Promise<void> => {
         try {
-          // setIsLoading(true)
+          setIsLoading(true)
           await axiosInstance.post('/api/auth/logout')
         } catch (err: unknown) {
           console.error(err instanceof Error ? err.message : "Unknown error")
           throw err
         } finally {
           setUser(null)
-          // setIsLoading(false)
+          setIsLoading(false)
         }
       }, [])
 
-      const value: AuthContextType = {
+      const value: AuthContextType = useMemo(() => ({
         user,
-        // isLoading,
+        isLoading,
+        setIsLoading,
         isAuthenticated,
         login,
         signup,
         logout,
-      }
-      
+      }), [user, isAuthenticated, login, signup, logout, isLoading])
       return <AuthContextDef.Provider value={value}>{children}</AuthContextDef.Provider>
     }
   

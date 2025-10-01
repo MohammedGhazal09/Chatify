@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useAuthRedirect } from '../../hooks/useAuthRedirect';
-import { useLoading } from '../../hooks/useLoading';
 import { loginSchema, type LoginFormData } from '../../utils/validationSchemas';
 import ChatifyIcon from '../../components/chatifyIcon';
 import axios from 'axios';
@@ -15,8 +14,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const { isLoading, withLoading } = useLoading();
+  const { login, isLoading, setIsLoading } = useAuth();
 
   const {
     register,
@@ -38,6 +36,7 @@ useAuthRedirect();
     
     if (authStatus === 'success') {
       navigate('/', { replace: true });
+      setIsLoading(false);
     } else if (error) {
       try {
         const errorDetails = JSON.parse(decodeURIComponent(error));
@@ -58,12 +57,11 @@ useAuthRedirect();
       
       navigate('/login', { replace: true });
     }
-  }, [searchParams, navigate, setError]);
+  }, [searchParams, navigate, setError, setIsLoading]);
   const onSubmit = async (data: LoginFormData) => {
     clearErrors('root');
-
-    await withLoading(async () => {
       try {
+        setIsLoading(true);
         await login(data);
       } catch (err: unknown) {
         let message = 'Login failed';
@@ -82,10 +80,9 @@ useAuthRedirect();
         }
         
         setError('root', { type: 'manual', message });
+      } finally {
+        setIsLoading(false);
       }
-
-    }
-  );
   };
   const handleGoogleLogin = () => {
     clearErrors('root');
@@ -229,14 +226,12 @@ useAuthRedirect();
               disabled={isLoading}
               className="w-full bg-gradient-to-r cursor-pointer from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 shadow-lg shadow-green-500/25"
             >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
+              
                 <>
                   Sign In
                   <ArrowRight size={18} />
                 </>
-              )}
+              
             </button>
           </div>
 

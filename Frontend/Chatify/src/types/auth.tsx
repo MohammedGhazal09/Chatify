@@ -23,6 +23,8 @@ export interface SignupData {
 
 export interface AuthContextType {
   user: User | null;
+  isLoading: boolean;
+  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   isAuthenticated: boolean;
   login: (userData: LoginData) => Promise<void>;
   signup: (userData: SignupData) => Promise<void>;

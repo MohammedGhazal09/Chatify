@@ -3,20 +3,27 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Chat from './pages/chat/chat'
 import Signup from './pages/signup/signup'
 import Login from './pages/login/login'
-import AuthProvider from './contexts/authContext'
+// import AuthProvider from './contexts/authContext'
 import ProtectedRoute from './components/protectedRoute'
 import PublicRoute from './components/publicRoute'
+import LoadingSpinner from './components/loadingSpinner'
+import { useAuth } from './hooks/useAuth'
 
 function App() {
+  const { isLoading } = useAuth();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
   return (
     <BrowserRouter>
-      <AuthProvider>
+      {/* <AuthProvider> */}
         <Routes>
           <Route path='/' element={<ProtectedRoute><Chat/></ProtectedRoute>}></Route>
           <Route path='/signup' element={<PublicRoute><Signup/></PublicRoute>}></Route>
           <Route path='/login' element={<PublicRoute><Login/></PublicRoute>}></Route>
         </Routes>
-      </AuthProvider>
+      {/* </AuthProvider> */}
     </BrowserRouter>
   )
 }
