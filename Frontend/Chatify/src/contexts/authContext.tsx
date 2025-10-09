@@ -27,6 +27,7 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
   const checkAuthStatus = useCallback(async (check: boolean = false, signal?: AbortSignal): Promise<void> => {
         
     try {
+      setIsLoading(true)
       if (check) {
       const isToken = (await axiosInstance.get('/api/auth/is-authenticated', {signal})).data.token
       if (!isToken) {
@@ -34,8 +35,9 @@ const ensureCSRFToken = async (signal: AbortSignal): Promise<void> => {
         return
       }
     }
-      setIsLoading(true)
       const response = await axiosInstance.get('/api/user/get-logged-user', {signal})
+      console.log(response);
+      
       setUser(response.data.user)
     } catch (err: unknown) {
       console.error(err instanceof Error ? err : 'Unknown error')

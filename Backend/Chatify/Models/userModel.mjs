@@ -36,14 +36,14 @@ const userSchema = new mongoose.Schema({
     },
     authProvider: {
         type: String,
-        enum: ['local', 'google', 'linkedIn', 'github'],
+        enum: ['local', 'google', 'discord', 'github'],
         default: 'local',
     },
     googleId: {
       type: String,
       sparse: true
     },
-    linkedInId: {
+    discordId: {
       type: String,
       sparse: true
     },
@@ -65,7 +65,7 @@ const userSchema = new mongoose.Schema({
         transform: function (doc, ret) {
             delete ret.password; // Exclude password from the output
             delete ret.googleId;
-            delete ret.linkedInId;
+            delete ret.discordId;
             delete ret.githubId;
             return ret;
         }
@@ -73,7 +73,7 @@ const userSchema = new mongoose.Schema({
   })
 
   userSchema.index({ googleId: 1, authProvider: 1})
-  userSchema.index({ linkedInId: 1, authProvider: 1})
+  userSchema.index({ discordId: 1, authProvider: 1})
   userSchema.index({ githubId: 1, authProvider: 1})
 
   // Hashing Password before saving

@@ -3,7 +3,8 @@ import AccountsButton from '../../components/accountsButton';
 
 const Home = () => {
   const { user, logout } = useAuth();
-
+  console.log(user);
+  
   const handleLogout = async () => {
     try {
       await logout();
@@ -11,6 +12,7 @@ const Home = () => {
       console.error('Logout failed:', error);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-[#d3e2f1] p-8">

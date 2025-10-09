@@ -18,8 +18,8 @@ import {googleAuth,
   googleCallback,
   githubAuth,
   githubCallback,
-  linkedinAuth,
-  linkedinCallback
+  discordAuth,
+  discordCallback
 } from "./Controller/authController.mjs";
 const app = express();
 
@@ -55,9 +55,9 @@ app.get("/api/auth/google/callback", googleCallback);
 app.get("/api/auth/github", githubAuth);
 app.get("/api/auth/github/callback", githubCallback);
 
-// LinkedIn routes
-app.get("/api/auth/linkedin", linkedinAuth);
-app.get("/api/auth/linkedin/callback", linkedinCallback);
+// Discord routes
+app.get("/api/auth/discord", discordAuth);
+app.get("/api/auth/discord/callback", discordCallback);
 
 
 

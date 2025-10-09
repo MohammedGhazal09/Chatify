@@ -139,11 +139,11 @@ export const githubAuth = passport.authenticate('github', {
   scope: ['user:email']
 });
 
-export const linkedinAuth = passport.authenticate('linkedin', {
-  scope: ['r_emailaddress', 'r_liteprofile']
+export const discordAuth = passport.authenticate('discord', {
+  scope: ['identify', 'email']
 });
 
 // OAuth callbacks
 export const googleCallback = createOAuthCallback('google');
 export const githubCallback = createOAuthCallback('github');
-export const linkedinCallback = createOAuthCallback('linkedin');
+export const discordCallback = createOAuthCallback('discord');

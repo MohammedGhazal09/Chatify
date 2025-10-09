@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
-import { FaGoogle, FaGithub, FaLinkedin } from "react-icons/fa";
+import { FaGoogle, FaGithub, FaDiscord } from "react-icons/fa";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
@@ -58,6 +58,8 @@ useAuthRedirect();
       navigate('/login', { replace: true });
     }
   }, [searchParams, navigate, setError, setIsLoading]);
+  
+  // form submission handler
   const onSubmit = async (data: LoginFormData) => {
     clearErrors('root');
       try {
@@ -94,6 +96,11 @@ useAuthRedirect();
     window.location.href = '/api/auth/github';
   }
 
+  const handleDiscordLogin = () => {
+    clearErrors('root');
+    window.location.href = '/api/auth/discord';
+  }
+
 
   const socialButtons = [
     { 
@@ -109,10 +116,10 @@ useAuthRedirect();
       onClick: handleGitHubLogin
     },
     { 
-      icon: FaLinkedin, 
-      label: 'LinkedIn', 
+      icon: FaDiscord, 
+      label: 'Discord', 
       color: 'hover:bg-gray-800',
-      onClick: () => console.log('LinkedIn login not implemented')
+      onClick: handleDiscordLogin
     }
   ];
   
@@ -187,7 +194,7 @@ useAuthRedirect();
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? <EyeOff className='cursor-pointer' size={18} /> : <Eye className='cursor-pointer' size={18} />}
                 </button>
               </div>
               {errors.password && (
@@ -197,18 +204,22 @@ useAuthRedirect();
 
             {/* Remember me */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="rememberMe"
-                  {...register('rememberMe')}
-                  type="checkbox"
-                  className="h-4 w-4 text-green-600 bg-gray-800 border-gray-600 rounded focus:ring-green-500 focus:ring-2"
-                />
-                <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-300">
-                  Remember me
-                </label>
-              </div>
-              <a href="#" className="text-sm text-green-400 hover:text-green-300 transition-colors">
+              <label htmlFor="rememberMe" className="flex items-center cursor-pointer group">
+                <div className="relative">
+                  <input
+                    id="rememberMe"
+                    {...register('rememberMe')}
+                    type="checkbox"
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-800 border-2 border-gray-700 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-green-500 peer-checked:to-green-600 peer-checked:border-green-500 transition-all duration-300"></div>
+                  <div className="absolute top-1 left-1 w-4 h-4 bg-gray-600 rounded-full peer-checked:translate-x-5 peer-checked:bg-white transition-all duration-300 shadow-md pointer-events-none"></div>
+                </div>
+                <span className="ml-3 text-sm text-gray-400 group-hover:text-gray-200 transition-colors select-none">
+                  Remember me for 30 days
+                </span>
+              </label>
+              <a href="#" className="text-sm text-green-400 hover:text-green-300 transition-colors font-medium">
                 Forgot password?
               </a>
             </div>

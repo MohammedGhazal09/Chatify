@@ -4,7 +4,7 @@ export interface User {
   lastName: string;
   email: string;
   profilePic?: string;
-  authProvider: 'local' | 'google' | 'github' | 'linkedIn';
+  authProvider: 'local' | 'google' | 'github' | 'discord';
   isVerified: boolean;
 }
 
@@ -24,7 +24,7 @@ export interface SignupData {
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsLoading: (loading: boolean) => void;
   isAuthenticated: boolean;
   login: (userData: LoginData) => Promise<void>;
   signup: (userData: SignupData) => Promise<void>;

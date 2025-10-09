@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight } from 'lucide-react';
-import { FaGoogle, FaGithub, FaLinkedin } from "react-icons/fa";
+import { FaGoogle, FaGithub, FaDiscord } from "react-icons/fa";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
@@ -14,7 +14,7 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { signup, setIsLoading } = useAuth();
 
   const {
     register,
@@ -36,32 +36,34 @@ const Signup = () => {
     
     if (authStatus === 'success') {
       navigate('/', { replace: true });
+      setIsLoading(false);
     } else if (error) {
-      let errorMessage = 'Authentication failed';
-      
-      switch (error) {
-        case 'oauth_error':
-          errorMessage = 'Google authentication failed. Please try again.';
-          break;
-        case 'oauth_failed':
-          errorMessage = 'Google authentication was cancelled.';
-          break;
-        case 'oauth_token_error':
-          errorMessage = 'Failed to get authentication token from Google.';
-          break;
-        default:
-          errorMessage = 'An error occurred during authentication.';
+      try {
+        const errorDetails = JSON.parse(decodeURIComponent(error));
+        console.error('OAuth Error Details:', errorDetails);
+        
+        setError('root', { 
+          type: 'manual', 
+          message: `${errorDetails.message} (Code: ${errorDetails.code})` 
+        });
+      } catch  {
+        // Fallback for simple error strings
+        console.error('OAuth Error:', error);
+        setError('root', { 
+          type: 'manual', 
+          message: `Authentication failed: ${error}` 
+        });
       }
       
-      setError('root', { type: 'manual', message: errorMessage });
-      navigate('/signup', { replace: true });
+      navigate('/login', { replace: true });
     }
-  }, [searchParams, navigate, setError]);
+  }, [searchParams, navigate, setError, setIsLoading]);
 
   const onSubmit = async (data: SignupFormData) => {
     clearErrors('root');
 
     try {
+      setIsLoading(true);
       await signup(data);
     } catch (err: unknown) {
       let message = 'Signup failed';
@@ -70,7 +72,7 @@ const Signup = () => {
         const errorMsg = err.response?.data?.message;
         if (errorMsg) {
           message = errorMsg;
-        } else if (err.response?.status === 400) {
+        } else if (err.response?.status === 400 || err.response?.status === 401) {
           message = 'Invalid information provided. Please check your details.';
         } else if (err.response?.status && err.response.status >= 500) {
           message = 'Server error. Please try again later.';
@@ -80,12 +82,24 @@ const Signup = () => {
       }
       
       setError('root', { type: 'manual', message });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleGoogleSignup = () => {
     clearErrors('root');
     window.location.href = '/api/auth/google';
+  };
+
+  const handleGitHubSignup = () => {
+    clearErrors('root');
+    window.location.href = '/api/auth/github';
+  };
+
+  const handleDiscordSignup = () => {
+    clearErrors('root');
+    window.location.href = '/api/auth/discord';
   };
 
   const socialButtons = [
@@ -99,13 +113,13 @@ const Signup = () => {
       icon: FaGithub, 
       label: 'GitHub', 
       color: 'hover:bg-red-600',
-      onClick: () => console.log('GitHub signup not implemented')
+      onClick: handleGitHubSignup
     },
     { 
-      icon: FaLinkedin, 
-      label: 'LinkedIn', 
+      icon: FaDiscord, 
+      label: 'Discord', 
       color: 'hover:bg-red-600',
-      onClick: () => console.log('LinkedIn signup not implemented')
+      onClick: handleDiscordSignup
     }
   ];
 

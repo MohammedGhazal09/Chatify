@@ -1,26 +1,17 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as GitHubStrategy } from 'passport-github2';
-import { Strategy as LinkedInStrategy } from 'passport-linkedin-oauth2';
+import {Strategy as DiscordStrategy} from 'passport-discord'
 import User from '../Models/userModel.mjs';
 
 // Helper function to create or find OAuth user
 const handleOAuthUser = async (profile, provider) => {
     try {
+
         const providerEmail = profile.email;
-        const providerEmailField = profile.emails && profile.emails.length > 0 ? profile.emails[0].value : null;
         const providerId = profile.id;
         const providerIdField = `${provider}Id`;
-        // Check if user already exists with this provider email
-        let existingUser = await User.findOne({ 
-            [providerEmailField]: providerEmail,
-            authProvider: provider 
-        });
         
-        if (existingUser) {
-            return existingUser;
-        }
-
         // Extract user info based on provider
         let userInfo = {};
         
@@ -43,12 +34,13 @@ const handleOAuthUser = async (profile, provider) => {
                     profilePic: profile.photos[0]?.value || ''
                 };
                 break;
-            case 'linkedin':
+            case 'discord':
+              const avatarUrl = profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png` : null;
                 userInfo = {
-                    firstName: profile.name.givenName,
-                    lastName: profile.name.familyName,
-                    email: profile.emails[0].value,
-                    profilePic: profile.photos[0]?.value || ''
+                    firstName: profile.username || profile.global_name,
+                    lastName: '',
+                    email: providerEmail,
+                    profilePic: avatarUrl || ''
                 };
                 break;
         }
@@ -56,13 +48,14 @@ const handleOAuthUser = async (profile, provider) => {
         // Check if user exists with same email (account linking)
         const existingEmailUser = await User.findOne({ 
             email: userInfo.email,
-            authProvider: 'local'
         });
 
         if (existingEmailUser) {
             // Link provider account to existing local account
             existingEmailUser.authProvider = provider;
             existingEmailUser.isVerified = true;
+            existingEmailUser.profilePic = userInfo.profilePic
+            existingEmailUser[providerIdField] = providerId;
             
             // Update profile pic if user doesn't have one
             if (!existingEmailUser.profilePic && userInfo.profilePic) {
@@ -123,19 +116,18 @@ passport.use(new GitHubStrategy({
     }
 }));
 
-// LinkedIn OAuth Strategy
-passport.use(new LinkedInStrategy({
-    clientID: process.env.LINKEDIN_CLIENT_ID,
-    clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/api/auth/linkedin/callback",
-    scope: ['r_emailaddress', 'r_liteprofile']
+passport.use(new DiscordStrategy({
+    clientID: process.env.DISCORD_CLIENT_ID,
+    clientSecret: process.env.DISCORD_CLIENT_SECRET,
+    callbackURL: "http://localhost:3000/api/auth/discord/callback",
+    scope: ['identify', 'email'],
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        const user = await handleOAuthUser(profile, 'linkedin');
+        const user = await handleOAuthUser(profile, 'discord');
         return done(null, user);
     } catch (error) {
         return done(error, null);
     }
-}));
+}))
 
 export default passport;
