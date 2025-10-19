@@ -21,12 +21,12 @@ export interface SignupData {
   password: string;
 }
 
-export interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
-  isAuthenticated: boolean;
-  login: (userData: LoginData) => Promise<void>;
-  signup: (userData: SignupData) => Promise<void>;
-  logout: () => Promise<void>;
-}
+// export interface AuthContextType {
+//   user: User | null;
+//   // isLoading: boolean;
+//   // setIsLoading: (loading: boolean) => void;
+//   isAuthenticated: boolean;
+//   login: (userData: LoginData) => Promise<Error | null | void>;
+//   signup: (userData: SignupData) => Promise<Error | null | void>;
+//   logout: () => Promise<Error | null | void>;
+// }

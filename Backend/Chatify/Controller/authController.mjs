@@ -4,6 +4,8 @@ import {CustomError} from '../Utils/customError.mjs';
 import jsonwebtoken from 'jsonwebtoken'
 import { generateTokenAndSetCookie } from '../Utils/tokenCookieGenerator.mjs'
 import passport from 'passport';
+import PasswordReset from '../Models/passwordResetModel.mjs';
+import {sendPasswordResetEmail} from '../Services/emailService.mjs';
 
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
@@ -39,7 +41,7 @@ export const login = asyncErrHandler(async (req, res, next) => {
   if (!email || !password) {
     return next(new CustomError('Please provide email and password', 400));
   }
-  const user = await User.findOne({email:email, authProvider: 'local'}).select("+password")
+  const user = await User.findOne({email:email}).select("+password")
   if (!user) return next(new CustomError("User doesn't exist",401))
   const credentials = await user.checkPassword(password)
   if (!credentials) {
@@ -147,3 +149,86 @@ export const discordAuth = passport.authenticate('discord', {
 export const googleCallback = createOAuthCallback('google');
 export const githubCallback = createOAuthCallback('github');
 export const discordCallback = createOAuthCallback('discord');
+
+const generateResetCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit code
+}
+
+export const forgotPassword = asyncErrHandler(async (req, res, next) => {
+  const { email } = req.body;
+  if (!email) {
+    return next(new CustomError('Please provide your email', 400));
+  }
+  const user = await User.findOne({ email, authProvider: 'local'})
+
+  if (!user) {
+    return res.status(200).json({
+      status: 'success',
+      message: 'If an account with that email exists, a reset code has been sent'
+    })}
+
+    await PasswordReset.deleteMany({ userId: user._id});
+
+    const resetCode = generateResetCode();
+
+    await PasswordReset.create({
+      userId: user._id,
+      email: user.email,
+      token: resetCode,
+    })
+
+    try {
+      await sendPasswordResetEmail(user.email, resetCode);
+    } catch (err) {
+      return next(new CustomError('Failed to send reset email. Please try again.', 500));
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'If an account with that email exists, a reset code has been sent'
+    })
+  })
+
+  export const verifyResetCode = asyncErrHandler(async (req, res, next) => {
+    const { email, code} = req.body;
+    if (!email || !code) {
+      return next(new CustomError('Please provide email and reset code', 400));
+    }
+    const resetToken = await PasswordReset.findOne({email, token: code, expiresAt: { $gt: new Date()}})
+    
+    if (!resetToken) {
+      return next(new CustomError('Invalid or expired reset code', 400));
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Code verified successfully'
+    })
+  })
+
+  export const resetPassword = asyncErrHandler(async (req, res, next) => {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return next(new CustomError('Please provide email, reset code and new password', 400));
+    }
+    
+    const resetToken = await PasswordReset.findOne({email, token: code, expiresAt: { $gt: new Date()}})
+
+    if (!resetToken) {
+      return next(new CustomError('Invalid or expired reset code', 400));
+    }
+
+    const user = await User.findById(resetToken.userId);
+    if (!user) {
+      return next(new CustomError('User not found', 404));
+    }
+
+    user.password = newPassword;
+    await user.save();
+    await PasswordReset.deleteOne({ _id: resetToken._id});
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Password reset successfully'
+    })
+  })

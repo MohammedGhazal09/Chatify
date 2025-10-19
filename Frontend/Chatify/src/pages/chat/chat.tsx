@@ -1,13 +1,12 @@
-import { useAuth } from '../../hooks/useAuth';
 import AccountsButton from '../../components/accountsButton';
-
+import { useAuthStore } from '../../store/authstore';
+import { useLogout } from '../../hooks/useAuthQuery';
 const Home = () => {
-  const { user, logout } = useAuth();
-  console.log(user);
-  
+  const { user } = useAuthStore();
+  const logoutMutation = useLogout();  
   const handleLogout = async () => {
     try {
-      await logout();
+      await logoutMutation.mutateAsync();
     } catch (error) {
       console.error('Logout failed:', error);
     }

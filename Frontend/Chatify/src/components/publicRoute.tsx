@@ -1,6 +1,6 @@
 import type { FC, ReactNode } from "react";
-import { useAuth } from "../hooks/useAuth";
 import  { Navigate } from "react-router-dom";
+import { useAuthStore } from "../store/authstore";
 
 interface PublicRouteProps {
   children: ReactNode;
@@ -8,7 +8,7 @@ interface PublicRouteProps {
 }
 
 const PublicRoute : FC<PublicRouteProps> = ({children, redirectTo = '/'}) => {
-  const {isAuthenticated } = useAuth();
+  const {isAuthenticated } = useAuthStore();
 
   if (isAuthenticated) {
     return <Navigate to={redirectTo} replace/>

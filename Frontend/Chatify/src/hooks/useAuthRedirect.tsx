@@ -1,10 +1,10 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "./useAuth"
+import { useAuthStore } from "../store/authstore";
 import { useEffect } from "react";
 
 
 export const useAuthRedirect = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
 

@@ -4,17 +4,19 @@ import { FaGoogle, FaGithub, FaDiscord } from "react-icons/fa";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
 import { useAuthRedirect } from '../../hooks/useAuthRedirect';
+import { useAuthStore } from '../../store/authstore';
+import { useSignup } from '../../hooks/useAuthQuery';
 import { signupSchema, type SignupFormData } from '../../utils/validationSchemas';
 import ChatifyIcon from '../../components/chatifyIcon';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { signup, setIsLoading } = useAuth();
+  const setLoading = useAuthStore((state) => state.setLoading);
+  const signupMutation = useSignup();
 
   const {
     register,
@@ -36,7 +38,7 @@ const Signup = () => {
     
     if (authStatus === 'success') {
       navigate('/', { replace: true });
-      setIsLoading(false);
+      setLoading(false);
     } else if (error) {
       try {
         const errorDetails = JSON.parse(decodeURIComponent(error));
@@ -57,35 +59,22 @@ const Signup = () => {
       
       navigate('/login', { replace: true });
     }
-  }, [searchParams, navigate, setError, setIsLoading]);
+  }, [searchParams, navigate, setError, setLoading]);
 
-  const onSubmit = async (data: SignupFormData) => {
-    clearErrors('root');
+const onSubmit = async (data: SignupFormData) => {
+  clearErrors('root');
 
-    try {
-      setIsLoading(true);
-      await signup(data);
-    } catch (err: unknown) {
+  signupMutation.mutate(data, {
+    onError: (err: unknown | AxiosError) => {
       let message = 'Signup failed';
-      
-      if (axios.isAxiosError(err)) {
-        const errorMsg = err.response?.data?.message;
-        if (errorMsg) {
-          message = errorMsg;
-        } else if (err.response?.status === 400 || err.response?.status === 401) {
-          message = 'Invalid information provided. Please check your details.';
-        } else if (err.response?.status && err.response.status >= 500) {
-          message = 'Server error. Please try again later.';
-        }
-      } else if (err instanceof Error) {
-        message = err.message;
+      if (axios.isAxiosError(err))
+      if (err.response) {
+        message = err.response?.data?.message;
       }
-      
       setError('root', { type: 'manual', message });
-    } finally {
-      setIsLoading(false);
     }
-  };
+  });
+};
 
   const handleGoogleSignup = () => {
     clearErrors('root');
@@ -247,20 +236,20 @@ const Signup = () => {
             )}
 
             {/* Submit button */}
-            <button
-              onClick={handleSubmit(onSubmit)}
-              disabled={isSubmitting}
-              className="w-full bg-gradient-to-r cursor-pointer from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 shadow-lg shadow-green-500/25"
-            >
-              {isSubmitting ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <>
-                  Create Account
-                  <ArrowRight size={18} />
-                </>
-              )}
-            </button>
+<button
+  onClick={handleSubmit(onSubmit)}
+  disabled={isSubmitting || signupMutation.isPending}
+  className="w-full bg-gradient-to-r cursor-pointer from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 shadow-lg shadow-green-500/25"
+>
+  {isSubmitting || signupMutation.isPending ? (
+    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+  ) : (
+    <>
+      Create Account
+      <ArrowRight size={18} />
+    </>
+  )}
+</button>
           </div>
 
           {/* Divider */}

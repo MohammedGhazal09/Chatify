@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from "react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuthStore } from "../store/authstore";
 import { Navigate, useLocation } from "react-router-dom";
 
 interface ProtectedRouteProps {
@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: FC<ProtectedRouteProps> = ({children, redirectTo = '/login'}) => {
-  const { isAuthenticated } = useAuth(); 
+  const { isAuthenticated } = useAuthStore(); 
   
   const location = useLocation();
 

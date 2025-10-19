@@ -88,9 +88,6 @@ const userSchema = new mongoose.Schema({
   })
 
   userSchema.methods.checkPassword = async function(givenPassword)  {
-    if (this.authProvider !== 'local') {
-      throw new Error('Password verification is not applicable for non-local authentication providers.');
-    }
     return await verify(this.password,givenPassword)
   }
 
