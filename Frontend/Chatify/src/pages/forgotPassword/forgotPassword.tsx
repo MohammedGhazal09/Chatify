@@ -1,95 +1,112 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, Key, ArrowLeft } from 'lucide-react';
-import axiosInstance from '../../api/axios';
-import ChatifyIcon from '../../components/chatifyIcon';
-import axios from 'axios';
+import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Mail, Lock, Key, ArrowLeft } from "lucide-react";
+import ChatifyIcon from "../../components/chatifyIcon";
+import axios from "axios";
+import {
+  useForgotPassword,
+  useVerifyResetCode,
+  useResetPassword,
+} from "../../hooks/useAuthQuery";
+import { useForm } from "react-hook-form";
 
-type Step = 'email' | 'code' | 'password';
-
+type Step = "email" | "code" | "password";
+type EmailFormData = { email?: string };
+type CodeFormData = { email?: string; code?: string };
+type PasswordFormData = {
+  email?: string;
+  code?: string;
+  newPassword?: string;
+  confirmPassword?: string;
+};
 const ForgotPassword = () => {
-  const [step, setStep] = useState<Step>('email');
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showPassword] = useState(false);
+  const step = useRef<Step>("email");
+  const responseMsg = useRef<string>("");
   const navigate = useNavigate();
+  const forgotPasswordMutation = useForgotPassword();
+  const verifyResetCodeMutation = useVerifyResetCode();
+  const resetPasswordMutation = useResetPassword();
 
-  const handleSendCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    setError,
+    clearErrors,
+  } = useForm<EmailFormData | CodeFormData | PasswordFormData>({
+    mode: "onChange",
+  });
 
-    try {
-      await axiosInstance.post('/api/auth/forgot-password', { email });
-      setStep('code');
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || 'Failed to send reset code');
-      } else {
-        setError('An unexpected error occurred');
-      }
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSendCode = async (data: EmailFormData) => {
+    clearErrors("root");
+    forgotPasswordMutation.mutate(data.email!, {
+      onSuccess: (response) => {
+        responseMsg.current =
+          response.data?.message?.toString() || "Reset code sent";
+        step.current = "code";
+      },
+      onError: (err: unknown) => {
+        if (axios.isAxiosError(err)) {
+          setError("root", {
+            type: "manual",
+            message: err.response?.data?.message || "Failed to send reset code",
+          });
+        }
+      },
+    });
   };
 
-  const handleVerifyCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    try {
-      await axiosInstance.post('/api/auth/verify-reset-code', { email, code });
-      setStep('password');
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message);
-      } else {
-        setError('Invalid or expired code');
+  const handleVerifyCode = async (data: CodeFormData) => {
+    clearErrors("root");
+    verifyResetCodeMutation.mutate(
+      { email: data.email!, code: data.code! },
+      {
+        onSuccess: () => {
+          step.current = "password";
+        },
+        onError: (err: unknown) => {
+          if (axios.isAxiosError(err)) {
+            setError("root", {
+              type: "manual",
+              message: err.response?.data?.message || "Invalid or expired code",
+            });
+          }
+        },
       }
-    } finally {
-      setIsLoading(false);
-    }
+    );
   };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      await axiosInstance.post('/api/auth/reset-password', {
-        email,
-        code,
-        newPassword
+  const handleResetPassword = async (data: PasswordFormData) => {
+    clearErrors("root");
+    if (data.newPassword !== data.confirmPassword) {
+      setError("root", {
+        type: "manual",
+        message: "Passwords do not match",
       });
-      navigate('/login?reset=success');
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || 'Failed to reset password');
-      } else {
-        setError('An unexpected error occurred');
-      }
-    } finally {
-      setIsLoading(false);
+      return;
     }
+    resetPasswordMutation.mutate(
+      { email: data.email!, code: data.code!, newPassword: data.newPassword! },
+      {
+        onSuccess: () => {
+          navigate("/login");
+        },
+        onError: (err: unknown) => {
+          console.log(err)
+          console.log(axios.isAxiosError(err));
+          if (axios.isAxiosError(err)) {
+            setError("root", {
+              type: "manual",
+              message:
+                err.response?.data?.message || "Failed to reset password",
+            });
+          }
+        },
+      }
+    );
   };
-
+  console.log(errors.root);
+  
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background effects - same as login */}
@@ -108,39 +125,56 @@ const ForgotPassword = () => {
             Reset Password
           </h1>
           <p className="text-gray-400 text-sm mt-2">
-            {step === 'email' && "Enter your email to receive a reset code"}
-            {step === 'code' && "Enter the 6-digit code sent to your email"}
-            {step === 'password' && "Create your new password"}
+            {step.current === "email" &&
+              "Enter your email to receive a reset code"}
+            {step.current === "code" &&
+              "Enter the 6-digit code sent to your email"}
+            {step.current === "password" && "Create your new password"}
           </p>
         </div>
 
         <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800 rounded-2xl p-8 shadow-2xl">
           {/* Step indicator */}
           <div className="flex justify-center mb-8 space-x-2">
-            <div className={`h-2 w-16 rounded-full ${step === 'email' ? 'bg-green-500' : 'bg-gray-700'}`}></div>
-            <div className={`h-2 w-16 rounded-full ${step === 'code' ? 'bg-green-500' : 'bg-gray-700'}`}></div>
-            <div className={`h-2 w-16 rounded-full ${step === 'password' ? 'bg-green-500' : 'bg-gray-700'}`}></div>
+            <div
+              className={`h-2 w-16 rounded-full ${
+                step.current === "email" ? "bg-green-500" : "bg-gray-700"
+              }`}
+            ></div>
+            <div
+              className={`h-2 w-16 rounded-full ${
+                step.current === "code" ? "bg-green-500" : "bg-gray-700"
+              }`}
+            ></div>
+            <div
+              className={`h-2 w-16 rounded-full ${
+                step.current === "password" ? "bg-green-500" : "bg-gray-700"
+              }`}
+            ></div>
           </div>
 
-          {error && (
+          {errors.root && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6">
-              <p className="text-sm">{error}</p>
+              <p className="text-sm">{errors.root?.message}</p>
             </div>
           )}
 
           {/* Email Step */}
-          {step === 'email' && (
-            <form onSubmit={handleSendCode} className="space-y-6">
+          {step.current === "email" && (
+            <form onSubmit={handleSubmit(handleSendCode)} className="space-y-6">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">Email Address</label>
+                <label className="block text-sm font-medium text-gray-300">
+                  Email Address
+                </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
+                  <Mail
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    size={18}
+                  />
                   <input
                     type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    {...register("email", { required: true })}
                     placeholder="you@example.com"
-                    required
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                   />
                 </div>
@@ -148,10 +182,10 @@ const ForgotPassword = () => {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={isSubmitting}
+                className="cursor-pointer w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <>Send Reset Code</>
@@ -161,23 +195,40 @@ const ForgotPassword = () => {
           )}
 
           {/* Code Step */}
-          {step === 'code' && (
-            <form onSubmit={handleVerifyCode} className="space-y-6">
+          {step.current === "code" && (
+            <form
+              onSubmit={handleSubmit(handleVerifyCode)}
+              className="space-y-6"
+            >
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">Verification Code</label>
+                <label className="block text-sm font-medium text-gray-300">
+                  Verification Code
+                </label>
                 <div className="relative">
-                  <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
+                  <Key
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    size={18}
+                  />
                   <input
                     type="text"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    {...register("code", {
+                      required: true,
+                      onChange: (event) => {
+                        event.target.value = event.target.value.replace(/\D/g, "");
+                      },
+                    })}
                     placeholder="123456"
                     required
                     maxLength={6}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-center text-2xl tracking-wider"
+                    className="scrollbar-none overflow-hidden w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-center text-2xl tracking-wider"
                   />
                 </div>
               </div>
+              {responseMsg.current && (
+                <div className="bg-green-500/10 border border-green-500/20 text-green-400 px-4 py-3 rounded-xl mb-6">
+                  <p className="text-sm">{responseMsg.current}</p>
+                </div>
+              )}
 
               <p className="text-sm text-gray-400 text-center">
                 Code expires in 5 minutes
@@ -185,20 +236,20 @@ const ForgotPassword = () => {
 
               <button
                 type="submit"
-                disabled={isLoading || code.length !== 6}
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50"
+                disabled={isSubmitting}
+                className="cursor-pointer w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
                 ) : (
-                  'Verify Code'
+                  "Verify Code"
                 )}
               </button>
 
               <button
                 type="button"
-                onClick={() => setStep('email')}
-                className="w-full text-gray-400 hover:text-gray-300 text-sm"
+                onClick={() => (step.current = "email")}
+                className="hover:underline cursor-pointer w-full text-gray-400 hover:text-gray-300 text-sm"
               >
                 Didn't receive code? Try again
               </button>
@@ -206,35 +257,48 @@ const ForgotPassword = () => {
           )}
 
           {/* Password Step */}
-          {step === 'password' && (
-            <form onSubmit={handleResetPassword} className="space-y-6">
+          {step.current === "password" && (
+            <form
+              onSubmit={handleSubmit(handleResetPassword)}
+              className="space-y-6"
+            >
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">New Password</label>
+                <label className="block text-sm font-medium text-gray-300">
+                  New Password
+                </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
+                  <Lock
+                    className="z-10 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    size={18}
+                  />
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="********"
-                    required
+                    type={"password"}
+                    {...register("newPassword", {
+                      required: true,
+                    })}
                     minLength={8}
+                    placeholder="********"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">Confirm Password</label>
+                <label className="block text-sm font-medium text-gray-300">
+                  Confirm Password
+                </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
+                  <Lock
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    size={18}
+                  />
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="********"
+                    type={"password"}
+                    {...register("confirmPassword", {
+                    })}
                     required
                     minLength={8}
+                    placeholder="********"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                   />
                 </div>
@@ -242,13 +306,13 @@ const ForgotPassword = () => {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50"
+                disabled={isSubmitting}
+                className="cursor-pointer w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
                 ) : (
-                  'Reset Password'
+                  "Reset Password"
                 )}
               </button>
             </form>
@@ -256,8 +320,8 @@ const ForgotPassword = () => {
 
           {/* Back to login */}
           <button
-            onClick={() => navigate('/login')}
-            className="mt-6 w-full flex items-center justify-center gap-2 text-gray-400 hover:text-gray-300 text-sm"
+            onClick={() => navigate("/login")}
+            className="hover:underline cursor-pointer mt-6 w-full flex items-center justify-center gap-2 text-gray-400 hover:text-gray-300 text-sm"
           >
             <ArrowLeft size={16} />
             Back to login

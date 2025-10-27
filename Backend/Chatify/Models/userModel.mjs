@@ -79,7 +79,7 @@ const userSchema = new mongoose.Schema({
   // Hashing Password before saving
   userSchema.pre('save', async function(next) {
     try {
-      if (this.authProvider === 'local' && this.isModified('password'))
+      if (this.isModified('password'))
     this.password = await hash(this.password)
     next()
     } catch(err){ 
@@ -87,6 +87,10 @@ const userSchema = new mongoose.Schema({
     }
   })
 
+  userSchema.methods.hashPassword = async function(password) {
+    return await hash(password)
+  }
+  
   userSchema.methods.checkPassword = async function(givenPassword)  {
     return await verify(this.password,givenPassword)
   }

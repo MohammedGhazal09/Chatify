@@ -15,4 +15,10 @@ export const authApi = {
   logout: () => axiosInstance.post('/api/auth/logout'),
   
   refreshToken: () => axiosInstance.post('/api/auth/refresh-token'),
+
+  forgotPassword: (email: string) => axiosInstance.post('/api/auth/forgot-password', { email }),
+
+  verifyPasswordResetCode: (email: string, code: string) => axiosInstance.post('/api/auth/verify-reset-code', { email, code }),
+
+  resetPassword: (email: string, code: string, newPassword: string) => axiosInstance.post('/api/auth/reset-password', { email, code, newPassword }),
 };

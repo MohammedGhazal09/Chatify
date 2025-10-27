@@ -65,17 +65,24 @@ const Login = () => {
 
   // form submission handler
   const onSubmit = async (data: LoginFormData) => {
+    console.log(data);
+    
     clearErrors("root");
+    try {
     loginMutation.mutate(data, {
       onError: (err: unknown | AxiosError) => {
+        console.log(err);
+        
         let message = "Signup failed";
         if (axios.isAxiosError(err))
-          if (err.response) {
-            message = err.response?.data?.message;
-          }
+          message = err.response?.data?.message || err.message;
         setError("root", { type: "manual", message });
       },
-    });
+    })
+  } catch (error) {
+    console.error("Login error inside catch:", error);
+  }
+    
   };
 
   const handleGoogleLogin = () => {

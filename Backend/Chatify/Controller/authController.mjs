@@ -6,6 +6,7 @@ import { generateTokenAndSetCookie } from '../Utils/tokenCookieGenerator.mjs'
 import passport from 'passport';
 import PasswordReset from '../Models/passwordResetModel.mjs';
 import {sendPasswordResetEmail} from '../Services/emailService.mjs';
+import { hash } from 'argon2';
 
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
@@ -159,8 +160,8 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
   if (!email) {
     return next(new CustomError('Please provide your email', 400));
   }
-  const user = await User.findOne({ email, authProvider: 'local'})
-
+  const user = await User.findOne({ email })
+  
   if (!user) {
     return res.status(200).json({
       status: 'success',
@@ -176,10 +177,12 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
       email: user.email,
       token: resetCode,
     })
-
+    
     try {
       await sendPasswordResetEmail(user.email, resetCode);
     } catch (err) {
+      console.log(err);
+      
       return next(new CustomError('Failed to send reset email. Please try again.', 500));
     }
 
@@ -213,7 +216,7 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
     }
     
     const resetToken = await PasswordReset.findOne({email, token: code, expiresAt: { $gt: new Date()}})
-
+    
     if (!resetToken) {
       return next(new CustomError('Invalid or expired reset code', 400));
     }
