@@ -44,9 +44,9 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
   let userObjectId;
 
   try {
-    userObjectId = new mongoose.Types.ObjectId(req.userId);
+    userObjectId = new mongoose.Types.ObjectId.createFromHexString(req.userId);
   } catch (error) {
-    respondWithChatAccessError(res, 400, 'Invalid user id');
+    respondWithChatAccessError(res, 400, error.message);
     return;
   }
 
@@ -107,9 +107,9 @@ export const getAllMessages = asyncErrorHandler(async (req, res) => {
   let userObjectId;
 
   try {
-    userObjectId = new mongoose.Types.ObjectId(req.userId);
+    userObjectId = new mongoose.Types.ObjectId.createFromHexString(req.userId);
   } catch (error) {
-    respondWithChatAccessError(res, 400, 'Invalid user id');
+    respondWithChatAccessError(res, 400, error.message);
     return;
   }
 
