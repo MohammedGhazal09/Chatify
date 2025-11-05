@@ -37,25 +37,6 @@ export const useChats = () => {
   });
 };
 
-export const useCreateChat = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const queryClient = useQueryClient();
-
-  return useMutation<Chat, unknown, CreateChatVariables>({
-    mutationFn: async ({ targetEmail }) => {
-      if (!isAuthenticated) {
-        throw new Error('You must be logged in to start a chat.');
-      }
-
-      const response = await chatApi.createChat({ targetEmail });
-      return response.data.data.chat;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chatsQueryKey });
-    },
-  });
-};
-
 export const useMessages = (chatId: string | null) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [messages, setMessages] = useState<Message[]>([]);

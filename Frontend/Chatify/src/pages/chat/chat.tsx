@@ -6,8 +6,8 @@ import LoadingSpinner from '../../components/loadingSpinner';
 import { useAuthStore } from '../../store/authstore';
 import { useLogout } from '../../hooks/useAuthQuery';
 import { useChats, useCreateChat, useMessages, useSendMessage } from '../../hooks/useChatQueries';
+import { useChatSocket } from '../../hooks/useChatSocket';
 import type { Chat, Message } from '../../types/chat';
-import { isAxiosError } from 'axios';
 
 const formatTimestamp = (timestamp: string) => {
   const date = new Date(timestamp);
@@ -47,6 +47,13 @@ const ChatPage = () => {
   const sendMessage = useSendMessage();
   const createChat = useCreateChat();
 
+  // Connect to socket and handle incoming messages
+  useChatSocket({
+    chatId: selectedChatId,
+    enabled: !!selectedChatId && isAuthenticated,
+    onMessage: upsertMessage,
+  });
+
   useEffect(() => {
     if (!selectedChatId && chats && chats.length > 0) {
       setSelectedChatId(chats[0]._id);
@@ -54,18 +61,18 @@ const ChatPage = () => {
   }, [chats, selectedChatId]);
 
   useEffect(() => {
-    if (!createChatFeedback) {
+    if (!createChatError) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      setCreateChatFeedback(null);
+      setCreateChatError(null);
     }, 4000);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [createChatFeedback]);
+  }, [createChatError]);
 
   const selectedChat = useMemo(
     () => chats?.find((chat) => chat._id === selectedChatId) ?? null,
@@ -203,10 +210,10 @@ const ChatPage = () => {
               />
               <button
                 type="submit"
-                disabled={createChat.isLoading}
+                disabled={createChat.isPending}
                 className="rounded bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {createChat.isLoading ? 'Adding…' : 'Add' }
+                {createChat.isPending ? 'Adding…' : 'Add' }
               </button>
             </div>
             {createChatError ? (

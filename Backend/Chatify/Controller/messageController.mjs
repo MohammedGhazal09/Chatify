@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Message from '../Models/messageModel.mjs';
 import Chats from '../Models/chatModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
+import { getIO } from '../Config/socket.mjs';
 
 const respondWithChatAccessError = (res, statusCode, message) => {
   res.status(statusCode).json({
@@ -33,7 +34,7 @@ const loadChatForUser = async (chatId, userObjectId, res) => {
   return chat;
 };
 
-export const newMessage = asyncErrorHandler(async (req, res) => {
+export const newMessage = asyncErrorHandler(async (req, res, next) => {
   const { chatId, text } = req.body ?? {};
 
   if (!req.userId) {
@@ -44,7 +45,7 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
   let userObjectId;
 
   try {
-    userObjectId = new mongoose.Types.ObjectId.createFromHexString(req.userId);
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
   } catch (error) {
     respondWithChatAccessError(res, 400, error.message);
     return;
@@ -72,6 +73,8 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     text: sanitizedText,
   });
 
+  const seializedMessage = message.toObject();
+
   const recipientCount = chat.members.reduce((count, memberId) => {
     if (memberId.equals(userObjectId)) {
       return count;
@@ -90,6 +93,14 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
 
   await Chats.findByIdAndUpdate(chat._id, chatUpdate, { new: true });
 
+  try {
+    const io = getIO();
+    // Emit to everyone in the room including sender
+    io.in(chat._id.toString()).emit('message:new', seializedMessage)
+  } catch (err) {
+    console.error("Message sent but failed to emit via socket.io:", err);
+  }
+
   res.status(201).json({
     status: 'message created successfully',
     data: {
@@ -107,7 +118,7 @@ export const getAllMessages = asyncErrorHandler(async (req, res) => {
   let userObjectId;
 
   try {
-    userObjectId = new mongoose.Types.ObjectId.createFromHexString(req.userId);
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
   } catch (error) {
     respondWithChatAccessError(res, 400, error.message);
     return;

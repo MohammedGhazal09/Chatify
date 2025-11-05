@@ -123,7 +123,6 @@ const createOAuthCallback = (provider) => {
       if (!user) {
         return res.redirect(`${frontendOrigin}/login?error=oauth_failed`);
       }
-      
       // Generate JWT token
       generateTokenAndSetCookie(user, res, true);
       

@@ -9,10 +9,9 @@ type UseChatSocketOptions = {
   onMessage?: (message: Message) => void;
 };
 
-const DEV_PORT_FALLBACKS = new Set(['5173', '4173', '4174']);
 
 const resolveSocketUrl = () => {
-  const envUrl = import.meta.env.VITE_SOCKET_URL ?? import.meta.env.VITE_API_URL;
+  const envUrl = import.meta.env.VITE_SOCKET_URL ?? import.meta.env.VITE_BACKEND_URL;
   if (envUrl) {
     return envUrl;
   }
@@ -20,12 +19,6 @@ const resolveSocketUrl = () => {
   if (typeof window === 'undefined') {
     return undefined;
   }
-
-  const { protocol, hostname, port } = window.location;
-  const shouldUseFallback = (port && DEV_PORT_FALLBACKS.has(port)) || (!port && hostname === 'localhost');
-  const targetPort = shouldUseFallback ? '3000' : port ?? '';
-  const portSegment = targetPort ? `:${targetPort}` : '';
-  return `${protocol}//${hostname}${portSegment}`;
 };
 
 export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSocketOptions) => {

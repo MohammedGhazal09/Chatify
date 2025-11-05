@@ -3,11 +3,11 @@ import mongoose from "mongoose";
 const messageSchema = new mongoose.Schema({
   chatId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "chats",
+    ref: "Chats",
   },
   sender: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "users",
+    ref: "Users",
   },
   text: {
     type: String,
@@ -22,5 +22,5 @@ const messageSchema = new mongoose.Schema({
   versionKey: false,
 });
 
-const Message = mongoose.model("Message", messageSchema);
+const Message = mongoose.model("Messages", messageSchema);
 export default Message;

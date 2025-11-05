@@ -1,5 +1,4 @@
 import validator from "validator";
-
 import Chats from "../Models/chatModel.mjs";
 import User from "../Models/userModel.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
