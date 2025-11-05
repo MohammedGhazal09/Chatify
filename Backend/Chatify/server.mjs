@@ -1,6 +1,6 @@
 import 'dotenv/config' 
 import app from './app.mjs'
-import DBConfig from './config/DBConfig.mjs'
+import DBConfig from './Config/DBConfig.mjs'
 import {createServer} from 'http'
 import { initSocket } from './Config/socket.mjs'
 
