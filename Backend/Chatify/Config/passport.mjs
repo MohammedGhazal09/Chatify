@@ -88,7 +88,7 @@ const handleOAuthUser = async (profile, provider) => {
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/api/auth/google/callback"
+    callbackURL: "https://chatify-ckmn.onrender.com/api/auth/google/callback"
 }, async (accessToken, refreshToken, profile, done) => {
   // console.log("passport 100 line\n", profile);
   
@@ -106,7 +106,7 @@ passport.use(new GoogleStrategy({
 passport.use(new GitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/api/auth/github/callback"
+    callbackURL: "https://chatify-ckmn.onrender.com/api/auth/github/callback"
 }, async (accessToken, refreshToken, profile, done) => {
     try {
         const user = await handleOAuthUser(profile, 'github');
@@ -119,7 +119,7 @@ passport.use(new GitHubStrategy({
 passport.use(new DiscordStrategy({
     clientID: process.env.DISCORD_CLIENT_ID,
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
-    callbackURL: "http://localhost:3000/api/auth/discord/callback",
+    callbackURL: "https://chatify-ckmn.onrender.com/api/auth/discord/callback",
     scope: ['identify', 'email'],
 }, async (accessToken, refreshToken, profile, done) => {
     try {
