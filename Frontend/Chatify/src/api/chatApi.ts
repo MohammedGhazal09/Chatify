@@ -1,6 +1,6 @@
 import axiosInstance from './axios';
 import type { AxiosResponse } from 'axios';
-import type { Chat, CreateChatPayload } from '../types/chat';
+import type { Chat, CreateChatRequest } from '../types/chat';
 
 interface ChatResponse {
   status: string;
@@ -17,7 +17,7 @@ interface ChatsResponse {
 }
 
 export const chatApi = {
-  createChat: (payload: CreateChatPayload): Promise<AxiosResponse<ChatResponse>> =>
+  createChat: (payload: CreateChatRequest): Promise<AxiosResponse<ChatResponse>> =>
     axiosInstance.post('/api/chat/create-new-chat', payload),
 
   getAllChats: (): Promise<AxiosResponse<ChatsResponse>> =>

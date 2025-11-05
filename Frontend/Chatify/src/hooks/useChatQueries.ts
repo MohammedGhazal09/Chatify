@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '../api/chatApi';
 import { messageApi } from '../api/messageApi';
@@ -18,6 +19,11 @@ type SendMessageContext = {
   optimisticMessage?: Message;
 };
 
+type CreateChatVariables = {
+  targetEmail: string;
+  chatName?: string;
+};
+
 export const useChats = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -31,10 +37,30 @@ export const useChats = () => {
   });
 };
 
+export const useCreateChat = () => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const queryClient = useQueryClient();
+
+  return useMutation<Chat, unknown, CreateChatVariables>({
+    mutationFn: async ({ targetEmail }) => {
+      if (!isAuthenticated) {
+        throw new Error('You must be logged in to start a chat.');
+      }
+
+      const response = await chatApi.createChat({ targetEmail });
+      return response.data.data.chat;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+};
+
 export const useMessages = (chatId: string | null) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const [messages, setMessages] = useState<Message[]>([]);
 
-  return useQuery({
+  const queryResult = useQuery({
     queryKey: messagesQueryKey(chatId ?? ''),
     queryFn: async () => {
       if (!chatId) {
@@ -45,6 +71,43 @@ export const useMessages = (chatId: string | null) => {
     },
     enabled: !!chatId && isAuthenticated,
   });
+
+  useEffect(() => {
+    if (!chatId) {
+      setMessages([]);
+      return;
+    }
+
+    if (Array.isArray(queryResult.data)) {
+      setMessages(queryResult.data);
+    }
+  }, [chatId, queryResult.data]);
+
+  const upsertMessage = useCallback((incoming: Message) => {
+    setMessages((previous) => {
+      const index = previous.findIndex((message) => message._id === incoming._id);
+      if (index !== -1) {
+        const next = [...previous];
+        next[index] = incoming;
+        return next;
+      }
+      return [...previous, incoming].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+    });
+  }, []);
+
+  const removeMessage = useCallback((messageId: string) => {
+    setMessages((previous) => previous.filter((message) => message._id !== messageId));
+  }, []);
+
+  return {
+    ...queryResult,
+    messages,
+    upsertMessage,
+    removeMessage,
+    setMessages,
+  };
 };
 
 export const useSendMessage = () => {
@@ -114,18 +177,56 @@ export const useSendMessage = () => {
     onSuccess: (message, variables, context) => {
       queryClient.setQueryData<Message[]>(messagesQueryKey(variables.chatId), (old) => {
         if (!old) {
-          return old;
+          return [message];
         }
-        return old.map((existingMessage) =>
-          context?.optimisticMessage && existingMessage._id === context.optimisticMessage._id
-            ? message
-            : existingMessage
+
+        const optimisticId = context?.optimisticMessage?._id;
+        const existingIndex = old.findIndex((existingMessage) =>
+          optimisticId ? existingMessage._id === optimisticId : existingMessage._id === message._id
         );
+
+        if (existingIndex !== -1) {
+          const next = [...old];
+          next[existingIndex] = message;
+          return next;
+        }
+
+        return [...old, message];
       });
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
     },
     onSettled: (_message, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: messagesQueryKey(variables.chatId) });
+    },
+  });
+};
+
+export const useCreateChat = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<Chat, unknown, CreateChatVariables>({
+    mutationFn: async (payload) => {
+      const response = await chatApi.createChat(payload);
+      return response.data.data.chat;
+    },
+    onSuccess: (chat) => {
+      queryClient.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+        if (!old) {
+          return [chat];
+        }
+
+        const existingIndex = old.findIndex((existingChat) => existingChat._id === chat._id);
+        if (existingIndex !== -1) {
+          const updatedChats = [...old];
+          updatedChats[existingIndex] = chat;
+          return updatedChats;
+        }
+
+        return [chat, ...old];
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: chatsQueryKey });
     },
   });
 };

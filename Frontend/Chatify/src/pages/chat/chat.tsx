@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { KeyboardEventHandler } from 'react';
+import type { FormEvent, KeyboardEventHandler } from 'react';
+import axios from 'axios';
 import AccountsButton from '../../components/accountsButton';
 import LoadingSpinner from '../../components/loadingSpinner';
 import { useAuthStore } from '../../store/authstore';
 import { useLogout } from '../../hooks/useAuthQuery';
-import { useChats, useMessages, useSendMessage } from '../../hooks/useChatQueries';
+import { useChats, useCreateChat, useMessages, useSendMessage } from '../../hooks/useChatQueries';
 import type { Chat, Message } from '../../types/chat';
+import { isAxiosError } from 'axios';
 
 const formatTimestamp = (timestamp: string) => {
   const date = new Date(timestamp);
@@ -30,16 +32,40 @@ const ChatPage = () => {
   const logoutMutation = useLogout();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [newChatEmail, setNewChatEmail] = useState('');
+  const [createChatError, setCreateChatError] = useState<string | null>(null);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
-  const { data: messages, isLoading: isMessagesLoading, isError: messagesError, refetch: refetchMessages } = useMessages(selectedChatId);
+  const {
+    messages,
+    isLoading: isMessagesLoading,
+    isError: messagesError,
+    refetch: refetchMessages,
+    upsertMessage,
+  } = useMessages(selectedChatId);
   const sendMessage = useSendMessage();
+  const createChat = useCreateChat();
 
   useEffect(() => {
     if (!selectedChatId && chats && chats.length > 0) {
       setSelectedChatId(chats[0]._id);
     }
   }, [chats, selectedChatId]);
+
+  useEffect(() => {
+    if (!createChatFeedback) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCreateChatFeedback(null);
+    }, 4000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [createChatFeedback]);
 
   const selectedChat = useMemo(
     () => chats?.find((chat) => chat._id === selectedChatId) ?? null,
@@ -67,6 +93,49 @@ const ChatPage = () => {
       {
         onSuccess: () => {
           setMessageInput('');
+        },
+      }
+    );
+  };
+
+  const handleToggleNewChat = () => {
+    setIsNewChatOpen((prev) => {
+      const nextState = !prev;
+      if (!nextState) {
+        setNewChatEmail('');
+      }
+      setCreateChatError(null);
+      return nextState;
+    });
+  };
+
+  const handleCreateChatSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedEmail = newChatEmail.trim();
+
+    if (!trimmedEmail) {
+      setCreateChatError('Please enter an email address.');
+      return;
+    }
+
+    setCreateChatError(null);
+
+    createChat.mutate(
+      { targetEmail: trimmedEmail },
+      {
+        onSuccess: (chat) => {
+          setSelectedChatId(chat._id);
+          setIsNewChatOpen(false);
+          setNewChatEmail('');
+          setCreateChatError(null);
+        },
+        onError: (error) => {
+          if (axios.isAxiosError(error)) {
+            const message = error.response?.data?.message ?? 'We could not create that chat.';
+            setCreateChatError(message);
+          } else {
+            setCreateChatError('We could not create that chat.');
+          }
         },
       }
     );
@@ -105,9 +174,46 @@ const ChatPage = () => {
           </div>
         </div>
 
-        <div className="px-4 py-3 border-b border-slate-800">
+        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Chats</h2>
+          <button
+            type="button"
+            onClick={handleToggleNewChat}
+            className="rounded bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
+          >
+            {isNewChatOpen ? 'Close' : 'New chat'}
+          </button>
         </div>
+
+        {isNewChatOpen ? (
+          <form onSubmit={handleCreateChatSubmit} className="border-b border-slate-800 px-4 py-3 space-y-2">
+            <label htmlFor="new-chat-email" className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Start a chat by email
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="new-chat-email"
+                type="email"
+                value={newChatEmail}
+                onChange={(event) => setNewChatEmail(event.target.value)}
+                className="flex-1 rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                placeholder="friend@example.com"
+                required
+                autoComplete="email"
+              />
+              <button
+                type="submit"
+                disabled={createChat.isLoading}
+                className="rounded bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {createChat.isLoading ? 'Adding…' : 'Add' }
+              </button>
+            </div>
+            {createChatError ? (
+              <p className="text-xs text-red-400">{createChatError}</p>
+            ) : null}
+          </form>
+        ) : null}
 
         <div className="flex-1 overflow-y-auto">
           {isChatsLoading ? (

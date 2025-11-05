@@ -25,11 +25,8 @@ export interface Chat {
 }
 
 export interface CreateChatPayload {
-  members: string[];
+  targetEmail: string;
   chatName?: string;
-  isGroupChat?: boolean;
-  groupImage?: string;
-  groupDescription?: string;
 }
 
 export interface NewMessagePayload {
