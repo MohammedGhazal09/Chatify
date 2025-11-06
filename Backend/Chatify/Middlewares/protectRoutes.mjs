@@ -44,7 +44,7 @@ const protect = asyncErrHandler(async (req, res, next) => {
       res.cookie('accessToken', newToken, {
         httpOnly: true,
         secure: isProd,
-        sameSite: 'lax',
+        sameSite: 'none',
         maxAge: 15 * 60 * 1000,
         path: '/',
       });

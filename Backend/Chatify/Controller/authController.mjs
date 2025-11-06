@@ -62,7 +62,7 @@ export const logout = asyncErrHandler(async (req, res, next) => {
   res.clearCookie('accessToken', {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'lax',
+    sameSite: 'none',
     path: '/',
   });
   return res.status(204).end();

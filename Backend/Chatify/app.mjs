@@ -65,7 +65,7 @@ const isProd = process.env.NODE_ENV === 'production';
 const csrfProtection = csurf({
   cookie: {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'none',
     secure: isProd,
   },
 });
@@ -73,7 +73,7 @@ const csrfProtection = csurf({
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', req.csrfToken(), {
     httpOnly: false,
-    sameSite: 'lax',
+    sameSite: 'none',
     secure: isProd,
   });
   res.status(204).end();

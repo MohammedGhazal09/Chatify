@@ -10,7 +10,7 @@ export const generateTokenAndSetCookie = (user, res, rememberMe = false) => {
   res.cookie('accessToken', token, {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'lax',
+    sameSite: 'none',
     maxAge,
     path: '/'
   })
