@@ -9,8 +9,11 @@ import {sendPasswordResetEmail} from '../Services/emailService.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 const FRONTEND_URL = isProd 
-  ? 'https://chatify-ten-rho.vercel.app'
+  ? process.env.FRONTEND_ORIGIN || 'https://chatify-ten-rho.vercel.app'
   : 'http://localhost:5173';
+
+console.log('🌍 Environment:', isProd ? 'PRODUCTION' : 'DEVELOPMENT');
+console.log('🔗 Frontend URL:', FRONTEND_URL);
 
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
@@ -115,30 +118,52 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
 
 // Helper function for OAuth callbacks
 const createOAuthCallback = (provider) => {
-  return asyncErrHandler(async (req, res, next) => {
+  return (req, res, next) => {
+    console.log(`\n🔐 ${provider} OAuth callback triggered`);
+    console.log('📍 Request URL:', req.url);
+    console.log('📍 Query params:', req.query);
+    
     passport.authenticate(provider, { session: false }, (err, user, info) => {
-      if (err) {
-        console.error(`${provider} OAuth error:`, err);
-        return res.redirect(`${FRONTEND_URL}/login?error=oauth_error`);
-      }
+      console.log(`\n--- ${provider} OAuth Authentication Result ---`);
+      console.log('❓ Error:', err);
+      console.log('👤 User:', user ? `${user.email} (${user._id})` : 'null');
+      console.log('ℹ️ Info:', info);
       
-      if (!user) {
-        console.error(`${provider} OAuth failed: No user returned`);
+      if (err) {
+        console.error(`❌ ${provider} OAuth error:`, err);
         return res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
       }
 
+      if (!user) {
+        console.error(`❌ ${provider} OAuth: No user returned`);
+        return res.redirect(`${FRONTEND_URL}/login?error=oauth_no_user`);
+      }
+
       try {
-        // Generate JWT token
-        generateTokenAndSetCookie(user, res, true);
+        console.log('🍪 Generating token for user:', user.email);
         
-        // Redirect to frontend with success
-        return res.redirect(`${FRONTEND_URL}/?auth=success`);
+        // Generate JWT token and set cookie
+        const token = generateTokenAndSetCookie(user, res, false);
+        
+        console.log('✅ Token generated:', token ? 'Yes' : 'No');
+        console.log('✅ Token length:', token?.length);
+        console.log('🍪 Cookie should be set with:');
+        console.log('   - httpOnly: true');
+        console.log('   - secure:', isProd);
+        console.log('   - sameSite:', isProd ? 'none' : 'lax');
+        console.log('   - domain:', req.hostname);
+        
+        const redirectUrl = `${FRONTEND_URL}/?auth=success`;
+        console.log('🔀 Redirecting to:', redirectUrl);
+        console.log('--- End OAuth Flow ---\n');
+        
+        return res.redirect(redirectUrl);
       } catch (error) {
-        console.error('Token generation error:', error);
+        console.error('❌ Token generation error:', error);
         return res.redirect(`${FRONTEND_URL}/login?error=auth_failed`);
       }
     })(req, res, next);
-  });
+  };
 };
 
 // OAuth authentication initiators
