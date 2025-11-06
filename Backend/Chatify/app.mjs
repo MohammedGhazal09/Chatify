@@ -30,7 +30,12 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const isProd = process.env.NODE_ENV === 'production';
+
+const FRONTEND_ORIGIN = isProd
+  ? process.env.FRONTEND_ORIGIN
+  : 'http://localhost:5173';
+
 app.use(
   cors({
     origin: FRONTEND_ORIGIN,
@@ -61,7 +66,6 @@ app.get("/api/auth/discord/callback", discordCallback);
 
 
 
-const isProd = process.env.NODE_ENV === 'production';
 const csrfProtection = csurf({
   cookie: {
     httpOnly: true,
@@ -72,14 +76,14 @@ const csrfProtection = csurf({
 
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', req.csrfToken(), {
-    httpOnly: false,
+    httpOnly: true,
     sameSite: 'none',
     secure: isProd,
   });
   res.status(204).end();
 });
 
-app.use('/api/auth',csrfProtection, authRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, chatRouter);
 app.use('/api/message', protect, messageRouter);
