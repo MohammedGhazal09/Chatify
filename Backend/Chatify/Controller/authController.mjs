@@ -6,7 +6,7 @@ import { generateTokenAndSetCookie } from '../Utils/tokenCookieGenerator.mjs'
 import passport from 'passport';
 import PasswordReset from '../Models/passwordResetModel.mjs';
 import {sendPasswordResetEmail} from '../Services/emailService.mjs';
-import { hash } from 'argon2';
+const isProd = process.env.NODE_ENV === 'production';
 
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
@@ -113,7 +113,7 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
 const createOAuthCallback = (provider) => {
   return asyncErrHandler(async (req, res, next) => {
     passport.authenticate(provider, { session: false }, (err, user, info) => {
-      const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+      const frontendOrigin = isProd ? process.env.FRONTEND_ORIGIN : 'http://localhost:5173';
       
       if (err) {
         console.error(`${provider} OAuth error:`, err);

@@ -105,7 +105,6 @@ const ForgotPassword = () => {
       }
     );
   };
-  console.log(errors.root);
   
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">

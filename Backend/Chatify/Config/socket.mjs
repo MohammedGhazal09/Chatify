@@ -1,13 +1,13 @@
 import { Server } from 'socket.io'
 
 let io
-
+const isProd = process.env.NODE_ENV === 'production'
 const getCorsOrigin = () => {
-  if (process.env.FRONTEND_ORIGIN) {
+  if (isProd) {
     return process.env.FRONTEND_ORIGIN
+  } else {
+    return 'http://localhost:5173'
   }
-
-  return '*'
 }
 
 export const initSocket = (server) => {
