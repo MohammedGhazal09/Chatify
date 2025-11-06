@@ -8,6 +8,7 @@ import { useLogout } from '../../hooks/useAuthQuery';
 import { useChats, useCreateChat, useMessages, useSendMessage } from '../../hooks/useChatQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import type { Chat, Message } from '../../types/chat';
+import './chat.css';
 
 const formatTimestamp = (timestamp: string) => {
   const date = new Date(timestamp);
@@ -222,7 +223,7 @@ const ChatPage = () => {
           </form>
         ) : null}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto chat-sidebar-scroll">
           {isChatsLoading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading chats...</div>
           ) : chatsError ? (
@@ -284,7 +285,7 @@ const ChatPage = () => {
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-slate-950 px-6 py-4 space-y-3">
+            <div className="flex-1 overflow-y-auto bg-slate-950 px-6 py-4 space-y-3 chat-messages-scroll">
               {isMessagesLoading ? (
                 <div className="flex h-full items-center justify-center text-sm text-slate-400">
                   Loading messages...

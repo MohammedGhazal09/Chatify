@@ -76,7 +76,7 @@ const csrfProtection = csurf({
 
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', req.csrfToken(), {
-    httpOnly: true,
+    httpOnly: false,
     sameSite: 'none',
     secure: isProd,
   });

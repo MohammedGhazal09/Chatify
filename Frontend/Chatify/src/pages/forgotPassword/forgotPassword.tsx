@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mail, Lock, Key, ArrowLeft } from "lucide-react";
 import ChatifyIcon from "../../components/chatifyIcon";
@@ -26,6 +26,8 @@ const ForgotPassword = () => {
   const forgotPasswordMutation = useForgotPassword();
   const verifyResetCodeMutation = useVerifyResetCode();
   const resetPasswordMutation = useResetPassword();
+  const [lastEmail, setLastEmail] = useState<string | undefined>(undefined);
+  const [resendAttempts, setResendAttempts] = useState(0);
 
   const {
     register,
@@ -37,23 +39,59 @@ const ForgotPassword = () => {
     mode: "onChange",
   });
 
+  const handleForgotPasswordSuccess = (response: {
+    data?: { message?: string };
+  }) => {
+    responseMsg.current =
+      response.data?.message?.toString() || "Reset code sent";
+  };
+
+  const handleForgotPasswordError = (err: unknown) => {
+    if (axios.isAxiosError(err)) {
+      setError("root", {
+        type: "manual",
+        message: err.response?.data?.message || "Failed to send reset code",
+      });
+    }
+  };
+
   const handleSendCode = async (data: EmailFormData) => {
     clearErrors("root");
     forgotPasswordMutation.mutate(data.email!, {
       onSuccess: (response) => {
-        responseMsg.current =
-          response.data?.message?.toString() || "Reset code sent";
+        handleForgotPasswordSuccess(response);
+        setLastEmail(data.email);
+        setResendAttempts(0);
         step.current = "code";
       },
-      onError: (err: unknown) => {
-        if (axios.isAxiosError(err)) {
-          setError("root", {
-            type: "manual",
-            message: err.response?.data?.message || "Failed to send reset code",
-          });
-        }
-      },
+      onError: handleForgotPasswordError,
     });
+  };
+
+  const handleResendCode = () => {
+    clearErrors("root");
+    if (!lastEmail) {
+      setError("root", {
+        type: "manual",
+        message: "Please enter your email before requesting a new code.",
+      });
+      return;
+    }
+
+    if (resendAttempts >= 3) {
+      setError("root", {
+        type: "manual",
+        message:
+          "You've reached the maximum number of resend attempts. Please try again later.",
+      });
+      return;
+    }
+
+    forgotPasswordMutation.mutate(lastEmail, {
+      onSuccess: handleForgotPasswordSuccess,
+      onError: handleForgotPasswordError,
+    });
+    setResendAttempts((attempts) => attempts + 1);
   };
 
   const handleVerifyCode = async (data: CodeFormData) => {
@@ -247,10 +285,13 @@ const ForgotPassword = () => {
 
               <button
                 type="button"
-                onClick={() => (step.current = "email")}
-                className="hover:underline cursor-pointer w-full text-gray-400 hover:text-gray-300 text-sm"
+                onClick={handleResendCode}
+                disabled={forgotPasswordMutation.isPending || resendAttempts >= 3}
+                className="hover:underline cursor-pointer w-full text-gray-400 hover:text-gray-300 text-sm disabled:opacity-50"
               >
-                Didn't receive code? Try again
+                {resendAttempts >= 3
+                  ? "Resend limit reached"
+                  : "Didn't receive code? Try again"}
               </button>
             </form>
           )}

@@ -6,7 +6,11 @@ import { generateTokenAndSetCookie } from '../Utils/tokenCookieGenerator.mjs'
 import passport from 'passport';
 import PasswordReset from '../Models/passwordResetModel.mjs';
 import {sendPasswordResetEmail} from '../Services/emailService.mjs';
+
 const isProd = process.env.NODE_ENV === 'production';
+const FRONTEND_URL = isProd 
+  ? 'https://chatify-ten-rho.vercel.app'
+  : 'http://localhost:5173';
 
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
@@ -113,21 +117,26 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
 const createOAuthCallback = (provider) => {
   return asyncErrHandler(async (req, res, next) => {
     passport.authenticate(provider, { session: false }, (err, user, info) => {
-      const frontendOrigin = isProd ? process.env.FRONTEND_ORIGIN : 'http://localhost:5173';
-      
       if (err) {
         console.error(`${provider} OAuth error:`, err);
-        return res.redirect(`${frontendOrigin}/login?error=oauth_error`);
+        return res.redirect(`${FRONTEND_URL}/login?error=oauth_error`);
       }
       
       if (!user) {
-        return res.redirect(`${frontendOrigin}/login?error=oauth_failed`);
+        console.error(`${provider} OAuth failed: No user returned`);
+        return res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
       }
-      // Generate JWT token
-      generateTokenAndSetCookie(user, res, true);
-      
-      // Redirect to frontend
-      return res.redirect(`${frontendOrigin}/?auth=success`);
+
+      try {
+        // Generate JWT token
+        generateTokenAndSetCookie(user, res, true);
+        
+        // Redirect to frontend with success
+        return res.redirect(`${FRONTEND_URL}/?auth=success`);
+      } catch (error) {
+        console.error('Token generation error:', error);
+        return res.redirect(`${FRONTEND_URL}/login?error=auth_failed`);
+      }
     })(req, res, next);
   });
 };

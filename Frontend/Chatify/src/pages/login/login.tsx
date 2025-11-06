@@ -34,13 +34,14 @@ const Login = () => {
   useAuthRedirect();
   // Handle OAuth callback and errors
   useEffect(() => {
-    
     const authStatus = searchParams.get("auth");
     const error = searchParams.get("error");
     
     if (authStatus === "success") {
-      navigate("/", { replace: true });
-      setLoading(false);
+      // OAuth successful - check auth and redirect
+      console.log('✅ OAuth authentication successful');
+      // Trigger auth check to update store
+      window.location.href = '/';
     } else if (error) {
       try {
         const errorDetails = JSON.parse(decodeURIComponent(error));
@@ -53,12 +54,29 @@ const Login = () => {
       } catch {
         // Fallback for simple error strings
         console.error("OAuth Error:", error);
+        let errorMessage = "Authentication failed";
+        
+        switch (error) {
+          case "oauth_error":
+            errorMessage = "OAuth authentication error. Please try again.";
+            break;
+          case "oauth_failed":
+            errorMessage = "OAuth authentication failed. Please try again.";
+            break;
+          case "auth_failed":
+            errorMessage = "Failed to create session. Please try again.";
+            break;
+          default:
+            errorMessage = `Authentication failed: ${error}`;
+        }
+        
         setError("root", {
           type: "manual",
-          message: `Authentication failed: ${error}`,
+          message: errorMessage,
         });
       }
 
+      // Clean up URL
       navigate("/login", { replace: true });
     }
   }, [searchParams, navigate, setError, setLoading]);
@@ -87,17 +105,20 @@ const Login = () => {
 
   const handleGoogleLogin = () => {
     clearErrors("root");
-    window.location.href = "/api/auth/google";
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    window.location.href = `${backendUrl}/api/auth/google`;
   };
 
   const handleGitHubLogin = () => {
     clearErrors("root");
-    window.location.href = "/api/auth/github";
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    window.location.href = `${backendUrl}/api/auth/github`;
   };
 
   const handleDiscordLogin = () => {
     clearErrors("root");
-    window.location.href = "/api/auth/discord";
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    window.location.href = `${backendUrl}/api/auth/discord`;
   };
 
   const socialButtons = [
