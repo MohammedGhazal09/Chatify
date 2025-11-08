@@ -3,20 +3,34 @@ import axios from "axios";
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
   withCredentials: true,
-  xsrfCookieName: "XSRF-TOKEN",
-  xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
 export const initializeCsrfToken = async () => {
   try {
     await axiosInstance.get('/api/csrf-token');
     console.log('✅ CSRF token fetched');
+    console.log('🍪 All cookies:', document.cookie);
   } catch (error) {
     console.error('❌ Failed to fetch CSRF token:', error);
   }
 };
 
-// axios automatically reads XSRF-TOKEN cookie and sends it in X-XSRF-TOKEN header
+axiosInstance.interceptors.request.use((config) => {
+  // Read cookie manually
+  const cookies = document.cookie.split('; ');
+  console.log('📋 Cookies:', cookies);
+  
+  const csrfCookie = cookies.find(c => c.startsWith('XSRF-TOKEN='));
+  const token = csrfCookie?.split('=')[1];
+  
+  console.log('🔑 CSRF Token:', token);
+  
+  if (token && config.url !== '/api/csrf-token') {
+    config.headers['X-XSRF-TOKEN'] = decodeURIComponent(token);
+  }
+  
+  return config;
+});
 
 axiosInstance.interceptors.response.use(
   (response) => response,
