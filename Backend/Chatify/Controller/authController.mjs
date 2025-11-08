@@ -109,7 +109,6 @@ export const refreshToken = asyncErrHandler(async (req, res, next) => {
 
 export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
   const token = !!req.cookies.accessToken
-  console.log(req);
   res.status(200).json({
     status:"success",
     message:"User is authenticated",
@@ -120,47 +119,25 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
 // Helper function for OAuth callbacks
 const createOAuthCallback = (provider) => {
   return (req, res, next) => {
-    console.log(`\n🔐 ${provider} OAuth callback triggered`);
-    console.log('📍 Request URL:', req.url);
-    console.log('📍 Query params:', req.query);
-    
     passport.authenticate(provider, { session: false }, (err, user, info) => {
-      console.log(`\n--- ${provider} OAuth Authentication Result ---`);
-      console.log('❓ Error:', err);
-      console.log('👤 User:', user ? `${user.email} (${user._id})` : 'null');
-      console.log('ℹ️ Info:', info);
       
       if (err) {
-        console.error(`❌ ${provider} OAuth error:`, err);
         return res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
       }
 
       if (!user) {
-        console.error(`❌ ${provider} OAuth: No user returned`);
         return res.redirect(`${FRONTEND_URL}/login?error=oauth_no_user`);
       }
 
       try {
-        console.log('🍪 Generating token for user:', user.email);
         
         // Generate JWT token and set cookie
-        const token = generateTokenAndSetCookie(user, res, false);
-        
-        console.log('✅ Token generated:', token ? 'Yes' : 'No');
-        console.log('✅ Token length:', token?.length);
-        console.log('🍪 Cookie should be set with:');
-        console.log('   - httpOnly: true');
-        console.log('   - secure:', isProd);
-        console.log('   - sameSite:', isProd ? 'none' : 'lax');
-        console.log('   - domain:', req.hostname);
+        generateTokenAndSetCookie(user, res, false);
         
         const redirectUrl = `${FRONTEND_URL}/?auth=success`;
-        console.log('🔀 Redirecting to:', redirectUrl);
-        console.log('--- End OAuth Flow ---\n');
         
         return res.redirect(redirectUrl);
       } catch (error) {
-        console.error('❌ Token generation error:', error);
         return res.redirect(`${FRONTEND_URL}/login?error=auth_failed`);
       }
     })(req, res, next);
