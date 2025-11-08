@@ -7,17 +7,32 @@ const axiosInstance = axios.create({
   xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
-// Fetch CSRF token on initialization
+// Initialize CSRF token
+let csrfInitialized = false;
+
 export const initializeCsrfToken = async () => {
+  if (csrfInitialized) return;
+  
   try {
     await axiosInstance.get('/api/csrf-token');
     console.log('✅ CSRF token fetched');
+    csrfInitialized = true;
   } catch (error) {
     console.error('❌ Failed to fetch CSRF token:', error);
   }
 };
 
-axiosInstance.interceptors.request.use((config) => {
+axiosInstance.interceptors.request.use(async (config) => {
+  // Skip CSRF for the token endpoint itself
+  if (config.url === '/api/csrf-token') {
+    return config;
+  }
+
+  // Ensure CSRF token is initialized
+  if (!csrfInitialized) {
+    await initializeCsrfToken();
+  }
+
   const csrfToken = document.cookie
     .split('; ')
     .find(row => row.startsWith('XSRF-TOKEN='))
@@ -28,6 +43,8 @@ axiosInstance.interceptors.request.use((config) => {
   if (csrfToken) {
     config.headers['X-XSRF-TOKEN'] = decodeURIComponent(csrfToken);
     console.log('📤 Sending CSRF token in header');
+  } else {
+    console.warn('⚠️ No CSRF token found in cookies');
   }
   
   return config;
@@ -44,7 +61,8 @@ axiosInstance.interceptors.response.use(
     if (status === 403 && code === 'EBADCSRFTOKEN' && !originalConfig._retry) {
       try {
         originalConfig._retry = true;
-        await axiosInstance.get('/api/csrf-token');
+        csrfInitialized = false; // Reset flag
+        await initializeCsrfToken();
         return axiosInstance(originalConfig);
       } catch {
         return Promise.reject(error);
