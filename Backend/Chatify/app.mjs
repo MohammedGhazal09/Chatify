@@ -84,7 +84,13 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
 });
 
 app.use((req, res, next) => {
-  const exemptRoutes = ['/api/auth/logout', '/api/auth/refresh-token'];
+  const exemptRoutes = [
+    '/api/auth/logout', 
+    '/api/auth/refresh-token',
+    '/api/auth/forgot-password',
+    '/api/auth/verify-reset-code',
+    '/api/auth/reset-password'
+  ];
   if (exemptRoutes.includes(req.path)) {
     return next();
   }

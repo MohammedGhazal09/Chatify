@@ -7,6 +7,20 @@ const axiosInstance = axios.create({
   xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
+axiosInstance.interceptors.request.use((config) => {
+  const csrfToken = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('_csrf='))
+    ?.split('=')[1];
+  
+  if (csrfToken) {
+    // Use lowercase header name
+    config.headers['x-csrf-token'] = decodeURIComponent(csrfToken);
+  }
+  
+  return config;
+});
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
