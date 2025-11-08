@@ -66,13 +66,18 @@ export const login = asyncErrHandler(async (req, res, next) => {
 
 export const logout = asyncErrHandler(async (req, res, next) => {
   const isProd = process.env.NODE_ENV === 'production';
+  
   res.clearCookie('accessToken', {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'none',
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
   });
-  return res.status(204).end();
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Logged out successfully'
+  });
 })
 
 export const refreshToken = asyncErrHandler(async (req, res, next) => {

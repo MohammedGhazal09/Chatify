@@ -71,15 +71,19 @@ export const useLogin = () => {
 
 export const useLogout = () => {
   const logout = useAuthStore((state) => state.logout)
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: () => authApi.logout(),
     onSuccess: () => {
       logout()
+      queryClient.clear() // Clear all cached queries
+      queryClient.invalidateQueries({ queryKey: ['auth'] })
     },
     onError: (error) => {
       console.error('Logout failed:', error)
       logout()
+      queryClient.clear()
     }
   })
 }
