@@ -109,6 +109,7 @@ export const refreshToken = asyncErrHandler(async (req, res, next) => {
 
 export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
   const token = !!req.cookies.accessToken
+  console.log(req);
   res.status(200).json({
     status:"success",
     message:"User is authenticated",
