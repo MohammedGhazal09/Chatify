@@ -68,7 +68,7 @@ app.get("/api/auth/discord/callback", discordCallback);
 
 export const csrfProtection = csurf({
   cookie: {
-    httpOnly: true,
+    httpOnly: false,
     sameSite: 'none',
     secure: isProd,
   },
@@ -76,7 +76,7 @@ export const csrfProtection = csurf({
 
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', req.csrfToken(), {
-    httpOnly: true,
+    httpOnly: false,
     sameSite: 'none',
     secure: isProd,
   });
