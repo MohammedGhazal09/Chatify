@@ -83,6 +83,14 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.status(204).end();
 });
 
+app.use((req, res, next) => {
+  const exemptRoutes = ['/api/auth/logout', '/api/auth/refresh-token'];
+  if (exemptRoutes.includes(req.path)) {
+    return next();
+  }
+  csrfProtection(req, res, next);
+});
+
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, chatRouter);
