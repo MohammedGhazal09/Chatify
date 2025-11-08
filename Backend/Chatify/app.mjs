@@ -64,49 +64,48 @@ app.get("/api/auth/github/callback", githubCallback);
 app.get("/api/auth/discord", discordAuth);
 app.get("/api/auth/discord/callback", discordCallback);
 
+// CSRF disabled for cross-domain cookies
+// export const csrfProtection = csurf({
+//   cookie: {
+//     httpOnly: false,
+//     sameSite: 'none',
+//     secure: isProd,
+//   },
+// });
 
+// app.get('/api/csrf-token', csrfProtection, (req, res) => {
+//   const token = req.csrfToken();
+//   console.log('🔑 CSRF Token generated:', token);
+//   res.cookie('XSRF-TOKEN', token, {
+//     httpOnly: false,
+//     sameSite: 'none',
+//     secure: isProd,
+//   });
+//   res.status(204).end();
+// });
 
-export const csrfProtection = csurf({
-  cookie: {
-    httpOnly: false,
-    sameSite: 'none',
-    secure: isProd,
-  },
-});
-
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  const token = req.csrfToken();
-  console.log('🔑 CSRF Token generated:', token);
-  res.cookie('XSRF-TOKEN', token, {
-    httpOnly: false,
-    sameSite: 'none',
-    secure: isProd,
-  });
-  res.status(204).end();
-});
-
-app.use((req, res, next) => {
-  console.log('📍 Request path:', req.path);
-  console.log('📍 Request method:', req.method);
-  
-  const exemptRoutes = [
-    '/api/auth/logout', 
-    '/api/auth/refresh-token',
-    '/api/auth/forgot-password',
-    '/api/auth/verify-reset-code',
-    '/api/auth/reset-password'
-  ];
-  
-  if (exemptRoutes.includes(req.path)) {
-    console.log('✅ Route exempt from CSRF');
-    return next();
-  }
-  
-  console.log('🔒 Applying CSRF protection');
-  console.log('📨 CSRF Token from header:', req.headers['x-xsrf-token']);
-  
-  csrfProtection(req, res, next);
-});
+// app.use((req, res, next) => {
+//   console.log('📍 Request path:', req.path);
+//   console.log('📍 Request method:', req.method);
+//   
+//   const exemptRoutes = [
+//     '/api/auth/logout', 
+//     '/api/auth/refresh-token',
+//     '/api/auth/forgot-password',
+//     '/api/auth/verify-reset-code',
+//     '/api/auth/reset-password'
+//   ];
+//   
+//   if (exemptRoutes.includes(req.path)) {
+//     console.log('✅ Route exempt from CSRF');
+//     return next();
+//   }
+//   
+//   console.log('🔒 Applying CSRF protection');
+//   console.log('📨 CSRF Token from header:', req.headers['x-xsrf-token']);
+//   
+//   csrfProtection(req, res, next);
+// });
 
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
