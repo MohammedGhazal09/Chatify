@@ -7,15 +7,27 @@ const axiosInstance = axios.create({
   xsrfHeaderName: "X-XSRF-TOKEN",
 });
 
+// Fetch CSRF token on initialization
+export const initializeCsrfToken = async () => {
+  try {
+    await axiosInstance.get('/api/csrf-token');
+    console.log('✅ CSRF token fetched');
+  } catch (error) {
+    console.error('❌ Failed to fetch CSRF token:', error);
+  }
+};
+
 axiosInstance.interceptors.request.use((config) => {
   const csrfToken = document.cookie
     .split('; ')
-    .find(row => row.startsWith('_csrf='))
+    .find(row => row.startsWith('XSRF-TOKEN='))
     ?.split('=')[1];
   
+  console.log('🍪 CSRF Token from cookie:', csrfToken);
+  
   if (csrfToken) {
-    // Use lowercase header name
-    config.headers['x-csrf-token'] = decodeURIComponent(csrfToken);
+    config.headers['X-XSRF-TOKEN'] = decodeURIComponent(csrfToken);
+    console.log('📤 Sending CSRF token in header');
   }
   
   return config;

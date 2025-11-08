@@ -9,10 +9,17 @@ import LoadingSpinner from './components/loadingSpinner'
 import ForgotPassword from './pages/forgotPassword/forgotPassword'
 import { useAuthStore } from './store/authstore'
 import { useAuthInit } from './hooks/useAuthQuery'
+import { useEffect } from 'react'
+import { initializeCsrfToken } from './api/axios'
 
 function App() {
   useAuthInit();
   const isLoading = useAuthStore((state) => state.isLoading);
+  
+  useEffect(() => {
+    initializeCsrfToken();
+  }, []);
+  
   if (isLoading) {
     return <LoadingSpinner />;
   }

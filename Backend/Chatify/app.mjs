@@ -75,7 +75,9 @@ export const csrfProtection = csurf({
 });
 
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  res.cookie('XSRF-TOKEN', req.csrfToken(), {
+  const token = req.csrfToken();
+  console.log('🔑 CSRF Token generated:', token);
+  res.cookie('XSRF-TOKEN', token, {
     httpOnly: false,
     sameSite: 'none',
     secure: isProd,
@@ -84,6 +86,9 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
 });
 
 app.use((req, res, next) => {
+  console.log('📍 Request path:', req.path);
+  console.log('📍 Request method:', req.method);
+  
   const exemptRoutes = [
     '/api/auth/logout', 
     '/api/auth/refresh-token',
@@ -91,9 +96,15 @@ app.use((req, res, next) => {
     '/api/auth/verify-reset-code',
     '/api/auth/reset-password'
   ];
+  
   if (exemptRoutes.includes(req.path)) {
+    console.log('✅ Route exempt from CSRF');
     return next();
   }
+  
+  console.log('🔒 Applying CSRF protection');
+  console.log('📨 CSRF Token from header:', req.headers['x-xsrf-token']);
+  
   csrfProtection(req, res, next);
 });
 
