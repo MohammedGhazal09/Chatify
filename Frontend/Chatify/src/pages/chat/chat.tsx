@@ -36,6 +36,7 @@ const ChatPage = () => {
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [newChatEmail, setNewChatEmail] = useState('');
   const [createChatError, setCreateChatError] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
   const {
@@ -164,12 +165,18 @@ const ChatPage = () => {
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-50">
-      <aside className="w-80 border-r border-slate-900 bg-slate-900/60 backdrop-blur-sm flex flex-col">
+      {/* Overlay for mobile */}
+      <div 
+        className={`chat-overlay ${isSidebarOpen ? 'show' : ''}`}
+        onClick={() => setIsSidebarOpen(false)}
+      />
+      
+      <aside className={`chat-sidebar w-80 border-r border-slate-900 bg-slate-900/60 backdrop-blur-sm flex flex-col ${isSidebarOpen ? 'open' : ''}`}>
         <div className="p-4 border-b border-slate-800 flex items-center gap-3">
           {user?.profilePic ? (
-            <img src={user.profilePic} alt="Profile" className="h-12 w-12 rounded-full object-cover" />
+            <img src={user.profilePic} alt="Profile" className="profile-pic h-12 w-12 rounded-full object-cover" />
           ) : (
-            <div className="h-12 w-12 rounded-full bg-emerald-500 flex items-center justify-center text-lg font-semibold">
+            <div className="profile-pic h-12 w-12 rounded-full bg-emerald-500 flex items-center justify-center text-lg font-semibold">
               {user?.firstName?.charAt(0)}
             </div>
           )}
@@ -187,7 +194,7 @@ const ChatPage = () => {
           <button
             type="button"
             onClick={handleToggleNewChat}
-            className="rounded bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
+            className="cursor-pointer rounded bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
           >
             {isNewChatOpen ? 'Close' : 'New chat'}
           </button>
@@ -246,7 +253,10 @@ const ChatPage = () => {
                   <li key={chat._id}>
                     <button
                       type="button"
-                      onClick={() => setSelectedChatId(chat._id)}
+                      onClick={() => {
+                        setSelectedChatId(chat._id);
+                        setIsSidebarOpen(false);
+                      }}
                       className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
                         isActive ? 'bg-emerald-500/20 text-emerald-100' : 'hover:bg-slate-800'
                       }`}
@@ -278,11 +288,23 @@ const ChatPage = () => {
       <section className="flex flex-1 flex-col">
         {selectedChat ? (
           <>
-            <div className="border-b border-slate-900 bg-slate-900/60 p-4">
-              <h2 className="text-lg font-semibold">{getChatTitle(selectedChat, user?._id)}</h2>
-              <p className="text-xs text-slate-400">
-                {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
-              </p>
+            <div className="border-b border-slate-900 bg-slate-900/60 p-4 flex items-center gap-3">
+              {/* Mobile menu button */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden text-slate-400 hover:text-emerald-400"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold">{getChatTitle(selectedChat, user?._id)}</h2>
+                <p className="text-xs text-slate-400">
+                  {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
+                </p>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto bg-slate-950 px-6 py-4 space-y-3 chat-messages-scroll">
@@ -322,7 +344,7 @@ const ChatPage = () => {
                   onChange={(event) => setMessageInput(event.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Write a message..."
-                  className="h-24 w-full resize-none rounded-lg bg-transparent px-3 py-2 text-sm text-slate-100 outline-none"
+                  className="chat-input-area h-24 w-full resize-none rounded-lg bg-transparent px-3 py-2 text-sm text-slate-100 outline-none"
                 />
                 <div className="flex items-center justify-between border-t border-slate-800 px-3 py-2">
                   <p className="text-xs text-slate-500">
@@ -332,7 +354,7 @@ const ChatPage = () => {
                     type="button"
                     onClick={handleSendMessage}
                     disabled={sendMessage.isPending || !messageInput.trim()}
-                    className="rounded bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                    className="cursor-pointer rounded bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
                   >
                     {sendMessage.isPending ? 'Sending...' : 'Send'}
                   </button>
@@ -365,7 +387,7 @@ const MessageBubble = ({ message, isOwnMessage }: MessageBubbleProps) => {
   return (
     <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow ${
+        className={`message-bubble max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow ${
           isOwnMessage
             ? 'bg-emerald-500 text-emerald-950'
             : 'bg-slate-800 text-slate-100'
