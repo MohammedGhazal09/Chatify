@@ -94,6 +94,10 @@ const ChatPage = () => {
   const sendMessage = useSendMessage();
   const createChat = useCreateChat();
   const markMessagesAsReadMutation = useMarkMessagesAsRead();
+  
+  // Use ref to avoid stale closure issues with mutation
+  const markMessagesAsReadRef = useRef(markMessagesAsReadMutation.mutate);
+  markMessagesAsReadRef.current = markMessagesAsReadMutation.mutate;
 
   // Handle message status updates
   const handleMessageStatusUpdate = useCallback(
@@ -185,7 +189,8 @@ const ChatPage = () => {
           );
 
           if (unreadVisibleIds.length > 0) {
-            markMessagesAsReadMutation.mutate({
+            // Use ref to avoid stale closure
+            markMessagesAsReadRef.current({
               chatId: selectedChatId,
               messageIds: unreadVisibleIds,
             });
@@ -207,7 +212,6 @@ const ChatPage = () => {
     }
 
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChatId, messages, user?._id]);
 
   // Scroll to bottom when new messages arrive

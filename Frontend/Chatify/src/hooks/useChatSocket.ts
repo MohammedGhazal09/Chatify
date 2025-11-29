@@ -47,6 +47,10 @@ export const useChatSocket = ({
   const [socket, setSocket] = useState<Socket | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const typingTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  
+  // Use ref to avoid stale closure issues with store methods
+  const presenceStoreRef = useRef(presenceStore);
+  presenceStoreRef.current = presenceStore;
 
   const socketUrl = useMemo(() => resolveSocketUrl(), []);
 
@@ -73,13 +77,13 @@ export const useChatSocket = ({
     // Listen for user status changes
     socketInstance.on('user:status-change', (data: UserStatusChangeEvent) => {
       if (data.isOnline) {
-        presenceStore.setUserOnline(data.userId, {
+        presenceStoreRef.current.setUserOnline(data.userId, {
           userId: data.userId,
           userName: data.userName,
           isOnline: true,
         });
       } else {
-        presenceStore.setUserOffline(data.userId, data.lastSeen);
+        presenceStoreRef.current.setUserOffline(data.userId, data.lastSeen);
       }
     });
 
@@ -89,7 +93,7 @@ export const useChatSocket = ({
       if (data.userId === user?._id) return;
 
       if (data.isTyping) {
-        presenceStore.setUserTyping(data.chatId, data);
+        presenceStoreRef.current.setUserTyping(data.chatId, data);
 
         // Clear any existing timeout for this user
         const timeoutKey = `${data.chatId}-${data.userId}`;
@@ -99,11 +103,11 @@ export const useChatSocket = ({
 
         // Auto-clear typing after timeout
         typingTimeoutRef.current[timeoutKey] = setTimeout(() => {
-          presenceStore.clearUserTyping(data.chatId, data.userId);
+          presenceStoreRef.current.clearUserTyping(data.chatId, data.userId);
           delete typingTimeoutRef.current[timeoutKey];
         }, TYPING_TIMEOUT);
       } else {
-        presenceStore.clearUserTyping(data.chatId, data.userId);
+        presenceStoreRef.current.clearUserTyping(data.chatId, data.userId);
         const timeoutKey = `${data.chatId}-${data.userId}`;
         if (typingTimeoutRef.current[timeoutKey]) {
           clearTimeout(typingTimeoutRef.current[timeoutKey]);
@@ -124,7 +128,6 @@ export const useChatSocket = ({
       socketInstance.disconnect();
       setSocket(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, isAuthenticated, socketUrl, user?._id]);
 
   // Handle incoming messages
