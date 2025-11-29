@@ -5,8 +5,9 @@ import { messageApi } from '../api/messageApi';
 import { useAuthStore } from '../store/authstore';
 import type { Chat, Message, MessageStatus } from '../types/chat';
 
-const chatsQueryKey = ['chats'] as const;
-const messagesQueryKey = (chatId: string) => ['messages', chatId] as const;
+// Export query keys for use in other modules
+export const chatsQueryKey = ['chats'] as const;
+export const messagesQueryKey = (chatId: string) => ['messages', chatId] as const;
 
 type SendMessageVariables = {
   chatId: string;

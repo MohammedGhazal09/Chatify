@@ -3,6 +3,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
+import { chatsQueryKey } from './useChatQueries';
 import type {
   Chat,
   Message,
@@ -35,9 +36,6 @@ const resolveSocketUrl = () => {
 
 // Typing timeout duration (3 seconds)
 const TYPING_TIMEOUT = 3000;
-
-// Query key for chats (must match useChatQueries.ts)
-const chatsQueryKey = ['chats'] as const;
 
 export const useChatSocket = ({
   chatId,
