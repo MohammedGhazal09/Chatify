@@ -1,0 +1,63 @@
+import { usePresenceStore } from '../store/presenceStore';
+import { useAuthStore } from '../store/authstore';
+
+interface TypingIndicatorProps {
+  chatId: string;
+}
+
+export const TypingIndicator = ({ chatId }: TypingIndicatorProps) => {
+  const { user } = useAuthStore();
+  const typingUsers = usePresenceStore((state) => state.getTypingUsersForChat(chatId));
+
+  // Filter out current user from typing list
+  const otherTypingUsers = typingUsers.filter((t) => t.userId !== user?._id);
+
+  if (otherTypingUsers.length === 0) {
+    return null;
+  }
+
+  const getTypingText = () => {
+    if (otherTypingUsers.length === 1) {
+      return `${otherTypingUsers[0].userName} is typing`;
+    }
+    if (otherTypingUsers.length === 2) {
+      return `${otherTypingUsers[0].userName} and ${otherTypingUsers[1].userName} are typing`;
+    }
+    return `${otherTypingUsers.length} people are typing`;
+  };
+
+  return (
+    <div className="typing-indicator flex items-center gap-2 px-4 py-2 text-sm text-slate-400 italic animate-fade-in">
+      <span>{getTypingText()}</span>
+      <span className="typing-dots flex gap-1">
+        <span className="typing-dot w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="typing-dot w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+        <span className="typing-dot w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      </span>
+    </div>
+  );
+};
+
+// Compact version for inline display
+export const TypingIndicatorCompact = ({ chatId }: TypingIndicatorProps) => {
+  const { user } = useAuthStore();
+  const typingUsers = usePresenceStore((state) => state.getTypingUsersForChat(chatId));
+
+  const otherTypingUsers = typingUsers.filter((t) => t.userId !== user?._id);
+
+  if (otherTypingUsers.length === 0) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-slate-400 italic">
+      <span className="typing-dots flex gap-0.5">
+        <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+        <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      </span>
+    </span>
+  );
+};
+
+export default TypingIndicator;

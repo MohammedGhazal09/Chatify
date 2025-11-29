@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '../api/chatApi';
 import { messageApi } from '../api/messageApi';
 import { useAuthStore } from '../store/authstore';
-import type { Chat, Message } from '../types/chat';
+import type { Chat, Message, MessageStatus } from '../types/chat';
 
 const chatsQueryKey = ['chats'] as const;
 const messagesQueryKey = (chatId: string) => ['messages', chatId] as const;
@@ -82,12 +82,54 @@ export const useMessages = (chatId: string | null) => {
     setMessages((previous) => previous.filter((message) => message._id !== messageId));
   }, []);
 
+  // Update message status
+  const updateMessageStatus = useCallback(
+    (messageId: string, status: MessageStatus, deliveredAt?: string, readAt?: string) => {
+      setMessages((previous) =>
+        previous.map((message) =>
+          message._id === messageId
+            ? { ...message, status, deliveredAt, readAt }
+            : message
+        )
+      );
+    },
+    []
+  );
+
+  // Update multiple messages at once (for batch read operations)
+  const updateMessagesStatus = useCallback(
+    (
+      updates: Array<{
+        messageId: string;
+        status: MessageStatus;
+        readBy?: Array<{ user: string; readAt: string }>;
+      }>
+    ) => {
+      setMessages((previous) =>
+        previous.map((message) => {
+          const update = updates.find((u) => u.messageId === message._id);
+          if (update) {
+            return {
+              ...message,
+              status: update.status,
+              readBy: update.readBy || message.readBy,
+            };
+          }
+          return message;
+        })
+      );
+    },
+    []
+  );
+
   return {
     ...queryResult,
     messages,
     upsertMessage,
     removeMessage,
     setMessages,
+    updateMessageStatus,
+    updateMessagesStatus,
   };
 };
 
@@ -121,6 +163,7 @@ export const useSendMessage = () => {
         sender: user._id,
         text,
         read: false,
+        status: 'sent',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -208,6 +251,16 @@ export const useCreateChat = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+};
+
+// Mark messages as read mutation
+export const useMarkMessagesAsRead = () => {
+  return useMutation({
+    mutationFn: async ({ chatId, messageIds }: { chatId: string; messageIds: string[] }) => {
+      const response = await messageApi.markMessagesAsRead(chatId, messageIds);
+      return response.data;
     },
   });
 };

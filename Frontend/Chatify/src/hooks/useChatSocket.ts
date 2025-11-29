@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useAuthStore } from '../store/authstore';
-import type { Message } from '../types/chat';
+import { usePresenceStore } from '../store/presenceStore';
+import type {
+  Message,
+  MessageStatusUpdateEvent,
+  MessageReadEvent,
+  BatchReadEvent,
+  UserStatusChangeEvent,
+  TypingUser,
+} from '../types/chat';
 
 type UseChatSocketOptions = {
   chatId: string | null;
   enabled?: boolean;
   onMessage?: (message: Message) => void;
+  onMessageStatusUpdate?: (event: MessageStatusUpdateEvent) => void;
+  onMessageRead?: (event: MessageReadEvent) => void;
+  onBatchRead?: (event: BatchReadEvent) => void;
 };
-
 
 const resolveSocketUrl = () => {
   const envUrl = import.meta.env.VITE_SOCKET_URL ?? import.meta.env.VITE_BACKEND_URL;
@@ -21,13 +31,26 @@ const resolveSocketUrl = () => {
   }
 };
 
-export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSocketOptions) => {
-  const { isAuthenticated } = useAuthStore();
+// Typing timeout duration (3 seconds)
+const TYPING_TIMEOUT = 3000;
+
+export const useChatSocket = ({
+  chatId,
+  enabled = true,
+  onMessage,
+  onMessageStatusUpdate,
+  onMessageRead,
+  onBatchRead,
+}: UseChatSocketOptions) => {
+  const { isAuthenticated, user } = useAuthStore();
+  const { setUserOnline, setUserOffline, setUserTyping, clearUserTyping } = usePresenceStore();
   const [socket, setSocket] = useState<Socket | null>(null);
   const activeRoomRef = useRef<string | null>(null);
+  const typingTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const socketUrl = useMemo(() => resolveSocketUrl(), []);
 
+  // Connect socket and set up user connection
   useEffect(() => {
     if (!enabled || !isAuthenticated || !socketUrl) {
       return;
@@ -40,7 +63,60 @@ export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSock
 
     setSocket(socketInstance);
 
+    // Once connected, identify the user
+    socketInstance.on('connect', () => {
+      if (user?._id) {
+        socketInstance.emit('user:connect', user._id);
+      }
+    });
+
+    // Listen for user status changes
+    socketInstance.on('user:status-change', (data: UserStatusChangeEvent) => {
+      if (data.isOnline) {
+        setUserOnline(data.userId, {
+          userId: data.userId,
+          userName: data.userName,
+          isOnline: true,
+        });
+      } else {
+        setUserOffline(data.userId, data.lastSeen);
+      }
+    });
+
+    // Listen for typing events
+    socketInstance.on('user:typing', (data: TypingUser) => {
+      // Don't show typing indicator for own typing
+      if (data.userId === user?._id) return;
+
+      if (data.isTyping) {
+        setUserTyping(data.chatId, data);
+
+        // Clear any existing timeout for this user
+        const timeoutKey = `${data.chatId}-${data.userId}`;
+        if (typingTimeoutRef.current[timeoutKey]) {
+          clearTimeout(typingTimeoutRef.current[timeoutKey]);
+        }
+
+        // Auto-clear typing after timeout
+        typingTimeoutRef.current[timeoutKey] = setTimeout(() => {
+          clearUserTyping(data.chatId, data.userId);
+          delete typingTimeoutRef.current[timeoutKey];
+        }, TYPING_TIMEOUT);
+      } else {
+        clearUserTyping(data.chatId, data.userId);
+        const timeoutKey = `${data.chatId}-${data.userId}`;
+        if (typingTimeoutRef.current[timeoutKey]) {
+          clearTimeout(typingTimeoutRef.current[timeoutKey]);
+          delete typingTimeoutRef.current[timeoutKey];
+        }
+      }
+    });
+
     return () => {
+      // Clear all typing timeouts
+      Object.values(typingTimeoutRef.current).forEach(clearTimeout);
+      typingTimeoutRef.current = {};
+
       if (activeRoomRef.current) {
         socketInstance.emit('chat:leave', activeRoomRef.current);
         activeRoomRef.current = null;
@@ -48,8 +124,9 @@ export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSock
       socketInstance.disconnect();
       setSocket(null);
     };
-  }, [enabled, isAuthenticated, socketUrl]);
+  }, [enabled, isAuthenticated, socketUrl, user?._id, setUserOnline, setUserOffline, setUserTyping, clearUserTyping]);
 
+  // Handle incoming messages
   const handleIncomingMessage = useCallback(
     (message: Message) => {
       if (!message || (chatId && message.chatId !== chatId)) {
@@ -60,18 +137,50 @@ export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSock
     [chatId, onMessage]
   );
 
+  // Handle message status updates
+  const handleMessageStatusUpdate = useCallback(
+    (event: MessageStatusUpdateEvent) => {
+      onMessageStatusUpdate?.(event);
+    },
+    [onMessageStatusUpdate]
+  );
+
+  // Handle message read events
+  const handleMessageRead = useCallback(
+    (event: MessageReadEvent) => {
+      onMessageRead?.(event);
+    },
+    [onMessageRead]
+  );
+
+  // Handle batch read events
+  const handleBatchRead = useCallback(
+    (event: BatchReadEvent) => {
+      onBatchRead?.(event);
+    },
+    [onBatchRead]
+  );
+
+  // Set up message and status listeners
   useEffect(() => {
     if (!socket) {
       return;
     }
 
     socket.on('message:new', handleIncomingMessage);
+    socket.on('message:status-update', handleMessageStatusUpdate);
+    socket.on('message:read', handleMessageRead);
+    socket.on('messages:read-batch', handleBatchRead);
 
     return () => {
       socket.off('message:new', handleIncomingMessage);
+      socket.off('message:status-update', handleMessageStatusUpdate);
+      socket.off('message:read', handleMessageRead);
+      socket.off('messages:read-batch', handleBatchRead);
     };
-  }, [socket, handleIncomingMessage]);
+  }, [socket, handleIncomingMessage, handleMessageStatusUpdate, handleMessageRead, handleBatchRead]);
 
+  // Handle chat room joining/leaving
   useEffect(() => {
     if (!socket || !enabled || !isAuthenticated) {
       return;
@@ -101,7 +210,33 @@ export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSock
     };
   }, [socket, chatId, enabled, isAuthenticated]);
 
-  return socket;
+  // Emit typing start
+  const emitTypingStart = useCallback(() => {
+    if (!socket || !chatId) return;
+    socket.emit('typing:start', { chatId });
+  }, [socket, chatId]);
+
+  // Emit typing stop
+  const emitTypingStop = useCallback(() => {
+    if (!socket || !chatId) return;
+    socket.emit('typing:stop', { chatId });
+  }, [socket, chatId]);
+
+  // Emit message delivered
+  const emitMessageDelivered = useCallback(
+    (messageId: string) => {
+      if (!socket || !chatId) return;
+      socket.emit('message:delivered', { messageId, chatId });
+    },
+    [socket, chatId]
+  );
+
+  return {
+    socket,
+    emitTypingStart,
+    emitTypingStop,
+    emitMessageDelivered,
+  };
 };
 
 export default useChatSocket;

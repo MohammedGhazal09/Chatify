@@ -56,6 +56,23 @@ const userSchema = new mongoose.Schema({
       default: function() {
         return this.authProvider !== 'local';
       }
+    },
+    // Online/Offline status tracking
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+    lastSeen: {
+      type: Date,
+    },
+    // Privacy settings for online status
+    showOnlineStatus: {
+      type: Boolean,
+      default: true,
+    },
+    showLastSeen: {
+      type: Boolean,
+      default: true,
     }
 }, {
     timestamps: true,
