@@ -69,7 +69,7 @@ const useDebounce = (callback: () => void, delay: number) => {
 
 const ChatPage = () => {
   const { user, isAuthenticated } = useAuthStore();
-  const { getUserStatus } = usePresenceStore();
+  const onlineUsers = usePresenceStore((state) => state.onlineUsers);
   const logoutMutation = useLogout();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
@@ -207,7 +207,8 @@ const ChatPage = () => {
     }
 
     return () => observer.disconnect();
-  }, [selectedChatId, messages, user?._id, markMessagesAsReadMutation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChatId, messages, user?._id]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -241,7 +242,7 @@ const ChatPage = () => {
 
   // Get other member's online status for 1-on-1 chats
   const otherMember = selectedChat ? getOtherMember(selectedChat, user?._id) : null;
-  const otherMemberStatus = otherMember ? getUserStatus(otherMember._id) : null;
+  const otherMemberStatus = otherMember ? onlineUsers.get(otherMember._id) : null;
 
   const handleLogout = async () => {
     try {
@@ -419,7 +420,7 @@ const ChatPage = () => {
                 const isActive = chat._id === selectedChatId;
                 const title = getChatTitle(chat, user?._id);
                 const chatOtherMember = getOtherMember(chat, user?._id);
-                const memberStatus = chatOtherMember ? getUserStatus(chatOtherMember._id) : null;
+                const memberStatus = chatOtherMember ? onlineUsers.get(chatOtherMember._id) : null;
                 
                 return (
                   <li key={chat._id}>

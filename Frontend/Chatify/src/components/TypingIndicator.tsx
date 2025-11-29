@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { usePresenceStore } from '../store/presenceStore';
 import { useAuthStore } from '../store/authstore';
 
@@ -10,7 +11,14 @@ const TYPING_DOT_DELAYS = [0, 150, 300];
 
 export const TypingIndicator = ({ chatId }: TypingIndicatorProps) => {
   const { user } = useAuthStore();
-  const typingUsers = usePresenceStore((state) => state.getTypingUsersForChat(chatId));
+  const typingUsersMap = usePresenceStore((state) => state.typingUsers);
+  
+  // Derive typing users for this chat from the map
+  const typingUsers = useMemo(() => {
+    const chatTyping = typingUsersMap.get(chatId);
+    if (!chatTyping) return [];
+    return Array.from(chatTyping.values());
+  }, [typingUsersMap, chatId]);
 
   // Filter out current user from typing list
   const otherTypingUsers = typingUsers.filter((t) => t.userId !== user?._id);
@@ -48,7 +56,14 @@ export const TypingIndicator = ({ chatId }: TypingIndicatorProps) => {
 // Compact version for inline display
 export const TypingIndicatorCompact = ({ chatId }: TypingIndicatorProps) => {
   const { user } = useAuthStore();
-  const typingUsers = usePresenceStore((state) => state.getTypingUsersForChat(chatId));
+  const typingUsersMap = usePresenceStore((state) => state.typingUsers);
+  
+  // Derive typing users for this chat from the map
+  const typingUsers = useMemo(() => {
+    const chatTyping = typingUsersMap.get(chatId);
+    if (!chatTyping) return [];
+    return Array.from(chatTyping.values());
+  }, [typingUsersMap, chatId]);
 
   const otherTypingUsers = typingUsers.filter((t) => t.userId !== user?._id);
 
