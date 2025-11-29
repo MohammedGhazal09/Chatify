@@ -5,6 +5,9 @@ interface TypingIndicatorProps {
   chatId: string;
 }
 
+// Animation delays for typing dots
+const TYPING_DOT_DELAYS = [0, 150, 300];
+
 export const TypingIndicator = ({ chatId }: TypingIndicatorProps) => {
   const { user } = useAuthStore();
   const typingUsers = usePresenceStore((state) => state.getTypingUsersForChat(chatId));
@@ -30,9 +33,13 @@ export const TypingIndicator = ({ chatId }: TypingIndicatorProps) => {
     <div className="typing-indicator flex items-center gap-2 px-4 py-2 text-sm text-slate-400 italic animate-fade-in">
       <span>{getTypingText()}</span>
       <span className="typing-dots flex gap-1">
-        <span className="typing-dot w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-        <span className="typing-dot w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-        <span className="typing-dot w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        {TYPING_DOT_DELAYS.map((delay, index) => (
+          <span
+            key={index}
+            className="typing-dot w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
+            style={{ animationDelay: `${delay}ms` }}
+          />
+        ))}
       </span>
     </div>
   );
@@ -52,9 +59,13 @@ export const TypingIndicatorCompact = ({ chatId }: TypingIndicatorProps) => {
   return (
     <span className="inline-flex items-center gap-1 text-xs text-slate-400 italic">
       <span className="typing-dots flex gap-0.5">
-        <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-        <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-        <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        {TYPING_DOT_DELAYS.map((delay, index) => (
+          <span
+            key={index}
+            className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"
+            style={{ animationDelay: `${delay}ms` }}
+          />
+        ))}
       </span>
     </span>
   );

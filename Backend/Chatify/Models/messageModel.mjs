@@ -50,6 +50,8 @@ const messageSchema = new mongoose.Schema({
 // Index for efficient queries on chat messages
 messageSchema.index({ chatId: 1, createdAt: 1 });
 messageSchema.index({ chatId: 1, sender: 1, status: 1 });
+// Compound index for unread messages query optimization
+messageSchema.index({ chatId: 1, sender: 1, 'readBy.user': 1 });
 
 const Message = mongoose.model("Messages", messageSchema);
 export default Message;

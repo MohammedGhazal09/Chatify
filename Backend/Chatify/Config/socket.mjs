@@ -11,6 +11,13 @@ const socketToUser = new Map()
 // Track user to sockets: Map<userId, Set<socketId>>
 const userToSockets = new Map()
 
+// Debug logging helper - only logs in development
+const debugLog = (...args) => {
+  if (!isProd) {
+    console.log(...args)
+  }
+}
+
 const getCorsOrigin = () => {
   if (isProd) {
     return process.env.FRONTEND_ORIGIN
@@ -55,7 +62,7 @@ const broadcastUserStatus = async (userId, isOnline, lastSeen = null) => {
       io.to(chat._id.toString()).emit('user:status-change', statusPayload)
     })
 
-    console.log(`📡 Broadcasted status for ${user.firstName}: ${isOnline ? 'online' : 'offline'}`)
+    debugLog(`📡 Broadcasted status for ${user.firstName}: ${isOnline ? 'online' : 'offline'}`)
   } catch (err) {
     console.error('📛 Error broadcasting user status:', err)
   }
@@ -88,16 +95,16 @@ export const initSocket = (server) => {
   })
 
   io.on('connection', async (socket) => {
-    console.log(`🔌 Socket connected: ${socket.id}`)
+    debugLog(`🔌 Socket connected: ${socket.id}`)
 
     // Handle user authentication/identification
     socket.on('user:connect', async (userId) => {
       if (!userId) {
-        console.log('⚠️ No userId provided for socket connection')
+        debugLog('⚠️ No userId provided for socket connection')
         return
       }
 
-      console.log(`👤 User ${userId} connected via socket ${socket.id}`)
+      debugLog(`👤 User connected via socket ${socket.id}`)
       
       // Track socket-user mapping
       socketToUser.set(socket.id, userId)
@@ -120,7 +127,7 @@ export const initSocket = (server) => {
         return
       }
 
-      console.log(`📥 Socket ${socket.id} joining chat: ${chatId}`)
+      debugLog(`📥 Socket ${socket.id} joining chat: ${chatId}`)
       socket.join(chatId.toString())
 
       // Mark messages as delivered when user joins chat
@@ -135,7 +142,7 @@ export const initSocket = (server) => {
         return
       }
 
-      console.log(`📤 Socket ${socket.id} leaving chat: ${chatId}`)
+      debugLog(`📤 Socket ${socket.id} leaving chat: ${chatId}`)
       socket.leave(chatId.toString())
     })
 
@@ -214,7 +221,7 @@ export const initSocket = (server) => {
     })
 
     socket.on('disconnect', async (reason) => {
-      console.log(`🔌 Socket disconnected (${socket.id}): ${reason}`)
+      debugLog(`🔌 Socket disconnected (${socket.id}): ${reason}`)
       
       const userId = socketToUser.get(socket.id)
       if (userId) {
