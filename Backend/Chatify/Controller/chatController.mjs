@@ -3,6 +3,7 @@ import Chats from "../Models/chatModel.mjs";
 import User from "../Models/userModel.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
 import { CustomError } from "../Utils/customError.mjs";
+import { getIO, getUserSockets } from "../Config/socket.mjs";
 
 
 export const createChat = asyncErrHandler(async (req, res, next) => {
@@ -64,6 +65,21 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
 
   await newChat.populate("members", "-password");
   await newChat.populate("latestMessage");
+
+  // Notify all members about the new chat via socket
+  try {
+    const io = getIO();
+    // Notify the target user about the new chat so they can see it without refreshing
+    const targetUserSockets = getUserSockets(targetUser._id.toString());
+    if (targetUserSockets && targetUserSockets.size > 0) {
+      targetUserSockets.forEach(socketId => {
+        io.to(socketId).emit('chat:new', newChat);
+      });
+    }
+  } catch (err) {
+    // Log but don't fail the request if socket notification fails
+    console.error('Failed to notify users about new chat:', err);
+  }
 
   res.status(201).json({
     status: "chat created successfully",

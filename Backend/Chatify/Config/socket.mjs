@@ -289,3 +289,8 @@ export const isUserOnline = (userId) => {
 export const getOnlineUsers = () => {
   return Array.from(userToSockets.keys())
 }
+
+// Get all sockets for a specific user
+export const getUserSockets = (userId) => {
+  return userToSockets.get(userId) || new Set()
+}
