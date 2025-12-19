@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEventHandler } from 'react';
 import axios from 'axios';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 import AccountsButton from '../../components/accountsButton';
 import LoadingSpinner from '../../components/loadingSpinner';
 import MessageStatus from '../../components/MessageStatus';
 import OnlineStatus, { OnlineDot } from '../../components/OnlineStatus';
 import TypingIndicator from '../../components/TypingIndicator';
+import SettingsModal from '../../components/SettingsModal';
 import { useAuthStore } from '../../store/authstore';
 import { usePresenceStore } from '../../store/presenceStore';
 import { useLogout } from '../../hooks/useAuthQuery';
@@ -15,14 +17,38 @@ import {
   useMessages,
   useSendMessage,
   useMarkMessagesAsRead,
+  useDeleteMessage,
+  useEditMessage,
+  useUnreadCounts,
 } from '../../hooks/useChatQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
-import type { Chat, Message, MessageStatusUpdateEvent, BatchReadEvent } from '../../types/chat';
+import type { Chat, Message, MessageStatusUpdateEvent, BatchReadEvent, MessageDeletedEvent, MessageEditedEvent } from '../../types/chat';
 import './chat.css';
 
 const formatTimestamp = (timestamp: string) => {
   const date = new Date(timestamp);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// Format date for message separators
+const formatMessageDate = (timestamp: string) => {
+  const date = new Date(timestamp);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return 'Today';
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return 'Yesterday';
+  }
+  return date.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+};
+
+// Check if two dates are on different days
+const isDifferentDay = (date1: string, date2: string) => {
+  return new Date(date1).toDateString() !== new Date(date2).toDateString();
 };
 
 const getChatTitle = (chat: Chat, userId: string | undefined) => {
@@ -78,8 +104,19 @@ const ChatPage = () => {
   const [createChatError, setCreateChatError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; messageId: string; isOwn: boolean } | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [messageSearch, setMessageSearch] = useState('');
+  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
   const {
@@ -88,12 +125,22 @@ const ChatPage = () => {
     isError: messagesError,
     refetch: refetchMessages,
     upsertMessage,
+    removeMessage,
     updateMessageStatus,
     updateMessagesStatus,
+    loadMoreMessages,
+    hasMore,
+    isLoadingMore,
   } = useMessages(selectedChatId);
   const sendMessage = useSendMessage();
   const createChat = useCreateChat();
   const markMessagesAsReadMutation = useMarkMessagesAsRead();
+  const deleteMessageMutation = useDeleteMessage();
+  const editMessageMutation = useEditMessage();
+
+  // Get unread counts for chats
+  const chatIds = useMemo(() => chats?.map(c => c._id) ?? [], [chats]);
+  const { data: unreadCounts } = useUnreadCounts(chatIds);
   
   // Use ref to avoid stale closure issues with mutation
   const markMessagesAsReadRef = useRef(markMessagesAsReadMutation.mutate);
@@ -115,6 +162,32 @@ const ChatPage = () => {
     [updateMessagesStatus]
   );
 
+  // Handle message deleted events
+  const handleMessageDeleted = useCallback(
+    (event: MessageDeletedEvent) => {
+      if (event.deleteForEveryone) {
+        removeMessage(event.messageId);
+      }
+    },
+    [removeMessage]
+  );
+
+  // Handle message edited events
+  const handleMessageEdited = useCallback(
+    (event: MessageEditedEvent) => {
+      const existingMessage = messages.find(m => m._id === event.messageId);
+      if (existingMessage) {
+        upsertMessage({
+          ...existingMessage,
+          text: event.text,
+          isEdited: event.isEdited,
+          editedAt: event.editedAt,
+        });
+      }
+    },
+    [messages, upsertMessage]
+  );
+
   // Connect to socket and handle incoming messages
   const { emitTypingStart, emitTypingStop, emitMessageDelivered } = useChatSocket({
     chatId: selectedChatId,
@@ -128,6 +201,8 @@ const ChatPage = () => {
     },
     onMessageStatusUpdate: handleMessageStatusUpdate,
     onBatchRead: handleBatchRead,
+    onMessageDeleted: handleMessageDeleted,
+    onMessageEdited: handleMessageEdited,
   });
 
   // Debounced typing stop
@@ -281,6 +356,155 @@ const ChatPage = () => {
     );
   };
 
+  // Handle message context menu (right-click)
+  const handleMessageContextMenu = (e: React.MouseEvent, messageId: string, isOwn: boolean) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, messageId, isOwn });
+  };
+
+  // Close context menu when clicking elsewhere
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, []);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape to close modals/menus
+      if (e.key === 'Escape') {
+        if (editingMessageId) {
+          setEditingMessageId(null);
+          setEditText('');
+        } else if (contextMenu) {
+          setContextMenu(null);
+        } else if (showEmojiPicker) {
+          setShowEmojiPicker(false);
+        } else if (showMessageSearch) {
+          setShowMessageSearch(false);
+          setMessageSearch('');
+        } else if (replyingTo) {
+          setReplyingTo(null);
+        }
+      }
+      // Ctrl+F to search in chat
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && selectedChatId) {
+        e.preventDefault();
+        setShowMessageSearch(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [editingMessageId, contextMenu, showEmojiPicker, showMessageSearch, replyingTo, selectedChatId]);
+
+  // Handle reply to message
+  const handleReply = (message: Message) => {
+    setReplyingTo(message);
+    setContextMenu(null);
+  };
+
+  // Handle delete message
+  const handleDeleteMessage = (deleteForEveryone: boolean) => {
+    if (!contextMenu) return;
+    deleteMessageMutation.mutate(
+      { messageId: contextMenu.messageId, deleteForEveryone },
+      {
+        onSuccess: () => {
+          if (deleteForEveryone) {
+            removeMessage(contextMenu.messageId);
+          }
+          setContextMenu(null);
+        },
+      }
+    );
+  };
+
+  // Handle edit message
+  const handleStartEdit = (messageId: string, currentText: string) => {
+    setEditingMessageId(messageId);
+    setEditText(currentText);
+    setContextMenu(null);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingMessageId || !editText.trim()) return;
+    editMessageMutation.mutate(
+      { messageId: editingMessageId, text: editText.trim() },
+      {
+        onSuccess: (updatedMessage) => {
+          upsertMessage(updatedMessage);
+          setEditingMessageId(null);
+          setEditText('');
+        },
+      }
+    );
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText('');
+  };
+
+  // Scroll detection for scroll-to-bottom button
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
+    setShowScrollButton(!isNearBottom);
+  }, []);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [handleScroll]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Handle reaction to message
+  const handleReaction = (messageId: string, emoji: string) => {
+    // For now, just log - would need backend support
+    console.log(`Reacted to ${messageId} with ${emoji}`);
+    setContextMenu(null);
+  };
+
+  // Export chat history
+  const handleExportChat = () => {
+    if (!selectedChat || !allMessages.length) return;
+    
+    const chatTitle = getChatTitle(selectedChat, user?._id);
+    const exportData = allMessages.map(msg => ({
+      sender: msg.sender === user?._id ? 'You' : chatTitle,
+      text: msg.text,
+      time: new Date(msg.createdAt).toLocaleString(),
+    }));
+    
+    const text = exportData.map(m => `[${m.time}] ${m.sender}: ${m.text}`).join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chatTitle}-chat-export.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleToggleNewChat = () => {
     setIsNewChatOpen((prev) => {
       const nextState = !prev;
@@ -335,7 +559,10 @@ const ChatPage = () => {
     return <LoadingSpinner />;
   }
 
-  const conversationMessages = messages ?? [];
+  const allMessages = messages ?? [];
+  const conversationMessages = messageSearch.trim()
+    ? allMessages.filter(m => m.text.toLowerCase().includes(messageSearch.toLowerCase()))
+    : allMessages;
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-50">
@@ -358,8 +585,22 @@ const ChatPage = () => {
             <p className="text-sm text-slate-400">Logged in as</p>
             <p className="font-semibold">{user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}</p>
           </div>
-          <div onClick={handleLogout}>
-            <AccountsButton color="#dc2626" text="Logout" />
+          <div className="flex items-center gap-2">
+            {/* Settings button */}
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors"
+              title="Settings"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+            <div onClick={handleLogout}>
+              <AccountsButton color="#dc2626" text="Logout" />
+            </div>
           </div>
         </div>
 
@@ -372,6 +613,17 @@ const ChatPage = () => {
           >
             {isNewChatOpen ? 'Close' : 'New chat'}
           </button>
+        </div>
+
+        {/* Search chats */}
+        <div className="px-4 py-2 border-b border-slate-800">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search chats..."
+            className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+          />
         </div>
 
         {isNewChatOpen ? (
@@ -420,7 +672,13 @@ const ChatPage = () => {
             </div>
           ) : chats && chats.length > 0 ? (
             <ul className="space-y-1 p-2">
-              {chats.map((chat) => {
+              {chats
+                .filter((chat) => {
+                  if (!searchQuery.trim()) return true;
+                  const title = getChatTitle(chat, user?._id).toLowerCase();
+                  return title.includes(searchQuery.toLowerCase());
+                })
+                .map((chat) => {
                 const isActive = chat._id === selectedChatId;
                 const title = getChatTitle(chat, user?._id);
                 const chatOtherMember = getOtherMember(chat, user?._id);
@@ -445,11 +703,18 @@ const ChatPage = () => {
                             <OnlineStatus isOnline={true} size="sm" />
                           )}
                         </span>
-                        <span className="text-xs text-slate-400">
-                          {chat.latestMessage
-                            ? formatTimestamp(chat.latestMessage.updatedAt)
-                            : formatTimestamp(chat.updatedAt)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {unreadCounts?.get(chat._id) && unreadCounts.get(chat._id)! > 0 && (
+                            <span className="bg-emerald-500 text-emerald-950 text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                              {unreadCounts.get(chat._id)! > 99 ? '99+' : unreadCounts.get(chat._id)}
+                            </span>
+                          )}
+                          <span className="text-xs text-slate-400">
+                            {chat.latestMessage
+                              ? formatTimestamp(chat.latestMessage.updatedAt)
+                              : formatTimestamp(chat.updatedAt)}
+                          </span>
+                        </div>
                       </div>
                       <p className="mt-1 text-xs text-slate-400 truncate">
                         {chat.latestMessage ? chat.latestMessage.text : 'No messages yet'}
@@ -515,7 +780,46 @@ const ChatPage = () => {
                   />
                 ) : null}
               </div>
+              
+              {/* Search toggle button */}
+              <button
+                onClick={() => {
+                  setShowMessageSearch(!showMessageSearch);
+                  if (showMessageSearch) setMessageSearch('');
+                }}
+                className="text-slate-400 hover:text-emerald-400 p-2"
+                title="Search messages"
+              >
+                🔍
+              </button>
+              
+              {/* Export chat button */}
+              <button
+                onClick={handleExportChat}
+                className="text-slate-400 hover:text-emerald-400 p-2"
+                title="Export chat"
+              >
+                📥
+              </button>
             </div>
+
+            {/* Message Search Bar */}
+            {showMessageSearch && (
+              <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
+                <input
+                  type="text"
+                  value={messageSearch}
+                  onChange={(e) => setMessageSearch(e.target.value)}
+                  placeholder="Search in conversation..."
+                  className="w-full bg-slate-800 text-slate-100 text-sm px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+                {messageSearch && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Found {conversationMessages.length} message{conversationMessages.length !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Typing indicator below header */}
             {selectedChatId && <TypingIndicator chatId={selectedChatId} />}
@@ -541,16 +845,70 @@ const ChatPage = () => {
                 </div>
               ) : conversationMessages.length > 0 ? (
                 <>
-                  {conversationMessages.map((message) => {
+                  {/* Load More Button */}
+                  {hasMore && (
+                    <div className="flex justify-center py-2">
+                      <button
+                        onClick={loadMoreMessages}
+                        disabled={isLoadingMore}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
+                      >
+                        {isLoadingMore ? 'Loading...' : '↑ Load older messages'}
+                      </button>
+                    </div>
+                  )}
+                  {conversationMessages.map((message, index) => {
                     const isOwnMessage = message.sender === user?._id;
+                    const prevMessage = conversationMessages[index - 1];
+                    const showDateSeparator = index === 0 || (prevMessage && isDifferentDay(prevMessage.createdAt, message.createdAt));
+                    const isEditing = editingMessageId === message._id;
+                    
                     return (
-                      <MessageBubble
-                        key={message._id}
-                        message={message}
-                        isOwnMessage={isOwnMessage}
-                        isGroupChat={selectedChat.isGroupChat}
-                        members={selectedChat.members}
-                      />
+                      <div key={message._id}>
+                        {showDateSeparator && (
+                          <div className="flex items-center justify-center my-4">
+                            <div className="bg-slate-800 text-slate-400 text-xs px-3 py-1 rounded-full">
+                              {formatMessageDate(message.createdAt)}
+                            </div>
+                          </div>
+                        )}
+                        {isEditing ? (
+                          <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+                            <div className="max-w-[70%] space-y-2">
+                              <textarea
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                className="w-full p-2 rounded-lg bg-slate-800 text-slate-100 text-sm border border-emerald-500 focus:outline-none"
+                                rows={3}
+                              />
+                              <div className="flex gap-2 justify-end">
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={handleSaveEdit}
+                                  disabled={editMessageMutation.isPending}
+                                  className="px-3 py-1 text-xs bg-emerald-500 text-emerald-950 rounded hover:bg-emerald-400"
+                                >
+                                  {editMessageMutation.isPending ? 'Saving...' : 'Save'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <MessageBubble
+                            message={message}
+                            isOwnMessage={isOwnMessage}
+                            isGroupChat={selectedChat.isGroupChat}
+                            members={selectedChat.members}
+                            onContextMenu={(e) => handleMessageContextMenu(e, message._id, isOwnMessage)}
+                            onDoubleClick={(msg) => handleStartEdit(msg._id, msg.text)}
+                          />
+                        )}
+                      </div>
                     );
                   })}
                   <div ref={messagesEndRef} />
@@ -560,9 +918,36 @@ const ChatPage = () => {
                   No messages yet. Start the conversation!
                 </div>
               )}
+              
+              {/* Scroll to bottom button */}
+              {showScrollButton && (
+                <button
+                  onClick={scrollToBottom}
+                  className="absolute bottom-24 right-8 bg-emerald-500 text-emerald-950 p-3 rounded-full shadow-lg hover:bg-emerald-400 transition-all z-40"
+                  title="Scroll to bottom"
+                >
+                  ↓
+                </button>
+              )}
             </div>
 
             <div className="border-t border-slate-900 bg-slate-900/60 p-4">
+              {/* Reply Preview */}
+              {replyingTo && (
+                <div className="mb-2 flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2 border-l-4 border-emerald-500">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-emerald-400 font-medium">Replying to</p>
+                    <p className="text-sm text-slate-300 truncate">{replyingTo.text}</p>
+                  </div>
+                  <button
+                    onClick={() => setReplyingTo(null)}
+                    className="ml-2 text-slate-400 hover:text-slate-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              
               <div className="rounded-lg bg-slate-950 border border-slate-800 focus-within:border-emerald-500">
                 <textarea
                   value={messageInput}
@@ -572,17 +957,47 @@ const ChatPage = () => {
                   className="chat-input-area h-24 w-full resize-none rounded-lg bg-transparent px-3 py-2 text-sm text-slate-100 outline-none"
                 />
                 <div className="flex items-center justify-between border-t border-slate-800 px-3 py-2">
-                  <p className="text-xs text-slate-500">
-                    Press Enter to send. Use Shift + Enter for a new line.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleSendMessage}
-                    disabled={sendMessage.isPending || !messageInput.trim()}
-                    className="cursor-pointer rounded bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-                  >
-                    {sendMessage.isPending ? 'Sending...' : 'Send'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <div className="relative" ref={emojiPickerRef}>
+                      <button
+                        type="button"
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        className="text-slate-400 hover:text-emerald-400 transition-colors p-1"
+                        title="Add emoji"
+                      >
+                        😀
+                      </button>
+                      {showEmojiPicker && (
+                        <div className="absolute bottom-10 left-0 z-50">
+                          <EmojiPicker
+                            theme={Theme.DARK}
+                            onEmojiClick={(emoji) => {
+                              setMessageInput(prev => prev + emoji.emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            width={300}
+                            height={400}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Press Enter to send
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs ${messageInput.length > 1000 ? 'text-red-400' : messageInput.length > 800 ? 'text-yellow-400' : 'text-slate-500'}`}>
+                      {messageInput.length}/1000
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSendMessage}
+                      disabled={sendMessage.isPending || !messageInput.trim() || messageInput.length > 1000}
+                      className="cursor-pointer rounded bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                    >
+                      {sendMessage.isPending ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
                 </div>
               </div>
               {sendMessage.isError && (
@@ -599,6 +1014,84 @@ const ChatPage = () => {
           </div>
         )}
       </section>
+      
+      {/* Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed bg-slate-800 rounded-lg shadow-xl py-1 z-50 min-w-[140px] border border-slate-700"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          {/* Quick Reactions */}
+          <div className="flex justify-center gap-1 px-2 py-2 border-b border-slate-700">
+            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+              <button
+                key={emoji}
+                onClick={() => handleReaction(contextMenu.messageId, emoji)}
+                className="text-lg hover:scale-125 transition-transform p-1"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          
+          <button
+            onClick={() => {
+              const msg = conversationMessages.find(m => m._id === contextMenu.messageId);
+              if (msg) handleReply(msg);
+            }}
+            className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+          >
+            ↩️ Reply
+          </button>
+          {contextMenu.isOwn && (
+            <button
+              onClick={() => handleStartEdit(contextMenu.messageId, conversationMessages.find(m => m._id === contextMenu.messageId)?.text || '')}
+              className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+            >
+              ✏️ Edit
+            </button>
+          )}
+          <button
+            onClick={() => {
+              const msg = conversationMessages.find(m => m._id === contextMenu.messageId);
+              if (msg) navigator.clipboard.writeText(msg.text);
+              setContextMenu(null);
+            }}
+            className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+          >
+            📋 Copy
+          </button>
+          <button
+            onClick={() => {
+              const msg = conversationMessages.find(m => m._id === contextMenu.messageId);
+              if (msg) {
+                setMessageInput(`Forwarded: "${msg.text}"`);
+              }
+              setContextMenu(null);
+            }}
+            className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+          >
+            ➡️ Forward
+          </button>
+          <button
+            onClick={() => handleDeleteMessage(false)}
+            className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+          >
+            🗑️ Delete for me
+          </button>
+          {contextMenu.isOwn && (
+            <button
+              onClick={() => handleDeleteMessage(true)}
+              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
+            >
+              🗑️ Delete for everyone
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 };
@@ -608,9 +1101,11 @@ interface MessageBubbleProps {
   isOwnMessage: boolean;
   isGroupChat: boolean;
   members: Chat['members'];
+  onContextMenu?: (e: React.MouseEvent, message: Message) => void;
+  onDoubleClick?: (message: Message) => void;
 }
 
-const MessageBubble = ({ message, isOwnMessage, isGroupChat, members }: MessageBubbleProps) => {
+const MessageBubble = memo(({ message, isOwnMessage, isGroupChat, members, onContextMenu, onDoubleClick }: MessageBubbleProps) => {
   // For group chats, show "Seen by X people" for own messages
   const getSeenByText = () => {
     if (!isOwnMessage || !isGroupChat || !message.readBy || message.readBy.length === 0) {
@@ -633,14 +1128,19 @@ const MessageBubble = ({ message, isOwnMessage, isGroupChat, members }: MessageB
     <div
       className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
       data-message-id={message._id}
+      onContextMenu={onContextMenu ? (e) => onContextMenu(e, message) : undefined}
+      onDoubleClick={onDoubleClick && isOwnMessage ? () => onDoubleClick(message) : undefined}
     >
       <div
-        className={`message-bubble max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow ${
+        className={`message-bubble max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow cursor-pointer ${
           isOwnMessage
             ? 'bg-emerald-500 text-emerald-950'
             : 'bg-slate-800 text-slate-100'
         }`}
       >
+        {message.isEdited && (
+          <span className="text-[9px] opacity-70 italic">(edited)</span>
+        )}
         <p>{message.text}</p>
         <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${isOwnMessage ? 'text-emerald-900' : 'text-slate-400'}`}>
           <span>{formatTimestamp(message.updatedAt)}</span>
@@ -652,6 +1152,8 @@ const MessageBubble = ({ message, isOwnMessage, isGroupChat, members }: MessageB
       </div>
     </div>
   );
-};
+});
+
+MessageBubble.displayName = 'MessageBubble';
 
 export default ChatPage;

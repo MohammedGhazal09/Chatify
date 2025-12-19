@@ -1,6 +1,6 @@
 import axiosInstance from './axios';
 import type { AxiosResponse } from 'axios';
-import type { Message, NewMessagePayload } from '../types/chat';
+import type { Message, PaginationInfo } from '../types/chat';
 
 interface MessageResponse {
   status: string;
@@ -13,6 +13,7 @@ interface MessagesResponse {
   status: string;
   data: {
     messages: Message[];
+    pagination?: PaginationInfo;
   };
 }
 
@@ -33,12 +34,20 @@ interface MarkReadResponse {
   };
 }
 
+interface DeleteResponse {
+  status: string;
+  message: string;
+  data: {
+    messageId: string;
+  };
+}
+
 export const messageApi = {
-  createMessage: (payload: NewMessagePayload): Promise<AxiosResponse<MessageResponse>> =>
+  createMessage: (payload: { chatId: string; text: string; sender: string }): Promise<AxiosResponse<MessageResponse>> =>
     axiosInstance.post('/api/message/new-message', payload),
 
-  getAllMessages: (chatId: string): Promise<AxiosResponse<MessagesResponse>> =>
-    axiosInstance.get(`/api/message/get-all-messages/${chatId}`),
+  getAllMessages: (chatId: string, page = 1, limit = 50): Promise<AxiosResponse<MessagesResponse>> =>
+    axiosInstance.get(`/api/message/get-all-messages/${chatId}?page=${page}&limit=${limit}`),
 
   markMessageAsRead: (messageId: string): Promise<AxiosResponse<MarkReadResponse>> =>
     axiosInstance.patch(`/api/message/${messageId}/read`),
@@ -48,4 +57,10 @@ export const messageApi = {
 
   getUnreadCount: (chatId: string): Promise<AxiosResponse<UnreadCountResponse>> =>
     axiosInstance.get(`/api/message/${chatId}/unread-count`),
+
+  deleteMessage: (messageId: string, deleteForEveryone = false): Promise<AxiosResponse<DeleteResponse>> =>
+    axiosInstance.delete(`/api/message/${messageId}`, { data: { deleteForEveryone } }),
+
+  editMessage: (messageId: string, text: string): Promise<AxiosResponse<MessageResponse>> =>
+    axiosInstance.patch(`/api/message/${messageId}/edit`, { text }),
 };

@@ -250,22 +250,36 @@ export const initSocket = (server) => {
 // Mark messages as delivered when user joins a chat
 const markMessagesAsDelivered = async (chatId, userId) => {
   try {
-    const messages = await Message.find({
-      chatId,
-      sender: { $ne: userId },
-      status: 'sent',
-    })
+    // Use updateMany for better performance instead of iterating
+    const result = await Message.updateMany(
+      {
+        chatId,
+        sender: { $ne: userId },
+        status: 'sent',
+      },
+      {
+        $set: {
+          status: 'delivered',
+          deliveredAt: new Date(),
+        },
+      }
+    )
 
-    const now = new Date()
-    for (const message of messages) {
-      message.status = 'delivered'
-      message.deliveredAt = now
-      await message.save()
-
-      io.to(chatId.toString()).emit('message:status-update', {
-        messageId: message._id,
+    if (result.modifiedCount > 0) {
+      // Fetch updated messages to emit events
+      const updatedMessages = await Message.find({
+        chatId,
+        sender: { $ne: userId },
         status: 'delivered',
-        deliveredAt: now,
+        deliveredAt: { $gte: new Date(Date.now() - 1000) }, // Messages updated in last second
+      }).select('_id deliveredAt')
+
+      updatedMessages.forEach(message => {
+        io.to(chatId.toString()).emit('message:status-update', {
+          messageId: message._id,
+          status: 'delivered',
+          deliveredAt: message.deliveredAt,
+        })
       })
     }
   } catch (err) {

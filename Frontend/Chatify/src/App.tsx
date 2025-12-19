@@ -6,6 +6,8 @@ import Login from './pages/login/login'
 import ProtectedRoute from './components/protectedRoute'
 import PublicRoute from './components/publicRoute'
 import LoadingSpinner from './components/loadingSpinner'
+import ErrorBoundary from './components/ErrorBoundary'
+import QueueIndicator from './components/QueueIndicator'
 import ForgotPassword from './pages/forgotPassword/forgotPassword'
 import { useAuthStore } from './store/authstore'
 import { useAuthInit } from './hooks/useAuthQuery'
@@ -19,14 +21,17 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-        <Routes>
-          <Route path='/' element={<ProtectedRoute><Chat/></ProtectedRoute>}></Route>
-          <Route path='/signup' element={<PublicRoute><Signup/></PublicRoute>}></Route>
-          <Route path='/login' element={<PublicRoute><Login/></PublicRoute>}></Route>
-          <Route path='/forgot-password' element={<PublicRoute><ForgotPassword/></PublicRoute>}></Route>
-        </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+          <Routes>
+            <Route path='/' element={<ProtectedRoute><Chat/></ProtectedRoute>}></Route>
+            <Route path='/signup' element={<PublicRoute><Signup/></PublicRoute>}></Route>
+            <Route path='/login' element={<PublicRoute><Login/></PublicRoute>}></Route>
+            <Route path='/forgot-password' element={<PublicRoute><ForgotPassword/></PublicRoute>}></Route>
+          </Routes>
+          <QueueIndicator />
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 

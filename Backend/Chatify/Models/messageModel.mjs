@@ -24,6 +24,7 @@ const messageSchema = new mongoose.Schema({
   text: {
     type: String,
     required: true,
+    maxlength: 5000, // Limit message length
   },
   read: {
     type: Boolean,
@@ -42,6 +43,18 @@ const messageSchema = new mongoose.Schema({
     type: Date,
   },
   readBy: [readBySchema],
+  // Edit/Delete fields
+  isEdited: {
+    type: Boolean,
+    default: false,
+  },
+  editedAt: {
+    type: Date,
+  },
+  deletedFor: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+  }],
 }, {
   timestamps: true,
   versionKey: false,

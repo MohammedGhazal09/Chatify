@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
 import { chatsQueryKey } from './useChatQueries';
+import { playNotificationSound, isSoundEnabled } from '../utils/sounds';
 import type {
   Chat,
   Message,
@@ -12,6 +13,8 @@ import type {
   BatchReadEvent,
   UserStatusChangeEvent,
   TypingUser,
+  MessageDeletedEvent,
+  MessageEditedEvent,
 } from '../types/chat';
 
 type UseChatSocketOptions = {
@@ -21,6 +24,8 @@ type UseChatSocketOptions = {
   onMessageStatusUpdate?: (event: MessageStatusUpdateEvent) => void;
   onMessageRead?: (event: MessageReadEvent) => void;
   onBatchRead?: (event: BatchReadEvent) => void;
+  onMessageDeleted?: (event: MessageDeletedEvent) => void;
+  onMessageEdited?: (event: MessageEditedEvent) => void;
 };
 
 const resolveSocketUrl = () => {
@@ -44,6 +49,8 @@ export const useChatSocket = ({
   onMessageStatusUpdate,
   onMessageRead,
   onBatchRead,
+  onMessageDeleted,
+  onMessageEdited,
 }: UseChatSocketOptions) => {
   const { isAuthenticated, user } = useAuthStore();
   const presenceStore = usePresenceStore();
@@ -164,9 +171,15 @@ export const useChatSocket = ({
       if (!message || (chatId && message.chatId !== chatId)) {
         return;
       }
+      
+      // Play notification sound for messages from others
+      if (message.sender !== user?._id && isSoundEnabled()) {
+        playNotificationSound();
+      }
+      
       onMessage?.(message);
     },
-    [chatId, onMessage]
+    [chatId, onMessage, user?._id]
   );
 
   // Handle message status updates
@@ -193,6 +206,22 @@ export const useChatSocket = ({
     [onBatchRead]
   );
 
+  // Handle message deleted events
+  const handleMessageDeleted = useCallback(
+    (event: MessageDeletedEvent) => {
+      onMessageDeleted?.(event);
+    },
+    [onMessageDeleted]
+  );
+
+  // Handle message edited events
+  const handleMessageEdited = useCallback(
+    (event: MessageEditedEvent) => {
+      onMessageEdited?.(event);
+    },
+    [onMessageEdited]
+  );
+
   // Set up message and status listeners
   useEffect(() => {
     if (!socket) {
@@ -203,14 +232,18 @@ export const useChatSocket = ({
     socket.on('message:status-update', handleMessageStatusUpdate);
     socket.on('message:read', handleMessageRead);
     socket.on('messages:read-batch', handleBatchRead);
+    socket.on('message:deleted', handleMessageDeleted);
+    socket.on('message:edited', handleMessageEdited);
 
     return () => {
       socket.off('message:new', handleIncomingMessage);
       socket.off('message:status-update', handleMessageStatusUpdate);
       socket.off('message:read', handleMessageRead);
       socket.off('messages:read-batch', handleBatchRead);
+      socket.off('message:deleted', handleMessageDeleted);
+      socket.off('message:edited', handleMessageEdited);
     };
-  }, [socket, handleIncomingMessage, handleMessageStatusUpdate, handleMessageRead, handleBatchRead]);
+  }, [socket, handleIncomingMessage, handleMessageStatusUpdate, handleMessageRead, handleBatchRead, handleMessageDeleted, handleMessageEdited]);
 
   // Handle chat room joining/leaving
   useEffect(() => {

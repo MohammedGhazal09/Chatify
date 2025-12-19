@@ -17,8 +17,19 @@ export interface Message {
   deliveredAt?: string;
   readAt?: string;
   readBy?: ReadByEntry[];
+  isEdited?: boolean;
+  editedAt?: string;
+  deletedFor?: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalMessages: number;
+  hasMore: boolean;
+  limit: number;
 }
 
 export interface Chat {
@@ -93,4 +104,20 @@ export interface BatchReadEvent {
     status: MessageStatus;
     readBy: ReadByEntry[];
   }[];
+}
+
+// Message delete/edit events
+export interface MessageDeletedEvent {
+  messageId: string;
+  chatId: string;
+  deletedBy: string;
+  deleteForEveryone: boolean;
+}
+
+export interface MessageEditedEvent {
+  messageId: string;
+  chatId: string;
+  text: string;
+  isEdited: boolean;
+  editedAt: string;
 }

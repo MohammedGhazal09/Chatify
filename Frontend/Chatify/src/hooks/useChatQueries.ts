@@ -41,15 +41,21 @@ export const useChats = () => {
 export const useMessages = (chatId: string | null) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const queryResult = useQuery({
     queryKey: messagesQueryKey(chatId ?? ''),
     queryFn: async () => {
       if (!chatId) {
-        return [] as Message[];
+        return { messages: [] as Message[], pagination: { hasMore: false, currentPage: 1, totalPages: 1 } };
       }
-      const response = await messageApi.getAllMessages(chatId);
-      return response.data.data.messages;
+      const response = await messageApi.getAllMessages(chatId, 1, 50);
+      return {
+        messages: response.data.data.messages,
+        pagination: response.data.data.pagination,
+      };
     },
     enabled: !!chatId && isAuthenticated,
   });
@@ -57,13 +63,45 @@ export const useMessages = (chatId: string | null) => {
   useEffect(() => {
     if (!chatId) {
       setMessages([]);
+      setCurrentPage(1);
+      setHasMore(true);
       return;
     }
 
-    if (Array.isArray(queryResult.data)) {
-      setMessages(queryResult.data);
+    if (queryResult.data) {
+      setMessages(queryResult.data.messages);
+      setHasMore(queryResult.data.pagination?.hasMore ?? false);
+      setCurrentPage(1);
     }
   }, [chatId, queryResult.data]);
+
+  // Load more (older) messages
+  const loadMoreMessages = useCallback(async () => {
+    if (!chatId || !hasMore || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const response = await messageApi.getAllMessages(chatId, nextPage, 50);
+      const olderMessages = response.data.data.messages;
+      const pagination = response.data.data.pagination;
+      
+      setMessages(prev => {
+        // Prepend older messages and dedupe
+        const existingIds = new Set(prev.map(m => m._id));
+        const newMessages = olderMessages.filter(m => !existingIds.has(m._id));
+        return [...newMessages, ...prev].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      });
+      setCurrentPage(nextPage);
+      setHasMore(pagination?.hasMore ?? false);
+    } catch (error) {
+      console.error('Failed to load more messages:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [chatId, currentPage, hasMore, isLoadingMore]);
 
   const upsertMessage = useCallback((incoming: Message) => {
     setMessages((previous) => {
@@ -131,6 +169,9 @@ export const useMessages = (chatId: string | null) => {
     setMessages,
     updateMessageStatus,
     updateMessagesStatus,
+    loadMoreMessages,
+    hasMore,
+    isLoadingMore,
   };
 };
 
@@ -263,5 +304,54 @@ export const useMarkMessagesAsRead = () => {
       const response = await messageApi.markMessagesAsRead(chatId, messageIds);
       return response.data;
     },
+  });
+};
+
+// Delete message mutation
+export const useDeleteMessage = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId, deleteForEveryone }: { messageId: string; deleteForEveryone: boolean }) => {
+      const response = await messageApi.deleteMessage(messageId, deleteForEveryone);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+};
+
+// Edit message mutation
+export const useEditMessage = () => {
+  return useMutation({
+    mutationFn: async ({ messageId, text }: { messageId: string; text: string }) => {
+      const response = await messageApi.editMessage(messageId, text);
+      return response.data.data.message;
+    },
+  });
+};
+
+// Get unread counts for all chats
+export const useUnreadCounts = (chatIds: string[]) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useQuery({
+    queryKey: ['unreadCounts', ...chatIds],
+    queryFn: async () => {
+      const counts = await Promise.all(
+        chatIds.map(async (chatId) => {
+          try {
+            const response = await messageApi.getUnreadCount(chatId);
+            return { chatId, count: response.data.data.unreadCount };
+          } catch {
+            return { chatId, count: 0 };
+          }
+        })
+      );
+      return new Map(counts.map((c) => [c.chatId, c.count]));
+    },
+    enabled: isAuthenticated && chatIds.length > 0,
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 };

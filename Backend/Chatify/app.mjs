@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import hpp from 'hpp';
 import cookieParser from 'cookie-parser';
 import csurf from 'csurf';
+import rateLimit from 'express-rate-limit';
 import authRouter from './Routes/authRouter.mjs';
 import userRouter from './Routes/userRouter.mjs'
 import chatRouter from './Routes/chatRouter.mjs';
@@ -12,6 +13,8 @@ import errHandler from './Controller/errController.mjs';
 import protect from './Middlewares/protectRoutes.mjs';
 import { CustomError } from './Utils/customError.mjs';
 import sanitization from './Middlewares/sanitization.mjs';
+import { requestLogger, errorRequestLogger } from './Middlewares/requestLogger.mjs';
+import { queueStatus, queueHeavyRequests, addQueueHeaders } from './Middlewares/queueMiddleware.mjs';
 import passport from 'passport';
 import './Config/passport.mjs'; // Import passport configuration
 import {googleAuth,
@@ -23,9 +26,41 @@ import {googleAuth,
 } from "./Controller/authController.mjs";
 const app = express();
 
+// Request logging (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use(requestLogger);
+}
+
 app.use(helmet());
 
 app.disable('x-powered-by');
+
+// Rate limiting for security
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // Limit each IP to 500 requests per window
+  message: { status: 'error', message: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit login/signup attempts
+  message: { status: 'error', message: 'Too many authentication attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 messages per minute
+  message: { status: 'error', message: 'Sending messages too fast, slow down!' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use(globalLimiter);
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
@@ -51,6 +86,13 @@ app.use(hpp());
 app.use(sanitization);
 
 app.use(passport.initialize());
+
+// Queue status endpoint (for monitoring)
+app.get('/api/queue-status', queueStatus);
+
+// Apply queue middleware for heavy requests
+app.use(queueHeavyRequests);
+app.use(addQueueHeaders);
 
 // Google  routes
 app.get("/api/auth/google", googleAuth);
@@ -106,15 +148,20 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
 //   csrfProtection(req, res, next);
 // });
 
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authLimiter, authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, chatRouter);
-app.use('/api/message', protect, messageRouter);
+app.use('/api/message', protect, messageLimiter, messageRouter);
 
 app.use((req, res, next) => {
   const error = new CustomError(`Can't find ${req.originalUrl} on this server`, 404);
   next(error);
 });
+
+// Error request logging (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use(errorRequestLogger);
+}
 
 app.use(errHandler);
 export default app;
