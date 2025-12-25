@@ -15,10 +15,16 @@ type SendMessageVariables = {
 };
 
 type SendMessageContext = {
-  previousMessages?: Message[];
+  previousMessages?: MessagesQueryData;
   previousChats?: Chat[];
   optimisticMessage?: Message;
 };
+
+// Type for query data after pagination update
+interface MessagesQueryData {
+  messages: Message[];
+  pagination?: { hasMore: boolean; currentPage: number; totalPages: number };
+}
 
 type CreateChatVariables = {
   targetEmail: string;
@@ -196,7 +202,7 @@ export const useSendMessage = () => {
         return {};
       }
       await queryClient.cancelQueries({ queryKey: messagesQueryKey(chatId) });
-      const previousMessages = queryClient.getQueryData<Message[]>(messagesQueryKey(chatId));
+      const previousData = queryClient.getQueryData<MessagesQueryData>(messagesQueryKey(chatId));
       const previousChats = queryClient.getQueryData<Chat[]>(chatsQueryKey);
 
       const optimisticMessage: Message = {
@@ -210,10 +216,10 @@ export const useSendMessage = () => {
         updatedAt: new Date().toISOString(),
       };
 
-      queryClient.setQueryData<Message[]>(messagesQueryKey(chatId), (old = []) => [
-        ...old,
-        optimisticMessage,
-      ]);
+      queryClient.setQueryData<MessagesQueryData>(messagesQueryKey(chatId), (old) => ({
+        messages: [...(old?.messages ?? []), optimisticMessage],
+        pagination: old?.pagination,
+      }));
 
       queryClient.setQueryData<Chat[]>(chatsQueryKey, (old) => {
         if (!old) {
@@ -230,34 +236,34 @@ export const useSendMessage = () => {
         );
       });
 
-      return { previousMessages, previousChats, optimisticMessage };
+      return { previousMessages: previousData, previousChats, optimisticMessage };
     },
     onError: (_error, variables, context) => {
       if (context?.previousMessages) {
-        queryClient.setQueryData<Message[]>(messagesQueryKey(variables.chatId), context.previousMessages);
+        queryClient.setQueryData<MessagesQueryData>(messagesQueryKey(variables.chatId), context.previousMessages);
       }
       if (context?.previousChats) {
         queryClient.setQueryData<Chat[]>(chatsQueryKey, context.previousChats);
       }
     },
     onSuccess: (message, variables, context) => {
-      queryClient.setQueryData<Message[]>(messagesQueryKey(variables.chatId), (old) => {
+      queryClient.setQueryData<MessagesQueryData>(messagesQueryKey(variables.chatId), (old) => {
         if (!old) {
-          return [message];
+          return { messages: [message] };
         }
 
         const optimisticId = context?.optimisticMessage?._id;
-        const existingIndex = old.findIndex((existingMessage) =>
+        const existingIndex = old.messages.findIndex((existingMessage) =>
           optimisticId ? existingMessage._id === optimisticId : existingMessage._id === message._id
         );
 
         if (existingIndex !== -1) {
-          const next = [...old];
+          const next = [...old.messages];
           next[existingIndex] = message;
-          return next;
+          return { ...old, messages: next };
         }
 
-        return [...old, message];
+        return { ...old, messages: [...old.messages, message] };
       });
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
     },
