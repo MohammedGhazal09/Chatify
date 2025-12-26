@@ -458,7 +458,7 @@ const ChatPage = () => {
 
   // Handle delete message with optimistic update
   const handleDeleteMessage = (deleteForEveryone: boolean) => {
-    if (!contextMenu) return;
+    if (!contextMenu || !selectedChatId) return;
     const messageId = contextMenu.messageId;
     
     // Optimistically remove message immediately
@@ -466,7 +466,7 @@ const ChatPage = () => {
     setContextMenu(null);
     
     deleteMessageMutation.mutate(
-      { messageId, deleteForEveryone },
+      { messageId, deleteForEveryone, chatId: selectedChatId },
       {
         onError: (error) => {
           // Rollback: refetch messages on error
@@ -653,7 +653,7 @@ const ChatPage = () => {
             </div>
           )}
           <div className="flex-1">
-            <p className="text-sm text-slate-400">Logged in as</p>
+            <p className="text-xs text-slate-400">Logged in as</p>
             <p className="font-semibold">{user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -1224,7 +1224,7 @@ const MessageBubble = memo(({ message, isOwnMessage, isGroupChat, members, onCon
     >
       <div className="flex flex-col">
         <div
-          className={`message-bubble max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow cursor-pointer ${
+          className={`message-bubble max-w-[80%] rounded-2xl pl-2.5 pr-8 py-2 text-sm shadow cursor-pointer ${
             isOwnMessage
               ? 'bg-emerald-500 text-emerald-950'
               : 'bg-slate-800 text-slate-100'
@@ -1233,9 +1233,9 @@ const MessageBubble = memo(({ message, isOwnMessage, isGroupChat, members, onCon
           {message.isEdited && (
             <span className="text-[9px] opacity-70 italic">(edited)</span>
           )}
-          <p>{message.text}</p>
-          <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${isOwnMessage ? 'text-emerald-900' : 'text-slate-400'}`}>
-            <span>{formatTimestamp(message.updatedAt)}</span>
+          <p className=''>{message.text}</p>
+          <div className={`mt-1 flex items-end-safe justify-start gap-1 text-[10px] ${isOwnMessage ? 'text-emerald-900' : 'text-slate-400'}`}>
+            <span className='text-nowrap'>{formatTimestamp(message.updatedAt)}</span>
             <MessageStatus status={message.status || 'sent'} isOwnMessage={isOwnMessage} />
           </div>
           {seenByText && (
@@ -1248,7 +1248,7 @@ const MessageBubble = memo(({ message, isOwnMessage, isGroupChat, members, onCon
             {groupedReactions.map(({ emoji, count }) => (
               <span
                 key={emoji}
-                className="inline-flex items-center gap-0.5 bg-slate-700/80 rounded-full px-1.5 py-0.5 text-xs"
+                className="inline-flex pointer-events-none items-center gap-0.5 bg-slate-700/80 rounded-full px-1.5 py-0.5 text-xs"
               >
                 <span>{emoji}</span>
                 {count > 1 && <span className="text-slate-300">{count}</span>}

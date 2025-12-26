@@ -267,9 +267,6 @@ export const useSendMessage = () => {
       });
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
     },
-    onSettled: (_message, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: messagesQueryKey(variables.chatId) });
-    },
   });
 };
 
@@ -318,9 +315,33 @@ export const useDeleteMessage = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ messageId, deleteForEveryone }: { messageId: string; deleteForEveryone: boolean }) => {
+    mutationFn: async ({ messageId, deleteForEveryone, chatId }: { messageId: string; deleteForEveryone: boolean; chatId: string }) => {
       const response = await messageApi.deleteMessage(messageId, deleteForEveryone);
       return response.data;
+    },
+    onMutate: async ({ messageId, chatId }) => {
+      // Cancel any in-flight queries to prevent overwrites
+      await queryClient.cancelQueries({ queryKey: messagesQueryKey(chatId) });
+
+      // Save previous state for rollback
+      const previousMessages = queryClient.getQueryData<MessagesQueryData>(messagesQueryKey(chatId));
+
+      // Optimistically remove message from query cache
+      queryClient.setQueryData<MessagesQueryData>(messagesQueryKey(chatId), (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          messages: old.messages.filter((m) => m._id !== messageId),
+        };
+      });
+
+      return { previousMessages, chatId };
+    },
+    onError: (_error, variables, context) => {
+      // Rollback on error
+      if (context?.previousMessages) {
+        queryClient.setQueryData<MessagesQueryData>(messagesQueryKey(variables.chatId), context.previousMessages);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });

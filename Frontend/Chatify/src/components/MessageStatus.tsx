@@ -49,13 +49,13 @@ export const MessageStatus = ({ status, isOwnMessage }: MessageStatusProps) => {
   const getStatusIcon = () => {
     switch (status) {
       case 'sent':
-        return <SingleCheck className="text-slate-400" />;
+        return <SingleCheck className="text-slate-600" />;
       case 'delivered':
-        return <DoubleCheck className="text-slate-400" />;
+        return <DoubleCheck className="text-slate-700" />;
       case 'read':
-        return <DoubleCheck className="text-blue-500" />;
+        return <DoubleCheck className="text-blue-800" />;
       default:
-        return <SingleCheck className="text-slate-400" />;
+        return <SingleCheck className="text-slate-600" />;
     }
   };
 
