@@ -8,6 +8,8 @@ import MessageStatus from '../../components/MessageStatus';
 import OnlineStatus, { OnlineDot } from '../../components/OnlineStatus';
 import TypingIndicator from '../../components/TypingIndicator';
 import SettingsModal from '../../components/SettingsModal';
+import { useToast } from '../../components/Toast';
+import useLocalStorage from '../../hooks/useLocalStorage';
 import { useAuthStore } from '../../store/authstore';
 import { usePresenceStore } from '../../store/presenceStore';
 import { useLogout } from '../../hooks/useAuthQuery';
@@ -20,9 +22,10 @@ import {
   useDeleteMessage,
   useEditMessage,
   useUnreadCounts,
+  useToggleReaction,
 } from '../../hooks/useChatQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
-import type { Chat, Message, MessageStatusUpdateEvent, BatchReadEvent, MessageDeletedEvent, MessageEditedEvent } from '../../types/chat';
+import type { Chat, Message, MessageStatusUpdateEvent, BatchReadEvent, MessageDeletedEvent, MessageEditedEvent, MessageReactionEvent } from '../../types/chat';
 import './chat.css';
 
 const formatTimestamp = (timestamp: string) => {
@@ -97,6 +100,7 @@ const ChatPage = () => {
   const { user, isAuthenticated } = useAuthStore();
   const onlineUsers = usePresenceStore((state) => state.onlineUsers);
   const logoutMutation = useLogout();
+  const { showToast } = useToast();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
@@ -107,6 +111,7 @@ const ChatPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; messageId: string; isOwn: boolean } | null>(null);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -117,6 +122,7 @@ const ChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
   const {
@@ -137,6 +143,7 @@ const ChatPage = () => {
   const markMessagesAsReadMutation = useMarkMessagesAsRead();
   const deleteMessageMutation = useDeleteMessage();
   const editMessageMutation = useEditMessage();
+  const toggleReactionMutation = useToggleReaction();
 
   // Get unread counts for chats
   const chatIds = useMemo(() => chats?.map(c => c._id) ?? [], [chats]);
@@ -203,6 +210,13 @@ const ChatPage = () => {
     onBatchRead: handleBatchRead,
     onMessageDeleted: handleMessageDeleted,
     onMessageEdited: handleMessageEdited,
+    onMessageReaction: (event: MessageReactionEvent) => {
+      // Update message reactions in cache
+      const message = messages?.find(m => m._id === event.messageId);
+      if (message) {
+        upsertMessage({ ...message, reactions: event.reactions });
+      }
+    },
   });
 
   // Debounced typing stop
@@ -359,12 +373,39 @@ const ChatPage = () => {
   // Handle message context menu (right-click)
   const handleMessageContextMenu = (e: React.MouseEvent, messageId: string, isOwn: boolean) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, messageId, isOwn });
+    const menuWidth = 200;
+    const menuHeight = 300;
+    
+    let x = e.clientX;
+    let y = e.clientY;
+    
+    // Position to left of cursor for own messages (sender) to prevent overflow
+    if (isOwn) {
+      x = Math.max(10, e.clientX - menuWidth);
+    } else {
+      // For received messages, check if menu would overflow right edge
+      if (e.clientX + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 10;
+      }
+    }
+    
+    // Check if menu would overflow bottom edge
+    if (e.clientY + menuHeight > window.innerHeight) {
+      y = Math.max(10, window.innerHeight - menuHeight - 10);
+    }
+    
+    setShowReactionPicker(false);
+    setContextMenu({ x, y, messageId, isOwn });
   };
 
   // Close context menu when clicking elsewhere
   useEffect(() => {
-    const handleClick = () => setContextMenu(null);
+    const handleClick = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+        setShowReactionPicker(false);
+      }
+    };
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, []);
@@ -415,17 +456,25 @@ const ChatPage = () => {
     setContextMenu(null);
   };
 
-  // Handle delete message
+  // Handle delete message with optimistic update
   const handleDeleteMessage = (deleteForEveryone: boolean) => {
     if (!contextMenu) return;
+    const messageId = contextMenu.messageId;
+    
+    // Optimistically remove message immediately
+    removeMessage(messageId);
+    setContextMenu(null);
+    
     deleteMessageMutation.mutate(
-      { messageId: contextMenu.messageId, deleteForEveryone },
+      { messageId, deleteForEveryone },
       {
-        onSuccess: () => {
-          if (deleteForEveryone) {
-            removeMessage(contextMenu.messageId);
-          }
-          setContextMenu(null);
+        onError: (error) => {
+          // Rollback: refetch messages on error
+          refetchMessages();
+          const message = axios.isAxiosError(error)
+            ? error.response?.data?.message ?? 'Could not delete message'
+            : 'Could not delete message';
+          showToast(message, 'error');
         },
       }
     );
@@ -477,11 +526,31 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Handle reaction to message
+  // Handle reaction to message with optimistic update
   const handleReaction = (messageId: string, emoji: string) => {
-    // For now, just log - would need backend support
-    console.log(`Reacted to ${messageId} with ${emoji}`);
+    // Optimistic update - update message in cache immediately
+    const message = allMessages.find(m => m._id === messageId);
+    if (message) {
+      const existingReaction = message.reactions?.find(r => r.user === user?._id && r.emoji === emoji);
+      const updatedReactions = existingReaction
+        ? (message.reactions || []).filter(r => !(r.user === user?._id && r.emoji === emoji))
+        : [...(message.reactions || []), { user: user?._id || '', emoji }];
+      
+      upsertMessage({ ...message, reactions: updatedReactions });
+    }
+    
+    toggleReactionMutation.mutate(
+      { messageId, emoji },
+      {
+        onError: () => {
+          // Rollback on error
+          refetchMessages();
+          showToast('Failed to add reaction', 'error');
+        },
+      }
+    );
     setContextMenu(null);
+    setShowReactionPicker(false);
   };
 
   // Export chat history
@@ -548,8 +617,10 @@ const ChatPage = () => {
     );
   };
 
+  const [enterToSend] = useLocalStorage('chatify_enter_to_send', true);
+
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey && enterToSend) {
       event.preventDefault();
       handleSendMessage();
     }
@@ -590,7 +661,7 @@ const ChatPage = () => {
             <button
               type="button"
               onClick={() => setIsSettingsOpen(true)}
-              className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors"
+              className="cursor-pointer p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors"
               title="Settings"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -598,7 +669,7 @@ const ChatPage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </button>
-            <div onClick={handleLogout}>
+            <div onClick={handleLogout} className="cursor-pointer">
               <AccountsButton color="#dc2626" text="Logout" />
             </div>
           </div>
@@ -665,7 +736,7 @@ const ChatPage = () => {
               <button
                 type="button"
                 onClick={() => refetchChats()}
-                className="rounded bg-emerald-500/10 px-3 py-1 text-emerald-300 hover:bg-emerald-500/20"
+                className="cursor-pointer rounded bg-emerald-500/10 px-3 py-1 text-emerald-300 hover:bg-emerald-500/20"
               >
                 Try again
               </button>
@@ -692,7 +763,7 @@ const ChatPage = () => {
                         setSelectedChatId(chat._id);
                         setIsSidebarOpen(false);
                       }}
-                      className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
+                      className={`cursor-pointer w-full rounded-lg px-3 py-2 text-left transition-colors ${
                         isActive ? 'bg-emerald-500/20 text-emerald-100' : 'hover:bg-slate-800'
                       }`}
                     >
@@ -704,9 +775,9 @@ const ChatPage = () => {
                           )}
                         </span>
                         <div className="flex items-center gap-2">
-                          {unreadCounts?.get(chat._id) && unreadCounts.get(chat._id)! > 0 && (
+                          {Number(unreadCounts?.get(chat._id)) > 0 && (
                             <span className="bg-emerald-500 text-emerald-950 text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                              {unreadCounts.get(chat._id)! > 99 ? '99+' : unreadCounts.get(chat._id)}
+                              {unreadCounts!.get(chat._id)! > 99 ? '99+' : unreadCounts!.get(chat._id)}
                             </span>
                           )}
                           <span className="text-xs text-slate-400">
@@ -740,7 +811,7 @@ const ChatPage = () => {
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
-                className="md:hidden text-slate-400 hover:text-emerald-400"
+                className="cursor-pointer md:hidden text-slate-400 hover:text-emerald-400"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -787,7 +858,7 @@ const ChatPage = () => {
                   setShowMessageSearch(!showMessageSearch);
                   if (showMessageSearch) setMessageSearch('');
                 }}
-                className="text-slate-400 hover:text-emerald-400 p-2"
+                className="cursor-pointer text-slate-400 hover:text-emerald-400 p-2"
                 title="Search messages"
               >
                 🔍
@@ -796,7 +867,7 @@ const ChatPage = () => {
               {/* Export chat button */}
               <button
                 onClick={handleExportChat}
-                className="text-slate-400 hover:text-emerald-400 p-2"
+                className="cursor-pointer text-slate-400 hover:text-emerald-400 p-2"
                 title="Export chat"
               >
                 📥
@@ -838,7 +909,7 @@ const ChatPage = () => {
                   <button
                     type="button"
                     onClick={() => refetchMessages()}
-                    className="rounded bg-emerald-500/10 px-3 py-1 text-emerald-300 hover:bg-emerald-500/20"
+                    className="cursor-pointer rounded bg-emerald-500/10 px-3 py-1 text-emerald-300 hover:bg-emerald-500/20"
                   >
                     Try again
                   </button>
@@ -851,7 +922,7 @@ const ChatPage = () => {
                       <button
                         onClick={loadMoreMessages}
                         disabled={isLoadingMore}
-                        className="text-xs text-emerald-400 hover:text-emerald-300 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
+                        className="cursor-pointer text-xs text-emerald-400 hover:text-emerald-300 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isLoadingMore ? 'Loading...' : '↑ Load older messages'}
                       </button>
@@ -884,14 +955,14 @@ const ChatPage = () => {
                               <div className="flex gap-2 justify-end">
                                 <button
                                   onClick={handleCancelEdit}
-                                  className="px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
+                                  className="cursor-pointer px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
                                 >
                                   Cancel
                                 </button>
                                 <button
                                   onClick={handleSaveEdit}
                                   disabled={editMessageMutation.isPending}
-                                  className="px-3 py-1 text-xs bg-emerald-500 text-emerald-950 rounded hover:bg-emerald-400"
+                                  className="cursor-pointer px-3 py-1 text-xs bg-emerald-500 text-emerald-950 rounded hover:bg-emerald-400 disabled:cursor-not-allowed"
                                 >
                                   {editMessageMutation.isPending ? 'Saving...' : 'Save'}
                                 </button>
@@ -941,7 +1012,7 @@ const ChatPage = () => {
                   </div>
                   <button
                     onClick={() => setReplyingTo(null)}
-                    className="ml-2 text-slate-400 hover:text-slate-200"
+                    className="cursor-pointer ml-2 text-slate-400 hover:text-slate-200"
                   >
                     ✕
                   </button>
@@ -962,7 +1033,7 @@ const ChatPage = () => {
                       <button
                         type="button"
                         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                        className="text-slate-400 hover:text-emerald-400 transition-colors p-1"
+                        className="cursor-pointer text-slate-400 hover:text-emerald-400 transition-colors p-1"
                         title="Add emoji"
                       >
                         😀
@@ -986,9 +1057,6 @@ const ChatPage = () => {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`text-xs ${messageInput.length > 1000 ? 'text-red-400' : messageInput.length > 800 ? 'text-yellow-400' : 'text-slate-500'}`}>
-                      {messageInput.length}/1000
-                    </span>
                     <button
                       type="button"
                       onClick={handleSendMessage}
@@ -1018,8 +1086,10 @@ const ChatPage = () => {
       {/* Context Menu */}
       {contextMenu && (
         <div 
-          className="fixed bg-slate-800 rounded-lg shadow-xl py-1 z-50 min-w-[140px] border border-slate-700"
+          ref={contextMenuRef}
+          className="fixed bg-slate-800 rounded-lg shadow-xl py-1 z-50 min-w-[200px] border border-slate-700"
           style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Quick Reactions */}
           <div className="flex justify-center gap-1 px-2 py-2 border-b border-slate-700">
@@ -1027,26 +1097,47 @@ const ChatPage = () => {
               <button
                 key={emoji}
                 onClick={() => handleReaction(contextMenu.messageId, emoji)}
-                className="text-lg hover:scale-125 transition-transform p-1"
+                className="cursor-pointer text-lg hover:scale-125 transition-transform p-1"
               >
                 {emoji}
               </button>
             ))}
+            <button
+              onClick={() => setShowReactionPicker(!showReactionPicker)}
+              className="cursor-pointer text-lg hover:scale-125 transition-transform p-1"
+              title="More reactions"
+            >
+              ➕
+            </button>
           </div>
+          
+          {/* Emoji Picker for reactions */}
+          {showReactionPicker && (
+            <div className="absolute bottom-full left-0 mb-2 z-50">
+              <EmojiPicker
+                theme={Theme.DARK}
+                onEmojiClick={(emojiData) => {
+                  handleReaction(contextMenu.messageId, emojiData.emoji);
+                }}
+                width={300}
+                height={350}
+              />
+            </div>
+          )}
           
           <button
             onClick={() => {
               const msg = conversationMessages.find(m => m._id === contextMenu.messageId);
               if (msg) handleReply(msg);
             }}
-            className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+            className="cursor-pointer w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
           >
             ↩️ Reply
           </button>
           {contextMenu.isOwn && (
             <button
               onClick={() => handleStartEdit(contextMenu.messageId, conversationMessages.find(m => m._id === contextMenu.messageId)?.text || '')}
-              className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+              className="cursor-pointer w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
             >
               ✏️ Edit
             </button>
@@ -1057,32 +1148,22 @@ const ChatPage = () => {
               if (msg) navigator.clipboard.writeText(msg.text);
               setContextMenu(null);
             }}
-            className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+            className="cursor-pointer w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
           >
             📋 Copy
           </button>
-          <button
-            onClick={() => {
-              const msg = conversationMessages.find(m => m._id === contextMenu.messageId);
-              if (msg) {
-                setMessageInput(`Forwarded: "${msg.text}"`);
-              }
-              setContextMenu(null);
-            }}
-            className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
-          >
-            ➡️ Forward
-          </button>
-          <button
-            onClick={() => handleDeleteMessage(false)}
-            className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
-          >
-            🗑️ Delete for me
-          </button>
+          {contextMenu.isOwn && (
+            <button
+              onClick={() => handleDeleteMessage(false)}
+              className="cursor-pointer w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2"
+            >
+              🗑️ Delete for me
+            </button>
+          )}
           {contextMenu.isOwn && (
             <button
               onClick={() => handleDeleteMessage(true)}
-              className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
+              className="cursor-pointer w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-700 flex items-center gap-2"
             >
               🗑️ Delete for everyone
             </button>
@@ -1122,6 +1203,16 @@ const MessageBubble = memo(({ message, isOwnMessage, isGroupChat, members, onCon
     return `Seen by ${readCount} ${readCount === 1 ? 'person' : 'people'}`;
   };
 
+  // Group reactions by emoji and count
+  const groupedReactions = useMemo(() => {
+    if (!message.reactions || message.reactions.length === 0) return [];
+    const groups = new Map<string, number>();
+    message.reactions.forEach(r => {
+      groups.set(r.emoji, (groups.get(r.emoji) || 0) + 1);
+    });
+    return Array.from(groups.entries()).map(([emoji, count]) => ({ emoji, count }));
+  }, [message.reactions]);
+
   const seenByText = getSeenByText();
 
   return (
@@ -1131,23 +1222,39 @@ const MessageBubble = memo(({ message, isOwnMessage, isGroupChat, members, onCon
       onContextMenu={onContextMenu ? (e) => onContextMenu(e, message) : undefined}
       onDoubleClick={onDoubleClick && isOwnMessage ? () => onDoubleClick(message) : undefined}
     >
-      <div
-        className={`message-bubble max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow cursor-pointer ${
-          isOwnMessage
-            ? 'bg-emerald-500 text-emerald-950'
-            : 'bg-slate-800 text-slate-100'
-        }`}
-      >
-        {message.isEdited && (
-          <span className="text-[9px] opacity-70 italic">(edited)</span>
-        )}
-        <p>{message.text}</p>
-        <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${isOwnMessage ? 'text-emerald-900' : 'text-slate-400'}`}>
-          <span>{formatTimestamp(message.updatedAt)}</span>
-          <MessageStatus status={message.status || 'sent'} isOwnMessage={isOwnMessage} />
+      <div className="flex flex-col">
+        <div
+          className={`message-bubble max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow cursor-pointer ${
+            isOwnMessage
+              ? 'bg-emerald-500 text-emerald-950'
+              : 'bg-slate-800 text-slate-100'
+          }`}
+        >
+          {message.isEdited && (
+            <span className="text-[9px] opacity-70 italic">(edited)</span>
+          )}
+          <p>{message.text}</p>
+          <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${isOwnMessage ? 'text-emerald-900' : 'text-slate-400'}`}>
+            <span>{formatTimestamp(message.updatedAt)}</span>
+            <MessageStatus status={message.status || 'sent'} isOwnMessage={isOwnMessage} />
+          </div>
+          {seenByText && (
+            <p className="text-[9px] text-emerald-800 text-right mt-0.5">{seenByText}</p>
+          )}
         </div>
-        {seenByText && (
-          <p className="text-[9px] text-emerald-800 text-right mt-0.5">{seenByText}</p>
+        {/* Reactions display */}
+        {groupedReactions.length > 0 && (
+          <div className={`flex gap-1 mt-1 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+            {groupedReactions.map(({ emoji, count }) => (
+              <span
+                key={emoji}
+                className="inline-flex items-center gap-0.5 bg-slate-700/80 rounded-full px-1.5 py-0.5 text-xs"
+              >
+                <span>{emoji}</span>
+                {count > 1 && <span className="text-slate-300">{count}</span>}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     </div>

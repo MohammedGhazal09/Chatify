@@ -8,6 +8,7 @@ import PublicRoute from './components/publicRoute'
 import LoadingSpinner from './components/loadingSpinner'
 import ErrorBoundary from './components/ErrorBoundary'
 import QueueIndicator from './components/QueueIndicator'
+import { ToastProvider } from './components/Toast'
 import ForgotPassword from './pages/forgotPassword/forgotPassword'
 import { useAuthStore } from './store/authstore'
 import { useAuthInit } from './hooks/useAuthQuery'
@@ -22,15 +23,17 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-          <Routes>
-            <Route path='/' element={<ProtectedRoute><Chat/></ProtectedRoute>}></Route>
-            <Route path='/signup' element={<PublicRoute><Signup/></PublicRoute>}></Route>
-            <Route path='/login' element={<PublicRoute><Login/></PublicRoute>}></Route>
-            <Route path='/forgot-password' element={<PublicRoute><ForgotPassword/></PublicRoute>}></Route>
-          </Routes>
-          <QueueIndicator />
-      </BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+            <Routes>
+              <Route path='/' element={<ProtectedRoute><Chat/></ProtectedRoute>}></Route>
+              <Route path='/signup' element={<PublicRoute><Signup/></PublicRoute>}></Route>
+              <Route path='/login' element={<PublicRoute><Login/></PublicRoute>}></Route>
+              <Route path='/forgot-password' element={<PublicRoute><ForgotPassword/></PublicRoute>}></Route>
+            </Routes>
+            <QueueIndicator />
+        </BrowserRouter>
+      </ToastProvider>
     </ErrorBoundary>
   )
 }

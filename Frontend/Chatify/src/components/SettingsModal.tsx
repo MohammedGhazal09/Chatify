@@ -10,7 +10,6 @@ interface SettingsModalProps {
 const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
   const [soundEnabled, setSoundEnabledState] = useState(isSoundEnabled());
   const [enterToSend, setEnterToSend] = useLocalStorage('chatify_enter_to_send', true);
-  const [showTimestamps, setShowTimestamps] = useLocalStorage('chatify_show_timestamps', true);
 
   const handleSoundToggle = useCallback(() => {
     const newValue = !soundEnabled;
@@ -35,7 +34,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
           <h2 className="text-lg font-semibold text-slate-100">Settings</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 transition-colors"
+            className="cursor-pointer text-slate-400 hover:text-slate-200 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -53,7 +52,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
             </div>
             <button
               onClick={handleSoundToggle}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
+              className={`cursor-pointer relative w-11 h-6 rounded-full transition-colors ${
                 soundEnabled ? 'bg-emerald-500' : 'bg-slate-700'
               }`}
             >
@@ -73,7 +72,7 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
             </div>
             <button
               onClick={() => setEnterToSend(!enterToSend)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
+              className={`cursor-pointer relative w-11 h-6 rounded-full transition-colors ${
                 enterToSend ? 'bg-emerald-500' : 'bg-slate-700'
               }`}
             >
@@ -84,33 +83,13 @@ const SettingsModal = ({ isOpen, onClose }: SettingsModalProps) => {
               />
             </button>
           </div>
-
-          {/* Show Timestamps */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-100">Show Timestamps</p>
-              <p className="text-xs text-slate-400">Display time on messages</p>
-            </div>
-            <button
-              onClick={() => setShowTimestamps(!showTimestamps)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
-                showTimestamps ? 'bg-emerald-500' : 'bg-slate-700'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                  showTimestamps ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
         </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-slate-800">
           <button
             onClick={onClose}
-            className="w-full py-2 px-4 bg-emerald-500 text-emerald-950 font-semibold rounded-lg hover:bg-emerald-400 transition-colors"
+            className="cursor-pointer w-full py-2 px-4 bg-emerald-500 text-emerald-950 font-semibold rounded-lg hover:bg-emerald-400 transition-colors"
           >
             Done
           </button>

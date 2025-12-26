@@ -44,13 +44,7 @@ const globalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit login/signup attempts
-  message: { status: 'error', message: 'Too many authentication attempts, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+
 
 const messageLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -69,7 +63,7 @@ const isProd = process.env.NODE_ENV === 'production';
 
 const FRONTEND_ORIGIN = isProd
   ? process.env.FRONTEND_ORIGIN
-  : 'http://localhost:5173';
+  : process.env.FRONTEND_ORIGIN_DEV || 'http://localhost:5173';
 
 app.use(
   cors({
@@ -148,7 +142,7 @@ app.get('/api/csrf-token', csrfProtection, (req, res) => {
 //   csrfProtection(req, res, next);
 // });
 
-app.use('/api/auth', authLimiter, authRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, chatRouter);
 app.use('/api/message', protect, messageLimiter, messageRouter);

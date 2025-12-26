@@ -15,6 +15,8 @@ import type {
   TypingUser,
   MessageDeletedEvent,
   MessageEditedEvent,
+  MessageReactionEvent,
+  UnreadUpdateEvent,
 } from '../types/chat';
 
 type UseChatSocketOptions = {
@@ -26,6 +28,7 @@ type UseChatSocketOptions = {
   onBatchRead?: (event: BatchReadEvent) => void;
   onMessageDeleted?: (event: MessageDeletedEvent) => void;
   onMessageEdited?: (event: MessageEditedEvent) => void;
+  onMessageReaction?: (event: MessageReactionEvent) => void;
 };
 
 const resolveSocketUrl = () => {
@@ -37,6 +40,9 @@ const resolveSocketUrl = () => {
   if (typeof window === 'undefined') {
     return undefined;
   }
+
+  // Fallback to localhost for development
+  return 'http://localhost:3000';
 };
 
 // Typing timeout duration (3 seconds)
@@ -51,6 +57,7 @@ export const useChatSocket = ({
   onBatchRead,
   onMessageDeleted,
   onMessageEdited,
+  onMessageReaction,
 }: UseChatSocketOptions) => {
   const { isAuthenticated, user } = useAuthStore();
   const presenceStore = usePresenceStore();
@@ -151,6 +158,30 @@ export const useChatSocket = ({
       }
     });
 
+    // Listen for unread count updates
+    socketInstance.on('unread:update', (data: UnreadUpdateEvent) => {
+      // Only update for current user
+      if (data.userId !== user?._id) return;
+
+      // Update the cached unread counts directly
+      queryClientRef.current.setQueriesData<Map<string, number>>(
+        { queryKey: ['unreadCounts'] },
+        (old) => {
+          if (!old) return old;
+          const newMap = new Map(old);
+          if (typeof data.count === 'number') {
+            // Absolute count (e.g., messages marked as read)
+            newMap.set(data.chatId, data.count);
+          } else if (typeof data.increment === 'number') {
+            // Increment (e.g., new message arrived)
+            const current = newMap.get(data.chatId) ?? 0;
+            newMap.set(data.chatId, current + data.increment);
+          }
+          return newMap;
+        }
+      );
+    });
+
     return () => {
       // Clear all typing timeouts
       Object.values(typingTimeoutRef.current).forEach(clearTimeout);
@@ -222,6 +253,14 @@ export const useChatSocket = ({
     [onMessageEdited]
   );
 
+  // Handle message reaction events
+  const handleMessageReaction = useCallback(
+    (event: MessageReactionEvent) => {
+      onMessageReaction?.(event);
+    },
+    [onMessageReaction]
+  );
+
   // Set up message and status listeners
   useEffect(() => {
     if (!socket) {
@@ -234,6 +273,7 @@ export const useChatSocket = ({
     socket.on('messages:read-batch', handleBatchRead);
     socket.on('message:deleted', handleMessageDeleted);
     socket.on('message:edited', handleMessageEdited);
+    socket.on('message:reaction', handleMessageReaction);
 
     return () => {
       socket.off('message:new', handleIncomingMessage);
@@ -242,8 +282,9 @@ export const useChatSocket = ({
       socket.off('messages:read-batch', handleBatchRead);
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('message:edited', handleMessageEdited);
+      socket.off('message:reaction', handleMessageReaction);
     };
-  }, [socket, handleIncomingMessage, handleMessageStatusUpdate, handleMessageRead, handleBatchRead, handleMessageDeleted, handleMessageEdited]);
+  }, [socket, handleIncomingMessage, handleMessageStatusUpdate, handleMessageRead, handleBatchRead, handleMessageDeleted, handleMessageEdited, handleMessageReaction]);
 
   // Handle chat room joining/leaving
   useEffect(() => {

@@ -44,13 +44,13 @@ class ErrorBoundary extends Component<Props, State> {
             <div className="flex gap-3 justify-center">
               <button
                 onClick={this.handleRetry}
-                className="px-4 py-2 bg-emerald-500 text-emerald-950 rounded-lg hover:bg-emerald-400 font-medium"
+                className="cursor-pointer px-4 py-2 bg-emerald-500 text-emerald-950 rounded-lg hover:bg-emerald-400 font-medium"
               >
                 Try Again
               </button>
               <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-slate-700 text-slate-100 rounded-lg hover:bg-slate-600 font-medium"
+                className="cursor-pointer px-4 py-2 bg-slate-700 text-slate-100 rounded-lg hover:bg-slate-600 font-medium"
               >
                 Refresh Page
               </button>

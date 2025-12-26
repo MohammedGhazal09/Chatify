@@ -7,6 +7,11 @@ export interface ReadByEntry {
   readAt: string;
 }
 
+export interface Reaction {
+  user: string;
+  emoji: string;
+}
+
 export interface Message {
   _id: string;
   chatId: string;
@@ -17,6 +22,7 @@ export interface Message {
   deliveredAt?: string;
   readAt?: string;
   readBy?: ReadByEntry[];
+  reactions?: Reaction[];
   isEdited?: boolean;
   editedAt?: string;
   deletedFor?: string[];
@@ -120,4 +126,21 @@ export interface MessageEditedEvent {
   text: string;
   isEdited: boolean;
   editedAt: string;
+}
+
+export interface MessageReactionEvent {
+  messageId: string;
+  chatId: string;
+  reactions: Reaction[];
+  action: 'added' | 'removed';
+  userId: string;
+  emoji: string;
+}
+
+// Unread count update event (via WebSocket)
+export interface UnreadUpdateEvent {
+  chatId: string;
+  userId: string;
+  count?: number; // Absolute count (when messages are marked as read)
+  increment?: number; // Relative increment (when new message arrives)
 }

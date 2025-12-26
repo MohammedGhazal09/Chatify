@@ -218,7 +218,7 @@ const onSubmit = async (data: SignupFormData) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  className="cursor-pointer absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
                 >
                   {showPassword ? <EyeOff className='cursor-pointer' size={18} /> : <Eye className='cursor-pointer' size={18} />}
                 </button>

@@ -22,7 +22,7 @@ const getCorsOrigin = () => {
   if (isProd) {
     return process.env.FRONTEND_ORIGIN
   } else {
-    return 'http://localhost:5173'
+    return process.env.FRONTEND_ORIGIN_DEV || 'http://localhost:5173'
   }
 }
 

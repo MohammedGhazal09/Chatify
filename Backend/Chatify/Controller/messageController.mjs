@@ -107,7 +107,18 @@ export const newMessage = asyncErrorHandler(async (req, res, next) => {
   try {
     const io = getIO();
     // Emit to everyone in the room including sender
-    io.in(chat._id.toString()).emit('message:new', seializedMessage)
+    io.in(chat._id.toString()).emit('message:new', seializedMessage);
+
+    // Emit unread count update to all chat members (except sender)
+    chat.members.forEach((memberId) => {
+      if (!memberId.equals(userObjectId)) {
+        io.in(chat._id.toString()).emit('unread:update', {
+          chatId: chat._id.toString(),
+          userId: memberId.toString(),
+          increment: 1,
+        });
+      }
+    });
   } catch (err) {
     console.error("Message sent but failed to emit via socket.io:", err);
   }
@@ -351,6 +362,13 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
           readBy: m.readBy,
         })),
       });
+
+      // Emit unread count reset for the user who read the messages
+      io.in(chat._id.toString()).emit('unread:update', {
+        chatId: chat._id.toString(),
+        userId: userObjectId.toString(),
+        count: 0,
+      });
     } catch (err) {
       console.error('📛 Failed to emit batch read receipt:', err);
     }
@@ -399,6 +417,86 @@ export const getUnreadCount = asyncErrorHandler(async (req, res) => {
     data: {
       chatId: chat._id,
       unreadCount,
+    },
+  });
+});
+
+// Get batch unread counts for multiple chats
+export const getBatchUnreadCounts = asyncErrorHandler(async (req, res) => {
+  const { chatIds } = req.body ?? {};
+
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  if (!Array.isArray(chatIds) || chatIds.length === 0) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'chatIds array is required',
+    });
+    return;
+  }
+
+  // Limit batch size to prevent abuse
+  const MAX_BATCH_SIZE = 100;
+  if (chatIds.length > MAX_BATCH_SIZE) {
+    res.status(400).json({
+      status: 'fail',
+      message: `Maximum ${MAX_BATCH_SIZE} chat IDs allowed per request`,
+    });
+    return;
+  }
+
+  let userObjectId;
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  // Validate all chat IDs and filter valid ones
+  const validChatIds = chatIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+  // Find all chats where user is a member
+  const userChats = await Chats.find({
+    _id: { $in: validChatIds },
+    members: userObjectId,
+  }).select('_id');
+
+  const userChatIds = userChats.map((chat) => chat._id);
+
+  // Aggregate unread counts for all chats in one query
+  const unreadCounts = await Message.aggregate([
+    {
+      $match: {
+        chatId: { $in: userChatIds },
+        sender: { $ne: userObjectId },
+        'readBy.user': { $ne: userObjectId },
+      },
+    },
+    {
+      $group: {
+        _id: '$chatId',
+        unreadCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  // Build result map including chats with 0 unread
+  const countsMap = {};
+  userChatIds.forEach((chatId) => {
+    countsMap[chatId.toString()] = 0;
+  });
+  unreadCounts.forEach((item) => {
+    countsMap[item._id.toString()] = item.unreadCount;
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      counts: countsMap,
     },
   });
 });
@@ -577,5 +675,99 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
   res.status(200).json({
     status: 'success',
     data: { message },
+  });
+});
+
+// Add or toggle reaction on a message
+export const toggleReaction = asyncErrorHandler(async (req, res) => {
+  const { messageId } = req.params;
+  const { emoji } = req.body ?? {};
+
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  if (!emoji || typeof emoji !== 'string') {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Emoji is required',
+    });
+    return;
+  }
+
+  let userObjectId;
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Invalid message ID',
+    });
+    return;
+  }
+
+  const message = await Message.findById(messageId);
+  if (!message) {
+    res.status(404).json({
+      status: 'fail',
+      message: 'Message not found',
+    });
+    return;
+  }
+
+  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
+  if (!chat) {
+    return;
+  }
+
+  // Check if user already reacted with this emoji
+  const existingReactionIndex = message.reactions?.findIndex(
+    (r) => r.user.equals(userObjectId) && r.emoji === emoji
+  ) ?? -1;
+
+  let action;
+  if (existingReactionIndex > -1) {
+    // Remove the reaction (toggle off)
+    message.reactions.splice(existingReactionIndex, 1);
+    action = 'removed';
+  } else {
+    // Add the reaction
+    if (!message.reactions) {
+      message.reactions = [];
+    }
+    message.reactions.push({ user: userObjectId, emoji });
+    action = 'added';
+  }
+
+  await message.save();
+
+  // Emit socket event for reaction update
+  try {
+    const io = getIO();
+    io.in(chat._id.toString()).emit('message:reaction', {
+      messageId,
+      chatId: chat._id.toString(),
+      reactions: message.reactions,
+      action,
+      userId: req.userId,
+      emoji,
+    });
+  } catch (err) {
+    console.error('📛 Failed to emit reaction update:', err);
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      messageId,
+      reactions: message.reactions,
+      action,
+    },
   });
 });

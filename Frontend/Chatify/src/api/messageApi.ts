@@ -1,6 +1,6 @@
 import axiosInstance from './axios';
 import type { AxiosResponse } from 'axios';
-import type { Message, PaginationInfo } from '../types/chat';
+import type { Message, PaginationInfo, Reaction } from '../types/chat';
 
 interface MessageResponse {
   status: string;
@@ -25,6 +25,13 @@ interface UnreadCountResponse {
   };
 }
 
+interface BatchUnreadCountsResponse {
+  status: string;
+  data: {
+    counts: Record<string, number>;
+  };
+}
+
 interface MarkReadResponse {
   status: string;
   data: {
@@ -39,6 +46,15 @@ interface DeleteResponse {
   message: string;
   data: {
     messageId: string;
+  };
+}
+
+interface ReactionResponse {
+  status: string;
+  data: {
+    messageId: string;
+    reactions: Reaction[];
+    action: 'added' | 'removed';
   };
 }
 
@@ -58,9 +74,15 @@ export const messageApi = {
   getUnreadCount: (chatId: string): Promise<AxiosResponse<UnreadCountResponse>> =>
     axiosInstance.get(`/api/message/${chatId}/unread-count`),
 
+  getBatchUnreadCounts: (chatIds: string[]): Promise<AxiosResponse<BatchUnreadCountsResponse>> =>
+    axiosInstance.post('/api/message/batch/unread-counts', { chatIds }),
+
   deleteMessage: (messageId: string, deleteForEveryone = false): Promise<AxiosResponse<DeleteResponse>> =>
     axiosInstance.delete(`/api/message/${messageId}`, { data: { deleteForEveryone } }),
 
   editMessage: (messageId: string, text: string): Promise<AxiosResponse<MessageResponse>> =>
     axiosInstance.patch(`/api/message/${messageId}/edit`, { text }),
+
+  toggleReaction: (messageId: string, emoji: string): Promise<AxiosResponse<ReactionResponse>> =>
+    axiosInstance.post(`/api/message/${messageId}/reaction`, { emoji }),
 };

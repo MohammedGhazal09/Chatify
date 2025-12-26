@@ -338,26 +338,32 @@ export const useEditMessage = () => {
   });
 };
 
-// Get unread counts for all chats
+// Toggle reaction mutation
+export const useToggleReaction = () => {
+  return useMutation({
+    mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
+      const response = await messageApi.toggleReaction(messageId, emoji);
+      return response.data;
+    },
+  });
+};
+
+// Get unread counts for all chats (batch API - no polling, uses WebSocket updates)
 export const useUnreadCounts = (chatIds: string[]) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return useQuery({
-    queryKey: ['unreadCounts', ...chatIds],
+    queryKey: ['unreadCounts', chatIds.join(',')],
     queryFn: async () => {
-      const counts = await Promise.all(
-        chatIds.map(async (chatId) => {
-          try {
-            const response = await messageApi.getUnreadCount(chatId);
-            return { chatId, count: response.data.data.unreadCount };
-          } catch {
-            return { chatId, count: 0 };
-          }
-        })
-      );
-      return new Map(counts.map((c) => [c.chatId, c.count]));
+      if (chatIds.length === 0) {
+        return new Map<string, number>();
+      }
+      const response = await messageApi.getBatchUnreadCounts(chatIds);
+      const counts = response.data.data.counts;
+      return new Map(Object.entries(counts).map(([chatId, count]) => [chatId, count]));
     },
     enabled: isAuthenticated && chatIds.length > 0,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
 };

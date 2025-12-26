@@ -12,6 +12,18 @@ const readBySchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+const reactionSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+    required: true,
+  },
+  emoji: {
+    type: String,
+    required: true,
+  },
+}, { _id: false });
+
 const messageSchema = new mongoose.Schema({
   chatId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -43,6 +55,8 @@ const messageSchema = new mongoose.Schema({
     type: Date,
   },
   readBy: [readBySchema],
+  // Reactions
+  reactions: [reactionSchema],
   // Edit/Delete fields
   isEdited: {
     type: Boolean,
