@@ -49,8 +49,14 @@ export const login = asyncErrHandler(async (req, res, next) => {
   if (!email || !password) {
     return next(new CustomError('Please provide email and password', 400));
   }
-  const user = await User.findOne({email:email}).select("+password")
+  const user = await User.findOne({email:email}).select("+password +authProvider")
   if (!user) return next(new CustomError("User doesn't exist",401))
+  
+  // Check if user signed up via OAuth (no password set)
+  if (user.authProvider && user.authProvider !== 'local') {
+    return next(new CustomError(`This account uses ${user.authProvider} login. Please sign in with ${user.authProvider}.`, 400));
+  }
+  
   const credentials = await user.checkPassword(password)
   if (!credentials) {
     return next(new CustomError("Password or email are wrong", 400))

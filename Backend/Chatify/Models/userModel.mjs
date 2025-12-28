@@ -109,6 +109,9 @@ const userSchema = new mongoose.Schema({
   }
   
   userSchema.methods.checkPassword = async function(givenPassword)  {
+    if (!this.password) {
+      return false;
+    }
     return await verify(this.password,givenPassword)
   }
 
