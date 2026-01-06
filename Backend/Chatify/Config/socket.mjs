@@ -114,12 +114,19 @@ export const initSocket = (server) => {
       }
       userToSockets.get(userId).add(socket.id)
 
+      // Auto-join all user's chat rooms for real-time message reception
+      const userChats = await getUserChatRooms(userId)
+      userChats.forEach(chat => {
+        socket.join(chat._id.toString())
+        debugLog(`📥 Auto-joined socket ${socket.id} to chat: ${chat._id}`)
+      })
+
       // Set user online
       await setUserOnline(userId, true)
       await broadcastUserStatus(userId, true)
 
-      // Emit confirmation
-      socket.emit('user:connected', { userId, socketId: socket.id })
+      // Emit confirmation with joined chats count
+      socket.emit('user:connected', { userId, socketId: socket.id, joinedChats: userChats.length })
     })
 
     socket.on('chat:join', (chatId) => {
@@ -307,4 +314,36 @@ export const getOnlineUsers = () => {
 // Get all sockets for a specific user
 export const getUserSockets = (userId) => {
   return userToSockets.get(userId) || new Set()
+}
+
+// Join a user to a specific chat room (used when new chat is created)
+export const joinUserToChat = (userId, chatId) => {
+  const userSockets = userToSockets.get(userId.toString())
+  if (userSockets && userSockets.size > 0) {
+    userSockets.forEach(socketId => {
+      const socket = io.sockets.sockets.get(socketId)
+      if (socket) {
+        socket.join(chatId.toString())
+        debugLog(`📥 Joined user ${userId} (socket ${socketId}) to new chat: ${chatId}`)
+      }
+    })
+    return true
+  }
+  return false
+}
+
+// Remove a user from a specific chat room (used when chat is deleted)
+export const removeUserFromChat = (userId, chatId) => {
+  const userSockets = userToSockets.get(userId.toString())
+  if (userSockets && userSockets.size > 0) {
+    userSockets.forEach(socketId => {
+      const socket = io.sockets.sockets.get(socketId)
+      if (socket) {
+        socket.leave(chatId.toString())
+        debugLog(`📤 Removed user ${userId} (socket ${socketId}) from chat: ${chatId}`)
+      }
+    })
+    return true
+  }
+  return false
 }

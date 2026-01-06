@@ -125,8 +125,27 @@ export const useChatSocket = ({
         return [newChat, ...old];
       });
       
-      // Automatically join the chat room so we can receive messages
-      socketInstance.emit('chat:join', newChat._id);
+      // Note: Backend now auto-joins users to chat rooms, no need to manually join
+    });
+
+    // Listen for chat deletion
+    socketInstance.on('chat:deleted', (data: { chatId: string }) => {
+      // Remove the deleted chat from the query cache
+      queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+        if (!old) return old;
+        return old.filter((chat) => chat._id !== data.chatId);
+      });
+      
+      // Clear any unread counts for this chat
+      queryClientRef.current.setQueriesData<Map<string, number>>(
+        { queryKey: ['unreadCounts'] },
+        (old) => {
+          if (!old) return old;
+          const newMap = new Map(old);
+          newMap.delete(data.chatId);
+          return newMap;
+        }
+      );
     });
 
     // Listen for typing events

@@ -3,7 +3,7 @@ import Chats from "../Models/chatModel.mjs";
 import User from "../Models/userModel.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
 import { CustomError } from "../Utils/customError.mjs";
-import { getIO, getUserSockets } from "../Config/socket.mjs";
+import { getIO, getUserSockets, joinUserToChat, removeUserFromChat } from "../Config/socket.mjs";
 
 
 export const createChat = asyncErrHandler(async (req, res, next) => {
@@ -69,6 +69,10 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
   // Notify all members about the new chat via socket
   try {
     const io = getIO();
+    // Join both users to the new chat room so they can receive messages immediately
+    joinUserToChat(requesterId, newChat._id);
+    joinUserToChat(targetUser._id.toString(), newChat._id);
+    
     // Notify the target user about the new chat so they can see it without refreshing
     const targetUserSockets = getUserSockets(targetUser._id.toString());
     if (targetUserSockets && targetUserSockets.size > 0) {
@@ -100,5 +104,62 @@ export const getAllChats = asyncErrHandler(async (req, res, next) => {
     data: {
       chats,
     },
+  });
+});
+
+export const deleteChat = asyncErrHandler(async (req, res, next) => {
+  const { chatId } = req.params;
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  if (!chatId) {
+    return next(new CustomError("Chat ID is required", 400));
+  }
+
+  const chat = await Chats.findById(chatId);
+
+  if (!chat) {
+    return next(new CustomError("Chat not found", 404));
+  }
+
+  // Check if user is a member of the chat
+  const isMember = chat.members.some(
+    (member) => member.toString() === requesterId
+  );
+
+  if (!isMember) {
+    return next(new CustomError("You are not a member of this chat", 403));
+  }
+
+  // Get member IDs before deletion for socket notification
+  const memberIds = chat.members.map((m) => m.toString());
+
+  // Delete the chat
+  await Chats.findByIdAndDelete(chatId);
+
+  // Notify all members about the deleted chat via socket
+  try {
+    const io = getIO();
+    
+    // Remove all members from the chat room and notify them
+    memberIds.forEach((memberId) => {
+      removeUserFromChat(memberId, chatId);
+      const memberSockets = getUserSockets(memberId);
+      if (memberSockets && memberSockets.size > 0) {
+        memberSockets.forEach((socketId) => {
+          io.to(socketId).emit("chat:deleted", { chatId });
+        });
+      }
+    });
+  } catch (err) {
+    console.error("Failed to notify users about chat deletion:", err);
+  }
+
+  res.status(200).json({
+    status: "success",
+    message: "Chat deleted successfully",
   });
 });
