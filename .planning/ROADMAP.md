@@ -34,8 +34,16 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 01-01: Add backend/security test harness and baseline auth/message authorization coverage
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 01-02: Enforce CSRF, session, reset, OAuth redirect, and environment safety controls
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 01-03: Replace sensitive debug logging with redacted operational logging
 
 ### Phase 2: Authenticated Realtime Contract
@@ -121,4 +129,3 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 3. Canonical Message State | 0/3 | Not started | - |
 | 4. Messenger UI Reconstruction | 0/3 | Not started | - |
 | 5. Messenger Baseline Completion | 0/2 | Not started | - |
-
