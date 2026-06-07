@@ -26,6 +26,10 @@ import {googleAuth,
 } from "./Controller/authController.mjs";
 const app = express();
 
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Request logging (only in development)
 if (process.env.NODE_ENV !== 'production') {
   app.use(requestLogger);
