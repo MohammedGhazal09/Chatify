@@ -17,7 +17,7 @@ export interface MessagesCacheData {
 
 export type CreateOptimisticMessageInput = {
   chatId: string;
-  sender: string;
+  senderId: string;
   text: string;
   clientMessageId: string;
   createdAt?: string;
@@ -39,7 +39,7 @@ export const createClientMessageId = () => {
 
 export const createOptimisticMessage = ({
   chatId,
-  sender,
+  senderId,
   text,
   clientMessageId,
   createdAt = new Date().toISOString(),
@@ -47,7 +47,7 @@ export const createOptimisticMessage = ({
   _id: `optimistic-${clientMessageId}`,
   clientMessageId,
   chatId,
-  sender,
+  sender: senderId,
   text,
   read: false,
   status: 'sent',

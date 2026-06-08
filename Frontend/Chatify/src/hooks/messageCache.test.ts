@@ -33,7 +33,7 @@ describe('message cache helpers', () => {
   it('converges optimistic insert plus HTTP success by clientMessageId', () => {
     const optimistic = createOptimisticMessage({
       chatId: 'chat-1',
-      sender: 'user-1',
+      senderId: 'user-1',
       text: 'Pending',
       clientMessageId: 'client-1',
       createdAt: '2026-06-08T10:00:00.000Z',
@@ -60,7 +60,7 @@ describe('message cache helpers', () => {
   it('handles socket echo before HTTP success without duplicates', () => {
     const optimistic = createOptimisticMessage({
       chatId: 'chat-1',
-      sender: 'user-1',
+      senderId: 'user-1',
       text: 'Race',
       clientMessageId: 'client-race',
     });
@@ -94,7 +94,7 @@ describe('message cache helpers', () => {
   it('marks a failed optimistic send without removing concurrent messages', () => {
     const optimistic = createOptimisticMessage({
       chatId: 'chat-1',
-      sender: 'user-1',
+      senderId: 'user-1',
       text: 'Will fail',
       clientMessageId: 'client-fail',
     });
@@ -123,7 +123,7 @@ describe('message cache helpers', () => {
   it('replaces a failed retry with the same clientMessageId by the persisted message', () => {
     const failed = createOptimisticMessage({
       chatId: 'chat-1',
-      sender: 'user-1',
+      senderId: 'user-1',
       text: 'Retry',
       clientMessageId: 'client-retry',
     });

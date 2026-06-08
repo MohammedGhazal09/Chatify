@@ -4,6 +4,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
 import { chatsQueryKey, messagesQueryKey } from './useChatQueries';
+import {
+  applyBatchReadInCache,
+  applyDeletedMessageInCache,
+  applyEditedMessageInCache,
+  applyReactionInCache,
+  applyReceiptPatchInCache,
+  applyUnreadUpdate,
+  upsertMessageInCache,
+  type MessagesCacheData,
+} from './messageCache';
 import { playNotificationSound, isSoundEnabled } from '../utils/sounds';
 import type {
   Chat,
@@ -224,19 +234,7 @@ export const useChatSocket = ({
       // Update the cached unread counts directly
       queryClientRef.current.setQueriesData<Map<string, number>>(
         { queryKey: ['unreadCounts'] },
-        (old) => {
-          if (!old) return old;
-          const newMap = new Map(old);
-          if (typeof data.count === 'number') {
-            // Absolute count (e.g., messages marked as read)
-            newMap.set(data.chatId, data.count);
-          } else if (typeof data.increment === 'number') {
-            // Increment (e.g., new message arrived)
-            const current = newMap.get(data.chatId) ?? 0;
-            newMap.set(data.chatId, current + data.increment);
-          }
-          return newMap;
-        }
+        (old) => applyUnreadUpdate(old, data)
       );
     });
 
@@ -267,6 +265,11 @@ export const useChatSocket = ({
       if (message.sender !== user?._id && isSoundEnabled()) {
         playNotificationSound();
       }
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(message.chatId),
+        (old) => upsertMessageInCache(old, message)
+      );
       
       onMessage?.(message);
     },
@@ -276,6 +279,15 @@ export const useChatSocket = ({
   // Handle message status updates
   const handleMessageStatusUpdate = useCallback(
     (event: MessageStatusUpdateEvent) => {
+      const targetChatId = event.chatId ?? activeRoomRef.current;
+
+      if (targetChatId) {
+        queryClientRef.current.setQueryData<MessagesCacheData>(
+          messagesQueryKey(targetChatId),
+          (old) => applyReceiptPatchInCache(old, event)
+        );
+      }
+
       onMessageStatusUpdate?.(event);
     },
     [onMessageStatusUpdate]
@@ -284,6 +296,15 @@ export const useChatSocket = ({
   // Handle message read events
   const handleMessageRead = useCallback(
     (event: MessageReadEvent) => {
+      const targetChatId = event.chatId ?? activeRoomRef.current;
+
+      if (targetChatId) {
+        queryClientRef.current.setQueryData<MessagesCacheData>(
+          messagesQueryKey(targetChatId),
+          (old) => applyReceiptPatchInCache(old, event)
+        );
+      }
+
       onMessageRead?.(event);
     },
     [onMessageRead]
@@ -292,6 +313,11 @@ export const useChatSocket = ({
   // Handle batch read events
   const handleBatchRead = useCallback(
     (event: BatchReadEvent) => {
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(event.chatId),
+        (old) => applyBatchReadInCache(old, event)
+      );
+
       onBatchRead?.(event);
     },
     [onBatchRead]
@@ -300,6 +326,13 @@ export const useChatSocket = ({
   // Handle message deleted events
   const handleMessageDeleted = useCallback(
     (event: MessageDeletedEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyDeletedMessageInCache(old, event)
+      );
+
       onMessageDeleted?.(event);
     },
     [onMessageDeleted]
@@ -308,6 +341,13 @@ export const useChatSocket = ({
   // Handle message edited events
   const handleMessageEdited = useCallback(
     (event: MessageEditedEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyEditedMessageInCache(old, event)
+      );
+
       onMessageEdited?.(event);
     },
     [onMessageEdited]
@@ -316,6 +356,13 @@ export const useChatSocket = ({
   // Handle message reaction events
   const handleMessageReaction = useCallback(
     (event: MessageReactionEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyReactionInCache(old, event)
+      );
+
       onMessageReaction?.(event);
     },
     [onMessageReaction]

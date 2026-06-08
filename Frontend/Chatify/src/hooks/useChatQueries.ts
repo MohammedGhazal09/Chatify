@@ -226,7 +226,7 @@ export const useSendMessage = () => {
 
       const optimisticMessage = createOptimisticMessage({
         chatId,
-        sender: user._id,
+        senderId: user._id,
         text,
         clientMessageId,
       });

@@ -172,16 +172,26 @@ const ChatPage = () => {
   // Handle message deleted events
   const handleMessageDeleted = useCallback(
     (event: MessageDeletedEvent) => {
+      if (event.message) {
+        upsertMessage(event.message);
+        return;
+      }
+
       if (event.deleteForEveryone) {
         removeMessage(event.messageId);
       }
     },
-    [removeMessage]
+    [removeMessage, upsertMessage]
   );
 
   // Handle message edited events
   const handleMessageEdited = useCallback(
     (event: MessageEditedEvent) => {
+      if (event.message) {
+        upsertMessage(event.message);
+        return;
+      }
+
       const existingMessage = messages.find(m => m._id === event.messageId);
       if (existingMessage) {
         upsertMessage({
@@ -211,6 +221,11 @@ const ChatPage = () => {
     onMessageDeleted: handleMessageDeleted,
     onMessageEdited: handleMessageEdited,
     onMessageReaction: (event: MessageReactionEvent) => {
+      if (event.message) {
+        upsertMessage(event.message);
+        return;
+      }
+
       // Update message reactions in cache
       const message = messages?.find(m => m._id === event.messageId);
       if (message) {
