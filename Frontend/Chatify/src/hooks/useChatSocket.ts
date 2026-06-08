@@ -17,6 +17,7 @@ import type {
   MessageEditedEvent,
   MessageReactionEvent,
   UnreadUpdateEvent,
+  SocketErrorEvent,
 } from '../types/chat';
 
 type UseChatSocketOptions = {
@@ -63,6 +64,7 @@ export const useChatSocket = ({
   const presenceStore = usePresenceStore();
   const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [socketError, setSocketError] = useState<SocketErrorEvent | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const typingTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   
@@ -89,11 +91,23 @@ export const useChatSocket = ({
 
     setSocket(socketInstance);
 
-    // Once connected, identify the user
     socketInstance.on('connect', () => {
-      if (user?._id) {
-        socketInstance.emit('user:connect', user._id);
-      }
+      setSocketError(null);
+    });
+
+    socketInstance.on('socket:ready', () => {
+      setSocketError(null);
+    });
+
+    socketInstance.on('connect_error', (error: Error & { data?: Partial<SocketErrorEvent> }) => {
+      setSocketError({
+        code: error.data?.code ?? 'socket_connect_error',
+        message: error.data?.message ?? error.message,
+      });
+    });
+
+    socketInstance.on('socket:error', (data: SocketErrorEvent) => {
+      setSocketError(data);
     });
 
     // Listen for user status changes
@@ -212,6 +226,7 @@ export const useChatSocket = ({
       }
       socketInstance.disconnect();
       setSocket(null);
+      setSocketError(null);
     };
   }, [enabled, isAuthenticated, socketUrl, user?._id]);
 
@@ -358,6 +373,7 @@ export const useChatSocket = ({
 
   return {
     socket,
+    socketError,
     emitTypingStart,
     emitTypingStop,
     emitMessageDelivered,

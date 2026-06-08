@@ -2,6 +2,7 @@ import { Server } from 'socket.io'
 import User from '../Models/userModel.mjs'
 import Message from '../Models/messageModel.mjs'
 import Chats from '../Models/chatModel.mjs'
+import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
 
 let io
 const isProd = process.env.NODE_ENV === 'production'
@@ -23,6 +24,28 @@ const getCorsOrigin = () => {
     return process.env.FRONTEND_ORIGIN
   } else {
     return process.env.FRONTEND_ORIGIN_DEV || 'http://localhost:5173'
+  }
+}
+
+const createSocketAuthError = (code, message) => {
+  const error = new Error(message)
+  error.data = { code }
+  return error
+}
+
+const authenticateSocket = (socket, next) => {
+  const token = readAccessTokenFromCookieHeader(socket.handshake.headers.cookie)
+
+  if (!token) {
+    return next(createSocketAuthError('socket_auth_required', 'Socket authentication required'))
+  }
+
+  try {
+    const { userId } = verifyAccessToken(token)
+    socket.data.userId = userId
+    next()
+  } catch {
+    next(createSocketAuthError('socket_auth_invalid', 'Socket authentication invalid'))
   }
 }
 
@@ -94,39 +117,47 @@ export const initSocket = (server) => {
     },
   })
 
+  io.use(authenticateSocket)
+
   io.on('connection', async (socket) => {
     debugLog(`🔌 Socket connected: ${socket.id}`)
 
-    // Handle user authentication/identification
-    socket.on('user:connect', async (userId) => {
-      if (!userId) {
-        debugLog('⚠️ No userId provided for socket connection')
+    const userId = socket.data.userId
+
+    socketToUser.set(socket.id, userId)
+
+    if (!userToSockets.has(userId)) {
+      userToSockets.set(userId, new Set())
+    }
+    userToSockets.get(userId).add(socket.id)
+
+    const userChats = await getUserChatRooms(userId)
+    userChats.forEach(chat => {
+      socket.join(chat._id.toString())
+      debugLog(`📥 Auto-joined socket ${socket.id} to chat: ${chat._id}`)
+    })
+
+    await setUserOnline(userId, true)
+    await broadcastUserStatus(userId, true)
+
+    const readyPayload = { userId, socketId: socket.id, joinedChats: userChats.length }
+    socket.emit('socket:ready', readyPayload)
+    socket.emit('user:connected', readyPayload)
+
+    // Compatibility no-op. Identity is already verified during the Socket.IO handshake.
+    socket.on('user:connect', (_claimedUserId, ack) => {
+      const payload = {
+        ok: false,
+        code: 'identity_already_verified',
+        message: 'Socket identity is verified during handshake',
+      }
+
+      if (typeof ack === 'function') {
+        ack(payload)
         return
       }
 
-      debugLog(`👤 User connected via socket ${socket.id}`)
-      
-      // Track socket-user mapping
-      socketToUser.set(socket.id, userId)
-      
-      if (!userToSockets.has(userId)) {
-        userToSockets.set(userId, new Set())
-      }
-      userToSockets.get(userId).add(socket.id)
-
-      // Auto-join all user's chat rooms for real-time message reception
-      const userChats = await getUserChatRooms(userId)
-      userChats.forEach(chat => {
-        socket.join(chat._id.toString())
-        debugLog(`📥 Auto-joined socket ${socket.id} to chat: ${chat._id}`)
-      })
-
-      // Set user online
-      await setUserOnline(userId, true)
-      await broadcastUserStatus(userId, true)
-
-      // Emit confirmation with joined chats count
-      socket.emit('user:connected', { userId, socketId: socket.id, joinedChats: userChats.length })
+      socket.emit('socket:error', { ...payload, event: 'user:connect' })
     })
 
     socket.on('chat:join', (chatId) => {
@@ -313,7 +344,7 @@ export const getOnlineUsers = () => {
 
 // Get all sockets for a specific user
 export const getUserSockets = (userId) => {
-  return userToSockets.get(userId) || new Set()
+  return userToSockets.get(userId.toString()) || new Set()
 }
 
 // Join a user to a specific chat room (used when new chat is created)
@@ -346,4 +377,21 @@ export const removeUserFromChat = (userId, chatId) => {
     return true
   }
   return false
+}
+
+export const closeSocketServer = async () => {
+  if (!io) {
+    socketToUser.clear()
+    userToSockets.clear()
+    return
+  }
+
+  const currentIO = io
+  io = undefined
+  socketToUser.clear()
+  userToSockets.clear()
+
+  await new Promise((resolve) => {
+    currentIO.close(() => resolve())
+  })
 }

@@ -1,0 +1,89 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { createUser } from '../fixtures/users.mjs';
+import {
+  connectSocketAsUser,
+  connectSocketWithCookie,
+  emitWithAck,
+  waitForSocketEvent,
+} from '../helpers/socketClient.mjs';
+import { startSocketTestServer } from '../helpers/socketServer.mjs';
+import { getUserSockets } from '../../Config/socket.mjs';
+
+const servers = [];
+const sockets = [];
+
+const startServer = async () => {
+  const server = await startSocketTestServer();
+  servers.push(server);
+  return server;
+};
+
+const trackSocket = (socket) => {
+  sockets.push(socket);
+  return socket;
+};
+
+afterEach(async () => {
+  sockets.splice(0).forEach((socket) => {
+    if (socket.connected || socket.active) {
+      socket.disconnect();
+    }
+  });
+
+  for (const server of servers.splice(0)) {
+    await server.close();
+  }
+});
+
+describe('authenticated Socket.IO handshake', () => {
+  it('accepts a socket with a valid accessToken cookie and stores verified identity', async () => {
+    const server = await startServer();
+    const { socket, user, ready } = await connectSocketAsUser(server.url);
+    trackSocket(socket);
+
+    expect(ready).toMatchObject({
+      userId: user._id.toString(),
+      socketId: socket.id,
+    });
+    expect(ready.joinedChats).toBe(0);
+    expect(getUserSockets(user._id.toString()).has(socket.id)).toBe(true);
+  });
+
+  it('rejects a socket without an accessToken cookie', async () => {
+    const server = await startServer();
+    const socket = trackSocket(connectSocketWithCookie(server.url, ''));
+    const errorPromise = waitForSocketEvent(socket, 'connect_error');
+    socket.connect();
+    const error = await errorPromise;
+
+    expect(error.message).toBe('Socket authentication required');
+    expect(error.data).toMatchObject({ code: 'socket_auth_required' });
+    expect(socket.connected).toBe(false);
+  });
+
+  it('rejects a socket with an invalid accessToken cookie', async () => {
+    const server = await startServer();
+    const socket = trackSocket(connectSocketWithCookie(server.url, 'accessToken=invalid-token'));
+    const errorPromise = waitForSocketEvent(socket, 'connect_error');
+    socket.connect();
+    const error = await errorPromise;
+
+    expect(error.message).toBe('Socket authentication invalid');
+    expect(error.data).toMatchObject({ code: 'socket_auth_invalid' });
+    expect(socket.connected).toBe(false);
+  });
+
+  it('does not allow user:connect to replace verified socket identity', async () => {
+    const server = await startServer();
+    const { socket, user, ready } = await connectSocketAsUser(server.url);
+    trackSocket(socket);
+    const outsider = await createUser({ firstName: 'Outside' });
+
+    const response = await emitWithAck(socket, 'user:connect', outsider._id.toString());
+
+    expect(response).toMatchObject({ ok: false, code: 'identity_already_verified' });
+    expect(ready.userId).toBe(user._id.toString());
+    expect(getUserSockets(user._id.toString()).has(socket.id)).toBe(true);
+    expect(getUserSockets(outsider._id.toString()).has(socket.id)).toBe(false);
+  });
+});

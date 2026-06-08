@@ -315,7 +315,7 @@ export const useDeleteMessage = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ messageId, deleteForEveryone, chatId }: { messageId: string; deleteForEveryone: boolean; chatId: string }) => {
+    mutationFn: async ({ messageId, deleteForEveryone }: { messageId: string; deleteForEveryone: boolean; chatId: string }) => {
       const response = await messageApi.deleteMessage(messageId, deleteForEveryone);
       return response.data;
     },

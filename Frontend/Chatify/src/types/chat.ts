@@ -144,3 +144,16 @@ export interface UnreadUpdateEvent {
   count?: number; // Absolute count (when messages are marked as read)
   increment?: number; // Relative increment (when new message arrives)
 }
+
+export interface SocketReadyEvent {
+  userId: string;
+  socketId: string;
+  joinedChats: number;
+  presence?: UserOnlineStatus[];
+}
+
+export interface SocketErrorEvent {
+  code: string;
+  event?: string;
+  message?: string;
+}
