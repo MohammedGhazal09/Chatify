@@ -3,6 +3,12 @@ import Message from '../Models/messageModel.mjs';
 import Chats from '../Models/chatModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
 import { emitToUserSockets, getIO } from '../Config/socket.mjs';
+import {
+  buildUnreadMessageFilter,
+  normalizeClientMessageId,
+  normalizeMessageText,
+  serializeMessage,
+} from '../Utils/messageState.mjs';
 
 const respondWithChatAccessError = (res, statusCode, message) => {
   res.status(statusCode).json({
@@ -34,8 +40,30 @@ const loadChatForUser = async (chatId, userObjectId, res) => {
   return chat;
 };
 
-export const newMessage = asyncErrorHandler(async (req, res, next) => {
-  const { chatId, text } = req.body ?? {};
+const countUnreadForUser = (chatId, userId) => {
+  return Message.countDocuments(buildUnreadMessageFilter({ chatId, userId }));
+};
+
+const emitUnreadCountToUser = async (chatId, userId) => {
+  const count = await countUnreadForUser(chatId, userId);
+  emitToUserSockets(userId, 'unread:update', {
+    chatId: chatId.toString(),
+    userId: userId.toString(),
+    count,
+  });
+  return count;
+};
+
+const emitUnreadCountsForRecipients = async (chat, senderId) => {
+  await Promise.all(
+    chat.members
+      .filter((memberId) => !memberId.equals(senderId))
+      .map((memberId) => emitUnreadCountToUser(chat._id, memberId))
+  );
+};
+
+export const newMessage = asyncErrorHandler(async (req, res) => {
+  const { chatId, text, clientMessageId } = req.body ?? {};
 
   if (!req.userId) {
     respondWithChatAccessError(res, 401, 'Authentication required');
@@ -57,68 +85,96 @@ export const newMessage = asyncErrorHandler(async (req, res, next) => {
     return;
   }
 
-  const sanitizedText = typeof text === 'string' ? text.trim() : '';
+  const normalizedText = normalizeMessageText(text);
 
-  if (!sanitizedText) {
-    res.status(400).json({
+  if (!normalizedText.ok) {
+    res.status(normalizedText.statusCode).json({
       status: 'fail',
-      message: 'Message text is required',
+      message: normalizedText.message,
     });
     return;
   }
 
-  // Validate message length
-  const MAX_MESSAGE_LENGTH = 1000;
-  if (sanitizedText.length > MAX_MESSAGE_LENGTH) {
-    res.status(400).json({
+  const normalizedClientMessageId = normalizeClientMessageId(clientMessageId);
+
+  if (!normalizedClientMessageId.ok) {
+    res.status(normalizedClientMessageId.statusCode).json({
       status: 'fail',
-      message: `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters`,
+      message: normalizedClientMessageId.message,
     });
     return;
   }
 
-  const message = await Message.create({
-    chatId: chat._id,
-    sender: userObjectId,
-    text: sanitizedText,
-    status: 'sent',
-  });
+  const idempotencyFilter = normalizedClientMessageId.clientMessageId
+    ? {
+        chatId: chat._id,
+        sender: userObjectId,
+        clientMessageId: normalizedClientMessageId.clientMessageId,
+      }
+    : null;
 
-  const seializedMessage = message.toObject();
+  let message;
 
-  const recipientCount = chat.members.reduce((count, memberId) => {
-    if (memberId.equals(userObjectId)) {
-      return count;
+  if (idempotencyFilter) {
+    message = await Message.findOne(idempotencyFilter);
+
+    if (message) {
+      if (message.text !== normalizedText.text) {
+        res.status(409).json({
+          status: 'fail',
+          message: 'clientMessageId already exists with different message text',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        status: 'message already created',
+        data: {
+          message: serializeMessage(message),
+          idempotent: true,
+        },
+      });
+      return;
+    }
+  }
+
+  try {
+    message = await Message.create({
+      chatId: chat._id,
+      sender: userObjectId,
+      clientMessageId: normalizedClientMessageId.clientMessageId ?? undefined,
+      text: normalizedText.text,
+      status: 'sent',
+    });
+  } catch (error) {
+    if (error?.code === 11000 && idempotencyFilter) {
+      const existingMessage = await Message.findOne(idempotencyFilter);
+
+      if (existingMessage?.text === normalizedText.text) {
+        res.status(200).json({
+          status: 'message already created',
+          data: {
+            message: serializeMessage(existingMessage),
+            idempotent: true,
+          },
+        });
+        return;
+      }
     }
 
-    return count + 1;
-  }, 0);
-
-  const chatUpdate = {
-    $set: { latestMessage: message._id },
-  };
-
-  if (recipientCount > 0) {
-    chatUpdate.$inc = { unReadMessages: recipientCount };
+    throw error;
   }
 
-  await Chats.findByIdAndUpdate(chat._id, chatUpdate, { new: true });
+  await Chats.findByIdAndUpdate(chat._id, {
+    $set: { latestMessage: message._id },
+  }, { new: true });
+
+  const serializedMessage = serializeMessage(message);
 
   try {
     const io = getIO();
-    // Emit to everyone in the room including sender
-    io.in(chat._id.toString()).emit('message:new', seializedMessage);
-
-    // Emit unread count update only to each intended recipient's authenticated sockets.
-    chat.members.forEach((memberId) => {
-      if (!memberId.equals(userObjectId)) {
-        emitToUserSockets(memberId, 'unread:update', {
-          chatId: chat._id.toString(),
-          userId: memberId.toString(),
-          increment: 1,
-        });
-      }
-    });
+    io.in(chat._id.toString()).emit('message:new', serializedMessage);
+    await emitUnreadCountsForRecipients(chat, userObjectId);
   } catch (err) {
     console.error("Message sent but failed to emit via socket.io:", err);
   }
@@ -126,7 +182,7 @@ export const newMessage = asyncErrorHandler(async (req, res, next) => {
   res.status(201).json({
     status: 'message created successfully',
     data: {
-      message,
+      message: serializedMessage,
     },
   });
 });
