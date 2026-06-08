@@ -69,17 +69,24 @@ export const useMessages = (chatId: string | null) => {
       if (!chatId) {
         return { messages: [] as Message[], pagination: { hasMore: false, currentPage: 1, totalPages: 1 } };
       }
-      const response = await messageApi.getAllMessages(chatId, 1, 50);
+      const response = await messageApi.getAllMessages(chatId, { limit: 50 });
+      const cursor = response.data.data.cursor ?? {
+        nextCursor: response.data.data.nextCursor ?? null,
+        hasMore: response.data.data.hasMore ?? response.data.data.pagination?.hasMore ?? false,
+        limit: response.data.data.pagination?.limit ?? 50,
+      };
+
       return {
         messages: response.data.data.messages,
         pagination: response.data.data.pagination,
+        cursor,
       };
     },
     enabled: !!chatId && isAuthenticated,
   });
 
   const messages = queryResult.data?.messages ?? [];
-  const hasMore = queryResult.data?.pagination?.hasMore ?? false;
+  const hasMore = queryResult.data?.cursor?.hasMore ?? queryResult.data?.pagination?.hasMore ?? false;
 
   // Load more (older) messages
   const loadMoreMessages = useCallback(async () => {
@@ -87,17 +94,28 @@ export const useMessages = (chatId: string | null) => {
     
     setIsLoadingMore(true);
     try {
-      const currentPage = queryClient.getQueryData<MessagesQueryData>(queryKey)?.pagination?.currentPage ?? 1;
-      const nextPage = currentPage + 1;
-      const response = await messageApi.getAllMessages(chatId, nextPage, 50);
+      const currentData = queryClient.getQueryData<MessagesQueryData>(queryKey);
+      const before = currentData?.cursor?.nextCursor ?? currentData?.pagination?.nextCursor;
+
+      if (!before) {
+        return;
+      }
+
+      const response = await messageApi.getAllMessages(chatId, { before, limit: 50 });
       const olderMessages = response.data.data.messages;
       const pagination = response.data.data.pagination;
+      const cursor = response.data.data.cursor ?? {
+        nextCursor: response.data.data.nextCursor ?? null,
+        hasMore: response.data.data.hasMore ?? pagination?.hasMore ?? false,
+        limit: pagination?.limit ?? 50,
+      };
 
       queryClient.setQueryData<MessagesQueryData>(queryKey, (old) => {
         const nextCache = prependMessagesInCache(old, olderMessages);
         return {
           ...nextCache,
           pagination,
+          cursor,
         };
       });
     } catch (error) {

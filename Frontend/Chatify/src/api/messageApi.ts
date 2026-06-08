@@ -73,12 +73,25 @@ interface ReactionResponse {
   };
 }
 
+type GetMessagesOptions = {
+  before?: string | null;
+  limit?: number;
+};
+
 export const messageApi = {
   createMessage: (payload: NewMessagePayload): Promise<AxiosResponse<MessageResponse>> =>
     axiosInstance.post('/api/message/new-message', payload),
 
-  getAllMessages: (chatId: string, page = 1, limit = 50): Promise<AxiosResponse<MessagesResponse>> =>
-    axiosInstance.get(`/api/message/get-all-messages/${chatId}?page=${page}&limit=${limit}`),
+  getAllMessages: (chatId: string, options: GetMessagesOptions = {}): Promise<AxiosResponse<MessagesResponse>> => {
+    const params = new URLSearchParams();
+    params.set('limit', String(options.limit ?? 50));
+
+    if (options.before) {
+      params.set('before', options.before);
+    }
+
+    return axiosInstance.get(`/api/message/get-all-messages/${chatId}?${params.toString()}`);
+  },
 
   markMessageAsRead: (messageId: string): Promise<AxiosResponse<MarkReadResponse>> =>
     axiosInstance.patch(`/api/message/${messageId}/read`),

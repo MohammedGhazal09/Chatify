@@ -37,11 +37,12 @@ export interface Message {
 }
 
 export interface PaginationInfo {
-  currentPage: number;
-  totalPages: number;
-  totalMessages: number;
+  currentPage?: number;
+  totalPages?: number;
+  totalMessages?: number;
   hasMore: boolean;
   limit: number;
+  nextCursor?: string | null;
 }
 
 export interface CursorPaginationInfo {

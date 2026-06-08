@@ -91,6 +91,25 @@ describe('message cache helpers', () => {
     expect(cache.messages.map((message) => message._id)).toEqual(['message-0', 'message-1']);
   });
 
+  it('preserves cursor metadata while prepending older messages', () => {
+    const existing = makeMessage({ _id: 'message-2' });
+    const older = makeMessage({
+      _id: 'message-1',
+      createdAt: '2026-06-08T09:59:00.000Z',
+      updatedAt: '2026-06-08T09:59:00.000Z',
+    });
+    const cache = prependMessagesInCache(
+      {
+        messages: [existing],
+        cursor: { nextCursor: 'cursor-before-message-2', hasMore: true, limit: 50 },
+      },
+      [older]
+    );
+
+    expect(cache.messages.map((message) => message._id)).toEqual(['message-1', 'message-2']);
+    expect(cache.cursor).toEqual({ nextCursor: 'cursor-before-message-2', hasMore: true, limit: 50 });
+  });
+
   it('marks a failed optimistic send without removing concurrent messages', () => {
     const optimistic = createOptimisticMessage({
       chatId: 'chat-1',

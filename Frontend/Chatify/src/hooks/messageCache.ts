@@ -6,12 +6,13 @@ import type {
   MessageReactionEvent,
   MessageReceiptPatch,
   MessageStatus,
+  PaginationInfo,
   UnreadUpdateEvent,
 } from '../types/chat';
 
 export interface MessagesCacheData {
   messages: Message[];
-  pagination?: { hasMore: boolean; currentPage: number; totalPages: number };
+  pagination?: PaginationInfo;
   cursor?: { nextCursor?: string | null; hasMore: boolean; limit: number };
 }
 
