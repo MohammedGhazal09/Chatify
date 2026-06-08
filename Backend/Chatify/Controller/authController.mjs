@@ -12,9 +12,6 @@ const FRONTEND_URL = isProd
   ? process.env.FRONTEND_ORIGIN || 'https://chatify-ten-rho.vercel.app'
   : 'http://localhost:5173';
 
-console.log('🌍 Environment:', isProd ? 'PRODUCTION' : 'DEVELOPMENT');
-console.log('🔗 Frontend URL:', FRONTEND_URL);
-
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
 
@@ -203,7 +200,10 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
     try {
       await sendPasswordResetEmail(user.email, resetCode);
     } catch (err) {
-      console.log(err);
+      console.error('Auth notification delivery failed:', {
+        code: err?.code,
+        status: err?.response?.status,
+      });
       
       return next(new CustomError('Failed to send reset email. Please try again.', 500));
     }

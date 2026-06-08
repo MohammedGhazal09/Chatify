@@ -118,29 +118,6 @@ app.get('/api/csrf-token', (req, res) => {
   res.status(204).end();
 });
 
-// app.use((req, res, next) => {
-//   console.log('📍 Request path:', req.path);
-//   console.log('📍 Request method:', req.method);
-  
-//   const exemptRoutes = [
-//     '/api/auth/logout', 
-//     '/api/auth/refresh-token',
-//     '/api/auth/forgot-password',
-//     '/api/auth/verify-reset-code',
-//     '/api/auth/reset-password'
-//   ];
-  
-//   if (exemptRoutes.includes(req.path)) {
-//     console.log('✅ Route exempt from CSRF');
-//     return next();
-//   }
-  
-//   console.log('🔒 Applying CSRF protection');
-//   console.log('📨 CSRF Token from header:', req.headers['x-xsrf-token']);
-  
-//   csrfProtection(req, res, next);
-// });
-
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, chatRouter);

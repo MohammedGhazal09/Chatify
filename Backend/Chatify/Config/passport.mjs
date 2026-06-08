@@ -79,7 +79,10 @@ const handleOAuthUser = async (profile, provider) => {
 
         return newUser;
     } catch (error) {
-        console.error(`${provider} OAuth Error:`, error);
+        console.error(`${provider} OAuth user handling failed:`, {
+            name: error?.name,
+            code: error?.code,
+        });
         throw error;
     }
 };
@@ -95,14 +98,10 @@ passport.use(new GoogleStrategy({
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: `${baseURL}/api/auth/google/callback`
 }, async (accessToken, refreshToken, profile, done) => {
-  // console.log("passport 100 line\n", profile);
-  
     try {
         const user = await handleOAuthUser(profile, 'google');
         return done(null, user);
     } catch (error) {
-      console.log(error);
-      
         return done(error, null);
     }
 }));
