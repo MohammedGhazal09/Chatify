@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createUser } from '../fixtures/users.mjs';
+import { signupWithAgent } from '../helpers/authAgent.mjs';
 import {
   connectSocketAsUser,
   connectSocketWithCookie,
   emitWithAck,
+  extractCookieHeader,
   waitForSocketEvent,
 } from '../helpers/socketClient.mjs';
 import { startSocketTestServer } from '../helpers/socketServer.mjs';
@@ -49,6 +51,25 @@ describe('authenticated Socket.IO handshake', () => {
     expect(getUserSockets(user._id.toString()).has(socket.id)).toBe(true);
   });
 
+  it('accepts a handshake from the configured frontend origin', async () => {
+    const server = await startServer();
+    const { socket, user, ready } = await connectSocketAsUser(
+      server.url,
+      { firstName: 'Origin', lastName: 'Allowed' },
+      {
+        extraHeaders: {
+          Origin: process.env.FRONTEND_ORIGIN_DEV,
+        },
+      }
+    );
+    trackSocket(socket);
+
+    expect(ready).toMatchObject({
+      userId: user._id.toString(),
+      socketId: socket.id,
+    });
+  });
+
   it('rejects a socket without an accessToken cookie', async () => {
     const server = await startServer();
     const socket = trackSocket(connectSocketWithCookie(server.url, ''));
@@ -70,6 +91,26 @@ describe('authenticated Socket.IO handshake', () => {
 
     expect(error.message).toBe('Socket authentication invalid');
     expect(error.data).toMatchObject({ code: 'socket_auth_invalid' });
+    expect(socket.connected).toBe(false);
+  });
+
+  it('rejects a websocket handshake from a disallowed origin before authentication', async () => {
+    const server = await startServer();
+    const signup = await signupWithAgent({ firstName: 'Origin', lastName: 'Blocked' });
+    const socket = trackSocket(
+      connectSocketWithCookie(server.url, extractCookieHeader(signup.response), {
+        transports: ['websocket'],
+        extraHeaders: {
+          Origin: 'https://attacker.example',
+        },
+      })
+    );
+    const errorPromise = waitForSocketEvent(socket, 'connect_error');
+
+    socket.connect();
+    const error = await errorPromise;
+
+    expect(error.message).toMatch(/websocket error|Socket origin not allowed/i);
     expect(socket.connected).toBe(false);
   });
 

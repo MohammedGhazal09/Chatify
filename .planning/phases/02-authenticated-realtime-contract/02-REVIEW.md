@@ -1,6 +1,6 @@
 ---
 phase: 02-authenticated-realtime-contract
-status: findings
+status: resolved
 depth: standard
 files_reviewed: 14
 findings:
@@ -9,6 +9,7 @@ findings:
   info: 0
   total: 2
 reviewed_at: 2026-06-08
+resolved_at: 2026-06-08
 skills_used:
   - gsd-code-review
   - find-skills
@@ -103,6 +104,12 @@ A single authenticated user can flood these events and generate amplified databa
 - `rg -n "allowRequest|cors:|rate|limit|maxHttpBufferSize|typing:start|message:delivered|chat:join|socket:error|Origin|origin" Backend/Chatify/Config/socket.mjs Backend/Chatify/test/socket Backend/Chatify/test/helpers` — reviewed; no `allowRequest` or socket event rate limit exists.
 - `git status --short --branch` — only the protected pre-existing `Frontend/Chatify/src/pages/chat/chat.tsx` remains dirty outside this review artifact.
 
+## Resolution
+
+- `CR-001` resolved in `Backend/Chatify/Config/socket.mjs` by adding a handshake-level `allowRequest` gate that validates `req.headers.origin` against the configured frontend origin. No-origin requests remain allowed outside production for local tools and tests; production fails closed when an origin is missing or unrecognized.
+- `WR-001` resolved in `Backend/Chatify/Config/socket.mjs` by adding per-socket, event-specific limits around DB-backed socket handlers and returning the structured `rate_limited` socket error.
+- Coverage added in `Backend/Chatify/test/socket/socket.auth.test.mjs`, `Backend/Chatify/test/socket/socket.authorization.test.mjs`, and `Backend/Chatify/test/helpers/socketClient.mjs`.
+
 ## Verdict
 
-**FAIL** — Phase 2 should not be treated as security-complete until CR-001 is fixed and covered by a hostile-Origin socket test. WR-001 should be addressed before production exposure or carried as an explicit Phase 3/launch blocker.
+**PASS WITH REMEDIATIONS** - CR-001 and WR-001 are fixed and covered by targeted socket tests. Full backend Vitest is passing.

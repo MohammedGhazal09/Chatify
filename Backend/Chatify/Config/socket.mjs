@@ -41,7 +41,86 @@ const socketErrorMessages = {
   invalid_payload: 'Invalid socket payload',
   forbidden_or_not_found: 'Forbidden or not found',
   deprecated_socket_message_send: 'Send messages through the HTTP message API',
+  rate_limited: 'Too many socket events',
   server_error: 'Socket event failed',
+}
+
+const socketEventLimits = {
+  'chat:join': { max: 20, windowMs: 10_000 },
+  'chat:leave': { max: 30, windowMs: 10_000 },
+  'message:delivered': { max: 40, windowMs: 10_000 },
+  'typing:start': { max: 30, windowMs: 10_000 },
+  'typing:stop': { max: 30, windowMs: 10_000 },
+}
+
+const socketEventWindows = new Map()
+
+const getAllowedSocketOrigins = () => {
+  const origins = [getCorsOrigin()]
+    .filter(Boolean)
+    .map(origin => origin.trim())
+    .filter(Boolean)
+
+  return new Set(origins)
+}
+
+const isAllowedSocketRequest = (request) => {
+  const origin = request.headers.origin
+
+  if (!origin) {
+    return !isProd
+  }
+
+  return getAllowedSocketOrigins().has(origin)
+}
+
+const allowSocketRequest = (request, callback) => {
+  if (isAllowedSocketRequest(request)) {
+    callback(null, true)
+    return
+  }
+
+  callback('Socket origin not allowed', false)
+}
+
+const getSocketEventWindowKey = (socket, event) => `${socket.id}:${event}`
+
+const clearSocketEventWindows = (socket) => {
+  const prefix = `${socket.id}:`
+
+  for (const key of socketEventWindows.keys()) {
+    if (key.startsWith(prefix)) {
+      socketEventWindows.delete(key)
+    }
+  }
+}
+
+const guardSocketEventRateLimit = (socket, event, ack) => {
+  const limit = socketEventLimits[event]
+
+  if (!limit) {
+    return true
+  }
+
+  const now = Date.now()
+  const key = getSocketEventWindowKey(socket, event)
+  const currentWindow = socketEventWindows.get(key)
+
+  if (!currentWindow || now >= currentWindow.resetAt) {
+    socketEventWindows.set(key, {
+      count: 1,
+      resetAt: now + limit.windowMs,
+    })
+    return true
+  }
+
+  if (currentWindow.count >= limit.max) {
+    respondSocketError(socket, event, { code: 'rate_limited' }, ack)
+    return false
+  }
+
+  currentWindow.count += 1
+  return true
 }
 
 export const respondSocketError = (socket, event, error, ack) => {
@@ -213,6 +292,7 @@ export const initSocket = (server) => {
   }
 
   io = new Server(server, {
+    allowRequest: allowSocketRequest,
     cors: {
       origin: getCorsOrigin(),
       credentials: true,
@@ -274,6 +354,8 @@ export const initSocket = (server) => {
     })
 
     socket.on('chat:join', async (chatId, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'chat:join', ack)) return
+
       try {
         const chat = await assertChatMember({ chatId, userId: socket.data.userId })
         const roomId = chat._id.toString()
@@ -291,6 +373,8 @@ export const initSocket = (server) => {
     })
 
     socket.on('chat:leave', (chatId, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'chat:leave', ack)) return
+
       try {
         const roomId = normalizeObjectId(chatId).toString()
 
@@ -318,6 +402,8 @@ export const initSocket = (server) => {
 
     // Handle message delivered event
     socket.on('message:delivered', async ({ messageId } = {}, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'message:delivered', ack)) return
+
       try {
         const { message, chat } = await assertMessageChatMember({
           messageId,
@@ -353,6 +439,8 @@ export const initSocket = (server) => {
 
     // Handle typing events
     socket.on('typing:start', async ({ chatId } = {}, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'typing:start', ack)) return
+
       try {
         const chat = await assertChatMember({ chatId, userId: socket.data.userId })
         const user = await User.findById(socket.data.userId).select('firstName lastName')
@@ -374,6 +462,8 @@ export const initSocket = (server) => {
     })
 
     socket.on('typing:stop', async ({ chatId } = {}, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'typing:stop', ack)) return
+
       try {
         const chat = await assertChatMember({ chatId, userId: socket.data.userId })
         const user = await User.findById(socket.data.userId).select('firstName lastName')
@@ -396,6 +486,7 @@ export const initSocket = (server) => {
 
     socket.on('disconnect', async (reason) => {
       debugLog(`🔌 Socket disconnected (${socket.id}): ${reason}`)
+      clearSocketEventWindows(socket)
       
       const userId = socketToUser.get(socket.id)
       if (userId) {
@@ -534,6 +625,7 @@ export const closeSocketServer = async () => {
     offlineTimers.clear()
     socketToUser.clear()
     userToSockets.clear()
+    socketEventWindows.clear()
     return
   }
 
@@ -543,6 +635,7 @@ export const closeSocketServer = async () => {
   offlineTimers.clear()
   socketToUser.clear()
   userToSockets.clear()
+  socketEventWindows.clear()
 
   await new Promise((resolve) => {
     currentIO.close(() => resolve())

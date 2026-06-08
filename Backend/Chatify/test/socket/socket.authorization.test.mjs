@@ -101,6 +101,22 @@ describe('Socket.IO chat authorization', () => {
     });
   });
 
+  it('rate limits repeated DB-backed socket events with structured errors', async () => {
+    const { memberOne, chatId } = await setupRealtimeScenario();
+    let response;
+
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      response = await emitWithAck(memberOne.socket, 'chat:join', chatId);
+    }
+
+    expect(response).toMatchObject({
+      ok: false,
+      event: 'chat:join',
+      code: 'rate_limited',
+      message: 'Too many socket events',
+    });
+  });
+
   it('rejects unauthorized typing with socket:error fallback and no room broadcast', async () => {
     const { outsider, memberTwo, chatId } = await setupRealtimeScenario();
     const errorPromise = waitForSocketEvent(outsider.socket, 'socket:error');

@@ -37,7 +37,35 @@ export const emitWithAck = (socket, eventName, payload, timeoutMs = 5000) => {
 };
 
 export const connectSocketWithCookie = (url, cookieHeader, options = {}) => {
-  const extraHeaders = cookieHeader ? { Cookie: cookieHeader } : undefined;
+  const {
+    extraHeaders: optionExtraHeaders,
+    transportOptions: optionTransportOptions,
+    ...socketOptions
+  } = options;
+  const extraHeaders = {
+    ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+    ...(optionExtraHeaders ?? {}),
+  };
+  const hasExtraHeaders = Object.keys(extraHeaders).length > 0;
+  const transportOptions = hasExtraHeaders
+    ? {
+        ...optionTransportOptions,
+        polling: {
+          ...(optionTransportOptions?.polling ?? {}),
+          extraHeaders: {
+            ...extraHeaders,
+            ...(optionTransportOptions?.polling?.extraHeaders ?? {}),
+          },
+        },
+        websocket: {
+          ...(optionTransportOptions?.websocket ?? {}),
+          extraHeaders: {
+            ...extraHeaders,
+            ...(optionTransportOptions?.websocket?.extraHeaders ?? {}),
+          },
+        },
+      }
+    : (optionTransportOptions ?? {});
   const socket = createClientSocket(url, {
     withCredentials: true,
     transports: ['polling', 'websocket'],
@@ -45,14 +73,9 @@ export const connectSocketWithCookie = (url, cookieHeader, options = {}) => {
     reconnection: false,
     autoConnect: false,
     timeout: 5000,
-    extraHeaders,
-    transportOptions: extraHeaders
-      ? {
-          polling: { extraHeaders },
-          websocket: { extraHeaders },
-        }
-      : {},
-    ...options,
+    extraHeaders: hasExtraHeaders ? extraHeaders : undefined,
+    transportOptions,
+    ...socketOptions,
   });
 
   return socket;
