@@ -126,8 +126,16 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 04-01: Split the monolithic chat page into focused layout, sidebar, list, bubble, composer, and action units
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 04-02: Redesign desktop and mobile messenger visual states and interactions
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 04-03: Add frontend chat UI and optimistic-state regression coverage
 
 ### Phase 5: Messenger Baseline Completion
