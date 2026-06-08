@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import Message from '../Models/messageModel.mjs';
 import Chats from '../Models/chatModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
-import { getIO } from '../Config/socket.mjs';
+import { emitToUserSockets, getIO } from '../Config/socket.mjs';
 
 const respondWithChatAccessError = (res, statusCode, message) => {
   res.status(statusCode).json({
@@ -109,10 +109,10 @@ export const newMessage = asyncErrorHandler(async (req, res, next) => {
     // Emit to everyone in the room including sender
     io.in(chat._id.toString()).emit('message:new', seializedMessage);
 
-    // Emit unread count update to all chat members (except sender)
+    // Emit unread count update only to each intended recipient's authenticated sockets.
     chat.members.forEach((memberId) => {
       if (!memberId.equals(userObjectId)) {
-        io.in(chat._id.toString()).emit('unread:update', {
+        emitToUserSockets(memberId, 'unread:update', {
           chatId: chat._id.toString(),
           userId: memberId.toString(),
           increment: 1,
@@ -363,8 +363,8 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
         })),
       });
 
-      // Emit unread count reset for the user who read the messages
-      io.in(chat._id.toString()).emit('unread:update', {
+      // Emit unread count reset only to the user who read the messages.
+      emitToUserSockets(userObjectId, 'unread:update', {
         chatId: chat._id.toString(),
         userId: userObjectId.toString(),
         count: 0,

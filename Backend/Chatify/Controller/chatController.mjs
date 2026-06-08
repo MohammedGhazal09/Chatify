@@ -3,7 +3,7 @@ import Chats from "../Models/chatModel.mjs";
 import User from "../Models/userModel.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
 import { CustomError } from "../Utils/customError.mjs";
-import { getIO, getUserSockets, joinUserToChat, removeUserFromChat } from "../Config/socket.mjs";
+import { emitToUserSockets, joinUserToChat, removeUserFromChat } from "../Config/socket.mjs";
 
 
 export const createChat = asyncErrHandler(async (req, res, next) => {
@@ -68,18 +68,12 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
 
   // Notify all members about the new chat via socket
   try {
-    const io = getIO();
     // Join both users to the new chat room so they can receive messages immediately
     joinUserToChat(requesterId, newChat._id);
     joinUserToChat(targetUser._id.toString(), newChat._id);
     
     // Notify the target user about the new chat so they can see it without refreshing
-    const targetUserSockets = getUserSockets(targetUser._id.toString());
-    if (targetUserSockets && targetUserSockets.size > 0) {
-      targetUserSockets.forEach(socketId => {
-        io.to(socketId).emit('chat:new', newChat);
-      });
-    }
+    emitToUserSockets(targetUser._id, 'chat:new', newChat);
   } catch (err) {
     // Log but don't fail the request if socket notification fails
     console.error('Failed to notify users about new chat:', err);
@@ -142,17 +136,10 @@ export const deleteChat = asyncErrHandler(async (req, res, next) => {
 
   // Notify all members about the deleted chat via socket
   try {
-    const io = getIO();
-    
     // Remove all members from the chat room and notify them
     memberIds.forEach((memberId) => {
       removeUserFromChat(memberId, chatId);
-      const memberSockets = getUserSockets(memberId);
-      if (memberSockets && memberSockets.size > 0) {
-        memberSockets.forEach((socketId) => {
-          io.to(socketId).emit("chat:deleted", { chatId });
-        });
-      }
+      emitToUserSockets(memberId, "chat:deleted", { chatId });
     });
   } catch (err) {
     console.error("Failed to notify users about chat deletion:", err);

@@ -3,6 +3,7 @@ import User from '../Models/userModel.mjs'
 import Message from '../Models/messageModel.mjs'
 import Chats from '../Models/chatModel.mjs'
 import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
+import { assertChatMember, assertMessageChatMember, normalizeObjectId } from '../Utils/chatAccess.mjs'
 
 let io
 const isProd = process.env.NODE_ENV === 'production'
@@ -32,6 +33,37 @@ const createSocketAuthError = (code, message) => {
   error.data = { code }
   return error
 }
+
+const socketErrorMessages = {
+  invalid_payload: 'Invalid socket payload',
+  forbidden_or_not_found: 'Forbidden or not found',
+  deprecated_socket_message_send: 'Send messages through the HTTP message API',
+  server_error: 'Socket event failed',
+}
+
+export const respondSocketError = (socket, event, error, ack) => {
+  const code = error?.code ?? 'server_error'
+  const payload = {
+    ok: false,
+    code,
+    event,
+    message: socketErrorMessages[code] ?? socketErrorMessages.server_error,
+  }
+
+  if (typeof ack === 'function') {
+    ack(payload)
+    return payload
+  }
+
+  socket.emit('socket:error', payload)
+  return payload
+}
+
+const respondSocketSuccess = (event, data = {}) => ({
+  ok: true,
+  event,
+  ...data,
+})
 
 const authenticateSocket = (socket, next) => {
   const token = readAccessTokenFromCookieHeader(socket.handshake.headers.cookie)
@@ -160,101 +192,124 @@ export const initSocket = (server) => {
       socket.emit('socket:error', { ...payload, event: 'user:connect' })
     })
 
-    socket.on('chat:join', (chatId) => {
-      if (!chatId) {
-        return
-      }
+    socket.on('chat:join', async (chatId, ack) => {
+      try {
+        const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        const roomId = chat._id.toString()
+        debugLog(`📥 Socket ${socket.id} joining chat: ${roomId}`)
+        socket.join(roomId)
 
-      debugLog(`📥 Socket ${socket.id} joining chat: ${chatId}`)
-      socket.join(chatId.toString())
+        await markMessagesAsDelivered(roomId, socket.data.userId)
 
-      // Mark messages as delivered when user joins chat
-      const userId = socketToUser.get(socket.id)
-      if (userId) {
-        markMessagesAsDelivered(chatId, userId)
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('chat:join', { chatId: roomId }))
+        }
+      } catch (err) {
+        respondSocketError(socket, 'chat:join', err, ack)
       }
     })
 
-    socket.on('chat:leave', (chatId) => {
-      if (!chatId) {
-        return
-      }
+    socket.on('chat:leave', (chatId, ack) => {
+      try {
+        const roomId = normalizeObjectId(chatId).toString()
 
-      debugLog(`📤 Socket ${socket.id} leaving chat: ${chatId}`)
-      socket.leave(chatId.toString())
+        if (socket.rooms.has(roomId)) {
+          debugLog(`📤 Socket ${socket.id} leaving chat: ${roomId}`)
+          socket.leave(roomId)
+        }
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('chat:leave', { chatId: roomId }))
+        }
+      } catch (err) {
+        respondSocketError(socket, 'chat:leave', err, ack)
+      }
     })
 
-    socket.on('message:send', ({ chatId, message }) => {
-      if (!chatId || !message) {
-        return
-      }
-
-      socket.to(chatId.toString()).emit('message:new', message)
+    socket.on('message:send', (_payload, ack) => {
+      respondSocketError(
+        socket,
+        'message:send',
+        { code: 'deprecated_socket_message_send' },
+        ack
+      )
     })
 
     // Handle message delivered event
-    socket.on('message:delivered', async ({ messageId, chatId }) => {
-      const userId = socketToUser.get(socket.id)
-      if (!userId || !messageId) return
-
+    socket.on('message:delivered', async ({ messageId } = {}, ack) => {
       try {
-        const message = await Message.findById(messageId)
-        if (!message || message.sender.toString() === userId) return
+        const { message, chat } = await assertMessageChatMember({
+          messageId,
+          userId: socket.data.userId,
+        })
+
+        if (message.sender.toString() === socket.data.userId) {
+          if (typeof ack === 'function') {
+            ack(respondSocketSuccess('message:delivered', { messageId: message._id.toString() }))
+          }
+          return
+        }
 
         if (message.status === 'sent') {
           message.status = 'delivered'
           message.deliveredAt = new Date()
           await message.save()
 
-          // Notify sender
-          io.to(chatId.toString()).emit('message:status-update', {
+          io.to(chat._id.toString()).emit('message:status-update', {
             messageId: message._id,
             status: 'delivered',
             deliveredAt: message.deliveredAt,
           })
         }
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('message:delivered', { messageId: message._id.toString() }))
+        }
       } catch (err) {
-        console.error('📛 Error marking message delivered:', err)
+        respondSocketError(socket, 'message:delivered', err, ack)
       }
     })
 
     // Handle typing events
-    socket.on('typing:start', async ({ chatId }) => {
-      const userId = socketToUser.get(socket.id)
-      if (!userId || !chatId) return
-
+    socket.on('typing:start', async ({ chatId } = {}, ack) => {
       try {
-        const user = await User.findById(userId).select('firstName lastName')
+        const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        const user = await User.findById(socket.data.userId).select('firstName lastName')
         if (!user) return
 
-        // Broadcast to other users in the chat
-        socket.to(chatId.toString()).emit('user:typing', {
-          chatId,
-          userId,
+        socket.to(chat._id.toString()).emit('user:typing', {
+          chatId: chat._id.toString(),
+          userId: socket.data.userId,
           userName: `${user.firstName} ${user.lastName || ''}`.trim(),
           isTyping: true,
         })
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('typing:start', { chatId: chat._id.toString() }))
+        }
       } catch (err) {
-        console.error('📛 Error handling typing:start:', err)
+        respondSocketError(socket, 'typing:start', err, ack)
       }
     })
 
-    socket.on('typing:stop', async ({ chatId }) => {
-      const userId = socketToUser.get(socket.id)
-      if (!userId || !chatId) return
-
+    socket.on('typing:stop', async ({ chatId } = {}, ack) => {
       try {
-        const user = await User.findById(userId).select('firstName lastName')
+        const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        const user = await User.findById(socket.data.userId).select('firstName lastName')
         if (!user) return
 
-        socket.to(chatId.toString()).emit('user:typing', {
-          chatId,
-          userId,
+        socket.to(chat._id.toString()).emit('user:typing', {
+          chatId: chat._id.toString(),
+          userId: socket.data.userId,
           userName: `${user.firstName} ${user.lastName || ''}`.trim(),
           isTyping: false,
         })
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('typing:stop', { chatId: chat._id.toString() }))
+        }
       } catch (err) {
-        console.error('📛 Error handling typing:stop:', err)
+        respondSocketError(socket, 'typing:stop', err, ack)
       }
     })
 
@@ -345,6 +400,21 @@ export const getOnlineUsers = () => {
 // Get all sockets for a specific user
 export const getUserSockets = (userId) => {
   return userToSockets.get(userId.toString()) || new Set()
+}
+
+export const emitToUserSockets = (userId, eventName, payload) => {
+  const userSockets = getUserSockets(userId)
+  let emittedCount = 0
+
+  userSockets.forEach(socketId => {
+    const socket = io?.sockets.sockets.get(socketId)
+    if (socket) {
+      socket.emit(eventName, payload)
+      emittedCount += 1
+    }
+  })
+
+  return emittedCount
 }
 
 // Join a user to a specific chat room (used when new chat is created)
