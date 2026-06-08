@@ -86,8 +86,16 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 03-01: Define canonical message contracts and idempotent backend state transitions
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-02: Rebuild frontend message merge, optimistic rollback, and unread synchronization
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-03: Replace offset history behavior and align validation boundaries
 
 ### Phase 4: Messenger UI Reconstruction
