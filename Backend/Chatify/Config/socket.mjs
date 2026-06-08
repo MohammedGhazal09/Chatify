@@ -5,8 +5,8 @@ import Chats from '../Models/chatModel.mjs'
 import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
 import { assertChatMember, assertMessageChatMember, normalizeObjectId } from '../Utils/chatAccess.mjs'
 import {
-  applyDeliveredStatus,
   buildStatusPatch,
+  MESSAGE_STATUS,
 } from '../Utils/messageState.mjs'
 
 let io
@@ -421,12 +421,25 @@ export const initSocket = (server) => {
           return
         }
 
-        const deliveryResult = applyDeliveredStatus(message, socket.data.userId)
+        const deliveredMessage = await Message.findOneAndUpdate(
+          {
+            _id: message._id,
+            sender: { $ne: socket.data.userId },
+            status: MESSAGE_STATUS.SENT,
+            deletedFor: { $ne: socket.data.userId },
+            deletedForEveryone: { $ne: true },
+          },
+          {
+            $set: {
+              status: MESSAGE_STATUS.DELIVERED,
+              deliveredAt: new Date(),
+            },
+          },
+          { new: true }
+        )
 
-        if (deliveryResult.changed) {
-          await message.save()
-
-          io.to(chat._id.toString()).emit('message:status-update', buildStatusPatch(message))
+        if (deliveredMessage) {
+          io.to(chat._id.toString()).emit('message:status-update', buildStatusPatch(deliveredMessage))
         }
 
         if (typeof ack === 'function') {
@@ -518,17 +531,31 @@ const markMessagesAsDelivered = async (chatId, userId) => {
     const messages = await Message.find({
       chatId: chatObjectId,
       sender: { $ne: userObjectId },
-      status: 'sent',
+      status: MESSAGE_STATUS.SENT,
       deletedFor: { $ne: userObjectId },
       deletedForEveryone: { $ne: true },
     })
 
     for (const message of messages) {
-      const deliveryResult = applyDeliveredStatus(message, userObjectId)
+      const deliveredMessage = await Message.findOneAndUpdate(
+        {
+          _id: message._id,
+          sender: { $ne: userObjectId },
+          status: MESSAGE_STATUS.SENT,
+          deletedFor: { $ne: userObjectId },
+          deletedForEveryone: { $ne: true },
+        },
+        {
+          $set: {
+            status: MESSAGE_STATUS.DELIVERED,
+            deliveredAt: new Date(),
+          },
+        },
+        { new: true }
+      )
 
-      if (deliveryResult.changed) {
-        await message.save()
-        io.to(chatObjectId.toString()).emit('message:status-update', buildStatusPatch(message))
+      if (deliveredMessage) {
+        io.to(chatObjectId.toString()).emit('message:status-update', buildStatusPatch(deliveredMessage))
       }
     }
   } catch (err) {

@@ -189,6 +189,39 @@ describe('message cursor pagination', () => {
     });
   });
 
+  it('projects latestMessage when create-new-chat returns an existing chat', async () => {
+    const { memberOne, memberTwo, chat } = await setupPaginationScenario();
+    const visibleMessage = await createTimedMessage({
+      chat,
+      sender: memberOne.user,
+      text: 'Visible fallback',
+      timestamp: '2026-06-08T10:00:00.000Z',
+    });
+    const hiddenLatest = await createTimedMessage({
+      chat,
+      sender: memberOne.user,
+      text: 'Hidden from member two',
+      timestamp: '2026-06-08T10:01:00.000Z',
+    });
+
+    await memberTwo.agent
+      .delete(`/api/message/${hiddenLatest._id}`)
+      .send({ deleteForEveryone: false })
+      .expect(200);
+
+    const response = await memberTwo.agent
+      .post('/api/chat/create-new-chat')
+      .send({ targetEmail: memberOne.user.email })
+      .expect(200);
+
+    expect(response.body.data.chat._id).toBe(chat._id.toString());
+    expect(response.body.data.chat.latestMessage).toMatchObject({
+      _id: visibleMessage._id.toString(),
+      text: 'Visible fallback',
+    });
+    expect(response.body.data.chat.latestMessage._id).not.toBe(hiddenLatest._id.toString());
+  });
+
   it('projects latest tombstones without exposing deleted text', async () => {
     const { memberOne, memberTwo, chat } = await setupPaginationScenario();
     const message = await createTimedMessage({

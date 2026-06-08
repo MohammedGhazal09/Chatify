@@ -4,18 +4,20 @@ import Chats from '../Models/chatModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
 import { emitToUserSockets, getIO } from '../Config/socket.mjs';
 import {
-  applyReadStatus,
   applyReactionToggle,
   applyBeforeCursorFilter,
   buildUnreadMessageFilter,
   buildVisibleMessageFilter,
   canUserSeeMessage,
   encodeMessageCursor,
+  buildReadReceiptUpdatePipeline,
+  hasReceiptStateChanged,
   normalizeClientMessageId,
   normalizeMessageHistoryLimit,
   normalizeMessageText,
   normalizeReactionEmoji,
   parseMessageCursor,
+  MESSAGE_STATUS,
   MESSAGE_CURSOR_SORT_DESC,
   buildStatusPatch,
   serializeMessage,
@@ -71,6 +73,45 @@ const emitUnreadCountsForRecipients = async (chat, senderId) => {
       .filter((memberId) => !memberId.equals(senderId))
       .map((memberId) => emitUnreadCountToUser(chat._id, memberId))
   );
+};
+
+const promoteMessageReadState = async ({ message, chat, userObjectId }) => {
+  const updatedMessage = await Message.findOneAndUpdate(
+    {
+      _id: message._id,
+      status: { $ne: MESSAGE_STATUS.READ },
+      sender: { $ne: userObjectId },
+      deletedForEveryone: { $ne: true },
+      deletedFor: { $ne: userObjectId },
+    },
+    buildReadReceiptUpdatePipeline({
+      readerId: userObjectId,
+      chatMemberIds: chat.members,
+      senderId: message.sender,
+    }),
+    { new: true }
+  );
+
+  const sourceMessage = updatedMessage ?? message;
+  const readByEntry = sourceMessage.readBy?.find((entry) => (
+    entry.user?.equals?.(userObjectId) || entry.user?.toString?.() === userObjectId.toString()
+  )) ?? null;
+  const readEntry = readByEntry
+    ? {
+        user: readByEntry.user,
+        readAt: readByEntry.readAt,
+      }
+    : null;
+
+  if (updatedMessage && hasReceiptStateChanged(message, updatedMessage)) {
+    return { changed: true, message: updatedMessage, readEntry };
+  }
+
+  if (updatedMessage) {
+    return { changed: false, message: updatedMessage, readEntry };
+  }
+
+  return { changed: false, message, readEntry: null };
 };
 
 export const newMessage = asyncErrorHandler(async (req, res) => {
@@ -161,7 +202,15 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     if (error?.code === 11000 && idempotencyFilter) {
       const existingMessage = await Message.findOne(idempotencyFilter);
 
-      if (existingMessage?.text === normalizedText.text) {
+      if (existingMessage) {
+        if (existingMessage.text !== normalizedText.text) {
+          res.status(409).json({
+            status: 'fail',
+            message: 'clientMessageId already exists with different message text',
+          });
+          return;
+        }
+
         res.status(200).json({
           status: 'message already created',
           data: {
@@ -307,14 +356,12 @@ export const markMessageAsRead = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  const readResult = applyReadStatus(message, chat, userObjectId);
+  const readResult = await promoteMessageReadState({ message, chat, userObjectId });
 
   if (readResult.changed) {
-    await message.save();
-
     try {
       const io = getIO();
-      const patch = buildStatusPatch(message);
+      const patch = buildStatusPatch(readResult.message);
 
       io.in(chat._id.toString()).emit('message:read', {
         ...patch,
@@ -338,8 +385,8 @@ export const markMessageAsRead = asyncErrorHandler(async (req, res) => {
   res.status(200).json({
     status: 'success',
     data: {
-      message: serializeMessage(message),
-      receipt: buildStatusPatch(message),
+      message: serializeMessage(readResult.message),
+      receipt: buildStatusPatch(readResult.message),
       unreadCount,
     },
   });
@@ -393,12 +440,11 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
   const receiptPatches = [];
 
   for (const message of messages) {
-    const readResult = applyReadStatus(message, chat, userObjectId);
+    const readResult = await promoteMessageReadState({ message, chat, userObjectId });
 
     if (readResult.changed) {
-      await message.save();
-      updatedMessages.push(message);
-      receiptPatches.push(buildStatusPatch(message));
+      updatedMessages.push(readResult.message);
+      receiptPatches.push(buildStatusPatch(readResult.message));
     }
   }
 

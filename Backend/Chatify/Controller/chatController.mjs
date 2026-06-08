@@ -11,6 +11,14 @@ import {
   serializeMessage,
 } from "../Utils/messageState.mjs";
 
+const projectLatestVisibleMessage = async (chatId, requesterId) => {
+  const latestVisibleMessage = await Message.findOne(
+    buildVisibleMessageFilter({ chatId, userId: requesterId })
+  ).sort(MESSAGE_CURSOR_SORT_DESC);
+
+  return latestVisibleMessage ? serializeMessage(latestVisibleMessage) : null;
+};
+
 
 export const createChat = asyncErrHandler(async (req, res, next) => {
   const { targetEmail, chatName } = req.body ?? {};
@@ -50,10 +58,15 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
     .populate("latestMessage");
 
   if (existingChat) {
+    const projectedLatestMessage = await projectLatestVisibleMessage(existingChat._id, requesterId);
+
     return res.status(200).json({
       status: "success",
       data: {
-        chat: existingChat,
+        chat: {
+          ...existingChat.toObject(),
+          latestMessage: projectedLatestMessage,
+        },
       },
     });
   }
@@ -98,14 +111,9 @@ export const getAllChats = asyncErrHandler(async (req, res, next) => {
     .populate("members", "-password")
     .sort({ updatedAt: -1 });
   const projectedChats = await Promise.all(chats.map(async (chat) => {
-    const latestVisibleMessage = await Message.findOne(
-      buildVisibleMessageFilter({ chatId: chat._id, userId: req.userId })
-    ).sort(MESSAGE_CURSOR_SORT_DESC);
-    const serializedChat = chat.toObject();
-
     return {
-      ...serializedChat,
-      latestMessage: latestVisibleMessage ? serializeMessage(latestVisibleMessage) : null,
+      ...chat.toObject(),
+      latestMessage: await projectLatestVisibleMessage(chat._id, req.userId),
     };
   }));
 

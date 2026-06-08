@@ -1,5 +1,6 @@
 import type {
   BatchReadEvent,
+  CursorPaginationInfo,
   Message,
   MessageDeletedEvent,
   MessageEditedEvent,
@@ -15,7 +16,7 @@ export const MAX_MESSAGE_TEXT_LENGTH = 1000;
 export interface MessagesCacheData {
   messages: Message[];
   pagination?: PaginationInfo;
-  cursor?: { nextCursor?: string | null; hasMore: boolean; limit: number };
+  cursor?: CursorPaginationInfo;
 }
 
 export type CreateOptimisticMessageInput = {
@@ -30,6 +31,175 @@ const statusRank: Record<MessageStatus, number> = {
   sent: 0,
   delivered: 1,
   read: 2,
+};
+
+const isOptimisticMessage = (message?: Message) => {
+  if (!message) {
+    return false;
+  }
+
+  return Boolean(message.optimisticState || message._id.startsWith('optimistic-'));
+};
+
+const messageVersionTime = (message?: Message) => {
+  if (!message) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const version = new Date(message.updatedAt ?? message.createdAt).getTime();
+  return Number.isFinite(version) ? version : Number.NEGATIVE_INFINITY;
+};
+
+const messageIdentityKey = (message: Message) => {
+  return message.clientMessageId ? `client:${message.clientMessageId}` : `id:${message._id}`;
+};
+
+const mergeUniqueStrings = (left: string[] = [], right: string[] = []) => {
+  return Array.from(new Set([...left, ...right].filter((value): value is string => Boolean(value))));
+};
+
+const compareMessageTimeline = (left: Message, right: Message) => {
+  const leftTime = new Date(left.createdAt).getTime();
+  const rightTime = new Date(right.createdAt).getTime();
+
+  if (leftTime !== rightTime) {
+    return leftTime - rightTime;
+  }
+
+  return left._id.localeCompare(right._id);
+};
+
+const mergeReadByEntries = (left: Message['readBy'] = [], right: Message['readBy'] = []) => {
+  const entries = new Map<string, NonNullable<Message['readBy']>[number]>();
+
+  const addEntry = (entry: NonNullable<Message['readBy']>[number]) => {
+    const user = entry.user;
+    const userId = user?.toString?.() ?? user;
+
+    if (!userId) {
+      return;
+    }
+
+    const readAt = entry.readAt ?? null;
+    const current = entries.get(userId);
+
+    if (!current) {
+      entries.set(userId, { user: userId, readAt });
+      return;
+    }
+
+    const currentTime = current.readAt ? new Date(current.readAt).getTime() : Number.POSITIVE_INFINITY;
+    const nextTime = readAt ? new Date(readAt).getTime() : Number.POSITIVE_INFINITY;
+
+    if (nextTime < currentTime) {
+      entries.set(userId, { user: userId, readAt });
+    }
+  };
+
+  left.forEach(addEntry);
+  right.forEach(addEntry);
+
+  return Array.from(entries.values()).sort((a, b) => a.user.localeCompare(b.user));
+};
+
+const shouldPreferIncomingContent = (existing: Message | undefined, incoming: Message) => {
+  if (!existing) {
+    return true;
+  }
+
+  const existingOptimistic = isOptimisticMessage(existing);
+  const incomingOptimistic = isOptimisticMessage(incoming);
+  const sameClientMessageId = Boolean(
+    existing.clientMessageId &&
+    incoming.clientMessageId &&
+    existing.clientMessageId === incoming.clientMessageId
+  );
+
+  if (existingOptimistic && sameClientMessageId && !incomingOptimistic) {
+    return true;
+  }
+
+  if (!existingOptimistic && incomingOptimistic) {
+    return false;
+  }
+
+  return messageVersionTime(incoming) >= messageVersionTime(existing);
+};
+
+export const mergeCanonicalMessage = (existing: Message | undefined, incoming: Message): Message => {
+  const preferIncomingContent = shouldPreferIncomingContent(existing, incoming);
+  const contentSource = preferIncomingContent ? incoming : existing ?? incoming;
+  const mergedReadBy = mergeReadByEntries(existing?.readBy ?? [], incoming.readBy ?? []);
+  const mergedDeletedFor = mergeUniqueStrings(existing?.deletedFor ?? [], incoming.deletedFor ?? []);
+  const deletedForEveryone = Boolean(existing?.deletedForEveryone || incoming.deletedForEveryone);
+  const status = statusRank[incoming.status] >= statusRank[existing?.status ?? 'sent']
+    ? incoming.status
+    : existing?.status ?? incoming.status;
+
+  return {
+    ...(existing ?? {}),
+    ...contentSource,
+    _id: incoming._id ?? existing?._id ?? contentSource._id,
+    clientMessageId: incoming.clientMessageId ?? existing?.clientMessageId ?? null,
+    chatId: incoming.chatId ?? existing?.chatId ?? contentSource.chatId,
+    sender: incoming.sender ?? existing?.sender ?? contentSource.sender,
+    text: deletedForEveryone ? '' : (preferIncomingContent ? incoming.text : existing?.text ?? incoming.text ?? ''),
+    read: Boolean(existing?.read || incoming.read || status === 'read'),
+    status,
+    deliveredAt: existing?.deliveredAt ?? incoming.deliveredAt ?? null,
+    readAt: existing?.readAt ?? incoming.readAt ?? null,
+    readBy: mergedReadBy,
+    reactions: preferIncomingContent ? [...(incoming.reactions ?? [])] : [...(existing?.reactions ?? incoming.reactions ?? [])],
+    isEdited: Boolean(existing?.isEdited || incoming.isEdited),
+    editedAt: existing?.editedAt ?? incoming.editedAt ?? null,
+    deletedFor: mergedDeletedFor,
+    deletedForEveryone,
+    deletedBy: existing?.deletedBy ?? incoming.deletedBy ?? null,
+    deletedAt: existing?.deletedAt ?? incoming.deletedAt ?? null,
+    optimisticState: preferIncomingContent ? incoming.optimisticState : existing?.optimisticState,
+    errorMessage: preferIncomingContent ? incoming.errorMessage : existing?.errorMessage,
+    createdAt: preferIncomingContent ? incoming.createdAt ?? existing?.createdAt : existing?.createdAt ?? incoming.createdAt,
+    updatedAt: preferIncomingContent ? incoming.updatedAt ?? existing?.updatedAt : existing?.updatedAt ?? incoming.updatedAt,
+  };
+};
+
+export const reconcileFetchedMessagesInCache = (
+  cache: MessagesCacheData | undefined,
+  fetchedMessages: Message[],
+  pagination?: PaginationInfo,
+  cursor?: CursorPaginationInfo
+): MessagesCacheData => {
+  const existingMessages = cache?.messages ?? [];
+  const fetchedBoundary = fetchedMessages[0] ?? null;
+  const existingByIdentity = new Map(existingMessages.map((message) => [messageIdentityKey(message), message]));
+
+  const retainedOlderMessages = fetchedBoundary
+    ? existingMessages.filter((message) => !message.optimisticState && compareMessageTimeline(message, fetchedBoundary) < 0)
+    : [];
+
+  const retainedOptimisticMessages = existingMessages.filter((message) => {
+    if (!message.optimisticState) {
+      return false;
+    }
+
+    return !fetchedMessages.some((incoming) => {
+      return messageIdentityKey(message) === messageIdentityKey(incoming);
+    });
+  });
+
+  const mergedFetchedMessages = fetchedMessages.map((incoming) => (
+    mergeCanonicalMessage(existingByIdentity.get(messageIdentityKey(incoming)), incoming)
+  ));
+
+  return {
+    messages: sortMessages([
+      ...retainedOlderMessages,
+      ...mergedFetchedMessages,
+      ...retainedOptimisticMessages,
+    ].reduce<Message[]>((accumulator, message) => upsertMessage(accumulator, message), [])),
+    pagination,
+    cursor,
+  };
 };
 
 export const normalizeOutgoingMessageText = (value: string) => {
@@ -98,11 +268,7 @@ export const sortMessages = (messages: Message[]) => {
 };
 
 const messagesMatch = (left: Message, right: Message) => {
-  if (left._id === right._id) {
-    return true;
-  }
-
-  return Boolean(left.clientMessageId && right.clientMessageId && left.clientMessageId === right.clientMessageId);
+  return messageIdentityKey(left) === messageIdentityKey(right);
 };
 
 export const upsertMessage = (messages: Message[], incoming: Message) => {
@@ -113,12 +279,7 @@ export const upsertMessage = (messages: Message[], incoming: Message) => {
   }
 
   const nextMessages = [...messages];
-  nextMessages[existingIndex] = {
-    ...nextMessages[existingIndex],
-    ...incoming,
-    optimisticState: incoming.optimisticState,
-    errorMessage: incoming.errorMessage,
-  };
+  nextMessages[existingIndex] = mergeCanonicalMessage(nextMessages[existingIndex], incoming);
 
   return sortMessages(nextMessages);
 };
@@ -151,7 +312,7 @@ export const markOptimisticMessageFailed = (
   return {
     ...cache,
     messages: cache.messages.map((message) =>
-      message.clientMessageId === clientMessageId
+      message.clientMessageId === clientMessageId && message.optimisticState === 'sending'
         ? { ...message, optimisticState: 'failed', errorMessage }
         : message
     ),
@@ -168,14 +329,15 @@ export const applyReceiptPatchToMessage = (message: Message, patch: MessageRecei
   }
 
   const nextStatus = shouldPromoteStatus(message.status, patch.status) ? patch.status : message.status;
+  const nextReadBy = mergeReadByEntries(message.readBy ?? [], patch.readBy ?? []);
 
   return {
     ...message,
     status: nextStatus,
-    read: patch.read ?? message.read,
-    deliveredAt: patch.deliveredAt ?? message.deliveredAt,
-    readAt: patch.readAt ?? message.readAt,
-    readBy: patch.readBy ?? message.readBy,
+    read: Boolean(message.read || patch.read || nextStatus === 'read'),
+    deliveredAt: message.deliveredAt ?? patch.deliveredAt,
+    readAt: message.readAt ?? patch.readAt,
+    readBy: nextReadBy,
   };
 };
 

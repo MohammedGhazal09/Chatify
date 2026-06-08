@@ -260,6 +260,107 @@ export const buildStatusPatch = (message) => {
   };
 };
 
+const normalizeReceiptState = (message) => {
+  const serializedMessage = serializeMessage(message);
+
+  return {
+    status: serializedMessage.status,
+    read: serializedMessage.read,
+    deliveredAt: serializedMessage.deliveredAt,
+    readAt: serializedMessage.readAt,
+    readBy: serializedMessage.readBy
+      .map((entry) => `${entry.user}:${entry.readAt}`)
+      .sort(),
+  };
+};
+
+export const hasReceiptStateChanged = (beforeMessage, afterMessage) => {
+  return JSON.stringify(normalizeReceiptState(beforeMessage)) !== JSON.stringify(normalizeReceiptState(afterMessage));
+};
+
+export const buildReadReceiptUpdatePipeline = ({
+  readerId,
+  chatMemberIds,
+  senderId,
+  now = new Date(),
+}) => {
+  const readerObjectId = toObjectId(readerId);
+  const readableMemberIds = (chatMemberIds ?? [])
+    .map((memberId) => toObjectId(memberId))
+    .filter(Boolean)
+    .filter((memberId) => !idsEqual(memberId, senderId));
+
+  const existingReadUsersExpr = {
+    $map: {
+      input: { $ifNull: ['$readBy', []] },
+      as: 'entry',
+      in: '$$entry.user',
+    },
+  };
+
+  const updatedReadUsersExpr = {
+    $setUnion: [existingReadUsersExpr, [readerObjectId]],
+  };
+
+  const allMembersReadExpr = {
+    $eq: [
+      {
+        $size: {
+          $setDifference: [readableMemberIds, updatedReadUsersExpr],
+        },
+      },
+      0,
+    ],
+  };
+
+  return [
+    {
+      $set: {
+        readBy: {
+          $cond: [
+            { $in: [readerObjectId, existingReadUsersExpr] },
+            { $ifNull: ['$readBy', []] },
+            {
+              $concatArrays: [
+                { $ifNull: ['$readBy', []] },
+                [{ user: readerObjectId, readAt: now }],
+              ],
+            },
+          ],
+        },
+        status: {
+          $cond: [
+            allMembersReadExpr,
+            MESSAGE_STATUS.READ,
+            {
+              $cond: [
+                { $eq: ['$status', MESSAGE_STATUS.SENT] },
+                MESSAGE_STATUS.DELIVERED,
+                '$status',
+              ],
+            },
+          ],
+        },
+        read: {
+          $cond: [
+            allMembersReadExpr,
+            true,
+            { $ifNull: ['$read', false] },
+          ],
+        },
+        deliveredAt: { $ifNull: ['$deliveredAt', now] },
+        readAt: {
+          $cond: [
+            allMembersReadExpr,
+            { $ifNull: ['$readAt', now] },
+            '$readAt',
+          ],
+        },
+      },
+    },
+  ];
+};
+
 export const applyDeliveredStatus = (message, userId, now = new Date()) => {
   if (idsEqual(message.sender, userId) || message.deletedForEveryone) {
     return { changed: false, patch: buildStatusPatch(message) };

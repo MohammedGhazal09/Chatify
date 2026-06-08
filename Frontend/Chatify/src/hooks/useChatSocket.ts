@@ -11,6 +11,7 @@ import {
   applyReactionInCache,
   applyReceiptPatchInCache,
   applyUnreadUpdate,
+  mergeCanonicalMessage,
   upsertMessageInCache,
   type MessagesCacheData,
 } from './messageCache';
@@ -102,6 +103,45 @@ export const useChatSocket = ({
     if (ready?.presence) {
       presenceStoreRef.current.replaceOnlineUsers(ready.presence);
     }
+  }, []);
+
+  const updateChatsLatestMessage = useCallback((incoming: Message) => {
+    queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+      if (!old) {
+        return old;
+      }
+
+      let touched = false;
+
+      const nextChats = old.map((chat) => {
+        if (chat._id !== incoming.chatId) {
+          return chat;
+        }
+
+        touched = true;
+        const latestMessage = chat.latestMessage &&
+          (chat.latestMessage._id === incoming._id ||
+            (chat.latestMessage.clientMessageId &&
+              incoming.clientMessageId &&
+              chat.latestMessage.clientMessageId === incoming.clientMessageId))
+          ? mergeCanonicalMessage(chat.latestMessage, incoming)
+          : incoming;
+
+        return {
+          ...chat,
+          latestMessage,
+          updatedAt: incoming.createdAt,
+        };
+      });
+
+      if (!touched) {
+        return old;
+      }
+
+      return [...nextChats].sort((left, right) => (
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+      ));
+    });
   }, []);
 
   // Connect socket and set up user connection
@@ -257,23 +297,28 @@ export const useChatSocket = ({
   // Handle incoming messages
   const handleIncomingMessage = useCallback(
     (message: Message) => {
-      if (!message || (chatId && message.chatId !== chatId)) {
+      if (!message) {
         return;
-      }
-      
-      // Play notification sound for messages from others
-      if (message.sender !== user?._id && isSoundEnabled()) {
-        playNotificationSound();
       }
 
       queryClientRef.current.setQueryData<MessagesCacheData>(
         messagesQueryKey(message.chatId),
         (old) => upsertMessageInCache(old, message)
       );
-      
+      updateChatsLatestMessage(message);
+
+      if (chatId && message.chatId !== chatId) {
+        return;
+      }
+
+      // Play notification sound for messages from others
+      if (message.sender !== user?._id && isSoundEnabled()) {
+        playNotificationSound();
+      }
+
       onMessage?.(message);
     },
-    [chatId, onMessage, user?._id]
+    [chatId, onMessage, updateChatsLatestMessage, user?._id]
   );
 
   // Handle message status updates

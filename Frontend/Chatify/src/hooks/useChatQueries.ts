@@ -11,6 +11,7 @@ import {
   createOptimisticMessage,
   markOptimisticMessageFailed,
   normalizeOutgoingMessageText,
+  reconcileFetchedMessagesInCache,
   prependMessagesInCache,
   upsertMessageInCache,
   type MessagesCacheData,
@@ -66,9 +67,13 @@ export const useMessages = (chatId: string | null) => {
 
   const queryResult = useQuery({
     queryKey,
-    queryFn: async () => {
+    queryFn: async (): Promise<MessagesCacheData> => {
       if (!chatId) {
-        return { messages: [] as Message[], pagination: { hasMore: false, currentPage: 1, totalPages: 1 } };
+        return {
+          messages: [],
+          pagination: { hasMore: false, currentPage: 1, totalPages: 1, limit: 50 },
+          cursor: undefined,
+        };
       }
       const response = await messageApi.getAllMessages(chatId, { limit: 50 });
       const cursor = response.data.data.cursor ?? {
@@ -76,12 +81,14 @@ export const useMessages = (chatId: string | null) => {
         hasMore: response.data.data.hasMore ?? response.data.data.pagination?.hasMore ?? false,
         limit: response.data.data.pagination?.limit ?? 50,
       };
+      const existingCache = queryClient.getQueryData<MessagesQueryData>(queryKey);
 
-      return {
-        messages: response.data.data.messages,
-        pagination: response.data.data.pagination,
-        cursor,
-      };
+      return reconcileFetchedMessagesInCache(
+        existingCache,
+        response.data.data.messages,
+        response.data.data.pagination,
+        cursor
+      );
     },
     enabled: !!chatId && isAuthenticated,
   });
