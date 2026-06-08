@@ -82,4 +82,15 @@ describe('ConversationPane', () => {
     expect(screen.getByRole('heading', { name: 'Your session expired' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
+
+  it('labels the conversation search input', () => {
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'state',
+    });
+
+    expect(screen.getByRole('textbox', { name: 'Search messages in this conversation' })).toHaveValue('state');
+  });
 });

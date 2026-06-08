@@ -48,7 +48,7 @@ const MessageActionMenu = ({
   return (
     <div
       ref={contextMenuRef}
-      role="menu"
+      role="group"
       aria-label="Message actions"
       tabIndex={-1}
       className="fixed z-50 min-w-[200px] rounded-lg border border-[#2E363C] bg-[#20262B] py-1 shadow-xl"
@@ -97,7 +97,6 @@ const MessageActionMenu = ({
 
       <button
         type="button"
-        role="menuitem"
         onClick={() => {
           if (message) onReply(message);
         }}
@@ -108,7 +107,6 @@ const MessageActionMenu = ({
       {contextMenu.isOwn && (
         <button
           type="button"
-          role="menuitem"
           onClick={() => onStartEdit(contextMenu.messageId, message?.text || '')}
           className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
         >
@@ -117,7 +115,6 @@ const MessageActionMenu = ({
       )}
       <button
         type="button"
-        role="menuitem"
         onClick={() => {
           if (message) onCopy(message);
         }}
@@ -128,7 +125,6 @@ const MessageActionMenu = ({
       {contextMenu.isOwn && (
         <button
           type="button"
-          role="menuitem"
           onClick={() => onDelete(false)}
           className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
         >
@@ -138,7 +134,6 @@ const MessageActionMenu = ({
       {contextMenu.isOwn && (
         <button
           type="button"
-          role="menuitem"
           onClick={() => onDelete(true)}
           className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
         >

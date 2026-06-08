@@ -49,7 +49,7 @@ describe('MessageComposer', () => {
 
     render(<ComposerHarness onSend={onSend} />);
 
-    await user.type(screen.getByPlaceholderText('Write a message...'), 'Hello');
+    await user.type(screen.getByRole('textbox', { name: 'Write a message' }), 'Hello');
     await user.keyboard('{Enter}');
 
     expect(onSend).toHaveBeenCalledTimes(1);
@@ -61,7 +61,7 @@ describe('MessageComposer', () => {
 
     render(<ComposerHarness onSend={onSend} />);
 
-    const textbox = screen.getByPlaceholderText('Write a message...');
+    const textbox = screen.getByRole('textbox', { name: 'Write a message' });
     await user.type(textbox, 'Hello');
     await user.keyboard('{Shift>}{Enter}{/Shift}there');
 

@@ -78,4 +78,14 @@ describe('MessageList', () => {
     expect(onLoadMore).toHaveBeenCalledTimes(1);
     expect(onScrollToBottom).toHaveBeenCalledTimes(1);
   });
+
+  it('labels the edit message textarea when editing', () => {
+    renderMessageList({
+      messages: [makeMessage({ _id: 'message-1', text: 'Editable message' })],
+      editingMessageId: 'message-1',
+      editText: 'Editable message',
+    });
+
+    expect(screen.getByRole('textbox', { name: 'Edit message' })).toHaveValue('Editable message');
+  });
 });

@@ -109,6 +109,7 @@ const MessageList = ({
                       <textarea
                         value={editText}
                         onChange={(event) => onEditTextChange(event.target.value)}
+                        aria-label="Edit message"
                         className="w-full rounded-lg border border-[#14B8A6] bg-[#20262B] p-2 text-sm text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
                         rows={3}
                       />

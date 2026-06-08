@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import NewChatDialog from './NewChatDialog';
@@ -43,7 +43,8 @@ describe('NewChatDialog', () => {
     const opener = screen.getByRole('button', { name: 'New chat' });
     await user.click(opener);
 
-    expect(screen.getByRole('dialog', { name: 'New chat' })).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'New chat' });
+    expect(dialog).toBeInTheDocument();
     const emailInput = screen.getByLabelText('Email address');
     expect(emailInput).toHaveFocus();
 
@@ -51,6 +52,16 @@ describe('NewChatDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Start chat' }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
+
+    await user.click(emailInput);
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(within(dialog).getByRole('button', { name: 'Close new chat dialog' })).toHaveFocus();
+
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(within(dialog).getByRole('button', { name: 'Start chat' })).toHaveFocus();
+
+    await user.keyboard('{Tab}');
+    expect(within(dialog).getByRole('button', { name: 'Close new chat dialog' })).toHaveFocus();
 
     await user.keyboard('{Escape}');
 

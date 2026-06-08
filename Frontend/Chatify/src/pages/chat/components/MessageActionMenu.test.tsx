@@ -56,8 +56,8 @@ describe('MessageActionMenu', () => {
     const trigger = screen.getByRole('button', { name: 'Open message actions' });
     await user.click(trigger);
 
-    const menu = screen.getByRole('menu', { name: 'Message actions' });
-    expect(menu).toHaveFocus();
+    const actions = screen.getByRole('group', { name: 'Message actions' });
+    expect(actions).toHaveFocus();
 
     await user.click(screen.getByRole('button', { name: 'React with 😂' }));
     expect(onReaction).toHaveBeenCalledWith('message-1', '😂');
@@ -65,7 +65,7 @@ describe('MessageActionMenu', () => {
 
     await user.keyboard('{Escape}');
 
-    await waitFor(() => expect(screen.queryByRole('menu', { name: 'Message actions' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Message actions' })).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
 });

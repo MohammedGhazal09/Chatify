@@ -58,6 +58,7 @@ const MessageComposer = ({
           onChange={onChange}
           onKeyDown={onKeyDown}
           placeholder="Write a message..."
+          aria-label="Write a message"
           disabled={Boolean(sendDisabledReason)}
           aria-describedby={sendDisabledReason ? 'composer-disabled-reason' : undefined}
           className="chat-input-area max-h-36 min-h-[72px] w-full resize-none rounded-lg bg-transparent px-3 py-2 text-sm leading-5 text-[#F4F7F6] outline-none placeholder:text-[#6F7B77] disabled:cursor-not-allowed disabled:text-[#6F7B77]"
