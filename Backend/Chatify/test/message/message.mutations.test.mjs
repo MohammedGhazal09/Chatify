@@ -16,6 +16,23 @@ const setupMutationScenario = async () => {
 };
 
 describe('message mutation semantics', () => {
+  it('rejects create payloads with empty, whitespace-only, or over-limit text', async () => {
+    const { memberOne, chat } = await setupMutationScenario();
+
+    await memberOne.agent
+      .post('/api/message/new-message')
+      .send({ chatId: chat._id.toString(), text: '' })
+      .expect(400);
+    await memberOne.agent
+      .post('/api/message/new-message')
+      .send({ chatId: chat._id.toString(), text: '   ' })
+      .expect(400);
+    await memberOne.agent
+      .post('/api/message/new-message')
+      .send({ chatId: chat._id.toString(), text: 'x'.repeat(1001) })
+      .expect(400);
+  });
+
   it('lets any visible member delete for self without hiding the message from other members', async () => {
     const { memberOne, memberTwo, chat } = await setupMutationScenario();
     const message = await createMessage({ chat, sender: memberOne.user, text: 'Hide for recipient only' });
@@ -104,6 +121,10 @@ describe('message mutation semantics', () => {
       .patch(`/api/message/${message._id}/edit`)
       .send({ text: 'Not allowed' })
       .expect(403);
+    await memberOne.agent
+      .patch(`/api/message/${message._id}/edit`)
+      .send({ text: '   ' })
+      .expect(400);
     await memberOne.agent
       .patch(`/api/message/${message._id}/edit`)
       .send({ text: 'x'.repeat(1001) })

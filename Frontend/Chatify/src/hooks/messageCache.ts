@@ -10,6 +10,8 @@ import type {
   UnreadUpdateEvent,
 } from '../types/chat';
 
+export const MAX_MESSAGE_TEXT_LENGTH = 1000;
+
 export interface MessagesCacheData {
   messages: Message[];
   pagination?: PaginationInfo;
@@ -28,6 +30,26 @@ const statusRank: Record<MessageStatus, number> = {
   sent: 0,
   delivered: 1,
   read: 2,
+};
+
+export const normalizeOutgoingMessageText = (value: string) => {
+  const text = value.trim();
+
+  if (!text) {
+    return {
+      ok: false,
+      message: 'Message text is required',
+    } as const;
+  }
+
+  if (text.length > MAX_MESSAGE_TEXT_LENGTH) {
+    return {
+      ok: false,
+      message: `Message exceeds maximum length of ${MAX_MESSAGE_TEXT_LENGTH} characters`,
+    } as const;
+  }
+
+  return { ok: true, text } as const;
 };
 
 export const createClientMessageId = () => {

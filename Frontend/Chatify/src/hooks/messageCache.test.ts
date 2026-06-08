@@ -7,6 +7,7 @@ import {
   applyUnreadUpdate,
   createOptimisticMessage,
   markOptimisticMessageFailed,
+  normalizeOutgoingMessageText,
   prependMessagesInCache,
   upsertMessageInCache,
   type MessagesCacheData,
@@ -30,6 +31,18 @@ const makeMessage = (overrides: Partial<Message> = {}): Message => ({
 });
 
 describe('message cache helpers', () => {
+  it('normalizes outgoing message text to backend validation boundaries', () => {
+    expect(normalizeOutgoingMessageText('  hello  ')).toEqual({ ok: true, text: 'hello' });
+    expect(normalizeOutgoingMessageText('   ')).toEqual({
+      ok: false,
+      message: 'Message text is required',
+    });
+    expect(normalizeOutgoingMessageText('x'.repeat(1001))).toEqual({
+      ok: false,
+      message: 'Message exceeds maximum length of 1000 characters',
+    });
+  });
+
   it('converges optimistic insert plus HTTP success by clientMessageId', () => {
     const optimistic = createOptimisticMessage({
       chatId: 'chat-1',

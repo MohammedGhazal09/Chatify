@@ -10,6 +10,7 @@ import {
   createClientMessageId,
   createOptimisticMessage,
   markOptimisticMessageFailed,
+  normalizeOutgoingMessageText,
   prependMessagesInCache,
   upsertMessageInCache,
   type MessagesCacheData,
@@ -224,9 +225,15 @@ export const useSendMessage = () => {
       }
 
       const clientMessageId = ensureSendClientMessageId(variables);
+      const normalizedText = normalizeOutgoingMessageText(variables.text);
+
+      if (!normalizedText.ok) {
+        throw new Error(normalizedText.message);
+      }
+
       const response = await messageApi.createMessage({
         chatId: variables.chatId,
-        text: variables.text,
+        text: normalizedText.text,
         clientMessageId,
       });
       return response.data.data.message;
@@ -237,7 +244,13 @@ export const useSendMessage = () => {
       }
 
       const clientMessageId = ensureSendClientMessageId(variables);
-      const { chatId, text } = variables;
+      const normalizedText = normalizeOutgoingMessageText(variables.text);
+
+      if (!normalizedText.ok) {
+        throw new Error(normalizedText.message);
+      }
+
+      const { chatId } = variables;
       await queryClient.cancelQueries({ queryKey: messagesQueryKey(chatId) });
       const previousData = queryClient.getQueryData<MessagesQueryData>(messagesQueryKey(chatId));
       const previousChats = queryClient.getQueryData<Chat[]>(chatsQueryKey);
@@ -245,7 +258,7 @@ export const useSendMessage = () => {
       const optimisticMessage = createOptimisticMessage({
         chatId,
         senderId: user._id,
-        text,
+        text: normalizedText.text,
         clientMessageId,
       });
 
@@ -409,7 +422,13 @@ export const useEditMessage = () => {
 
   return useMutation({
     mutationFn: async ({ messageId, text }: { messageId: string; text: string }) => {
-      const response = await messageApi.editMessage(messageId, text);
+      const normalizedText = normalizeOutgoingMessageText(text);
+
+      if (!normalizedText.ok) {
+        throw new Error(normalizedText.message);
+      }
+
+      const response = await messageApi.editMessage(messageId, normalizedText.text);
       return response.data.data.message;
     },
     onSuccess: (message) => {
