@@ -1,9 +1,15 @@
 import validator from "validator";
 import Chats from "../Models/chatModel.mjs";
+import Message from "../Models/messageModel.mjs";
 import User from "../Models/userModel.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
 import { CustomError } from "../Utils/customError.mjs";
 import { emitToUserSockets, joinUserToChat, removeUserFromChat } from "../Config/socket.mjs";
+import {
+  buildVisibleMessageFilter,
+  MESSAGE_CURSOR_SORT_DESC,
+  serializeMessage,
+} from "../Utils/messageState.mjs";
 
 
 export const createChat = asyncErrHandler(async (req, res, next) => {
@@ -90,13 +96,23 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
 export const getAllChats = asyncErrHandler(async (req, res, next) => {
   const chats = await Chats.find({ members: { $in: [req.userId] } })
     .populate("members", "-password")
-    .populate("latestMessage")
     .sort({ updatedAt: -1 });
+  const projectedChats = await Promise.all(chats.map(async (chat) => {
+    const latestVisibleMessage = await Message.findOne(
+      buildVisibleMessageFilter({ chatId: chat._id, userId: req.userId })
+    ).sort(MESSAGE_CURSOR_SORT_DESC);
+    const serializedChat = chat.toObject();
+
+    return {
+      ...serializedChat,
+      latestMessage: latestVisibleMessage ? serializeMessage(latestVisibleMessage) : null,
+    };
+  }));
 
   res.status(200).json({
     status: "success",
     data: {
-      chats,
+      chats: projectedChats,
     },
   });
 });

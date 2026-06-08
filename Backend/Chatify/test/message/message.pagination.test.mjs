@@ -151,4 +151,66 @@ describe('message cursor pagination', () => {
       hiddenMessage._id.toString(),
     ]);
   });
+
+  it('projects latestMessage per requesting user visibility', async () => {
+    const { memberOne, memberTwo, chat } = await setupPaginationScenario();
+    const olderMessage = await createTimedMessage({
+      chat,
+      sender: memberOne.user,
+      text: 'Visible fallback',
+      timestamp: '2026-06-08T10:00:00.000Z',
+    });
+    const latestMessage = await createTimedMessage({
+      chat,
+      sender: memberOne.user,
+      text: 'Latest hidden for member two',
+      timestamp: '2026-06-08T10:01:00.000Z',
+    });
+
+    await memberTwo.agent
+      .delete(`/api/message/${latestMessage._id}`)
+      .send({ deleteForEveryone: false })
+      .expect(200);
+
+    const memberTwoChats = await memberTwo.agent
+      .get('/api/chat/get-all-chats')
+      .expect(200);
+    const memberOneChats = await memberOne.agent
+      .get('/api/chat/get-all-chats')
+      .expect(200);
+
+    expect(memberTwoChats.body.data.chats[0].latestMessage).toMatchObject({
+      _id: olderMessage._id.toString(),
+      text: 'Visible fallback',
+    });
+    expect(memberOneChats.body.data.chats[0].latestMessage).toMatchObject({
+      _id: latestMessage._id.toString(),
+      text: 'Latest hidden for member two',
+    });
+  });
+
+  it('projects latest tombstones without exposing deleted text', async () => {
+    const { memberOne, memberTwo, chat } = await setupPaginationScenario();
+    const message = await createTimedMessage({
+      chat,
+      sender: memberOne.user,
+      text: 'Delete this for everyone',
+      timestamp: '2026-06-08T10:00:00.000Z',
+    });
+
+    await memberOne.agent
+      .delete(`/api/message/${message._id}`)
+      .send({ deleteForEveryone: true })
+      .expect(200);
+
+    const memberTwoChats = await memberTwo.agent
+      .get('/api/chat/get-all-chats')
+      .expect(200);
+
+    expect(memberTwoChats.body.data.chats[0].latestMessage).toMatchObject({
+      _id: message._id.toString(),
+      text: '',
+      deletedForEveryone: true,
+    });
+  });
 });
