@@ -4,6 +4,10 @@ import Message from '../Models/messageModel.mjs'
 import Chats from '../Models/chatModel.mjs'
 import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
 import { assertChatMember, assertMessageChatMember, normalizeObjectId } from '../Utils/chatAccess.mjs'
+import {
+  applyDeliveredStatus,
+  buildStatusPatch,
+} from '../Utils/messageState.mjs'
 
 let io
 const isProd = process.env.NODE_ENV === 'production'
@@ -417,16 +421,12 @@ export const initSocket = (server) => {
           return
         }
 
-        if (message.status === 'sent') {
-          message.status = 'delivered'
-          message.deliveredAt = new Date()
+        const deliveryResult = applyDeliveredStatus(message, socket.data.userId)
+
+        if (deliveryResult.changed) {
           await message.save()
 
-          io.to(chat._id.toString()).emit('message:status-update', {
-            messageId: message._id,
-            status: 'delivered',
-            deliveredAt: message.deliveredAt,
-          })
+          io.to(chat._id.toString()).emit('message:status-update', buildStatusPatch(message))
         }
 
         if (typeof ack === 'function') {
@@ -513,40 +513,26 @@ export const initSocket = (server) => {
 // Mark messages as delivered when user joins a chat
 const markMessagesAsDelivered = async (chatId, userId) => {
   try {
-    // Use updateMany for better performance instead of iterating
-    const result = await Message.updateMany(
-      {
-        chatId,
-        sender: { $ne: userId },
-        status: 'sent',
-      },
-      {
-        $set: {
-          status: 'delivered',
-          deliveredAt: new Date(),
-        },
+    const chatObjectId = normalizeObjectId(chatId)
+    const userObjectId = normalizeObjectId(userId)
+    const messages = await Message.find({
+      chatId: chatObjectId,
+      sender: { $ne: userObjectId },
+      status: 'sent',
+      deletedFor: { $ne: userObjectId },
+      deletedForEveryone: { $ne: true },
+    })
+
+    for (const message of messages) {
+      const deliveryResult = applyDeliveredStatus(message, userObjectId)
+
+      if (deliveryResult.changed) {
+        await message.save()
+        io.to(chatObjectId.toString()).emit('message:status-update', buildStatusPatch(message))
       }
-    )
-
-    if (result.modifiedCount > 0) {
-      // Fetch updated messages to emit events
-      const updatedMessages = await Message.find({
-        chatId,
-        sender: { $ne: userId },
-        status: 'delivered',
-        deliveredAt: { $gte: new Date(Date.now() - 1000) }, // Messages updated in last second
-      }).select('_id deliveredAt')
-
-      updatedMessages.forEach(message => {
-        io.to(chatId.toString()).emit('message:status-update', {
-          messageId: message._id,
-          status: 'delivered',
-          deliveredAt: message.deliveredAt,
-        })
-      })
     }
   } catch (err) {
-    console.error('📛 Error marking messages as delivered:', err)
+    console.error('Error marking messages as delivered:', err)
   }
 }
 

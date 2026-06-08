@@ -4,9 +4,13 @@ import Chats from '../Models/chatModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
 import { emitToUserSockets, getIO } from '../Config/socket.mjs';
 import {
+  applyReadStatus,
   buildUnreadMessageFilter,
+  buildVisibleMessageFilter,
+  canUserSeeMessage,
   normalizeClientMessageId,
   normalizeMessageText,
+  buildStatusPatch,
   serializeMessage,
 } from '../Utils/messageState.mjs';
 
@@ -140,7 +144,7 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
 
   try {
     message = await Message.create({
-      chatId: chat._id,
+      chatId: chat._id.toString(),
       sender: userObjectId,
       clientMessageId: normalizedClientMessageId.clientMessageId ?? undefined,
       text: normalizedText.text,
@@ -213,12 +217,14 @@ export const getAllMessages = asyncErrorHandler(async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 50, 100); // Max 100 messages per request
   const skip = (page - 1) * limit;
 
+  const visibleMessageFilter = buildVisibleMessageFilter({ chatId: chat._id, userId: userObjectId });
+
   // Get total count for pagination info
-  const totalMessages = await Message.countDocuments({ chatId: chat._id });
+  const totalMessages = await Message.countDocuments(visibleMessageFilter);
   const totalPages = Math.ceil(totalMessages / limit);
 
   // Fetch messages with pagination (newest first for infinite scroll)
-  const allMessages = await Message.find({ chatId: chat._id })
+  const allMessages = await Message.find(visibleMessageFilter)
     .sort({ createdAt: -1 }) // Newest first
     .skip(skip)
     .limit(limit);
@@ -229,7 +235,7 @@ export const getAllMessages = asyncErrorHandler(async (req, res) => {
   res.status(200).json({
     status: 'messages fetched successfully',
     data: {
-      messages: orderedMessages,
+      messages: orderedMessages.map((message) => serializeMessage(message)),
       pagination: {
         currentPage: page,
         totalPages,
@@ -276,66 +282,46 @@ export const markMessageAsRead = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Don't mark own messages as read
-  if (message.sender.equals(userObjectId)) {
-    res.status(200).json({
-      status: 'success',
-      message: 'Cannot mark own message as read',
-      data: { message },
-    });
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
     return;
   }
 
-  // Check if user already read this message
-  const alreadyRead = message.readBy.some(entry => entry.user.equals(userObjectId));
-  
-  if (!alreadyRead) {
-    const now = new Date();
-    message.readBy.push({ user: userObjectId, readAt: now });
-    
-    // For 1-on-1 chats, mark as read immediately
-    // For group chats, mark as read when all members have read
-    if (!chat.isGroupChat) {
-      message.status = 'read';
-      message.readAt = now;
-      message.read = true;
-    } else {
-      // For group chats, check if all members (except sender) have read
-      const otherMembers = chat.members.filter(m => !m.equals(message.sender));
-      const readCount = message.readBy.length;
-      if (readCount >= otherMembers.length) {
-        message.status = 'read';
-        message.readAt = now;
-        message.read = true;
-      }
-    }
+  const readResult = applyReadStatus(message, chat, userObjectId);
 
+  if (readResult.changed) {
     await message.save();
 
-    // Emit socket event for read receipt
     try {
       const io = getIO();
+      const patch = buildStatusPatch(message);
+
       io.in(chat._id.toString()).emit('message:read', {
-        messageId: message._id,
-        readBy: { user: userObjectId, readAt: now },
-        status: message.status,
-        readAt: message.readAt,
+        ...patch,
+        readerId: userObjectId.toString(),
+        readEntry: readResult.readEntry
+          ? {
+              user: userObjectId.toString(),
+              readAt: readResult.readEntry.readAt.toISOString(),
+            }
+          : null,
       });
-      
-      // Notify sender specifically about status update
-      io.in(chat._id.toString()).emit('message:status-update', {
-        messageId: message._id,
-        status: message.status,
-        readBy: message.readBy,
-      });
+      io.in(chat._id.toString()).emit('message:status-update', patch);
+      await emitUnreadCountToUser(chat._id, userObjectId);
     } catch (err) {
-      console.error('📛 Failed to emit read receipt:', err);
+      console.error('Failed to emit read receipt:', err);
     }
   }
 
+  const unreadCount = await countUnreadForUser(chat._id, userObjectId);
+
   res.status(200).json({
     status: 'success',
-    data: { message },
+    data: {
+      message: serializeMessage(message),
+      receipt: buildStatusPatch(message),
+      unreadCount,
+    },
   });
 });
 
@@ -371,62 +357,46 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
   }
 
   const validMessageIds = messageIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-  const now = new Date();
-
-  // Find messages that need to be marked as read
-  const messages = await Message.find({
-    _id: { $in: validMessageIds },
+  const visibleMessageFilter = buildVisibleMessageFilter({
     chatId: chat._id,
-    sender: { $ne: userObjectId }, // Exclude own messages
-    'readBy.user': { $ne: userObjectId }, // Exclude already read
+    userId: userObjectId,
+    includeTombstones: false,
+  });
+
+  const messages = await Message.find({
+    ...visibleMessageFilter,
+    _id: { $in: validMessageIds },
+    sender: { $ne: userObjectId },
   });
 
   const updatedMessages = [];
+  const receiptPatches = [];
 
   for (const message of messages) {
-    message.readBy.push({ user: userObjectId, readAt: now });
+    const readResult = applyReadStatus(message, chat, userObjectId);
 
-    // Determine status based on chat type
-    if (!chat.isGroupChat) {
-      message.status = 'read';
-      message.readAt = now;
-      message.read = true;
-    } else {
-      const otherMembers = chat.members.filter(m => !m.equals(message.sender));
-      const readCount = message.readBy.length;
-      if (readCount >= otherMembers.length) {
-        message.status = 'read';
-        message.readAt = now;
-        message.read = true;
-      }
+    if (readResult.changed) {
+      await message.save();
+      updatedMessages.push(message);
+      receiptPatches.push(buildStatusPatch(message));
     }
-
-    await message.save();
-    updatedMessages.push(message);
   }
+
+  const unreadCount = await countUnreadForUser(chat._id, userObjectId);
 
   // Emit socket events for all updated messages
   if (updatedMessages.length > 0) {
     try {
       const io = getIO();
       io.in(chat._id.toString()).emit('messages:read-batch', {
-        chatId: chat._id,
-        userId: userObjectId,
-        messages: updatedMessages.map(m => ({
-          messageId: m._id,
-          status: m.status,
-          readBy: m.readBy,
-        })),
-      });
-
-      // Emit unread count reset only to the user who read the messages.
-      emitToUserSockets(userObjectId, 'unread:update', {
         chatId: chat._id.toString(),
         userId: userObjectId.toString(),
-        count: 0,
+        messages: receiptPatches,
+        receipts: receiptPatches,
       });
+      await emitUnreadCountToUser(chat._id, userObjectId);
     } catch (err) {
-      console.error('📛 Failed to emit batch read receipt:', err);
+      console.error('Failed to emit batch read receipt:', err);
     }
   }
 
@@ -434,7 +404,9 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
     status: 'success',
     data: {
       updatedCount: updatedMessages.length,
-      messages: updatedMessages,
+      messages: updatedMessages.map((message) => serializeMessage(message)),
+      receipts: receiptPatches,
+      unreadCount,
     },
   });
 });
@@ -461,17 +433,12 @@ export const getUnreadCount = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Count messages not sent by user and not read by user
-  const unreadCount = await Message.countDocuments({
-    chatId: chat._id,
-    sender: { $ne: userObjectId },
-    'readBy.user': { $ne: userObjectId },
-  });
+  const unreadCount = await countUnreadForUser(chat._id, userObjectId);
 
   res.status(200).json({
     status: 'success',
     data: {
-      chatId: chat._id,
+      chatId: chat._id.toString(),
       unreadCount,
     },
   });
@@ -530,6 +497,8 @@ export const getBatchUnreadCounts = asyncErrorHandler(async (req, res) => {
         chatId: { $in: userChatIds },
         sender: { $ne: userObjectId },
         'readBy.user': { $ne: userObjectId },
+        deletedFor: { $ne: userObjectId },
+        deletedForEveryone: { $ne: true },
       },
     },
     {

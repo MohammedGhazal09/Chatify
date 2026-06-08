@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import Message from '../../Models/messageModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
+import { createMessage } from '../fixtures/messages.mjs';
 import {
   connectSocketAsUser,
   emitWithAck,
@@ -120,5 +121,79 @@ describe('Socket.IO message state contract', () => {
     });
     expect(duplicateMessage).toBeUndefined();
     expect(duplicateUnread).toBeUndefined();
+  });
+
+  it('applies delivery once and preserves the first deliveredAt timestamp', async () => {
+    const { memberOne, memberTwo, chat } = await setupRealtimeMessageScenario();
+    const message = await createMessage({ chat, sender: memberOne.user, text: 'Deliver once' });
+    const firstStatusPromise = waitForSocketEvent(memberOne.socket, 'message:status-update');
+
+    const firstAck = await emitWithAck(memberTwo.socket, 'message:delivered', {
+      messageId: message._id.toString(),
+    });
+    const firstStatus = await firstStatusPromise;
+    const firstStoredMessage = await Message.findById(message._id);
+
+    const noDuplicateStatusPromise = waitForNoSocketEvent(memberOne.socket, 'message:status-update');
+    const secondAck = await emitWithAck(memberTwo.socket, 'message:delivered', {
+      messageId: message._id.toString(),
+    });
+    const duplicateStatus = await noDuplicateStatusPromise;
+    const secondStoredMessage = await Message.findById(message._id);
+
+    expect(firstAck).toMatchObject({
+      ok: true,
+      event: 'message:delivered',
+      messageId: message._id.toString(),
+    });
+    expect(secondAck).toMatchObject({
+      ok: true,
+      event: 'message:delivered',
+      messageId: message._id.toString(),
+    });
+    expect(firstStatus).toMatchObject({
+      messageId: message._id.toString(),
+      status: 'delivered',
+      deliveredAt: expect.any(String),
+    });
+    expect(firstStoredMessage.status).toBe('delivered');
+    expect(duplicateStatus).toBeUndefined();
+    expect(secondStoredMessage.status).toBe('delivered');
+    expect(secondStoredMessage.deliveredAt.getTime()).toBe(firstStoredMessage.deliveredAt.getTime());
+  });
+
+  it('does not let delivery overwrite an already-read message', async () => {
+    const { memberOne, memberTwo, chat } = await setupRealtimeMessageScenario();
+    const deliveredAt = new Date('2026-01-01T00:00:00.000Z');
+    const readAt = new Date('2026-01-01T00:00:01.000Z');
+    const message = await createMessage({
+      chat,
+      sender: memberOne.user,
+      text: 'Already read',
+      overrides: {
+        status: 'read',
+        read: true,
+        deliveredAt,
+        readAt,
+        readBy: [{ user: memberTwo.user._id, readAt }],
+      },
+    });
+    const noStatusPromise = waitForNoSocketEvent(memberOne.socket, 'message:status-update');
+
+    const ack = await emitWithAck(memberTwo.socket, 'message:delivered', {
+      messageId: message._id.toString(),
+    });
+    const statusUpdate = await noStatusPromise;
+    const storedMessage = await Message.findById(message._id);
+
+    expect(ack).toMatchObject({
+      ok: true,
+      event: 'message:delivered',
+      messageId: message._id.toString(),
+    });
+    expect(statusUpdate).toBeUndefined();
+    expect(storedMessage.status).toBe('read');
+    expect(storedMessage.deliveredAt.getTime()).toBe(deliveredAt.getTime());
+    expect(storedMessage.readAt.getTime()).toBe(readAt.getTime());
   });
 });
