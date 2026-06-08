@@ -6,12 +6,17 @@ import { emitToUserSockets, getIO } from '../Config/socket.mjs';
 import {
   applyReadStatus,
   applyReactionToggle,
+  applyBeforeCursorFilter,
   buildUnreadMessageFilter,
   buildVisibleMessageFilter,
   canUserSeeMessage,
+  encodeMessageCursor,
   normalizeClientMessageId,
+  normalizeMessageHistoryLimit,
   normalizeMessageText,
   normalizeReactionEmoji,
+  parseMessageCursor,
+  MESSAGE_CURSOR_SORT_DESC,
   buildStatusPatch,
   serializeMessage,
 } from '../Utils/messageState.mjs';
@@ -214,37 +219,50 @@ export const getAllMessages = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Pagination params
-  const page = parseInt(req.query.page) || 1;
-  const limit = Math.min(parseInt(req.query.limit) || 50, 100); // Max 100 messages per request
-  const skip = (page - 1) * limit;
+  const limit = normalizeMessageHistoryLimit(req.query.limit);
+  const parsedCursor = parseMessageCursor(req.query.before);
 
-  const visibleMessageFilter = buildVisibleMessageFilter({ chatId: chat._id, userId: userObjectId });
+  if (!parsedCursor.ok) {
+    res.status(parsedCursor.statusCode).json({
+      status: 'fail',
+      message: parsedCursor.message,
+    });
+    return;
+  }
 
-  // Get total count for pagination info
-  const totalMessages = await Message.countDocuments(visibleMessageFilter);
-  const totalPages = Math.ceil(totalMessages / limit);
-
-  // Fetch messages with pagination (newest first for infinite scroll)
-  const allMessages = await Message.find(visibleMessageFilter)
-    .sort({ createdAt: -1 }) // Newest first
-    .skip(skip)
-    .limit(limit);
-
-  // Reverse to show oldest first in UI
-  const orderedMessages = allMessages.reverse();
+  const visibleMessageFilter = applyBeforeCursorFilter(
+    buildVisibleMessageFilter({ chatId: chat._id, userId: userObjectId }),
+    parsedCursor.cursor
+  );
+  const fetchedMessages = await Message.find(visibleMessageFilter)
+    .sort(MESSAGE_CURSOR_SORT_DESC)
+    .limit(limit + 1);
+  const pageMessages = fetchedMessages.slice(0, limit);
+  const hasMore = fetchedMessages.length > limit;
+  const orderedMessages = pageMessages.reverse();
+  const nextCursor = hasMore && orderedMessages.length > 0
+    ? encodeMessageCursor(orderedMessages[0])
+    : null;
 
   res.status(200).json({
     status: 'messages fetched successfully',
     data: {
       messages: orderedMessages.map((message) => serializeMessage(message)),
       pagination: {
-        currentPage: page,
-        totalPages,
-        totalMessages,
-        hasMore: page < totalPages,
+        currentPage: 1,
+        totalPages: hasMore ? 2 : 1,
+        totalMessages: undefined,
+        hasMore,
+        limit,
+        nextCursor,
+      },
+      cursor: {
+        nextCursor,
+        hasMore,
         limit,
       },
+      nextCursor,
+      hasMore,
     },
   });
 });

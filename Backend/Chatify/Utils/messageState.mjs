@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 export const MAX_MESSAGE_TEXT_LENGTH = 1000;
 export const MAX_REACTION_TEXT_LENGTH = 32;
 export const MAX_REACTIONS_PER_MESSAGE = 50;
+export const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
+export const MAX_MESSAGE_HISTORY_LIMIT = 100;
 export const MESSAGE_STATUS = Object.freeze({
   SENT: 'sent',
   DELIVERED: 'delivered',
@@ -137,6 +139,88 @@ export const buildVisibleMessageFilter = ({ chatId, userId, includeTombstones = 
   }
 
   return filter;
+};
+
+export const normalizeMessageHistoryLimit = (value) => {
+  const parsedLimit = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsedLimit) || parsedLimit < 1) {
+    return DEFAULT_MESSAGE_HISTORY_LIMIT;
+  }
+
+  return Math.min(parsedLimit, MAX_MESSAGE_HISTORY_LIMIT);
+};
+
+export const encodeMessageCursor = (message) => {
+  const serializedMessage = serializeMessage(message);
+
+  if (!serializedMessage.createdAt || !serializedMessage._id) {
+    return null;
+  }
+
+  return `${serializedMessage.createdAt}_${serializedMessage._id}`;
+};
+
+export const parseMessageCursor = (cursor) => {
+  if (cursor === undefined || cursor === null || cursor === '') {
+    return { ok: true, cursor: null };
+  }
+
+  if (typeof cursor !== 'string') {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Invalid message cursor',
+    };
+  }
+
+  const separatorIndex = cursor.lastIndexOf('_');
+
+  if (separatorIndex <= 0) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Invalid message cursor',
+    };
+  }
+
+  const createdAtValue = cursor.slice(0, separatorIndex);
+  const messageIdValue = cursor.slice(separatorIndex + 1);
+  const createdAt = new Date(createdAtValue);
+  const messageObjectId = toObjectId(messageIdValue);
+
+  if (Number.isNaN(createdAt.getTime()) || !messageObjectId) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Invalid message cursor',
+    };
+  }
+
+  return {
+    ok: true,
+    cursor: {
+      createdAt,
+      _id: messageObjectId,
+    },
+  };
+};
+
+export const applyBeforeCursorFilter = (filter, cursor) => {
+  if (!cursor) {
+    return filter;
+  }
+
+  return {
+    ...filter,
+    $or: [
+      { createdAt: { $lt: cursor.createdAt } },
+      {
+        createdAt: cursor.createdAt,
+        _id: { $lt: cursor._id },
+      },
+    ],
+  };
 };
 
 export const buildUnreadMessageFilter = ({ chatId, userId }) => {
