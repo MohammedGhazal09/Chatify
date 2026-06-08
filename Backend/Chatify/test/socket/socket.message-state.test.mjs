@@ -196,4 +196,83 @@ describe('Socket.IO message state contract', () => {
     expect(storedMessage.deliveredAt.getTime()).toBe(deliveredAt.getTime());
     expect(storedMessage.readAt.getTime()).toBe(readAt.getTime());
   });
+
+  it('emits canonical edit and reaction payloads', async () => {
+    const { memberOne, memberTwo, chat } = await setupRealtimeMessageScenario();
+    const message = await createMessage({ chat, sender: memberOne.user, text: 'Before realtime edit' });
+    const editPromise = waitForSocketEvent(memberTwo.socket, 'message:edited');
+
+    const editResponse = await memberOne.agent
+      .patch(`/api/message/${message._id}/edit`)
+      .send({ text: 'After realtime edit' })
+      .expect(200);
+    const editEvent = await editPromise;
+    const reactionPromise = waitForSocketEvent(memberOne.socket, 'message:reaction');
+
+    const reactionResponse = await memberTwo.agent
+      .post(`/api/message/${message._id}/reaction`)
+      .send({ emoji: 'ok' })
+      .expect(200);
+    const reactionEvent = await reactionPromise;
+
+    expect(editEvent).toMatchObject({
+      messageId: message._id.toString(),
+      text: 'After realtime edit',
+      isEdited: true,
+      message: {
+        _id: message._id.toString(),
+        text: 'After realtime edit',
+        isEdited: true,
+      },
+    });
+    expect(editEvent.message).toEqual(editResponse.body.data.message);
+    expect(reactionEvent).toMatchObject({
+      messageId: message._id.toString(),
+      action: 'added',
+      emoji: 'ok',
+      userId: memberTwo.user._id.toString(),
+      message: {
+        _id: message._id.toString(),
+        reactions: [
+          {
+            user: memberTwo.user._id.toString(),
+            emoji: 'ok',
+          },
+        ],
+      },
+    });
+    expect(reactionEvent.message).toEqual(reactionResponse.body.data.message);
+  });
+
+  it('emits canonical tombstones and absolute unread updates on delete-for-everyone', async () => {
+    const { memberOne, memberTwo, chat, chatId } = await setupRealtimeMessageScenario();
+    const message = await createMessage({ chat, sender: memberOne.user, text: 'Realtime tombstone' });
+    const deletePromise = waitForSocketEvent(memberTwo.socket, 'message:deleted');
+    const unreadPromise = waitForSocketEvent(memberTwo.socket, 'unread:update');
+
+    const deleteResponse = await memberOne.agent
+      .delete(`/api/message/${message._id}`)
+      .send({ deleteForEveryone: true })
+      .expect(200);
+    const deleteEvent = await deletePromise;
+    const unreadEvent = await unreadPromise;
+
+    expect(deleteEvent).toMatchObject({
+      messageId: message._id.toString(),
+      text: '',
+      deletedForEveryone: true,
+      deletedBy: memberOne.user._id.toString(),
+      message: {
+        _id: message._id.toString(),
+        text: '',
+        deletedForEveryone: true,
+      },
+    });
+    expect(deleteEvent.message).toEqual(deleteResponse.body.data.message);
+    expect(unreadEvent).toEqual({
+      chatId,
+      userId: memberTwo.user._id.toString(),
+      count: 0,
+    });
+  });
 });

@@ -5,11 +5,13 @@ import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
 import { emitToUserSockets, getIO } from '../Config/socket.mjs';
 import {
   applyReadStatus,
+  applyReactionToggle,
   buildUnreadMessageFilter,
   buildVisibleMessageFilter,
   canUserSeeMessage,
   normalizeClientMessageId,
   normalizeMessageText,
+  normalizeReactionEmoji,
   buildStatusPatch,
   serializeMessage,
 } from '../Utils/messageState.mjs';
@@ -526,7 +528,7 @@ export const getBatchUnreadCounts = asyncErrorHandler(async (req, res) => {
   });
 });
 
-// Delete a message (only sender can delete)
+// Delete a message for the current user or tombstone it for everyone.
 export const deleteMessage = asyncErrorHandler(async (req, res) => {
   const { messageId } = req.params;
   const { deleteForEveryone } = req.body ?? {};
@@ -556,62 +558,89 @@ export const deleteMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Verify user is the sender
-  if (!message.sender.equals(userObjectId)) {
-    respondWithChatAccessError(res, 403, 'You can only delete your own messages');
-    return;
-  }
-
   const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
   if (!chat) {
     return;
   }
 
-  if (deleteForEveryone) {
-    // Delete for everyone - remove the message entirely
-    await Message.findByIdAndDelete(messageId);
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
 
-    // Update latest message if this was it
-    if (chat.latestMessage?.toString() === messageId) {
-      const newLatestMessage = await Message.findOne({ chatId: chat._id })
-        .sort({ createdAt: -1 });
-      await Chats.findByIdAndUpdate(chat._id, {
-        latestMessage: newLatestMessage?._id || null,
-      });
+  if (deleteForEveryone) {
+    if (!message.sender.equals(userObjectId)) {
+      respondWithChatAccessError(res, 403, 'You can only delete your own messages for everyone');
+      return;
     }
 
-    // Emit socket event for message deletion
-    try {
-      const io = getIO();
-      io.in(chat._id.toString()).emit('message:deleted', {
-        messageId,
-        chatId: chat._id,
-        deletedBy: userObjectId,
-        deleteForEveryone: true,
-      });
-    } catch (err) {
-      console.error('📛 Failed to emit message deletion:', err);
+    const shouldEmitDeletion = !message.deletedForEveryone;
+
+    if (shouldEmitDeletion) {
+      message.text = '';
+      message.deletedForEveryone = true;
+      message.deletedBy = userObjectId;
+      message.deletedAt = new Date();
+      message.reactions = [];
+      await message.save();
+
+      try {
+        const io = getIO();
+        const serializedMessage = serializeMessage(message);
+        io.in(chat._id.toString()).emit('message:deleted', {
+          ...serializedMessage,
+          message: serializedMessage,
+          messageId: serializedMessage._id,
+          deleteForEveryone: true,
+        });
+        await Promise.all(chat.members.map((memberId) => emitUnreadCountToUser(chat._id, memberId)));
+      } catch (err) {
+        console.error('Failed to emit message deletion:', err);
+      }
     }
 
     res.status(200).json({
       status: 'success',
       message: 'Message deleted for everyone',
-      data: { messageId },
+      data: {
+        messageId,
+        message: serializeMessage(message),
+      },
     });
   } else {
-    // Soft delete - just mark as deleted for the user
     if (!message.deletedFor) {
       message.deletedFor = [];
     }
-    if (!message.deletedFor.includes(userObjectId)) {
+
+    const alreadyDeletedForUser = message.deletedFor.some((deletedUserId) => (
+      deletedUserId.equals(userObjectId)
+    ));
+
+    if (!alreadyDeletedForUser) {
       message.deletedFor.push(userObjectId);
+      await message.save();
+
+      try {
+        const serializedMessage = serializeMessage(message);
+        emitToUserSockets(userObjectId, 'message:deleted', {
+          ...serializedMessage,
+          message: serializedMessage,
+          messageId: serializedMessage._id,
+          deleteForEveryone: false,
+        });
+        await emitUnreadCountToUser(chat._id, userObjectId);
+      } catch (err) {
+        console.error('Failed to emit self message deletion:', err);
+      }
     }
-    await message.save();
 
     res.status(200).json({
       status: 'success',
       message: 'Message deleted for you',
-      data: { messageId },
+      data: {
+        messageId,
+        message: serializeMessage(message),
+      },
     });
   }
 });
@@ -639,11 +668,12 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  const sanitizedText = typeof text === 'string' ? text.trim() : '';
-  if (!sanitizedText) {
-    res.status(400).json({
+  const normalizedText = normalizeMessageText(text);
+
+  if (!normalizedText.ok) {
+    res.status(normalizedText.statusCode).json({
       status: 'fail',
-      message: 'Message text is required',
+      message: normalizedText.message,
     });
     return;
   }
@@ -655,14 +685,30 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Verify user is the sender
+  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
+  if (!chat) {
+    return;
+  }
+
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  if (message.deletedForEveryone) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Deleted messages cannot be edited',
+    });
+    return;
+  }
+
   if (!message.sender.equals(userObjectId)) {
     respondWithChatAccessError(res, 403, 'You can only edit your own messages');
     return;
   }
 
-  // Check if message is within edit time limit (15 minutes)
-  const editTimeLimit = 15 * 60 * 1000; // 15 minutes
+  const editTimeLimit = 15 * 60 * 1000;
   const messageAge = Date.now() - new Date(message.createdAt).getTime();
   if (messageAge > editTimeLimit) {
     res.status(400).json({
@@ -672,34 +718,31 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
-  if (!chat) {
-    return;
-  }
-
-  // Update the message
-  message.text = sanitizedText;
+  message.text = normalizedText.text;
   message.isEdited = true;
   message.editedAt = new Date();
   await message.save();
 
-  // Emit socket event for message edit
+  const serializedMessage = serializeMessage(message);
+
   try {
     const io = getIO();
     io.in(chat._id.toString()).emit('message:edited', {
-      messageId,
-      chatId: chat._id,
-      text: sanitizedText,
+      ...serializedMessage,
+      message: serializedMessage,
+      messageId: serializedMessage._id,
+      chatId: serializedMessage.chatId,
+      text: serializedMessage.text,
       isEdited: true,
-      editedAt: message.editedAt,
+      editedAt: serializedMessage.editedAt,
     });
   } catch (err) {
-    console.error('📛 Failed to emit message edit:', err);
+    console.error('Failed to emit message edit:', err);
   }
 
   res.status(200).json({
     status: 'success',
-    data: { message },
+    data: { message: serializedMessage },
   });
 });
 
@@ -713,19 +756,21 @@ export const toggleReaction = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  if (!emoji || typeof emoji !== 'string') {
-    res.status(400).json({
-      status: 'fail',
-      message: 'Emoji is required',
-    });
-    return;
-  }
-
   let userObjectId;
   try {
     userObjectId = new mongoose.Types.ObjectId(req.userId);
   } catch (error) {
     respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const normalizedEmoji = normalizeReactionEmoji(emoji);
+
+  if (!normalizedEmoji.ok) {
+    res.status(normalizedEmoji.statusCode).json({
+      status: 'fail',
+      message: normalizedEmoji.message,
+    });
     return;
   }
 
@@ -751,48 +796,55 @@ export const toggleReaction = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Check if user already reacted with this emoji
-  const existingReactionIndex = message.reactions?.findIndex(
-    (r) => r.user.equals(userObjectId) && r.emoji === emoji
-  ) ?? -1;
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
 
-  let action;
-  if (existingReactionIndex > -1) {
-    // Remove the reaction (toggle off)
-    message.reactions.splice(existingReactionIndex, 1);
-    action = 'removed';
-  } else {
-    // Add the reaction
-    if (!message.reactions) {
-      message.reactions = [];
-    }
-    message.reactions.push({ user: userObjectId, emoji });
-    action = 'added';
+  if (message.deletedForEveryone) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Deleted messages cannot receive reactions',
+    });
+    return;
+  }
+
+  const reactionResult = applyReactionToggle(message, userObjectId, normalizedEmoji.emoji);
+
+  if (!reactionResult.ok) {
+    res.status(reactionResult.statusCode).json({
+      status: 'fail',
+      message: reactionResult.message,
+    });
+    return;
   }
 
   await message.save();
+  const serializedMessage = serializeMessage(message);
 
-  // Emit socket event for reaction update
   try {
     const io = getIO();
     io.in(chat._id.toString()).emit('message:reaction', {
-      messageId,
-      chatId: chat._id.toString(),
-      reactions: message.reactions,
-      action,
-      userId: req.userId,
-      emoji,
+      ...serializedMessage,
+      message: serializedMessage,
+      messageId: serializedMessage._id,
+      chatId: serializedMessage.chatId,
+      reactions: serializedMessage.reactions,
+      action: reactionResult.action,
+      userId: userObjectId.toString(),
+      emoji: normalizedEmoji.emoji,
     });
   } catch (err) {
-    console.error('📛 Failed to emit reaction update:', err);
+    console.error('Failed to emit reaction update:', err);
   }
 
   res.status(200).json({
     status: 'success',
     data: {
-      messageId,
-      reactions: message.reactions,
-      action,
+      messageId: serializedMessage._id,
+      message: serializedMessage,
+      reactions: serializedMessage.reactions,
+      action: reactionResult.action,
     },
   });
 });

@@ -39,7 +39,9 @@ const messageSchema = new mongoose.Schema({
   },
   text: {
     type: String,
-    required: true,
+    required() {
+      return !this.deletedForEveryone;
+    },
     maxlength: 1000,
   },
   read: {
