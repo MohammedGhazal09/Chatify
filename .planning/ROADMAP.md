@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Security And Test Foundation** - Establish blocking security controls, test harnesses, and auth/session safety.
 - [x] **Phase 2: Authenticated Realtime Contract** - Rebuild Socket.IO identity, membership checks, presence, and reconnect behavior.
-- [ ] **Phase 3: Canonical Message State** - Make send, receive, status, delete, edit, reaction, unread, and pagination behavior deterministic.
+- [x] **Phase 3: Canonical Message State** - Make send, receive, status, delete, edit, reaction, unread, and pagination behavior deterministic. (completed 2026-06-08)
 - [ ] **Phase 4: Messenger UI Reconstruction** - Rebuild the chat page into a polished responsive messenger interface.
 - [ ] **Phase 5: Messenger Baseline Completion** - Add search, conversation continuity, and final account/session polish for v1.
 
@@ -106,7 +106,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03: Replace offset history behavior and align validation boundaries
+- [x] 03-03: Replace offset history behavior and align validation boundaries
 
 ### Phase 4: Messenger UI Reconstruction
 
@@ -160,6 +160,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Security And Test Foundation | 0/3 | Not started | - |
 | 2. Authenticated Realtime Contract | 3/3 | Complete | 2026-06-08 |
-| 3. Canonical Message State | 2/3 | In Progress | - |
+| 3. Canonical Message State | 3/3 | Complete | 2026-06-08 |
 | 4. Messenger UI Reconstruction | 0/3 | Not started | - |
 | 5. Messenger Baseline Completion | 0/2 | Not started | - |
