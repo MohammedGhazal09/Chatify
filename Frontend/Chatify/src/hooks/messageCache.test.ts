@@ -6,6 +6,7 @@ import {
   applyReceiptPatchInCache,
   applyUnreadUpdate,
   createOptimisticMessage,
+  dismissOptimisticMessage,
   markOptimisticMessageFailed,
   normalizeOutgoingMessageText,
   reconcileFetchedMessagesInCache,
@@ -151,6 +152,29 @@ describe('message cache helpers', () => {
       errorMessage: 'Network failed',
     });
     expect(failedCache?.messages.find((message) => message._id === 'message-concurrent')).toBeTruthy();
+  });
+
+  it('dismisses only the selected failed optimistic message', () => {
+    const failed = {
+      ...createOptimisticMessage({
+        chatId: 'chat-1',
+        senderId: 'user-1',
+        text: 'Dismiss me',
+        clientMessageId: 'client-dismiss',
+      }),
+      optimisticState: 'failed' as const,
+    };
+    const sending = createOptimisticMessage({
+      chatId: 'chat-1',
+      senderId: 'user-1',
+      text: 'Keep sending',
+      clientMessageId: 'client-sending',
+    });
+    const canonical = makeMessage({ _id: 'server-client-dismiss', clientMessageId: 'client-dismiss' });
+
+    const cache = dismissOptimisticMessage({ messages: [failed, sending, canonical] }, 'client-dismiss');
+
+    expect(cache?.messages.map((message) => message._id)).toEqual(['optimistic-client-sending', 'server-client-dismiss']);
   });
 
   it('does not mark a canonical replacement as failed after optimistic resolution', () => {

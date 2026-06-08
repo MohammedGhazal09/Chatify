@@ -128,6 +128,12 @@ const ConversationPane = ({
         body="Sign in again to continue."
         tone="danger"
         className="bg-[#101113]"
+        primaryAction={{
+          label: 'Sign in',
+          onClick: () => {
+            window.location.assign('/login');
+          },
+        }}
       />
     );
   }
