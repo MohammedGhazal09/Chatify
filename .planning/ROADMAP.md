@@ -60,8 +60,16 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 02-01: Authenticate Socket.IO handshake and derive trusted socket identity
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 02-02: Centralize chat membership authorization for room joins and socket events
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 02-03: Add reconnect, presence, and socket integration verification
 
 ### Phase 3: Canonical Message State
