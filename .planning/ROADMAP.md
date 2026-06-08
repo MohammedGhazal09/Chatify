@@ -13,7 +13,7 @@ Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time mes
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Security And Test Foundation** - Establish blocking security controls, test harnesses, and auth/session safety.
-- [ ] **Phase 2: Authenticated Realtime Contract** - Rebuild Socket.IO identity, membership checks, presence, and reconnect behavior.
+- [x] **Phase 2: Authenticated Realtime Contract** - Rebuild Socket.IO identity, membership checks, presence, and reconnect behavior.
 - [ ] **Phase 3: Canonical Message State** - Make send, receive, status, delete, edit, reaction, unread, and pagination behavior deterministic.
 - [ ] **Phase 4: Messenger UI Reconstruction** - Rebuild the chat page into a polished responsive messenger interface.
 - [ ] **Phase 5: Messenger Baseline Completion** - Add search, conversation continuity, and final account/session polish for v1.
@@ -62,15 +62,15 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 02-01: Authenticate Socket.IO handshake and derive trusted socket identity
+- [x] 02-01: Authenticate Socket.IO handshake and derive trusted socket identity
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02: Centralize chat membership authorization for room joins and socket events
+- [x] 02-02: Centralize chat membership authorization for room joins and socket events
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-03: Add reconnect, presence, and socket integration verification
+- [x] 02-03: Add reconnect, presence, and socket integration verification
 
 ### Phase 3: Canonical Message State
 **Goal**: Users can send, receive, edit, delete, react, read, and paginate messages without duplicates, stale state, or unread-count drift.
@@ -133,7 +133,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Security And Test Foundation | 0/3 | Not started | - |
-| 2. Authenticated Realtime Contract | 0/3 | Not started | - |
+| 2. Authenticated Realtime Contract | 3/3 | Complete | 2026-06-08 |
 | 3. Canonical Message State | 0/3 | Not started | - |
 | 4. Messenger UI Reconstruction | 0/3 | Not started | - |
 | 5. Messenger Baseline Completion | 0/2 | Not started | - |
