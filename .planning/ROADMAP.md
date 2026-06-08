@@ -102,7 +102,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02: Rebuild frontend message merge, optimistic rollback, and unread synchronization
+- [x] 03-02: Rebuild frontend message merge, optimistic rollback, and unread synchronization
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -160,6 +160,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Security And Test Foundation | 0/3 | Not started | - |
 | 2. Authenticated Realtime Contract | 3/3 | Complete | 2026-06-08 |
-| 3. Canonical Message State | 1/3 | In Progress | - |
+| 3. Canonical Message State | 2/3 | In Progress | - |
 | 4. Messenger UI Reconstruction | 0/3 | Not started | - |
 | 5. Messenger Baseline Completion | 0/2 | Not started | - |
