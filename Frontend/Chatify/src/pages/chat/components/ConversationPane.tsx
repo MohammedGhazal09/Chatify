@@ -30,6 +30,9 @@ interface ConversationPaneProps {
   showEmojiPicker: boolean;
   isSending: boolean;
   isSendError: boolean;
+  isOffline: boolean;
+  isSessionExpired: boolean;
+  isReconnecting: boolean;
   messagesContainerRef: RefObject<HTMLDivElement | null>;
   messagesEndRef: RefObject<HTMLDivElement | null>;
   emojiPickerRef: RefObject<HTMLDivElement | null>;
@@ -41,7 +44,10 @@ interface ConversationPaneProps {
   onRetryLoad: () => void;
   onScrollToBottom: () => void;
   onMessageContextMenu: MessageListProps['onMessageContextMenu'];
+  onOpenMessageActions: MessageListProps['onOpenMessageActions'];
   onStartEdit: (messageId: string, currentText: string) => void;
+  onRetryFailed: (message: Message) => void;
+  onDismissFailed: (message: Message) => void;
   onEditTextChange: (value: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
@@ -77,6 +83,9 @@ const ConversationPane = ({
   showEmojiPicker,
   isSending,
   isSendError,
+  isOffline,
+  isSessionExpired,
+  isReconnecting,
   messagesContainerRef,
   messagesEndRef,
   emojiPickerRef,
@@ -88,7 +97,10 @@ const ConversationPane = ({
   onRetryLoad,
   onScrollToBottom,
   onMessageContextMenu,
+  onOpenMessageActions,
   onStartEdit,
+  onRetryFailed,
+  onDismissFailed,
   onEditTextChange,
   onSaveEdit,
   onCancelEdit,
@@ -103,8 +115,19 @@ const ConversationPane = ({
     return (
       <ChatStateView
         heading="Select a conversation"
-        body="Choose a chat from the sidebar to read messages and start talking."
-        className="bg-slate-950"
+        body="Choose a chat from the sidebar or start a new one."
+        className="bg-[#101113]"
+      />
+    );
+  }
+
+  if (isSessionExpired) {
+    return (
+      <ChatStateView
+        heading="Your session expired"
+        body="Sign in again to continue."
+        tone="danger"
+        className="bg-[#101113]"
       />
     );
   }
@@ -123,19 +146,32 @@ const ConversationPane = ({
       />
 
       {showMessageSearch && (
-        <div className="border-b border-slate-800 bg-slate-900/60 px-4 py-2">
+        <div className="border-b border-[#2E363C] bg-[#181C20] px-4 py-2">
           <input
             type="text"
             value={messageSearch}
             onChange={(event) => onMessageSearchChange(event.target.value)}
             placeholder="Search in conversation..."
-            className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-lg border border-[#2E363C] bg-[#20262B] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
           />
           {messageSearch && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-[#6F7B77]" aria-live="polite">
               Found {messages.length} message{messages.length !== 1 ? 's' : ''}
             </p>
           )}
+        </div>
+      )}
+
+      {(isOffline || isReconnecting) && (
+        <div
+          className={`border-b border-[#2E363C] px-4 py-2 text-sm ${
+            isOffline ? 'bg-[#2B2020] text-[#EF4444]' : 'bg-[#2B281B] text-[#F59E0B]'
+          }`}
+          aria-live="polite"
+        >
+          {isOffline
+            ? 'You are offline. Reconnect to send new messages.'
+            : 'Reconnecting. Messages will update when the connection returns.'}
         </div>
       )}
 
@@ -149,6 +185,7 @@ const ConversationPane = ({
         isError={messagesError}
         hasMore={hasMore}
         isLoadingMore={isLoadingMore}
+        isSearchActive={Boolean(messageSearch.trim())}
         showScrollButton={showScrollButton}
         editingMessageId={editingMessageId}
         editText={editText}
@@ -159,7 +196,10 @@ const ConversationPane = ({
         onRetryLoad={onRetryLoad}
         onScrollToBottom={onScrollToBottom}
         onMessageContextMenu={onMessageContextMenu}
+        onOpenMessageActions={onOpenMessageActions}
         onStartEdit={onStartEdit}
+        onRetryFailed={onRetryFailed}
+        onDismissFailed={onDismissFailed}
         onEditTextChange={onEditTextChange}
         onSaveEdit={onSaveEdit}
         onCancelEdit={onCancelEdit}
@@ -171,6 +211,13 @@ const ConversationPane = ({
         showEmojiPicker={showEmojiPicker}
         isSending={isSending}
         isSendError={isSendError}
+        sendDisabledReason={
+          isOffline
+            ? 'You are offline. Reconnect to send new messages.'
+            : isSessionExpired
+              ? 'Your session expired. Sign in again to continue.'
+              : null
+        }
         emojiPickerRef={emojiPickerRef}
         onChange={onComposerChange}
         onKeyDown={onComposerKeyDown}

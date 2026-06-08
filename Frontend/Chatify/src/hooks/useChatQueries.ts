@@ -10,6 +10,7 @@ import {
   createClientMessageId,
   createOptimisticMessage,
   markOptimisticMessageFailed,
+  dismissOptimisticMessage,
   normalizeOutgoingMessageText,
   reconcileFetchedMessagesInCache,
   prependMessagesInCache,
@@ -155,6 +156,15 @@ export const useMessages = (chatId: string | null) => {
     });
   }, [chatId, queryClient, queryKey]);
 
+  const dismissFailedMessage = useCallback((clientMessageId: string) => {
+    if (!chatId) return;
+
+    queryClient.setQueryData<MessagesQueryData>(
+      queryKey,
+      (old) => dismissOptimisticMessage(old, clientMessageId)
+    );
+  }, [chatId, queryClient, queryKey]);
+
   const setMessages = useCallback((nextMessages: Message[] | ((messages: Message[]) => Message[])) => {
     if (!chatId) return;
 
@@ -212,6 +222,7 @@ export const useMessages = (chatId: string | null) => {
     messages,
     upsertMessage,
     removeMessage,
+    dismissFailedMessage,
     setMessages,
     updateMessageStatus,
     updateMessagesStatus,

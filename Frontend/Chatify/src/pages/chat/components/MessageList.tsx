@@ -13,6 +13,7 @@ interface MessageListProps {
   isError: boolean;
   hasMore: boolean;
   isLoadingMore: boolean;
+  isSearchActive: boolean;
   showScrollButton: boolean;
   editingMessageId: string | null;
   editText: string;
@@ -23,7 +24,10 @@ interface MessageListProps {
   onRetryLoad: () => void;
   onScrollToBottom: () => void;
   onMessageContextMenu: (event: MouseEvent, messageId: string, isOwnMessage: boolean) => void;
+  onOpenMessageActions: (event: MouseEvent<HTMLButtonElement>, message: Message, isOwnMessage: boolean) => void;
   onStartEdit: (messageId: string, currentText: string) => void;
+  onRetryFailed: (message: Message) => void;
+  onDismissFailed: (message: Message) => void;
   onEditTextChange: (value: string) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
@@ -37,6 +41,7 @@ const MessageList = ({
   isError,
   hasMore,
   isLoadingMore,
+  isSearchActive,
   showScrollButton,
   editingMessageId,
   editText,
@@ -47,7 +52,10 @@ const MessageList = ({
   onRetryLoad,
   onScrollToBottom,
   onMessageContextMenu,
+  onOpenMessageActions,
   onStartEdit,
+  onRetryFailed,
+  onDismissFailed,
   onEditTextChange,
   onSaveEdit,
   onCancelEdit,
@@ -55,7 +63,7 @@ const MessageList = ({
   return (
     <div
       ref={messagesContainerRef}
-      className="relative flex-1 overflow-y-auto bg-slate-950 px-6 py-4 space-y-3 chat-messages-scroll"
+      className="relative flex-1 overflow-y-auto bg-[#101113] px-4 py-4 space-y-3 chat-messages-scroll md:px-6"
     >
       {isLoading ? (
         <ChatStateView heading="Loading messages" body="Loading messages..." />
@@ -74,7 +82,7 @@ const MessageList = ({
                 type="button"
                 onClick={onLoadMore}
                 disabled={isLoadingMore}
-                className="cursor-pointer text-xs text-emerald-400 hover:text-emerald-300 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-8 cursor-pointer rounded-lg border border-[#2E363C] bg-[#20262B] px-3 py-1 text-xs font-semibold text-[#14B8A6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isLoadingMore ? 'Loading...' : 'Load older messages'}
               </button>
@@ -90,25 +98,25 @@ const MessageList = ({
               <div key={message._id}>
                 {showDateSeparator && (
                   <div className="my-4 flex items-center justify-center">
-                    <div className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-400">
+                    <div className="rounded-full border border-[#2E363C] bg-[#20262B] px-3 py-1 text-xs text-[#A8B3AF]">
                       {formatMessageDate(message.createdAt)}
                     </div>
                   </div>
                 )}
                 {isEditing ? (
                   <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                    <div className="max-w-[70%] space-y-2">
+                    <div className="max-w-[85%] space-y-2 md:max-w-[75%] xl:max-w-[68%]">
                       <textarea
                         value={editText}
                         onChange={(event) => onEditTextChange(event.target.value)}
-                        className="w-full rounded-lg border border-emerald-500 bg-slate-800 p-2 text-sm text-slate-100 focus:outline-none"
+                        className="w-full rounded-lg border border-[#14B8A6] bg-[#20262B] p-2 text-sm text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
                         rows={3}
                       />
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
                           onClick={onCancelEdit}
-                          className="cursor-pointer px-3 py-1 text-xs text-slate-400 hover:text-slate-200"
+                          className="min-h-8 cursor-pointer rounded-lg px-3 py-1 text-xs font-semibold text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#F4F7F6]"
                         >
                           Cancel
                         </button>
@@ -116,7 +124,7 @@ const MessageList = ({
                           type="button"
                           onClick={onSaveEdit}
                           disabled={isSavingEdit}
-                          className="cursor-pointer rounded bg-emerald-500 px-3 py-1 text-xs text-emerald-950 hover:bg-emerald-400 disabled:cursor-not-allowed"
+                          className="min-h-8 cursor-pointer rounded-lg bg-[#14B8A6] px-3 py-1 text-xs font-semibold text-[#101113] hover:bg-[#22C55E] disabled:cursor-not-allowed"
                         >
                           {isSavingEdit ? 'Saving...' : 'Save'}
                         </button>
@@ -130,7 +138,10 @@ const MessageList = ({
                     isGroupChat={selectedChat.isGroupChat}
                     members={selectedChat.members}
                     onContextMenu={(event) => onMessageContextMenu(event, message._id, isOwnMessage)}
+                    onOpenActions={onOpenMessageActions}
                     onDoubleClick={(msg) => onStartEdit(msg._id, msg.text)}
+                    onRetryFailed={onRetryFailed}
+                    onDismissFailed={onDismissFailed}
                   />
                 )}
               </div>
@@ -139,14 +150,17 @@ const MessageList = ({
           <div ref={messagesEndRef} />
         </>
       ) : (
-        <ChatStateView heading="No messages yet" body="Start the conversation!" />
+        <ChatStateView
+          heading={isSearchActive ? 'No matches found' : 'No messages yet'}
+          body={isSearchActive ? 'Try a different name or message term.' : 'Send the first message when you are ready.'}
+        />
       )}
 
       {showScrollButton && (
         <button
           type="button"
           onClick={onScrollToBottom}
-          className="absolute bottom-6 right-8 z-40 rounded-full bg-emerald-500 p-3 text-emerald-950 shadow-lg transition-all hover:bg-emerald-400"
+          className="absolute bottom-6 right-6 z-40 min-h-10 min-w-10 rounded-full bg-[#14B8A6] p-3 text-[#101113] shadow-lg transition-all hover:bg-[#22C55E]"
           title="Scroll to bottom"
           aria-label="Scroll to bottom"
         >

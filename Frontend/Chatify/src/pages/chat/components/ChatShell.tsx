@@ -10,7 +10,7 @@ interface ChatShellProps {
 
 const ChatShell = ({ isSidebarOpen, onCloseSidebar, sidebar, conversation, overlays }: ChatShellProps) => {
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-50">
+    <div className="flex h-screen bg-[#101113] text-[#F4F7F6]">
       <button
         type="button"
         aria-label="Close chat list"
@@ -18,7 +18,7 @@ const ChatShell = ({ isSidebarOpen, onCloseSidebar, sidebar, conversation, overl
         onClick={onCloseSidebar}
       />
       {sidebar}
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className="flex min-w-0 flex-1 flex-col bg-[#101113]">
         {conversation}
       </section>
       {overlays}

@@ -1,4 +1,6 @@
 import AccountsButton from '../../../components/accountsButton';
+import { useEffect, useRef } from 'react';
+import type { RefObject } from 'react';
 import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
 import { getChatTitle, getOtherMember } from '../utils/chatDisplay';
@@ -19,8 +21,10 @@ interface ChatSidebarProps {
   isCreatingChat: boolean;
   unreadCounts?: Map<string, number>;
   onlineUsers: Map<string, { isOnline: boolean }>;
+  newChatButtonRef: RefObject<HTMLButtonElement | null>;
   onSearchChange: (value: string) => void;
   onSelectChat: (chatId: string) => void;
+  onCloseSidebar: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
   onToggleNewChat: () => void;
@@ -45,8 +49,10 @@ const ChatSidebar = ({
   isCreatingChat,
   unreadCounts,
   onlineUsers,
+  newChatButtonRef,
   onSearchChange,
   onSelectChat,
+  onCloseSidebar,
   onOpenSettings,
   onLogout,
   onToggleNewChat,
@@ -54,31 +60,46 @@ const ChatSidebar = ({
   onCreateChatSubmit,
   onRefetchChats,
 }: ChatSidebarProps) => {
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const filteredChats = chats?.filter((chat) => {
     if (!searchQuery.trim()) return true;
     const title = getChatTitle(chat, user?._id).toLowerCase();
     return title.includes(searchQuery.toLowerCase());
   });
 
+  useEffect(() => {
+    if (isOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [isOpen]);
+
   return (
-    <aside className={`chat-sidebar w-80 border-r border-slate-900 bg-slate-900/60 backdrop-blur-sm flex flex-col ${isOpen ? 'open' : ''}`}>
-      <div className="p-4 border-b border-slate-800 flex items-center gap-3">
+    <aside className={`chat-sidebar w-80 md:w-[320px] md:min-w-[280px] 2xl:w-[360px] 2xl:min-w-[360px] border-r border-[#2E363C] bg-[#181C20] flex flex-col ${isOpen ? 'open' : ''}`}>
+      <div className="flex min-h-16 items-center gap-3 border-b border-[#2E363C] p-4">
         {user?.profilePic ? (
-          <img src={user.profilePic} alt="Profile" className="profile-pic h-12 w-12 rounded-full object-cover" />
+          <img src={user.profilePic} alt="Profile" className="profile-pic h-10 w-10 md:h-11 md:w-11 rounded-full object-cover" />
         ) : (
-          <div className="profile-pic h-12 w-12 rounded-full bg-emerald-500 flex items-center justify-center text-lg font-semibold">
+          <div className="profile-pic h-10 w-10 md:h-11 md:w-11 rounded-full bg-[#14B8A6] flex items-center justify-center text-base font-semibold text-[#101113]">
             {user?.firstName?.charAt(0)}
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-slate-400">Logged in as</p>
-          <p className="truncate font-semibold">{user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}</p>
+          <p className="text-xs font-medium text-[#6F7B77]">Logged in as</p>
+          <p className="truncate text-sm font-semibold text-[#F4F7F6]">{user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={onCloseSidebar}
+            className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] transition-colors hover:bg-[#20262B] hover:text-[#14B8A6] md:hidden"
+            aria-label="Close conversations"
+          >
+            <span aria-hidden="true">x</span>
+          </button>
+          <button
+            type="button"
             onClick={onOpenSettings}
-            className="cursor-pointer p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-lg transition-colors"
+            className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] transition-colors hover:bg-[#20262B] hover:text-[#14B8A6]"
             title="Settings"
             aria-label="Open settings"
           >
@@ -93,24 +114,26 @@ const ChatSidebar = ({
         </div>
       </div>
 
-      <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Chats</h2>
+      <div className="flex items-center justify-between gap-2 border-b border-[#2E363C] px-4 py-3">
+        <h2 className="text-sm font-semibold text-[#A8B3AF]">Chats</h2>
         <button
+          ref={newChatButtonRef}
           type="button"
           onClick={onToggleNewChat}
-          className="cursor-pointer rounded bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
+          className="min-h-8 cursor-pointer rounded-lg bg-[#14B8A6]/10 px-3 py-1 text-xs font-semibold text-[#14B8A6] hover:bg-[#14B8A6]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
         >
           {isNewChatOpen ? 'Close' : 'New chat'}
         </button>
       </div>
 
-      <div className="px-4 py-2 border-b border-slate-800">
+      <div className="border-b border-[#2E363C] px-4 py-2">
         <input
+          ref={searchInputRef}
           type="text"
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search chats..."
-          className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+          className="w-full rounded-lg border border-[#2E363C] bg-[#101113] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:border-[#14B8A6] focus:outline-none"
         />
       </div>
 
@@ -119,20 +142,22 @@ const ChatSidebar = ({
         email={newChatEmail}
         error={createChatError}
         isSubmitting={isCreatingChat}
+        openerRef={newChatButtonRef}
         onEmailChange={onNewChatEmailChange}
         onSubmit={onCreateChatSubmit}
+        onClose={onToggleNewChat}
       />
 
       <div className="flex-1 overflow-y-auto chat-sidebar-scroll">
         {isLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading chats...</div>
+          <div className="flex h-full items-center justify-center text-sm text-[#A8B3AF]">Loading chats...</div>
         ) : isError ? (
-          <div className="p-4 text-sm text-red-400 space-y-2">
+          <div className="space-y-2 p-4 text-sm text-[#EF4444]">
             <p>We could not load your chats.</p>
             <button
               type="button"
               onClick={onRefetchChats}
-              className="cursor-pointer rounded bg-emerald-500/10 px-3 py-1 text-emerald-300 hover:bg-emerald-500/20"
+              className="cursor-pointer rounded-lg bg-[#14B8A6]/10 px-3 py-1 text-[#14B8A6] hover:bg-[#14B8A6]/20"
             >
               Try again
             </button>
@@ -157,8 +182,9 @@ const ChatSidebar = ({
             })}
           </ul>
         ) : (
-          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-slate-400">
-            {searchQuery.trim() ? 'No chats match your search.' : 'You do not have any chats yet. Start a conversation to see it here.'}
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[#A8B3AF]">
+            <p className="font-semibold text-[#F4F7F6]">{searchQuery.trim() ? 'No matches found' : 'No conversations yet'}</p>
+            <p>{searchQuery.trim() ? 'Try a different name or message term.' : 'Start a chat to begin messaging.'}</p>
           </div>
         )}
       </div>

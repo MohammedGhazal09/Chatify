@@ -319,6 +319,22 @@ export const markOptimisticMessageFailed = (
   };
 };
 
+export const dismissOptimisticMessage = (
+  cache: MessagesCacheData | undefined,
+  clientMessageId: string
+): MessagesCacheData | undefined => {
+  if (!cache) {
+    return cache;
+  }
+
+  return {
+    ...cache,
+    messages: cache.messages.filter((message) => (
+      !(message.clientMessageId === clientMessageId && message.optimisticState === 'failed')
+    )),
+  };
+};
+
 const shouldPromoteStatus = (currentStatus: MessageStatus, nextStatus: MessageStatus) => {
   return statusRank[nextStatus] >= statusRank[currentStatus];
 };

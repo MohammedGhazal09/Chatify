@@ -1,6 +1,6 @@
 import type { ChangeEvent, KeyboardEventHandler, RefObject } from 'react';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
 import type { Message } from '../../../types/chat';
+import LazyEmojiPicker from './LazyEmojiPicker';
 
 interface MessageComposerProps {
   value: string;
@@ -8,6 +8,7 @@ interface MessageComposerProps {
   showEmojiPicker: boolean;
   isSending: boolean;
   isSendError: boolean;
+  sendDisabledReason?: string | null;
   emojiPickerRef: RefObject<HTMLDivElement | null>;
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
@@ -23,6 +24,7 @@ const MessageComposer = ({
   showEmojiPicker,
   isSending,
   isSendError,
+  sendDisabledReason,
   emojiPickerRef,
   onChange,
   onKeyDown,
@@ -32,17 +34,17 @@ const MessageComposer = ({
   onCancelReply,
 }: MessageComposerProps) => {
   return (
-    <div className="border-t border-slate-900 bg-slate-900/60 p-4">
+    <div className="min-h-[72px] border-t border-[#2E363C] bg-[#181C20] p-4">
       {replyingTo && (
-        <div className="mb-2 flex items-center justify-between rounded-lg border-l-4 border-emerald-500 bg-slate-800 px-3 py-2">
+        <div className="mb-2 flex items-center justify-between rounded-lg border-l-4 border-[#14B8A6] bg-[#20262B] px-3 py-2">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-emerald-400">Replying to</p>
-            <p className="truncate text-sm text-slate-300">{replyingTo.text}</p>
+            <p className="text-xs font-medium text-[#14B8A6]">Replying to</p>
+            <p className="truncate text-sm text-[#A8B3AF]">{replyingTo.text}</p>
           </div>
           <button
             type="button"
             onClick={onCancelReply}
-            className="cursor-pointer ml-2 text-slate-400 hover:text-slate-200"
+            className="ml-2 grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#181C20] hover:text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
             aria-label="Cancel reply"
           >
             <span aria-hidden="true">x</span>
@@ -50,30 +52,31 @@ const MessageComposer = ({
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-800 bg-slate-950 focus-within:border-emerald-500">
+      <div className="rounded-lg border border-[#2E363C] bg-[#20262B] focus-within:border-[#14B8A6]">
         <textarea
           value={value}
           onChange={onChange}
           onKeyDown={onKeyDown}
           placeholder="Write a message..."
-          className="chat-input-area h-24 w-full resize-none rounded-lg bg-transparent px-3 py-2 text-sm text-slate-100 outline-none"
+          disabled={Boolean(sendDisabledReason)}
+          aria-describedby={sendDisabledReason ? 'composer-disabled-reason' : undefined}
+          className="chat-input-area max-h-36 min-h-[72px] w-full resize-none rounded-lg bg-transparent px-3 py-2 text-sm leading-5 text-[#F4F7F6] outline-none placeholder:text-[#6F7B77] disabled:cursor-not-allowed disabled:text-[#6F7B77]"
         />
-        <div className="flex items-center justify-between border-t border-slate-800 px-3 py-2">
+        <div className="flex items-center justify-between border-t border-[#2E363C] px-3 py-2">
           <div className="flex items-center gap-2">
             <div className="relative" ref={emojiPickerRef}>
               <button
                 type="button"
                 onClick={onToggleEmojiPicker}
-                className="cursor-pointer p-1 text-slate-400 transition-colors hover:text-emerald-400"
+                className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] transition-colors hover:bg-[#181C20] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
                 title="Add emoji"
                 aria-label="Add emoji"
               >
-                <span aria-hidden="true">Emoji</span>
+                <span aria-hidden="true">+</span>
               </button>
               {showEmojiPicker && (
                 <div className="absolute bottom-10 left-0 z-50">
-                  <EmojiPicker
-                    theme={Theme.DARK}
+                  <LazyEmojiPicker
                     onEmojiClick={(emoji) => {
                       onAppendEmoji(emoji.emoji);
                     }}
@@ -83,20 +86,26 @@ const MessageComposer = ({
                 </div>
               )}
             </div>
-            <p className="text-xs text-slate-500">Press Enter to send</p>
+            <p className="text-xs text-[#6F7B77]">Press Enter to send</p>
           </div>
           <button
             type="button"
             onClick={onSend}
-            disabled={isSending || !value.trim() || value.length > 1000}
-            className="cursor-pointer rounded bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            disabled={Boolean(sendDisabledReason) || isSending || !value.trim() || value.length > 1000}
+            className="min-h-10 cursor-pointer rounded-lg bg-[#14B8A6] px-4 py-1.5 text-sm font-semibold text-[#101113] transition hover:bg-[#22C55E] disabled:cursor-not-allowed disabled:bg-[#2E363C] disabled:text-[#6F7B77] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+            aria-label="Send message"
           >
-            {isSending ? 'Sending...' : 'Send'}
+            {isSending ? 'Sending...' : 'Send message'}
           </button>
         </div>
       </div>
+      {sendDisabledReason && (
+        <p id="composer-disabled-reason" className="mt-2 text-sm text-[#F59E0B]" aria-live="polite">
+          {sendDisabledReason}
+        </p>
+      )}
       {isSendError && (
-        <p className="mt-2 text-sm text-red-400">We could not send your message. Please try again.</p>
+        <p className="mt-2 text-sm text-[#EF4444]" aria-live="polite">We could not send your message. Please try again.</p>
       )}
     </div>
   );

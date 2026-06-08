@@ -1,12 +1,15 @@
-import type { FormEvent } from 'react';
+import { useEffect, useRef } from 'react';
+import type { FormEvent, RefObject } from 'react';
 
 interface NewChatDialogProps {
   isOpen: boolean;
   email: string;
   error: string | null;
   isSubmitting: boolean;
+  openerRef: RefObject<HTMLButtonElement | null>;
   onEmailChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onClose: () => void;
 }
 
 const NewChatDialog = ({
@@ -14,39 +17,108 @@ const NewChatDialog = ({
   email,
   error,
   isSubmitting,
+  openerRef,
   onEmailChange,
   onSubmit,
+  onClose,
 }: NewChatDialogProps) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    inputRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        window.requestAnimationFrame(() => openerRef.current?.focus());
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, openerRef]);
+
   if (!isOpen) {
     return null;
   }
 
   return (
-    <form onSubmit={onSubmit} className="border-b border-slate-800 px-4 py-3 space-y-2">
-      <label htmlFor="new-chat-email" className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-        Start a chat by email
-      </label>
-      <div className="flex gap-2">
-        <input
-          id="new-chat-email"
-          type="email"
-          value={email}
-          onChange={(event) => onEmailChange(event.target.value)}
-          className="flex-1 rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          placeholder="friend@example.com"
-          required
-          autoComplete="email"
-        />
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="rounded bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
-        >
-          {isSubmitting ? 'Adding...' : 'Add'}
-        </button>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/60"
+        aria-label="Close new chat dialog"
+        onClick={() => {
+          onClose();
+          window.requestAnimationFrame(() => openerRef.current?.focus());
+        }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-chat-title"
+        className="relative w-full max-w-sm rounded-lg border border-[#2E363C] bg-[#20262B] p-5 shadow-2xl"
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 id="new-chat-title" className="text-base font-bold text-[#F4F7F6]">New chat</h2>
+            <p className="mt-1 text-sm text-[#A8B3AF]">Start a chat to begin messaging.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              window.requestAnimationFrame(() => openerRef.current?.focus());
+            }}
+            className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#181C20] hover:text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+            aria-label="Close new chat dialog"
+          >
+            <span aria-hidden="true">x</span>
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="space-y-3">
+          <label htmlFor="new-chat-email" className="text-xs font-semibold text-[#A8B3AF]">
+            Email address
+          </label>
+          <input
+            ref={inputRef}
+            id="new-chat-email"
+            type="email"
+            value={email}
+            onChange={(event) => onEmailChange(event.target.value)}
+            className="w-full rounded-lg border border-[#2E363C] bg-[#101113] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:border-[#14B8A6] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+            placeholder="friend@example.com"
+            required
+            autoComplete="email"
+            aria-describedby={error ? 'new-chat-error' : undefined}
+          />
+          {error ? <p id="new-chat-error" className="text-xs text-[#EF4444]">{error}</p> : null}
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                window.requestAnimationFrame(() => openerRef.current?.focus());
+              }}
+              className="min-h-10 cursor-pointer rounded-lg border border-[#2E363C] px-3 py-2 text-sm font-semibold text-[#A8B3AF] hover:bg-[#181C20]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="min-h-10 cursor-pointer rounded-lg bg-[#14B8A6] px-3 py-2 text-sm font-semibold text-[#101113] transition-colors hover:bg-[#22C55E] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSubmitting ? 'Adding...' : 'Start chat'}
+            </button>
+          </div>
+        </form>
       </div>
-      {error ? <p className="text-xs text-red-400">{error}</p> : null}
-    </form>
+    </div>
   );
 };
 

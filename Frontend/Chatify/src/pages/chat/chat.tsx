@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEventHandler, MouseEvent as ReactMouseEvent } from 'react';
 import axios from 'axios';
 import LoadingSpinner from '../../components/loadingSpinner';
@@ -108,6 +108,13 @@ const ChatPage = () => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const newChatButtonRef = useRef<HTMLButtonElement>(null);
+  const messageActionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
+  const previousLastMessageKeyRef = useRef<string | null>(null);
+  const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  ));
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
   const {
@@ -117,6 +124,7 @@ const ChatPage = () => {
     refetch: refetchMessages,
     upsertMessage,
     removeMessage,
+    dismissFailedMessage,
     updateMessageStatus,
     updateMessagesStatus,
     loadMoreMessages,
@@ -197,7 +205,13 @@ const ChatPage = () => {
     [allMessages, upsertMessage]
   );
 
-  const { emitTypingStart, emitTypingStop, emitMessageDelivered } = useChatSocket({
+  const {
+    socket,
+    socketError,
+    emitTypingStart,
+    emitTypingStop,
+    emitMessageDelivered,
+  } = useChatSocket({
     chatId: selectedChatId,
     enabled: !!selectedChatId && isAuthenticated,
     onMessage: (message) => {
@@ -298,8 +312,33 @@ const ChatPage = () => {
   }, [allMessages, selectedChatId, user?._id]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [allMessages]);
+    const handleOnline = () => setIsBrowserOnline(true);
+    const handleOffline = () => setIsBrowserOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const lastMessage = allMessages[allMessages.length - 1];
+    if (!lastMessage) return;
+
+    const lastMessageKey = `${lastMessage._id}:${lastMessage.updatedAt}`;
+    if (previousLastMessageKeyRef.current === lastMessageKey) {
+      return;
+    }
+
+    if (shouldAutoScrollRef.current || lastMessage.sender === user?._id) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    previousLastMessageKeyRef.current = lastMessageKey;
+  }, [allMessages, user?._id]);
 
   useEffect(() => {
     if (!selectedChatId && chats && chats.length > 0) {
@@ -321,16 +360,23 @@ const ChatPage = () => {
     };
   }, [createChatError, setCreateChatError]);
 
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+    setShowReactionPicker(false);
+    window.requestAnimationFrame(() => {
+      messageActionTriggerRef.current?.focus();
+    });
+  }, [setContextMenu, setShowReactionPicker]);
+
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
       if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
-        setContextMenu(null);
-        setShowReactionPicker(false);
+        closeContextMenu();
       }
     };
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
-  }, [setContextMenu, setShowReactionPicker]);
+  }, [closeContextMenu]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -349,7 +395,7 @@ const ChatPage = () => {
           setEditingMessageId(null);
           setEditText('');
         } else if (contextMenu) {
-          setContextMenu(null);
+          closeContextMenu();
         } else if (showEmojiPicker) {
           setShowEmojiPicker(false);
         } else if (showMessageSearch) {
@@ -372,11 +418,11 @@ const ChatPage = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [
     contextMenu,
+    closeContextMenu,
     editingMessageId,
     isSidebarOpen,
     replyingTo,
     selectedChatId,
-    setContextMenu,
     setEditText,
     setEditingMessageId,
     setIsSidebarOpen,
@@ -392,6 +438,7 @@ const ChatPage = () => {
     if (!messagesContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
     const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
+    shouldAutoScrollRef.current = isNearBottom;
     setShowScrollButton(!isNearBottom);
   }, [setShowScrollButton]);
 
@@ -457,9 +504,24 @@ const ChatPage = () => {
     setContextMenu({ x, y, messageId, isOwn });
   };
 
+  const handleOpenMessageActions = (event: ReactMouseEvent<HTMLButtonElement>, message: Message, isOwn: boolean) => {
+    event.preventDefault();
+    event.stopPropagation();
+    messageActionTriggerRef.current = event.currentTarget;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 220;
+    const menuHeight = 300;
+    const x = Math.min(Math.max(10, rect.right - menuWidth), window.innerWidth - menuWidth - 10);
+    const y = Math.min(rect.bottom + 6, window.innerHeight - menuHeight - 10);
+
+    setShowReactionPicker(false);
+    setContextMenu({ x, y, messageId: message._id, isOwn });
+  };
+
   const handleReply = (message: Message) => {
     setReplyingTo(message);
-    setContextMenu(null);
+    closeContextMenu();
   };
 
   const handleDeleteMessage = (deleteForEveryone: boolean) => {
@@ -467,7 +529,7 @@ const ChatPage = () => {
     const messageId = contextMenu.messageId;
 
     removeMessage(messageId);
-    setContextMenu(null);
+    closeContextMenu();
 
     deleteMessageMutation.mutate(
       { messageId, deleteForEveryone, chatId: selectedChatId },
@@ -486,7 +548,7 @@ const ChatPage = () => {
   const handleStartEdit = (messageId: string, currentText: string) => {
     setEditingMessageId(messageId);
     setEditText(currentText);
-    setContextMenu(null);
+    closeContextMenu();
   };
 
   const handleSaveEdit = () => {
@@ -532,8 +594,7 @@ const ChatPage = () => {
         },
       }
     );
-    setContextMenu(null);
-    setShowReactionPicker(false);
+    closeContextMenu();
   };
 
   const handleExportChat = () => {
@@ -613,6 +674,16 @@ const ChatPage = () => {
     setIsSidebarOpen(false);
   };
 
+  const handleLoadMoreMessages = async () => {
+    const container = messagesContainerRef.current;
+    const previousScrollHeight = container?.scrollHeight ?? 0;
+    await loadMoreMessages();
+    window.requestAnimationFrame(() => {
+      if (!container) return;
+      container.scrollTop += container.scrollHeight - previousScrollHeight;
+    });
+  };
+
   const handleToggleMessageSearch = () => {
     setShowMessageSearch((prev) => {
       if (prev) {
@@ -629,8 +700,32 @@ const ChatPage = () => {
 
   const handleCopyMessage = (message: Message) => {
     navigator.clipboard.writeText(message.text);
-    setContextMenu(null);
+    closeContextMenu();
   };
+
+  const handleRetryFailedMessage = (message: Message) => {
+    if (!message.clientMessageId) {
+      return;
+    }
+
+    sendMessage.mutate({
+      chatId: message.chatId,
+      text: message.text,
+      clientMessageId: message.clientMessageId,
+    });
+  };
+
+  const handleDismissFailedMessage = (message: Message) => {
+    if (!message.clientMessageId) {
+      return;
+    }
+
+    dismissFailedMessage(message.clientMessageId);
+  };
+
+  const isOffline = !isBrowserOnline;
+  const isSessionExpired = !isAuthenticated && !isChatsLoading;
+  const isReconnecting = Boolean(selectedChatId && isAuthenticated && !isOffline && (socketError || (socket && !socket.connected)));
 
   if (!isAuthenticated && isChatsLoading) {
     return <LoadingSpinner />;
@@ -655,8 +750,10 @@ const ChatPage = () => {
           isCreatingChat={createChat.isPending}
           unreadCounts={unreadCounts}
           onlineUsers={onlineUsers}
+          newChatButtonRef={newChatButtonRef}
           onSearchChange={setSearchQuery}
           onSelectChat={handleSelectChat}
+          onCloseSidebar={() => setIsSidebarOpen(false)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onLogout={handleLogout}
           onToggleNewChat={handleToggleNewChat}
@@ -688,6 +785,9 @@ const ChatPage = () => {
           showEmojiPicker={showEmojiPicker}
           isSending={sendMessage.isPending}
           isSendError={sendMessage.isError}
+          isOffline={isOffline}
+          isSessionExpired={isSessionExpired}
+          isReconnecting={isReconnecting}
           messagesContainerRef={messagesContainerRef}
           messagesEndRef={messagesEndRef}
           emojiPickerRef={emojiPickerRef}
@@ -695,11 +795,14 @@ const ChatPage = () => {
           onToggleMessageSearch={handleToggleMessageSearch}
           onMessageSearchChange={setMessageSearch}
           onExportChat={handleExportChat}
-          onLoadMore={loadMoreMessages}
+          onLoadMore={handleLoadMoreMessages}
           onRetryLoad={() => refetchMessages()}
           onScrollToBottom={scrollToBottom}
           onMessageContextMenu={handleMessageContextMenu}
+          onOpenMessageActions={handleOpenMessageActions}
           onStartEdit={handleStartEdit}
+          onRetryFailed={handleRetryFailedMessage}
+          onDismissFailed={handleDismissFailedMessage}
           onEditTextChange={setEditText}
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}
@@ -724,6 +827,7 @@ const ChatPage = () => {
             onStartEdit={handleStartEdit}
             onDelete={handleDeleteMessage}
             onCopy={handleCopyMessage}
+            onClose={closeContextMenu}
           />
           <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
         </>

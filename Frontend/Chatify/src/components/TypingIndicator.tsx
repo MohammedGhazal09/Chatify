@@ -38,7 +38,10 @@ export const TypingIndicator = ({ chatId }: TypingIndicatorProps) => {
   };
 
   return (
-    <div className="typing-indicator flex items-center gap-2 px-4 py-2 text-sm text-slate-400 italic animate-fade-in">
+    <div
+      className="typing-indicator flex items-center gap-2 px-4 py-2 text-sm text-[#A8B3AF] italic animate-fade-in"
+      aria-live="polite"
+    >
       <span>{getTypingText()}</span>
       <span className="typing-dots flex gap-1">
         {TYPING_DOT_DELAYS.map((delay, index) => (
@@ -72,7 +75,7 @@ export const TypingIndicatorCompact = ({ chatId }: TypingIndicatorProps) => {
   }
 
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-slate-400 italic">
+    <span className="inline-flex items-center gap-1 text-xs text-[#A8B3AF] italic" aria-live="polite">
       <span className="typing-dots flex gap-0.5">
         {TYPING_DOT_DELAYS.map((delay, index) => (
           <span

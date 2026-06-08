@@ -1,4 +1,5 @@
 import OnlineStatus, { OnlineDot } from '../../../components/OnlineStatus';
+import { Download, Menu, Search } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat, UserOnlineStatus } from '../../../types/chat';
 
@@ -24,16 +25,14 @@ const ConversationHeader = ({
   onExportChat,
 }: ConversationHeaderProps) => {
   return (
-    <div className="border-b border-slate-900 bg-slate-900/60 p-4 flex items-center gap-3">
+    <div className="flex min-h-16 items-center gap-3 border-b border-[#2E363C] bg-[#181C20] px-4 py-3">
       <button
         type="button"
         onClick={onOpenSidebar}
-        className="cursor-pointer md:hidden text-slate-400 hover:text-emerald-400"
-        aria-label="Open chat list"
+        className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] md:hidden"
+        aria-label="Open conversations"
       >
-        <svg aria-hidden="true" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+        <Menu aria-hidden="true" className="h-5 w-5" />
       </button>
 
       {otherMember && (
@@ -42,10 +41,10 @@ const ConversationHeader = ({
             <img
               src={otherMember.profilePic}
               alt={otherMember.firstName}
-              className="h-10 w-10 rounded-full object-cover"
+              className="h-10 w-10 rounded-full object-cover md:h-11 md:w-11"
             />
           ) : (
-            <div className="h-10 w-10 rounded-full bg-slate-700 flex items-center justify-center text-sm font-semibold">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#20262B] text-sm font-semibold text-[#F4F7F6] md:h-11 md:w-11">
               {otherMember.firstName?.charAt(0)}
             </div>
           )}
@@ -54,9 +53,9 @@ const ConversationHeader = ({
       )}
 
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-lg font-semibold">{title}</h2>
+        <h2 className="truncate text-base font-bold text-[#F4F7F6]" title={title}>{title}</h2>
         {selectedChat.isGroupChat ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs font-medium text-[#A8B3AF]">
             {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
           </p>
         ) : otherMember ? (
@@ -72,21 +71,21 @@ const ConversationHeader = ({
       <button
         type="button"
         onClick={onToggleMessageSearch}
-        className="cursor-pointer text-slate-400 hover:text-emerald-400 p-2"
+        className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
         title="Search messages"
         aria-label={showMessageSearch ? 'Close message search' : 'Search messages'}
       >
-        <span aria-hidden="true">Search</span>
+        <Search aria-hidden="true" className="h-5 w-5" />
       </button>
 
       <button
         type="button"
         onClick={onExportChat}
-        className="cursor-pointer text-slate-400 hover:text-emerald-400 p-2"
+        className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
         title="Export chat"
         aria-label="Export chat"
       >
-        <span aria-hidden="true">Export</span>
+        <Download aria-hidden="true" className="h-5 w-5" />
       </button>
     </div>
   );

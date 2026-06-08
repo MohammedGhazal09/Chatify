@@ -9,3 +9,4 @@ export { default as MessageBubble } from './MessageBubble';
 export { default as MessageComposer } from './MessageComposer';
 export { default as MessageList } from './MessageList';
 export { default as NewChatDialog } from './NewChatDialog';
+export { default as LazyEmojiPicker } from './LazyEmojiPicker';

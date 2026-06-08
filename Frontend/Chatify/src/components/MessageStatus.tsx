@@ -60,7 +60,7 @@ export const MessageStatus = ({ status, isOwnMessage }: MessageStatusProps) => {
   };
 
   return (
-    <span className="inline-flex items-center ml-1" title={status}>
+    <span className="inline-flex items-center ml-1" title={status} aria-label={`Message ${status}`} role="img">
       {getStatusIcon()}
     </span>
   );
