@@ -211,7 +211,7 @@ describe('Socket.IO chat authorization', () => {
     expect(recipientUnread).toMatchObject({
       chatId,
       userId: memberTwo.user._id.toString(),
-      increment: 1,
+      count: 1,
     });
     expect(senderUnread).toBeUndefined();
   });
