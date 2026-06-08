@@ -3,7 +3,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { chatsQueryKey } from './useChatQueries';
+import { chatsQueryKey, messagesQueryKey } from './useChatQueries';
 import { playNotificationSound, isSoundEnabled } from '../utils/sounds';
 import type {
   Chat,
@@ -18,6 +18,7 @@ import type {
   MessageReactionEvent,
   UnreadUpdateEvent,
   SocketErrorEvent,
+  SocketReadyEvent,
 } from '../types/chat';
 
 type UseChatSocketOptions = {
@@ -78,6 +79,21 @@ export const useChatSocket = ({
 
   const socketUrl = useMemo(() => resolveSocketUrl(), []);
 
+  const reconcileRealtimeState = useCallback((ready?: SocketReadyEvent) => {
+    queryClientRef.current.invalidateQueries({ queryKey: chatsQueryKey });
+    queryClientRef.current.invalidateQueries({ queryKey: ['unreadCounts'] });
+
+    if (activeRoomRef.current) {
+      queryClientRef.current.invalidateQueries({
+        queryKey: messagesQueryKey(activeRoomRef.current),
+      });
+    }
+
+    if (ready?.presence) {
+      presenceStoreRef.current.replaceOnlineUsers(ready.presence);
+    }
+  }, []);
+
   // Connect socket and set up user connection
   useEffect(() => {
     if (!enabled || !isAuthenticated || !socketUrl) {
@@ -91,13 +107,22 @@ export const useChatSocket = ({
 
     setSocket(socketInstance);
 
+    const handleReconnect = () => {
+      setSocketError(null);
+      reconcileRealtimeState();
+    };
+
     socketInstance.on('connect', () => {
       setSocketError(null);
+      reconcileRealtimeState();
     });
 
-    socketInstance.on('socket:ready', () => {
+    socketInstance.on('socket:ready', (data: SocketReadyEvent) => {
       setSocketError(null);
+      reconcileRealtimeState(data);
     });
+
+    socketInstance.io.on('reconnect', handleReconnect);
 
     socketInstance.on('connect_error', (error: Error & { data?: Partial<SocketErrorEvent> }) => {
       setSocketError({
@@ -224,11 +249,12 @@ export const useChatSocket = ({
         socketInstance.emit('chat:leave', activeRoomRef.current);
         activeRoomRef.current = null;
       }
+      socketInstance.io.off('reconnect', handleReconnect);
       socketInstance.disconnect();
       setSocket(null);
       setSocketError(null);
     };
-  }, [enabled, isAuthenticated, socketUrl, user?._id]);
+  }, [enabled, isAuthenticated, socketUrl, user?._id, reconcileRealtimeState]);
 
   // Handle incoming messages
   const handleIncomingMessage = useCallback(

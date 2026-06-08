@@ -11,6 +11,7 @@ interface PresenceState {
   setUserOnline: (userId: string, status: UserOnlineStatus) => void;
   setUserOffline: (userId: string, lastSeen?: string) => void;
   setMultipleOnline: (users: UserOnlineStatus[]) => void;
+  replaceOnlineUsers: (users: UserOnlineStatus[]) => void;
   isUserOnline: (userId: string) => boolean;
   getUserStatus: (userId: string) => UserOnlineStatus | undefined;
   
@@ -62,6 +63,12 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
       });
       return { onlineUsers: newOnlineUsers };
     });
+  },
+
+  replaceOnlineUsers: (users) => {
+    set(() => ({
+      onlineUsers: new Map(users.map((user) => [user.userId, user])),
+    }));
   },
 
   isUserOnline: (userId) => {

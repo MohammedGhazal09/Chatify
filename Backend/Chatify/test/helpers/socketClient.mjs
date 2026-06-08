@@ -58,13 +58,18 @@ export const connectSocketWithCookie = (url, cookieHeader, options = {}) => {
   return socket;
 };
 
-export const connectSocketAsUser = async (url, userOverrides = {}, options = {}) => {
-  const signup = await signupWithAgent(userOverrides);
-  const cookieHeader = extractCookieHeader(signup.response);
+export const connectSocketWithReady = async (url, cookieHeader, options = {}) => {
   const socket = connectSocketWithCookie(url, cookieHeader, options);
   const readyPromise = waitForSocketEvent(socket, 'socket:ready');
   socket.connect();
   const ready = await readyPromise;
+
+  return { socket, ready };
+};
+
+export const connectSocketForSignup = async (url, signup, options = {}) => {
+  const cookieHeader = extractCookieHeader(signup.response);
+  const { socket, ready } = await connectSocketWithReady(url, cookieHeader, options);
 
   return {
     ...signup,
@@ -72,4 +77,9 @@ export const connectSocketAsUser = async (url, userOverrides = {}, options = {})
     socket,
     ready,
   };
+};
+
+export const connectSocketAsUser = async (url, userOverrides = {}, options = {}) => {
+  const signup = await signupWithAgent(userOverrides);
+  return connectSocketForSignup(url, signup, options);
 };

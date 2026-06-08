@@ -12,6 +12,9 @@ const isProd = process.env.NODE_ENV === 'production'
 const socketToUser = new Map()
 // Track user to sockets: Map<userId, Set<socketId>>
 const userToSockets = new Map()
+// Single-process presence state. Use a Redis adapter/shared state before horizontal Socket.IO scaling.
+const offlineTimers = new Map()
+const OFFLINE_DEBOUNCE_MS = 4000
 
 // Debug logging helper - only logs in development
 const debugLog = (...args) => {
@@ -92,29 +95,77 @@ const getUserChatRooms = async (userId) => {
   }
 }
 
-// Helper to broadcast user status to their contacts
+const formatUserStatus = (user, isOnline, lastSeen = null) => {
+  const payload = {
+    userId: user._id.toString(),
+    userName: `${user.firstName} ${user.lastName || ''}`.trim(),
+    isOnline,
+  }
+
+  if (!isOnline && lastSeen) {
+    payload.lastSeen = lastSeen instanceof Date ? lastSeen.toISOString() : lastSeen
+  }
+
+  return payload
+}
+
+const getAuthorizedContactIds = async (userId) => {
+  const chats = await getUserChatRooms(userId)
+  const contactIds = new Set()
+  const normalizedUserId = userId.toString()
+
+  chats.forEach(chat => {
+    chat.members.forEach(memberId => {
+      const contactId = memberId.toString()
+      if (contactId !== normalizedUserId) {
+        contactIds.add(contactId)
+      }
+    })
+  })
+
+  return Array.from(contactIds)
+}
+
+const getAuthorizedPresenceSnapshot = async (userId) => {
+  const contactIds = await getAuthorizedContactIds(userId)
+
+  if (contactIds.length === 0) {
+    return []
+  }
+
+  const contacts = await User.find({
+    _id: { $in: contactIds },
+    isOnline: true,
+    showOnlineStatus: true,
+  }).select('firstName lastName isOnline lastSeen showOnlineStatus')
+
+  return contacts.map(contact => formatUserStatus(contact, true, contact.lastSeen))
+}
+
+const clearOfflineTimer = (userId) => {
+  const normalizedUserId = userId.toString()
+  const timer = offlineTimers.get(normalizedUserId)
+
+  if (timer) {
+    clearTimeout(timer)
+    offlineTimers.delete(normalizedUserId)
+  }
+}
+
+// Helper to broadcast user status to authorized contacts only.
 const broadcastUserStatus = async (userId, isOnline, lastSeen = null) => {
   try {
-    const chats = await getUserChatRooms(userId)
     const user = await User.findById(userId).select('firstName lastName showOnlineStatus')
     
     if (!user || !user.showOnlineStatus) {
       return // User has privacy enabled, don't broadcast
     }
 
-    const statusPayload = {
-      userId,
-      userName: `${user.firstName} ${user.lastName || ''}`.trim(),
-      isOnline,
-    }
+    const statusPayload = formatUserStatus(user, isOnline, lastSeen)
+    const contactIds = await getAuthorizedContactIds(userId)
 
-    if (!isOnline && lastSeen) {
-      statusPayload.lastSeen = lastSeen
-    }
-
-    // Broadcast to all chat rooms the user is in
-    chats.forEach(chat => {
-      io.to(chat._id.toString()).emit('user:status-change', statusPayload)
+    contactIds.forEach(contactId => {
+      emitToUserSockets(contactId, 'user:status-change', statusPayload)
     })
 
     debugLog(`📡 Broadcasted status for ${user.firstName}: ${isOnline ? 'online' : 'offline'}`)
@@ -131,9 +182,29 @@ const setUserOnline = async (userId, isOnline) => {
       updateData.lastSeen = new Date()
     }
     await User.findByIdAndUpdate(userId, updateData)
+    return updateData.lastSeen ?? null
   } catch (err) {
     console.error('📛 Error updating user online status:', err)
+    return null
   }
+}
+
+const scheduleOfflineTransition = (userId) => {
+  const normalizedUserId = userId.toString()
+  clearOfflineTimer(normalizedUserId)
+
+  const timer = setTimeout(async () => {
+    offlineTimers.delete(normalizedUserId)
+
+    if (getUserSockets(normalizedUserId).size > 0) {
+      return
+    }
+
+    const lastSeen = await setUserOnline(normalizedUserId, false)
+    await broadcastUserStatus(normalizedUserId, false, lastSeen)
+  }, OFFLINE_DEBOUNCE_MS)
+
+  offlineTimers.set(normalizedUserId, timer)
 }
 
 export const initSocket = (server) => {
@@ -155,6 +226,9 @@ export const initSocket = (server) => {
     debugLog(`🔌 Socket connected: ${socket.id}`)
 
     const userId = socket.data.userId
+    const userHadSockets = getUserSockets(userId).size > 0
+    const reconnectingDuringDebounce = offlineTimers.has(userId)
+    clearOfflineTimer(userId)
 
     socketToUser.set(socket.id, userId)
 
@@ -170,9 +244,16 @@ export const initSocket = (server) => {
     })
 
     await setUserOnline(userId, true)
-    await broadcastUserStatus(userId, true)
+    if (!userHadSockets && !reconnectingDuringDebounce) {
+      await broadcastUserStatus(userId, true)
+    }
 
-    const readyPayload = { userId, socketId: socket.id, joinedChats: userChats.length }
+    const readyPayload = {
+      userId,
+      socketId: socket.id,
+      joinedChats: userChats.length,
+      presence: await getAuthorizedPresenceSnapshot(userId),
+    }
     socket.emit('socket:ready', readyPayload)
     socket.emit('user:connected', readyPayload)
 
@@ -326,9 +407,7 @@ export const initSocket = (server) => {
           // If user has no more sockets, they're offline
           if (userSockets.size === 0) {
             userToSockets.delete(userId)
-            const lastSeen = new Date()
-            await setUserOnline(userId, false)
-            await broadcastUserStatus(userId, false, lastSeen)
+            scheduleOfflineTransition(userId)
           }
         }
         
@@ -451,6 +530,8 @@ export const removeUserFromChat = (userId, chatId) => {
 
 export const closeSocketServer = async () => {
   if (!io) {
+    offlineTimers.forEach(timer => clearTimeout(timer))
+    offlineTimers.clear()
     socketToUser.clear()
     userToSockets.clear()
     return
@@ -458,6 +539,8 @@ export const closeSocketServer = async () => {
 
   const currentIO = io
   io = undefined
+  offlineTimers.forEach(timer => clearTimeout(timer))
+  offlineTimers.clear()
   socketToUser.clear()
   userToSockets.clear()
 
