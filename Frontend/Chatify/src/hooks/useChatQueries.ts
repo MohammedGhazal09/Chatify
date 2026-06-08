@@ -12,6 +12,7 @@ export const messagesQueryKey = (chatId: string) => ['messages', chatId] as cons
 type SendMessageVariables = {
   chatId: string;
   text: string;
+  clientMessageId?: string;
 };
 
 type SendMessageContext = {
@@ -25,6 +26,14 @@ interface MessagesQueryData {
   messages: Message[];
   pagination?: { hasMore: boolean; currentPage: number; totalPages: number };
 }
+
+const createClientMessageId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `client-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
 
 type CreateChatVariables = {
   targetEmail: string;
@@ -129,7 +138,7 @@ export const useMessages = (chatId: string | null) => {
 
   // Update message status
   const updateMessageStatus = useCallback(
-    (messageId: string, status: MessageStatus, deliveredAt?: string, readAt?: string) => {
+    (messageId: string, status: MessageStatus, deliveredAt?: string | null, readAt?: string | null) => {
       setMessages((previous) =>
         previous.map((message) =>
           message._id === messageId
@@ -186,14 +195,14 @@ export const useSendMessage = () => {
   const queryClient = useQueryClient();
 
   return useMutation<Message, unknown, SendMessageVariables, SendMessageContext>({
-    mutationFn: async ({ chatId, text }) => {
+    mutationFn: async ({ chatId, text, clientMessageId }) => {
       if (!user?._id) {
         throw new Error('You must be logged in to send messages.');
       }
       const response = await messageApi.createMessage({
         chatId,
         text,
-        sender: user._id,
+        clientMessageId: clientMessageId ?? createClientMessageId(),
       });
       return response.data.data.message;
     },

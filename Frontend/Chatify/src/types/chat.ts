@@ -14,18 +14,24 @@ export interface Reaction {
 
 export interface Message {
   _id: string;
+  clientMessageId?: string | null;
   chatId: string;
   sender: string;
   text: string;
   read: boolean;
   status: MessageStatus;
-  deliveredAt?: string;
-  readAt?: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
   readBy?: ReadByEntry[];
   reactions?: Reaction[];
   isEdited?: boolean;
-  editedAt?: string;
+  editedAt?: string | null;
   deletedFor?: string[];
+  deletedForEveryone?: boolean;
+  deletedBy?: string | null;
+  deletedAt?: string | null;
+  optimisticState?: 'sending' | 'failed';
+  errorMessage?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,6 +40,12 @@ export interface PaginationInfo {
   currentPage: number;
   totalPages: number;
   totalMessages: number;
+  hasMore: boolean;
+  limit: number;
+}
+
+export interface CursorPaginationInfo {
+  nextCursor?: string | null;
   hasMore: boolean;
   limit: number;
 }
@@ -59,8 +71,8 @@ export interface CreateChatPayload {
 
 export interface NewMessagePayload {
   chatId: string;
-  sender: string;
   text: string;
+  clientMessageId: string;
 }
 
 // Online/Offline status types
@@ -87,37 +99,42 @@ export interface TypingUser {
 }
 
 // Message status update event types
-export interface MessageStatusUpdateEvent {
+export interface MessageReceiptPatch {
+  _id?: string;
   messageId: string;
+  chatId?: string;
   status: MessageStatus;
-  deliveredAt?: string;
-  readAt?: string;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  read?: boolean;
   readBy?: ReadByEntry[];
 }
 
-export interface MessageReadEvent {
-  messageId: string;
-  readBy: ReadByEntry;
-  status: MessageStatus;
-  readAt?: string;
+export type MessageStatusUpdateEvent = MessageReceiptPatch;
+
+export interface MessageReadEvent extends MessageReceiptPatch {
+  readerId?: string;
+  readEntry?: ReadByEntry | null;
 }
 
 export interface BatchReadEvent {
   chatId: string;
   userId: string;
-  messages: {
-    messageId: string;
-    status: MessageStatus;
-    readBy: ReadByEntry[];
-  }[];
+  messages: MessageReceiptPatch[];
+  receipts?: MessageReceiptPatch[];
 }
 
 // Message delete/edit events
 export interface MessageDeletedEvent {
   messageId: string;
   chatId: string;
-  deletedBy: string;
+  deletedBy?: string | null;
+  deletedAt?: string | null;
   deleteForEveryone: boolean;
+  message?: Message;
+  text?: string;
+  deletedFor?: string[];
+  deletedForEveryone?: boolean;
 }
 
 export interface MessageEditedEvent {
@@ -125,7 +142,8 @@ export interface MessageEditedEvent {
   chatId: string;
   text: string;
   isEdited: boolean;
-  editedAt: string;
+  editedAt: string | null;
+  message?: Message;
 }
 
 export interface MessageReactionEvent {
@@ -135,6 +153,7 @@ export interface MessageReactionEvent {
   action: 'added' | 'removed';
   userId: string;
   emoji: string;
+  message?: Message;
 }
 
 // Unread count update event (via WebSocket)
