@@ -33,10 +33,14 @@ const messageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Users",
   },
+  clientMessageId: {
+    type: String,
+    trim: true,
+  },
   text: {
     type: String,
     required: true,
-    maxlength: 5000, // Limit message length
+    maxlength: 1000,
   },
   read: {
     type: Boolean,
@@ -69,6 +73,17 @@ const messageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Users",
   }],
+  deletedForEveryone: {
+    type: Boolean,
+    default: false,
+  },
+  deletedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+  },
+  deletedAt: {
+    type: Date,
+  },
 }, {
   timestamps: true,
   versionKey: false,
@@ -76,9 +91,20 @@ const messageSchema = new mongoose.Schema({
 
 // Index for efficient queries on chat messages
 messageSchema.index({ chatId: 1, createdAt: 1 });
+messageSchema.index({ chatId: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ chatId: 1, sender: 1, status: 1 });
 // Compound index for unread messages query optimization
 messageSchema.index({ chatId: 1, sender: 1, 'readBy.user': 1 });
+messageSchema.index({ chatId: 1, deletedFor: 1, deletedForEveryone: 1, createdAt: -1, _id: -1 });
+messageSchema.index(
+  { chatId: 1, sender: 1, clientMessageId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      clientMessageId: { $exists: true, $type: "string" },
+    },
+  }
+);
 
 const Message = mongoose.model("Messages", messageSchema);
 export default Message;
