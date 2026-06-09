@@ -19,6 +19,38 @@ const projectLatestVisibleMessage = async (chatId, requesterId) => {
   return latestVisibleMessage ? serializeMessage(latestVisibleMessage) : null;
 };
 
+const DIRECT_CHAT_START_ERROR = "We could not start or continue that chat. Check the email and try again.";
+
+const buildDirectChatKey = (leftMemberId, rightMemberId) => [leftMemberId.toString(), rightMemberId.toString()]
+  .sort()
+  .join(":");
+
+const isDuplicateKeyError = (error) => error?.code === 11000;
+
+const findDirectChat = (directKey, memberIds = []) => Chats.findOne({
+  isGroupChat: false,
+  $or: [
+    { directKey },
+    { members: { $all: memberIds } },
+  ],
+})
+  .populate("members", "-password")
+  .populate("latestMessage");
+
+const respondWithExistingDirectChat = async (res, chat, requesterId) => {
+  const projectedLatestMessage = await projectLatestVisibleMessage(chat._id, requesterId);
+
+  return res.status(200).json({
+    status: "success",
+    data: {
+      chat: {
+        ...chat.toObject(),
+        latestMessage: projectedLatestMessage,
+      },
+    },
+  });
+};
+
 
 export const createChat = asyncErrHandler(async (req, res, next) => {
   const { targetEmail, chatName } = req.body ?? {};
@@ -41,38 +73,25 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
   const targetUser = await User.findOne({ email: normalizedEmail });
 
   if (!targetUser) {
-    return next(new CustomError("User with the provided email does not exist", 404));
+    return next(new CustomError(DIRECT_CHAT_START_ERROR, 404));
   }
 
   if (targetUser._id.toString() === requesterId) {
-    return next(new CustomError("Cannot create a chat with yourself", 400));
+    return next(new CustomError(DIRECT_CHAT_START_ERROR, 400));
   }
 
   const members = [requesterId, targetUser._id];
+  const directKey = buildDirectChatKey(requesterId, targetUser._id);
 
-  const existingChat = await Chats.findOne({
-    isGroupChat: false,
-    members: { $all: [requesterId, targetUser._id] },
-  })
-    .populate("members", "-password")
-    .populate("latestMessage");
+  const existingChat = await findDirectChat(directKey, members);
 
   if (existingChat) {
-    const projectedLatestMessage = await projectLatestVisibleMessage(existingChat._id, requesterId);
-
-    return res.status(200).json({
-      status: "success",
-      data: {
-        chat: {
-          ...existingChat.toObject(),
-          latestMessage: projectedLatestMessage,
-        },
-      },
-    });
+    return respondWithExistingDirectChat(res, existingChat, requesterId);
   }
 
   const payload = {
     members,
+    directKey,
     isGroupChat: false,
   };
 
@@ -80,7 +99,23 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
     payload.chatName = chatName.trim();
   }
 
-  const newChat = await Chats.create(payload);
+  let newChat;
+
+  try {
+    newChat = await Chats.create(payload);
+  } catch (error) {
+    if (!isDuplicateKeyError(error)) {
+      throw error;
+    }
+
+    const duplicateChat = await findDirectChat(directKey, members);
+
+    if (!duplicateChat) {
+      throw error;
+    }
+
+    return respondWithExistingDirectChat(res, duplicateChat, requesterId);
+  }
 
   await newChat.populate("members", "-password");
   await newChat.populate("latestMessage");
