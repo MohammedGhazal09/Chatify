@@ -5,6 +5,9 @@ export const MAX_REACTION_TEXT_LENGTH = 32;
 export const MAX_REACTIONS_PER_MESSAGE = 50;
 export const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
 export const MAX_MESSAGE_HISTORY_LIMIT = 100;
+export const DEFAULT_MESSAGE_SEARCH_LIMIT = 25;
+export const MAX_MESSAGE_SEARCH_LIMIT = 25;
+export const MIN_MESSAGE_SEARCH_QUERY_LENGTH = 2;
 export const MESSAGE_STATUS = Object.freeze({
   SENT: 'sent',
   DELIVERED: 'delivered',
@@ -149,6 +152,36 @@ export const normalizeMessageHistoryLimit = (value) => {
   }
 
   return Math.min(parsedLimit, MAX_MESSAGE_HISTORY_LIMIT);
+};
+
+export const escapeRegexLiteral = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const normalizeMessageSearchQuery = (value) => {
+  const query = typeof value === 'string' ? value.trim() : '';
+
+  if (query.length < MIN_MESSAGE_SEARCH_QUERY_LENGTH) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `Search query must be at least ${MIN_MESSAGE_SEARCH_QUERY_LENGTH} characters`,
+    };
+  }
+
+  return {
+    ok: true,
+    query,
+    escapedQuery: escapeRegexLiteral(query),
+  };
+};
+
+export const normalizeMessageSearchLimit = (value) => {
+  const parsedLimit = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsedLimit) || parsedLimit < 1) {
+    return DEFAULT_MESSAGE_SEARCH_LIMIT;
+  }
+
+  return Math.min(parsedLimit, MAX_MESSAGE_SEARCH_LIMIT);
 };
 
 export const encodeMessageCursor = (message) => {

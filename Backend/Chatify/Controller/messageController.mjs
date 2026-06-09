@@ -14,6 +14,8 @@ import {
   hasReceiptStateChanged,
   normalizeClientMessageId,
   normalizeMessageHistoryLimit,
+  normalizeMessageSearchLimit,
+  normalizeMessageSearchQuery,
   normalizeMessageText,
   normalizeReactionEmoji,
   parseMessageCursor,
@@ -30,7 +32,9 @@ const respondWithChatAccessError = (res, statusCode, message) => {
   });
 };
 
-const loadChatForUser = async (chatId, userObjectId, res) => {
+const loadChatForUser = async (chatId, userObjectId, res, options = {}) => {
+  const privateResourceMessage = options.privateResourceMessage ?? null;
+
   if (!mongoose.Types.ObjectId.isValid(chatId)) {
     respondWithChatAccessError(res, 400, 'Invalid chat id');
     return null;
@@ -39,14 +43,14 @@ const loadChatForUser = async (chatId, userObjectId, res) => {
   const chat = await Chats.findById(chatId);
 
   if (!chat) {
-    respondWithChatAccessError(res, 404, 'Chat not found');
+    respondWithChatAccessError(res, 404, privateResourceMessage ?? 'Chat not found');
     return null;
   }
 
   const isMember = chat.members.some((memberId) => memberId.equals(userObjectId));
 
   if (!isMember) {
-    respondWithChatAccessError(res, 403, 'You are not authorized to access this chat');
+    respondWithChatAccessError(res, 403, privateResourceMessage ?? 'You are not authorized to access this chat');
     return null;
   }
 
@@ -312,6 +316,61 @@ export const getAllMessages = asyncErrorHandler(async (req, res) => {
       },
       nextCursor,
       hasMore,
+    },
+  });
+});
+
+export const searchMessages = asyncErrorHandler(async (req, res) => {
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const chat = await loadChatForUser(req.params.chatId, userObjectId, res, {
+    privateResourceMessage: 'Forbidden or not found',
+  });
+
+  if (!chat) {
+    return;
+  }
+
+  const normalizedQuery = normalizeMessageSearchQuery(req.query.q);
+
+  if (!normalizedQuery.ok) {
+    res.status(normalizedQuery.statusCode).json({
+      status: 'fail',
+      message: normalizedQuery.message,
+    });
+    return;
+  }
+
+  const limit = normalizeMessageSearchLimit(req.query.limit);
+  const messages = await Message.find({
+    ...buildVisibleMessageFilter({
+      chatId: chat._id,
+      userId: userObjectId,
+      includeTombstones: false,
+    }),
+    text: { $regex: normalizedQuery.escapedQuery, $options: 'i' },
+  })
+    .sort(MESSAGE_CURSOR_SORT_DESC)
+    .limit(limit);
+
+  res.status(200).json({
+    status: 'messages searched successfully',
+    data: {
+      messages: messages.map((message) => serializeMessage(message)),
+      query: normalizedQuery.query,
+      limit,
     },
   });
 });
