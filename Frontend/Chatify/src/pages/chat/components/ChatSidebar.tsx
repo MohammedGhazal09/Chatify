@@ -77,7 +77,11 @@ const ChatSidebar = ({
   }, [isOpen]);
 
   return (
-    <aside className={`chat-sidebar w-80 md:w-[320px] md:min-w-[280px] 2xl:w-[360px] 2xl:min-w-[360px] border-r border-[#2E363C] bg-[#181C20] flex flex-col ${isOpen ? 'open' : ''}`}>
+    <aside
+      className={`chat-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] max-w-[320px] flex-col border-r border-[#2E363C] bg-[#181C20] transition-transform duration-200 ease-out md:static md:z-auto md:w-[320px] md:min-w-[280px] md:max-w-none md:translate-x-0 2xl:w-[360px] 2xl:min-w-[360px] ${
+        isOpen ? 'open translate-x-0' : '-translate-x-full md:translate-x-0'
+      }`}
+    >
       <div className="flex min-h-16 items-center gap-3 border-b border-[#2E363C] p-4">
         {user?.profilePic ? (
           <img src={user.profilePic} alt="Profile" className="profile-pic h-10 w-10 md:h-11 md:w-11 rounded-full object-cover" />
@@ -133,10 +137,13 @@ const ChatSidebar = ({
         <input
           ref={searchInputRef}
           type="text"
+          name="conversation-search"
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search conversations"
           aria-label="Search conversations"
+          autoComplete="off"
+          spellCheck={false}
           className="w-full rounded-lg border border-[#2E363C] bg-[#101113] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:border-[#14B8A6] focus:outline-none"
         />
       </div>
@@ -188,7 +195,7 @@ const ChatSidebar = ({
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[#A8B3AF]">
             <p className="font-semibold text-[#F4F7F6]">{searchQuery.trim() ? 'No matching conversations' : 'No conversations yet'}</p>
-            <p>{searchQuery.trim() ? 'Start or continue a chat by exact email.' : 'Start a chat to begin messaging.'}</p>
+            <p>{searchQuery.trim() ? 'Try a different name or latest message, or use New chat to start by email.' : 'Start a chat to begin messaging.'}</p>
           </div>
         )}
       </div>

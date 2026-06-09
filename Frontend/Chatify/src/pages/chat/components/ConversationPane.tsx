@@ -20,9 +20,12 @@ interface ConversationPaneProps {
   messagesError: boolean;
   hasMore: boolean;
   isLoadingMore: boolean;
+  highlightedMessageId: string | null;
   showScrollButton: boolean;
   showMessageSearch: boolean;
   messageSearch: string;
+  messageSearchInputRef: RefObject<HTMLInputElement | null>;
+  messageSearchButtonRef: RefObject<HTMLButtonElement | null>;
   messageSearchResults: Message[];
   messageSearchNormalizedQuery: string;
   isMessageSearchLoading: boolean;
@@ -81,9 +84,12 @@ const ConversationPane = ({
   messagesError,
   hasMore,
   isLoadingMore,
+  highlightedMessageId,
   showScrollButton,
   showMessageSearch,
   messageSearch,
+  messageSearchInputRef,
+  messageSearchButtonRef,
   messageSearchResults,
   messageSearchNormalizedQuery,
   isMessageSearchLoading,
@@ -165,6 +171,7 @@ const ConversationPane = ({
         otherMember={otherMember}
         otherMemberStatus={otherMemberStatus}
         showMessageSearch={showMessageSearch}
+        searchButtonRef={messageSearchButtonRef}
         onOpenSidebar={onOpenSidebar}
         onToggleMessageSearch={onToggleMessageSearch}
         onExportChat={onExportChat}
@@ -173,11 +180,15 @@ const ConversationPane = ({
       {showMessageSearch && (
         <div className="border-b border-[#2E363C] bg-[#181C20] px-4 py-2">
           <input
+            ref={messageSearchInputRef}
             type="text"
+            name="message-search"
             value={messageSearch}
             onChange={(event) => onMessageSearchChange(event.target.value)}
-            placeholder="Search in conversation…"
-            aria-label="Search messages in this conversation"
+            placeholder="Search this conversation"
+            aria-label="Search this conversation"
+            autoComplete="off"
+            spellCheck={false}
             className="w-full rounded-lg border border-[#2E363C] bg-[#20262B] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
           />
         </div>
@@ -201,6 +212,8 @@ const ConversationPane = ({
       {isMessageSearchActive ? (
         <MessageSearchResults
           query={messageSearchNormalizedQuery || messageSearch}
+          selectedChat={selectedChat}
+          currentUserId={currentUserId}
           messages={messageSearchResults}
           loadedMessageIds={loadedMessageIds}
           isLoading={isMessageSearchLoading}
@@ -218,6 +231,7 @@ const ConversationPane = ({
           isError={messagesError}
           hasMore={hasMore}
           isLoadingMore={isLoadingMore}
+          highlightedMessageId={highlightedMessageId}
           isSearchActive={false}
           showScrollButton={showScrollButton}
           editingMessageId={editingMessageId}

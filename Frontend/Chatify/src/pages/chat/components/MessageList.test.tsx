@@ -17,6 +17,7 @@ const renderMessageList = (overrides: Partial<MessageListProps> = {}) => {
     isError: false,
     hasMore: false,
     isLoadingMore: false,
+    highlightedMessageId: null,
     isSearchActive: false,
     showScrollButton: false,
     editingMessageId: null,

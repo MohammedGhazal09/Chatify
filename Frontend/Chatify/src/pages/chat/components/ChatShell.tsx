@@ -14,7 +14,9 @@ const ChatShell = ({ isSidebarOpen, onCloseSidebar, sidebar, conversation, overl
       <button
         type="button"
         aria-label="Close chat list"
-        className={`chat-overlay ${isSidebarOpen ? 'show' : ''}`}
+        className={`chat-overlay fixed inset-0 z-40 bg-black/60 transition-opacity duration-200 md:hidden ${
+          isSidebarOpen ? 'show pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
+        }`}
         onClick={onCloseSidebar}
       />
       {sidebar}

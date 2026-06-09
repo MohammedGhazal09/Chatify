@@ -20,9 +20,12 @@ const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) 
     messagesError: false,
     hasMore: false,
     isLoadingMore: false,
+    highlightedMessageId: null,
     showScrollButton: false,
     showMessageSearch: false,
     messageSearch: '',
+    messageSearchInputRef: createRef<HTMLInputElement>(),
+    messageSearchButtonRef: createRef<HTMLButtonElement>(),
     messageSearchResults: [],
     messageSearchNormalizedQuery: '',
     isMessageSearchLoading: false,
@@ -114,7 +117,7 @@ describe('ConversationPane', () => {
       messageSearch: 'state',
     });
 
-    expect(screen.getByRole('textbox', { name: 'Search messages in this conversation' })).toHaveValue('state');
+    expect(screen.getByRole('textbox', { name: 'Search this conversation' })).toHaveValue('state');
   });
 
   it('renders below-minimum search guidance outside the durable message list', () => {
@@ -127,7 +130,7 @@ describe('ConversationPane', () => {
       isMessageSearchBelowMinimum: true,
     });
 
-    expect(screen.getByText('Type at least 2 characters to search this conversation.')).toBeInTheDocument();
+    expect(screen.getByText('Type at least 2 characters to search.')).toBeInTheDocument();
     expect(screen.queryByText('Durable history stays visible only outside result mode')).not.toBeInTheDocument();
   });
 
@@ -142,25 +145,26 @@ describe('ConversationPane', () => {
       messageSearch: 'launch',
       messageSearchNormalizedQuery: 'launch',
       messageSearchResults: [
-        makeMessage({ _id: 'message-loaded', text: 'Launch result already loaded' }),
-        makeMessage({ _id: 'message-older', text: 'Older launch result' }),
+        makeMessage({ _id: 'message-loaded', sender: 'user-2', text: 'Launch result already loaded' }),
+        makeMessage({ _id: 'message-older', sender: 'user-2', text: 'Older launch result' }),
       ],
       loadedMessageIds: new Set(['message-loaded']),
       onClearMessageSearch,
     });
 
-    expect(screen.getByText('Found 2 messages')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Jump to message: Launch result already loaded/ })).toBeInTheDocument();
-    expect(screen.getByText((_content, element) => element?.textContent === 'Older launch result')).toBeInTheDocument();
+    expect(screen.getByText('2 results')).toBeInTheDocument();
+    expect(screen.getAllByText('Grace Hopper').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('button', { name: /Jump to message from Grace Hopper .*Launch result already loaded/ })).toBeInTheDocument();
+    expect(screen.getAllByText((_content, element) => element?.textContent === 'Older launch result').length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: 'Clear message search' }));
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
     expect(onClearMessageSearch).toHaveBeenCalledTimes(1);
   });
 
   it('selects only loaded search results as keyboard-operable actions', async () => {
     const user = userEvent.setup();
     const onSelectMessageSearchResult = vi.fn();
-    const loadedMessage = makeMessage({ _id: 'message-loaded', text: 'Loaded search result' });
+    const loadedMessage = makeMessage({ _id: 'message-loaded', sender: 'user-2', text: 'Loaded search result' });
 
     renderConversationPane({
       selectedChat: makeChat(),
@@ -176,7 +180,7 @@ describe('ConversationPane', () => {
       onSelectMessageSearchResult,
     });
 
-    await user.click(screen.getByRole('button', { name: /Jump to message: Loaded search result/ }));
+    await user.click(screen.getByRole('button', { name: /Jump to message from Grace Hopper .*Loaded search result/ }));
 
     expect(onSelectMessageSearchResult).toHaveBeenCalledWith(loadedMessage);
     expect(screen.queryByRole('button', { name: /Older unloaded result/ })).not.toBeInTheDocument();

@@ -1,5 +1,6 @@
 import OnlineStatus, { OnlineDot } from '../../../components/OnlineStatus';
 import { Download, Menu, Search } from 'lucide-react';
+import type { RefObject } from 'react';
 import type { User } from '../../../types/auth';
 import type { Chat, UserOnlineStatus } from '../../../types/chat';
 
@@ -9,6 +10,7 @@ interface ConversationHeaderProps {
   otherMember: User | null;
   otherMemberStatus: UserOnlineStatus | null;
   showMessageSearch: boolean;
+  searchButtonRef: RefObject<HTMLButtonElement | null>;
   onOpenSidebar: () => void;
   onToggleMessageSearch: () => void;
   onExportChat: () => void;
@@ -20,6 +22,7 @@ const ConversationHeader = ({
   otherMember,
   otherMemberStatus,
   showMessageSearch,
+  searchButtonRef,
   onOpenSidebar,
   onToggleMessageSearch,
   onExportChat,
@@ -69,6 +72,7 @@ const ConversationHeader = ({
       </div>
 
       <button
+        ref={searchButtonRef}
         type="button"
         onClick={onToggleMessageSearch}
         className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"

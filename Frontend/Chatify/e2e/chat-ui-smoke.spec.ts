@@ -179,11 +179,11 @@ test('desktop messenger baseline search and result mode smoke', async ({ page })
   await expect(page.getByRole('button', { name: /Grace Hopper/ })).toBeVisible();
 
   await page.getByRole('button', { name: 'Search messages' }).click();
-  await page.getByRole('textbox', { name: 'Search messages in this conversation' }).fill('recovery');
-  await expect(page.getByText('Found 1 message')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Jump to message: The transport recovery notes/ })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Search this conversation' }).fill('recovery');
+  await expect(page.getByText('1 result')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Jump to message from Grace Hopper .*The transport recovery notes/ })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Clear message search' }).click();
+  await page.getByRole('button', { name: 'Clear search' }).click();
   await expect(page.getByText('This failed message fixture keeps retry controls visible.')).toBeVisible();
   await page.screenshot({ path: smokeArtifactPath('05-ui-smoke-desktop-search.png') });
 });
@@ -195,6 +195,27 @@ test('mobile drawer conversation search smoke', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Grace Hopper' })).toBeVisible();
   await page.getByRole('button', { name: 'Open conversations' }).click();
+
+  const drawer = page.locator('.chat-sidebar.open');
+  await expect(drawer).toBeVisible();
+  await expect.poll(async () => {
+    const drawerBox = await drawer.boundingBox();
+    return drawerBox?.x ?? -999;
+  }).toBeGreaterThanOrEqual(-1);
+  await expect.poll(async () => {
+    const drawerBox = await drawer.boundingBox();
+    return drawerBox?.x ?? 999;
+  }).toBeLessThanOrEqual(1);
+  await expect.poll(async () => {
+    const drawerBox = await drawer.boundingBox();
+    return drawerBox?.width ?? 0;
+  }).toBeGreaterThan(300);
+  await expect.poll(async () => {
+    const drawerBox = await drawer.boundingBox();
+    return drawerBox?.width ?? 999;
+  }).toBeLessThanOrEqual(321);
+  await expect(page.locator('.chat-overlay.show')).toBeVisible();
+
   await page.getByRole('textbox', { name: 'Search conversations' }).fill('launch');
   await expect(page.getByRole('button', { name: /Alan Turing/ })).toBeVisible();
   await page.screenshot({ path: smokeArtifactPath('05-ui-smoke-mobile-drawer-search.png') });

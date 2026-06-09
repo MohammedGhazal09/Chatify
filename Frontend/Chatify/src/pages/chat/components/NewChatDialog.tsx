@@ -108,13 +108,14 @@ const NewChatDialog = ({
             <X aria-hidden="true" className="h-4 w-4" />
           </button>
         </div>
-        <form onSubmit={onSubmit} className="space-y-3">
+        <form onSubmit={onSubmit} className="space-y-3" noValidate>
           <label htmlFor="new-chat-email" className="text-xs font-semibold text-[#A8B3AF]">
             Email address
           </label>
           <input
             ref={inputRef}
             id="new-chat-email"
+            name="targetEmail"
             type="email"
             value={email}
             onChange={(event) => onEmailChange(event.target.value)}
@@ -122,9 +123,10 @@ const NewChatDialog = ({
             placeholder="friend@example.com"
             required
             autoComplete="email"
+            aria-invalid={error ? 'true' : 'false'}
             aria-describedby={error ? 'new-chat-error' : undefined}
           />
-          {error ? <p id="new-chat-error" className="text-xs text-[#EF4444]">{error}</p> : null}
+          {error ? <p id="new-chat-error" className="text-xs text-[#EF4444]" role="alert">{error}</p> : null}
           <div className="flex justify-end gap-2 pt-1">
             <button
               type="button"

@@ -68,6 +68,10 @@ const useDebounce = (callback: () => void, delay: number) => {
   return { debouncedCallback, cancel };
 };
 
+const isValidEmailAddress = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const INVALID_EMAIL_COPY = 'Enter a valid email address.';
+const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the email and try again.';
+
 const ChatPage = () => {
   const { user, isAuthenticated } = useAuthStore();
   const onlineUsers = usePresenceStore((state) => state.onlineUsers);
@@ -120,9 +124,13 @@ const ChatPage = () => {
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const newChatButtonRef = useRef<HTMLButtonElement>(null);
+  const messageSearchInputRef = useRef<HTMLInputElement>(null);
+  const messageSearchButtonRef = useRef<HTMLButtonElement>(null);
   const messageActionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const messageHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const previousLastMessageKeyRef = useRef<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
@@ -173,6 +181,14 @@ const ChatPage = () => {
   const messageSearchQuery = showMessageSearch ? messageSearch : '';
   const messageSearchResult = useMessageSearch(selectedChatId, messageSearchQuery);
   const loadedMessageIds = useMemo(() => new Set(allMessages.map((message) => message._id)), [allMessages]);
+
+  const clearHighlightedMessage = useCallback(() => {
+    if (messageHighlightTimeoutRef.current) {
+      clearTimeout(messageHighlightTimeoutRef.current);
+      messageHighlightTimeoutRef.current = null;
+    }
+    setHighlightedMessageId(null);
+  }, []);
 
   const handleMessageStatusUpdate = useCallback(
     (event: MessageStatusUpdateEvent) => {
@@ -305,6 +321,18 @@ const ChatPage = () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     };
   }, [authLogout, clearPrivateChatState, user?._id]);
+
+  useEffect(() => {
+    clearHighlightedMessage();
+  }, [clearHighlightedMessage, selectedChatId]);
+
+  useEffect(() => {
+    return () => {
+      if (messageHighlightTimeoutRef.current) {
+        clearTimeout(messageHighlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setMessageInput(event.target.value);
@@ -459,6 +487,9 @@ const ChatPage = () => {
         } else if (showMessageSearch) {
           setShowMessageSearch(false);
           setMessageSearch('');
+          window.requestAnimationFrame(() => {
+            messageSearchButtonRef.current?.focus();
+          });
         } else if (replyingTo) {
           setReplyingTo(null);
         } else if (isSidebarOpen) {
@@ -469,6 +500,9 @@ const ChatPage = () => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'f' && selectedChatId) {
         event.preventDefault();
         setShowMessageSearch(true);
+        window.requestAnimationFrame(() => {
+          messageSearchInputRef.current?.focus();
+        });
       }
     };
 
@@ -694,8 +728,8 @@ const ChatPage = () => {
     event.preventDefault();
     const trimmedEmail = newChatEmail.trim();
 
-    if (!trimmedEmail) {
-      setCreateChatError('Please enter an email address.');
+    if (!trimmedEmail || !isValidEmailAddress(trimmedEmail)) {
+      setCreateChatError(INVALID_EMAIL_COPY);
       return;
     }
 
@@ -715,11 +749,11 @@ const ChatPage = () => {
             const message = error.response?.data?.message;
             setCreateChatError(
               typeof message === 'string' && /valid email/i.test(message)
-                ? message
-                : 'We could not start or continue that chat. Check the email and try again.'
+                ? INVALID_EMAIL_COPY
+                : GENERIC_NEW_CHAT_ERROR_COPY
             );
           } else {
-            setCreateChatError('We could not start or continue that chat. Check the email and try again.');
+            setCreateChatError(GENERIC_NEW_CHAT_ERROR_COPY);
           }
         },
       }
@@ -751,16 +785,27 @@ const ChatPage = () => {
   };
 
   const handleToggleMessageSearch = () => {
-    setShowMessageSearch((prev) => {
-      if (prev) {
-        setMessageSearch('');
+    const nextState = !showMessageSearch;
+
+    if (!nextState) {
+      setMessageSearch('');
+    }
+
+    setShowMessageSearch(nextState);
+    window.requestAnimationFrame(() => {
+      if (nextState) {
+        messageSearchInputRef.current?.focus();
+      } else {
+        messageSearchButtonRef.current?.focus();
       }
-      return !prev;
     });
   };
 
   const handleClearMessageSearch = () => {
     setMessageSearch('');
+    window.requestAnimationFrame(() => {
+      messageSearchInputRef.current?.focus();
+    });
   };
 
   const handleSelectMessageSearchResult = (message: Message) => {
@@ -770,6 +815,13 @@ const ChatPage = () => {
 
     setShowMessageSearch(false);
     setMessageSearch('');
+    clearHighlightedMessage();
+    setHighlightedMessageId(message._id);
+    messageHighlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedMessageId((currentMessageId) => currentMessageId === message._id ? null : currentMessageId);
+      messageHighlightTimeoutRef.current = null;
+    }, 1200);
+
     window.requestAnimationFrame(() => {
       const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${message._id}"]`);
       messageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -860,12 +912,15 @@ const ChatPage = () => {
           showScrollButton={showScrollButton}
           showMessageSearch={showMessageSearch}
           messageSearch={messageSearch}
+          messageSearchInputRef={messageSearchInputRef}
+          messageSearchButtonRef={messageSearchButtonRef}
           messageSearchResults={messageSearchResult.messages}
           messageSearchNormalizedQuery={messageSearchResult.normalizedQuery}
           isMessageSearchLoading={messageSearchResult.isLoading || messageSearchResult.isFetching}
           isMessageSearchError={messageSearchResult.isError}
           isMessageSearchBelowMinimum={messageSearchResult.isBelowMinimum}
           loadedMessageIds={loadedMessageIds}
+          highlightedMessageId={highlightedMessageId}
           editingMessageId={editingMessageId}
           editText={editText}
           isSavingEdit={editMessageMutation.isPending}

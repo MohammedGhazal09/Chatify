@@ -14,6 +14,7 @@ interface MessageListProps {
   isError: boolean;
   hasMore: boolean;
   isLoadingMore: boolean;
+  highlightedMessageId: string | null;
   isSearchActive: boolean;
   showScrollButton: boolean;
   editingMessageId: string | null;
@@ -42,6 +43,7 @@ const MessageList = ({
   isError,
   hasMore,
   isLoadingMore,
+  highlightedMessageId,
   isSearchActive,
   showScrollButton,
   editingMessageId,
@@ -153,6 +155,7 @@ const MessageList = ({
                     isOwnMessage={isOwnMessage}
                     isGroupChat={selectedChat.isGroupChat}
                     members={selectedChat.members}
+                    isHighlighted={message._id === highlightedMessageId}
                     onContextMenu={(event) => onMessageContextMenu(event, message._id, isOwnMessage)}
                     onOpenActions={onOpenMessageActions}
                     onDoubleClick={(msg) => onStartEdit(msg._id, msg.text)}

@@ -117,6 +117,6 @@ describe('ChatSidebar', () => {
 
     expect(screen.queryByText('Nora Stone')).not.toBeInTheDocument();
     expect(screen.getByText('No matching conversations')).toBeInTheDocument();
-    expect(screen.getByText('Start or continue a chat by exact email.')).toBeInTheDocument();
+    expect(screen.getByText('Try a different name or latest message, or use New chat to start by email.')).toBeInTheDocument();
   });
 });

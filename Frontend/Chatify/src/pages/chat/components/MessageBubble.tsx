@@ -10,6 +10,7 @@ interface MessageBubbleProps {
   isOwnMessage: boolean;
   isGroupChat: boolean;
   members: Chat['members'];
+  isHighlighted?: boolean;
   onContextMenu?: (event: MouseEvent, message: Message) => void;
   onDoubleClick?: (message: Message) => void;
   onOpenActions?: (event: MouseEvent<HTMLButtonElement>, message: Message, isOwnMessage: boolean) => void;
@@ -22,6 +23,7 @@ const MessageBubble = memo(({
   isOwnMessage,
   isGroupChat,
   members,
+  isHighlighted = false,
   onContextMenu,
   onDoubleClick,
   onOpenActions,
@@ -64,7 +66,7 @@ const MessageBubble = memo(({
 
   return (
     <div
-      className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+      className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} ${isHighlighted ? 'message-search-highlight' : ''}`}
       data-message-id={message._id}
       onContextMenu={onContextMenu ? (event) => onContextMenu(event, message) : undefined}
       onDoubleClick={onDoubleClick && isOwnMessage ? () => onDoubleClick(message) : undefined}

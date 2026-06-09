@@ -75,4 +75,19 @@ describe('MessageBubble', () => {
     expect(screen.getByText('edited')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Message read' })).toBeInTheDocument();
   });
+
+  it('marks a loaded search result with the temporary highlight class', () => {
+    const highlightedMessage = makeMessage({ _id: 'message-highlighted', text: 'Search target' });
+    const { container } = render(
+      <MessageBubble
+        message={highlightedMessage}
+        isOwnMessage
+        isGroupChat={false}
+        members={makeChat().members}
+        isHighlighted
+      />
+    );
+
+    expect(container.querySelector('[data-message-id="message-highlighted"]')).toHaveClass('message-search-highlight');
+  });
 });

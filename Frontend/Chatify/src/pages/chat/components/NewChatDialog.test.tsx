@@ -47,6 +47,7 @@ describe('NewChatDialog', () => {
     expect(dialog).toBeInTheDocument();
     const emailInput = screen.getByLabelText('Email address');
     expect(emailInput).toHaveFocus();
+    expect(emailInput).toHaveAttribute('name', 'targetEmail');
 
     await user.type(emailInput, 'friend@example.com');
     await user.click(screen.getByRole('button', { name: 'Start or continue chat' }));
@@ -76,7 +77,7 @@ describe('NewChatDialog', () => {
       <NewChatDialog
         isOpen
         email="missing@example.com"
-        error="We could not start or continue that chat. Check the email and try again."
+        error="We could not start that chat. Check the email and try again."
         isSubmitting
         openerRef={openerRef}
         onEmailChange={vi.fn()}
@@ -86,6 +87,6 @@ describe('NewChatDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: /Starting/ })).toBeDisabled();
-    expect(screen.getByText('We could not start or continue that chat. Check the email and try again.')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('We could not start that chat. Check the email and try again.');
   });
 });
