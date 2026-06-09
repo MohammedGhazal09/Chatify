@@ -153,10 +153,13 @@ Plans:
   5. User can navigate away and return without losing selected conversation context unnecessarily.
 
 **Plans**: 2 plans
-
 Plans:
+**Wave 1**
 
 - [ ] 05-01: Add conversation/contact search, message search, and direct-message continuation
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 05-02: Polish presence, navigation continuity, account/session edge states, and v1 verification
 
 ## Progress
