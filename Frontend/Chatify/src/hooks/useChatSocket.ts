@@ -480,6 +480,8 @@ export const useChatSocket = ({
     return () => {
       if (nextRoom && activeRoomRef.current === nextRoom) {
         socket.emit('chat:leave', nextRoom);
+        presenceStoreRef.current.clearAllTypingForChat(nextRoom);
+        clearTypingTimeoutsForChat(typingTimeoutRef.current, nextRoom);
         activeRoomRef.current = null;
       }
     };
