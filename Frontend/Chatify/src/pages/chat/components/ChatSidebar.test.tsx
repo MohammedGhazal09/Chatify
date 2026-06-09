@@ -8,8 +8,7 @@ import ChatSidebar from './ChatSidebar';
 
 type ChatSidebarProps = ComponentProps<typeof ChatSidebar>;
 
-const renderSidebar = (overrides: Partial<ChatSidebarProps> = {}) => {
-  const props: ChatSidebarProps = {
+const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSidebarProps => ({
     user: makeUser(),
     chats: [],
     selectedChatId: null,
@@ -34,8 +33,10 @@ const renderSidebar = (overrides: Partial<ChatSidebarProps> = {}) => {
     onCreateChatSubmit: vi.fn(),
     onRefetchChats: vi.fn(),
     ...overrides,
-  };
+});
 
+const renderSidebar = (overrides: Partial<ChatSidebarProps> = {}) => {
+  const props = makeSidebarProps(overrides);
   render(<ChatSidebar {...props} />);
   return props;
 };
@@ -49,7 +50,7 @@ describe('ChatSidebar', () => {
 
     expect(screen.getByText('No conversations yet')).toBeInTheDocument();
     expect(screen.getByText('Start a chat to begin messaging.')).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Search chats' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Close conversations' }));
     expect(onCloseSidebar).toHaveBeenCalledTimes(1);
@@ -80,5 +81,42 @@ describe('ChatSidebar', () => {
 
     await user.click(screen.getByRole('button', { name: /Grace Hopper/ }));
     expect(onSelectChat).toHaveBeenCalledWith('chat-1');
+  });
+
+  it('filters conversations by title and latest visible snippet without matching member email', () => {
+    const launchChat = makeChat({
+      _id: 'chat-launch',
+      latestMessage: makeMessage({ _id: 'message-launch', text: 'Launch plan is ready' }),
+    });
+    const privateEmailOnlyChat = makeChat({
+      _id: 'chat-private',
+      members: [
+        makeUser({ _id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com' }),
+        makeUser({
+          _id: 'user-3',
+          firstName: 'Nora',
+          lastName: 'Stone',
+          email: 'private-alias@example.com',
+        }),
+      ],
+      latestMessage: makeMessage({ _id: 'message-private', text: 'Ordinary update' }),
+    });
+
+    const props = makeSidebarProps({
+      chats: [launchChat, privateEmailOnlyChat],
+      searchQuery: 'launch',
+    });
+    const { rerender } = render(<ChatSidebar {...props} />);
+
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    expect(screen.queryByText('Nora Stone')).not.toBeInTheDocument();
+
+    rerender(
+      <ChatSidebar {...props} searchQuery="private-alias@example.com" />
+    );
+
+    expect(screen.queryByText('Nora Stone')).not.toBeInTheDocument();
+    expect(screen.getByText('No matching conversations')).toBeInTheDocument();
+    expect(screen.getByText('Start or continue a chat by exact email.')).toBeInTheDocument();
   });
 });

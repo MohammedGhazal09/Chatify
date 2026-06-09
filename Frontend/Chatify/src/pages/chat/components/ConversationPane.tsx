@@ -7,6 +7,7 @@ import ChatStateView from './ChatStateView';
 import ConversationHeader from './ConversationHeader';
 import MessageComposer from './MessageComposer';
 import MessageList from './MessageList';
+import MessageSearchResults from './MessageSearchResults';
 
 interface ConversationPaneProps {
   selectedChat: Chat | null;
@@ -22,6 +23,12 @@ interface ConversationPaneProps {
   showScrollButton: boolean;
   showMessageSearch: boolean;
   messageSearch: string;
+  messageSearchResults: Message[];
+  messageSearchNormalizedQuery: string;
+  isMessageSearchLoading: boolean;
+  isMessageSearchError: boolean;
+  isMessageSearchBelowMinimum: boolean;
+  loadedMessageIds: ReadonlySet<string>;
   editingMessageId: string | null;
   editText: string;
   isSavingEdit: boolean;
@@ -39,6 +46,8 @@ interface ConversationPaneProps {
   onOpenSidebar: () => void;
   onToggleMessageSearch: () => void;
   onMessageSearchChange: (value: string) => void;
+  onClearMessageSearch: () => void;
+  onSelectMessageSearchResult: (message: Message) => void;
   onExportChat: () => void;
   onLoadMore: () => void;
   onRetryLoad: () => void;
@@ -75,6 +84,12 @@ const ConversationPane = ({
   showScrollButton,
   showMessageSearch,
   messageSearch,
+  messageSearchResults,
+  messageSearchNormalizedQuery,
+  isMessageSearchLoading,
+  isMessageSearchError,
+  isMessageSearchBelowMinimum,
+  loadedMessageIds,
   editingMessageId,
   editText,
   isSavingEdit,
@@ -92,6 +107,8 @@ const ConversationPane = ({
   onOpenSidebar,
   onToggleMessageSearch,
   onMessageSearchChange,
+  onClearMessageSearch,
+  onSelectMessageSearchResult,
   onExportChat,
   onLoadMore,
   onRetryLoad,
@@ -111,6 +128,8 @@ const ConversationPane = ({
   onAppendEmoji,
   onCancelReply,
 }: ConversationPaneProps) => {
+  const isMessageSearchActive = showMessageSearch && Boolean(messageSearch.trim());
+
   if (!selectedChat) {
     return (
       <ChatStateView
@@ -161,11 +180,6 @@ const ConversationPane = ({
             aria-label="Search messages in this conversation"
             className="w-full rounded-lg border border-[#2E363C] bg-[#20262B] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
           />
-          {messageSearch && (
-            <p className="mt-1 text-xs text-[#6F7B77]" aria-live="polite">
-              Found {messages.length} message{messages.length !== 1 ? 's' : ''}
-            </p>
-          )}
         </div>
       )}
 
@@ -184,33 +198,46 @@ const ConversationPane = ({
 
       {selectedChatId && <TypingIndicator chatId={selectedChatId} />}
 
-      <MessageList
-        selectedChat={selectedChat}
-        messages={messages}
-        currentUserId={currentUserId}
-        isLoading={isMessagesLoading}
-        isError={messagesError}
-        hasMore={hasMore}
-        isLoadingMore={isLoadingMore}
-        isSearchActive={Boolean(messageSearch.trim())}
-        showScrollButton={showScrollButton}
-        editingMessageId={editingMessageId}
-        editText={editText}
-        isSavingEdit={isSavingEdit}
-        messagesContainerRef={messagesContainerRef}
-        messagesEndRef={messagesEndRef}
-        onLoadMore={onLoadMore}
-        onRetryLoad={onRetryLoad}
-        onScrollToBottom={onScrollToBottom}
-        onMessageContextMenu={onMessageContextMenu}
-        onOpenMessageActions={onOpenMessageActions}
-        onStartEdit={onStartEdit}
-        onRetryFailed={onRetryFailed}
-        onDismissFailed={onDismissFailed}
-        onEditTextChange={onEditTextChange}
-        onSaveEdit={onSaveEdit}
-        onCancelEdit={onCancelEdit}
-      />
+      {isMessageSearchActive ? (
+        <MessageSearchResults
+          query={messageSearchNormalizedQuery || messageSearch}
+          messages={messageSearchResults}
+          loadedMessageIds={loadedMessageIds}
+          isLoading={isMessageSearchLoading}
+          isError={isMessageSearchError}
+          isBelowMinimum={isMessageSearchBelowMinimum}
+          onClear={onClearMessageSearch}
+          onSelectLoadedResult={onSelectMessageSearchResult}
+        />
+      ) : (
+        <MessageList
+          selectedChat={selectedChat}
+          messages={messages}
+          currentUserId={currentUserId}
+          isLoading={isMessagesLoading}
+          isError={messagesError}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          isSearchActive={false}
+          showScrollButton={showScrollButton}
+          editingMessageId={editingMessageId}
+          editText={editText}
+          isSavingEdit={isSavingEdit}
+          messagesContainerRef={messagesContainerRef}
+          messagesEndRef={messagesEndRef}
+          onLoadMore={onLoadMore}
+          onRetryLoad={onRetryLoad}
+          onScrollToBottom={onScrollToBottom}
+          onMessageContextMenu={onMessageContextMenu}
+          onOpenMessageActions={onOpenMessageActions}
+          onStartEdit={onStartEdit}
+          onRetryFailed={onRetryFailed}
+          onDismissFailed={onDismissFailed}
+          onEditTextChange={onEditTextChange}
+          onSaveEdit={onSaveEdit}
+          onCancelEdit={onCancelEdit}
+        />
+      )}
 
       <MessageComposer
         value={messageInput}

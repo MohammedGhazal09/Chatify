@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '../api/chatApi';
 import { messageApi } from '../api/messageApi';
@@ -21,6 +21,7 @@ import {
 // Export query keys for use in other modules
 export const chatsQueryKey = ['chats'] as const;
 export const messagesQueryKey = (chatId: string) => ['messages', chatId] as const;
+export const messageSearchQueryKey = (chatId: string, query: string) => ['messageSearch', chatId, query] as const;
 
 type SendMessageVariables = {
   chatId: string;
@@ -46,6 +47,11 @@ type CreateChatVariables = {
   targetEmail: string;
   chatName?: string;
 };
+
+const MESSAGE_SEARCH_DEBOUNCE_MS = 300;
+const MIN_MESSAGE_SEARCH_LENGTH = 2;
+
+const normalizeSearchText = (query: string) => query.trim();
 
 export const useChats = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -229,6 +235,52 @@ export const useMessages = (chatId: string | null) => {
     loadMoreMessages,
     hasMore,
     isLoadingMore,
+  };
+};
+
+export const useMessageSearch = (chatId: string | null, query: string) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const trimmedQuery = normalizeSearchText(query);
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const isBelowMinimum = trimmedQuery.length > 0 && trimmedQuery.length < MIN_MESSAGE_SEARCH_LENGTH;
+
+  useEffect(() => {
+    if (trimmedQuery.length < MIN_MESSAGE_SEARCH_LENGTH) {
+      setDebouncedQuery('');
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(trimmedQuery);
+    }, MESSAGE_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [trimmedQuery]);
+
+  const queryResult = useQuery({
+    queryKey: messageSearchQueryKey(chatId ?? '', debouncedQuery),
+    queryFn: async () => {
+      if (!chatId || debouncedQuery.length < MIN_MESSAGE_SEARCH_LENGTH) {
+        return [];
+      }
+
+      const response = await messageApi.searchMessages(chatId, {
+        q: debouncedQuery,
+        limit: 25,
+      });
+
+      return response.data.data.messages;
+    },
+    enabled: Boolean(chatId && isAuthenticated && debouncedQuery.length >= MIN_MESSAGE_SEARCH_LENGTH),
+  });
+
+  return {
+    ...queryResult,
+    messages: queryResult.data ?? [],
+    normalizedQuery: debouncedQuery,
+    isBelowMinimum,
   };
 };
 

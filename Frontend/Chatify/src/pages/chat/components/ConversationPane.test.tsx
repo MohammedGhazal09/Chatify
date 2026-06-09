@@ -1,8 +1,9 @@
 import { createRef } from 'react';
 import type { ComponentProps } from 'react';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { makeChat } from '../../../test/chatFixtures';
+import { makeChat, makeMessage } from '../../../test/chatFixtures';
 import ConversationPane from './ConversationPane';
 
 type ConversationPaneProps = ComponentProps<typeof ConversationPane>;
@@ -22,6 +23,12 @@ const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) 
     showScrollButton: false,
     showMessageSearch: false,
     messageSearch: '',
+    messageSearchResults: [],
+    messageSearchNormalizedQuery: '',
+    isMessageSearchLoading: false,
+    isMessageSearchError: false,
+    isMessageSearchBelowMinimum: false,
+    loadedMessageIds: new Set(),
     editingMessageId: null,
     editText: '',
     isSavingEdit: false,
@@ -39,6 +46,8 @@ const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) 
     onOpenSidebar: vi.fn(),
     onToggleMessageSearch: vi.fn(),
     onMessageSearchChange: vi.fn(),
+    onClearMessageSearch: vi.fn(),
+    onSelectMessageSearchResult: vi.fn(),
     onExportChat: vi.fn(),
     onLoadMore: vi.fn(),
     onRetryLoad: vi.fn(),
@@ -92,5 +101,70 @@ describe('ConversationPane', () => {
     });
 
     expect(screen.getByRole('textbox', { name: 'Search messages in this conversation' })).toHaveValue('state');
+  });
+
+  it('renders below-minimum search guidance outside the durable message list', () => {
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      messages: [makeMessage({ text: 'Durable history stays visible only outside result mode' })],
+      showMessageSearch: true,
+      messageSearch: 'a',
+      isMessageSearchBelowMinimum: true,
+    });
+
+    expect(screen.getByText('Type at least 2 characters to search this conversation.')).toBeInTheDocument();
+    expect(screen.queryByText('Durable history stays visible only outside result mode')).not.toBeInTheDocument();
+  });
+
+  it('renders server-backed message search results and clear action', async () => {
+    const user = userEvent.setup();
+    const onClearMessageSearch = vi.fn();
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'launch',
+      messageSearchNormalizedQuery: 'launch',
+      messageSearchResults: [
+        makeMessage({ _id: 'message-loaded', text: 'Launch result already loaded' }),
+        makeMessage({ _id: 'message-older', text: 'Older launch result' }),
+      ],
+      loadedMessageIds: new Set(['message-loaded']),
+      onClearMessageSearch,
+    });
+
+    expect(screen.getByText('Found 2 messages')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Jump to message: Launch result already loaded/ })).toBeInTheDocument();
+    expect(screen.getByText((_content, element) => element?.textContent === 'Older launch result')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Clear message search' }));
+    expect(onClearMessageSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it('selects only loaded search results as keyboard-operable actions', async () => {
+    const user = userEvent.setup();
+    const onSelectMessageSearchResult = vi.fn();
+    const loadedMessage = makeMessage({ _id: 'message-loaded', text: 'Loaded search result' });
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'loaded',
+      messageSearchNormalizedQuery: 'loaded',
+      messageSearchResults: [
+        loadedMessage,
+        makeMessage({ _id: 'message-older', text: 'Older unloaded result' }),
+      ],
+      loadedMessageIds: new Set(['message-loaded']),
+      onSelectMessageSearchResult,
+    });
+
+    await user.click(screen.getByRole('button', { name: /Jump to message: Loaded search result/ }));
+
+    expect(onSelectMessageSearchResult).toHaveBeenCalledWith(loadedMessage);
+    expect(screen.queryByRole('button', { name: /Older unloaded result/ })).not.toBeInTheDocument();
   });
 });

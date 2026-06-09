@@ -94,7 +94,7 @@ const NewChatDialog = ({
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 id="new-chat-title" className="text-base font-bold text-[#F4F7F6]">New chat</h2>
-            <p className="mt-1 text-sm text-[#A8B3AF]">Start a chat to begin messaging.</p>
+            <p className="mt-1 text-sm text-[#A8B3AF]">Start or continue a private chat by exact email.</p>
           </div>
           <button
             type="button"
@@ -144,10 +144,10 @@ const NewChatDialog = ({
               {isSubmitting ? (
                 <span className="inline-flex items-center gap-2">
                   <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
-                  Adding…
+                  Starting...
                 </span>
               ) : (
-                'Start chat'
+                'Start or continue chat'
               )}
             </button>
           </div>

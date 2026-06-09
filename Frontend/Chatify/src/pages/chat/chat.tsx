@@ -18,6 +18,7 @@ import {
   useEditMessage,
   useUnreadCounts,
   useToggleReaction,
+  useMessageSearch,
 } from '../../hooks/useChatQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import type {
@@ -151,11 +152,9 @@ const ChatPage = () => {
   const otherMember = selectedChat ? getOtherMember(selectedChat, user?._id) : null;
   const otherMemberStatus = otherMember ? onlineUsers.get(otherMember._id) ?? null : null;
   const allMessages = useMemo(() => messages ?? [], [messages]);
-  const conversationMessages = useMemo(() => (
-    messageSearch.trim()
-      ? allMessages.filter((message) => message.text.toLowerCase().includes(messageSearch.toLowerCase()))
-      : allMessages
-  ), [allMessages, messageSearch]);
+  const messageSearchQuery = showMessageSearch ? messageSearch : '';
+  const messageSearchResult = useMessageSearch(selectedChatId, messageSearchQuery);
+  const loadedMessageIds = useMemo(() => new Set(allMessages.map((message) => message._id)), [allMessages]);
 
   const handleMessageStatusUpdate = useCallback(
     (event: MessageStatusUpdateEvent) => {
@@ -650,10 +649,14 @@ const ChatPage = () => {
         },
         onError: (error) => {
           if (axios.isAxiosError(error)) {
-            const message = error.response?.data?.message ?? 'We could not create that chat.';
-            setCreateChatError(message);
+            const message = error.response?.data?.message;
+            setCreateChatError(
+              typeof message === 'string' && /valid email/i.test(message)
+                ? message
+                : 'We could not start or continue that chat. Check the email and try again.'
+            );
           } else {
-            setCreateChatError('We could not create that chat.');
+            setCreateChatError('We could not start or continue that chat. Check the email and try again.');
           }
         },
       }
@@ -690,6 +693,23 @@ const ChatPage = () => {
         setMessageSearch('');
       }
       return !prev;
+    });
+  };
+
+  const handleClearMessageSearch = () => {
+    setMessageSearch('');
+  };
+
+  const handleSelectMessageSearchResult = (message: Message) => {
+    if (!loadedMessageIds.has(message._id)) {
+      return;
+    }
+
+    setShowMessageSearch(false);
+    setMessageSearch('');
+    window.requestAnimationFrame(() => {
+      const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${message._id}"]`);
+      messageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   };
 
@@ -769,7 +789,7 @@ const ChatPage = () => {
           currentUserId={user?._id}
           otherMember={otherMember}
           otherMemberStatus={otherMemberStatus}
-          messages={conversationMessages}
+          messages={allMessages}
           isMessagesLoading={isMessagesLoading}
           messagesError={messagesError}
           hasMore={hasMore}
@@ -777,6 +797,12 @@ const ChatPage = () => {
           showScrollButton={showScrollButton}
           showMessageSearch={showMessageSearch}
           messageSearch={messageSearch}
+          messageSearchResults={messageSearchResult.messages}
+          messageSearchNormalizedQuery={messageSearchResult.normalizedQuery}
+          isMessageSearchLoading={messageSearchResult.isLoading || messageSearchResult.isFetching}
+          isMessageSearchError={messageSearchResult.isError}
+          isMessageSearchBelowMinimum={messageSearchResult.isBelowMinimum}
+          loadedMessageIds={loadedMessageIds}
           editingMessageId={editingMessageId}
           editText={editText}
           isSavingEdit={editMessageMutation.isPending}
@@ -794,6 +820,8 @@ const ChatPage = () => {
           onOpenSidebar={() => setIsSidebarOpen(true)}
           onToggleMessageSearch={handleToggleMessageSearch}
           onMessageSearchChange={setMessageSearch}
+          onClearMessageSearch={handleClearMessageSearch}
+          onSelectMessageSearchResult={handleSelectMessageSearchResult}
           onExportChat={handleExportChat}
           onLoadMore={handleLoadMoreMessages}
           onRetryLoad={() => refetchMessages()}
@@ -818,7 +846,7 @@ const ChatPage = () => {
         <>
           <MessageActionMenu
             contextMenu={contextMenu}
-            messages={conversationMessages}
+            messages={allMessages}
             showReactionPicker={showReactionPicker}
             contextMenuRef={contextMenuRef}
             onReaction={handleReaction}

@@ -65,7 +65,9 @@ const ChatSidebar = ({
   const filteredChats = chats?.filter((chat) => {
     if (!searchQuery.trim()) return true;
     const title = getChatTitle(chat, user?._id).toLowerCase();
-    return title.includes(searchQuery.toLowerCase());
+    const latestSnippet = chat.latestMessage?.text?.toLowerCase() ?? '';
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return title.includes(normalizedQuery) || latestSnippet.includes(normalizedQuery);
   });
 
   useEffect(() => {
@@ -133,8 +135,8 @@ const ChatSidebar = ({
           type="text"
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search chats…"
-          aria-label="Search chats"
+          placeholder="Search conversations"
+          aria-label="Search conversations"
           className="w-full rounded-lg border border-[#2E363C] bg-[#101113] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:border-[#14B8A6] focus:outline-none"
         />
       </div>
@@ -185,8 +187,8 @@ const ChatSidebar = ({
           </ul>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[#A8B3AF]">
-            <p className="font-semibold text-[#F4F7F6]">{searchQuery.trim() ? 'No matches found' : 'No conversations yet'}</p>
-            <p>{searchQuery.trim() ? 'Try a different name or message term.' : 'Start a chat to begin messaging.'}</p>
+            <p className="font-semibold text-[#F4F7F6]">{searchQuery.trim() ? 'No matching conversations' : 'No conversations yet'}</p>
+            <p>{searchQuery.trim() ? 'Start or continue a chat by exact email.' : 'Start a chat to begin messaging.'}</p>
           </div>
         )}
       </div>

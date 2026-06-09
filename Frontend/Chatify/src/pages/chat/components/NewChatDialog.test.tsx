@@ -49,7 +49,7 @@ describe('NewChatDialog', () => {
     expect(emailInput).toHaveFocus();
 
     await user.type(emailInput, 'friend@example.com');
-    await user.click(screen.getByRole('button', { name: 'Start chat' }));
+    await user.click(screen.getByRole('button', { name: 'Start or continue chat' }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
 
@@ -58,7 +58,7 @@ describe('NewChatDialog', () => {
     expect(within(dialog).getByRole('button', { name: 'Close new chat dialog' })).toHaveFocus();
 
     await user.keyboard('{Shift>}{Tab}{/Shift}');
-    expect(within(dialog).getByRole('button', { name: 'Start chat' })).toHaveFocus();
+    expect(within(dialog).getByRole('button', { name: 'Start or continue chat' })).toHaveFocus();
 
     await user.keyboard('{Tab}');
     expect(within(dialog).getByRole('button', { name: 'Close new chat dialog' })).toHaveFocus();
@@ -67,5 +67,25 @@ describe('NewChatDialog', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New chat' })).not.toBeInTheDocument());
     await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it('shows continuation pending and generic lookup failure copy', () => {
+    const openerRef = { current: document.createElement('button') };
+
+    render(
+      <NewChatDialog
+        isOpen
+        email="missing@example.com"
+        error="We could not start or continue that chat. Check the email and try again."
+        isSubmitting
+        openerRef={openerRef}
+        onEmailChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /Starting/ })).toBeDisabled();
+    expect(screen.getByText('We could not start or continue that chat. Check the email and try again.')).toBeInTheDocument();
   });
 });

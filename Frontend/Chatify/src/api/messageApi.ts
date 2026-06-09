@@ -27,6 +27,15 @@ interface MessagesResponse {
   };
 }
 
+interface MessageSearchResponse {
+  status: string;
+  data: {
+    messages: Message[];
+    query: string;
+    limit: number;
+  };
+}
+
 interface UnreadCountResponse {
   status: string;
   data: {
@@ -78,6 +87,11 @@ type GetMessagesOptions = {
   limit?: number;
 };
 
+type SearchMessagesOptions = {
+  q: string;
+  limit?: number;
+};
+
 export const messageApi = {
   createMessage: (payload: NewMessagePayload): Promise<AxiosResponse<MessageResponse>> =>
     axiosInstance.post('/api/message/new-message', payload),
@@ -91,6 +105,14 @@ export const messageApi = {
     }
 
     return axiosInstance.get(`/api/message/get-all-messages/${chatId}?${params.toString()}`);
+  },
+
+  searchMessages: (chatId: string, options: SearchMessagesOptions): Promise<AxiosResponse<MessageSearchResponse>> => {
+    const params = new URLSearchParams();
+    params.set('q', options.q);
+    params.set('limit', String(options.limit ?? 25));
+
+    return axiosInstance.get(`/api/message/search/${chatId}?${params.toString()}`);
   },
 
   markMessageAsRead: (messageId: string): Promise<AxiosResponse<MarkReadResponse>> =>
