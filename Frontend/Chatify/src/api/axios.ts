@@ -1,6 +1,14 @@
 import axios from "axios";
 import { requestQueue, authQueue } from "../utils/requestQueue";
 
+export const AUTH_EXPIRED_EVENT = 'chatify:auth-expired';
+
+export const dispatchAuthExpired = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+};
+
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
   withCredentials: true,
@@ -52,6 +60,7 @@ axiosInstance.interceptors.response.use(
         await axiosInstance.post('/api/auth/refresh-token');
         return axiosInstance(originalConfig);
       } catch {
+        dispatchAuthExpired();
         return Promise.reject(error);
       }
     }

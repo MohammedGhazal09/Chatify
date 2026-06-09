@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEventHandler, MouseEvent as ReactMouseEvent } from 'react';
 import axios from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
+import { AUTH_EXPIRED_EVENT } from '../../api/axios';
 import LoadingSpinner from '../../components/loadingSpinner';
 import SettingsModal from '../../components/SettingsModal';
 import { useToast } from '../../components/Toast';
@@ -36,7 +38,11 @@ import {
   MessageActionMenu,
 } from './components';
 import { useChatViewState } from './hooks/useChatViewState';
-import { useSelectedChatPersistence } from './hooks/useSelectedChatPersistence';
+import {
+  getSelectedChatStorageKey,
+  replaceSelectedChatUrl,
+  useSelectedChatPersistence,
+} from './hooks/useSelectedChatPersistence';
 import { getChatTitle, getOtherMember } from './utils/chatDisplay';
 import './chat.css';
 
@@ -65,6 +71,9 @@ const useDebounce = (callback: () => void, delay: number) => {
 const ChatPage = () => {
   const { user, isAuthenticated } = useAuthStore();
   const onlineUsers = usePresenceStore((state) => state.onlineUsers);
+  const clearPresenceState = usePresenceStore((state) => state.clearPresenceState);
+  const authLogout = useAuthStore((state) => state.logout);
+  const queryClient = useQueryClient();
   const logoutMutation = useLogout();
   const { showToast } = useToast();
   const {
@@ -249,6 +258,53 @@ const ChatPage = () => {
     setIsTyping(false);
     emitTypingStop();
   }, 2000);
+
+  const clearPrivateChatState = useCallback((userIdToClear?: string | null) => {
+    const storageUserId = userIdToClear ?? user?._id ?? null;
+
+    if (storageUserId) {
+      window.localStorage.removeItem(getSelectedChatStorageKey(storageUserId));
+    }
+
+    queryClient.clear();
+    setSelectedChatId(null);
+    setSearchQuery('');
+    setMessageSearch('');
+    setShowMessageSearch(false);
+    setIsTyping(false);
+    setIsSidebarOpen(false);
+    setIsNewChatOpen(false);
+    setNewChatEmail('');
+    setCreateChatError(null);
+    clearPresenceState();
+    replaceSelectedChatUrl(null);
+  }, [
+    clearPresenceState,
+    queryClient,
+    setCreateChatError,
+    setIsNewChatOpen,
+    setIsSidebarOpen,
+    setIsTyping,
+    setMessageSearch,
+    setNewChatEmail,
+    setSearchQuery,
+    setSelectedChatId,
+    setShowMessageSearch,
+    user?._id,
+  ]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      const expiredUserId = useAuthStore.getState().user?._id ?? user?._id ?? null;
+      clearPrivateChatState(expiredUserId);
+      authLogout();
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    };
+  }, [authLogout, clearPrivateChatState, user?._id]);
 
   const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setMessageInput(event.target.value);
@@ -453,10 +509,14 @@ const ChatPage = () => {
   }, [handleScroll]);
 
   const handleLogout = async () => {
+    const currentUserId = user?._id ?? null;
+
     try {
       await logoutMutation.mutateAsync();
     } catch (error) {
       console.error('Logout failed:', error);
+    } finally {
+      clearPrivateChatState(currentUserId);
     }
   };
 

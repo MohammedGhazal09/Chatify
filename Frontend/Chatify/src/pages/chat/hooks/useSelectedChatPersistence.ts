@@ -19,7 +19,7 @@ const getUrlChatId = () => {
   return new URLSearchParams(window.location.search).get('chatId');
 };
 
-const replaceUrlChatId = (chatId: string | null) => {
+export const replaceSelectedChatUrl = (chatId: string | null) => {
   if (typeof window === 'undefined') {
     return;
   }
@@ -89,7 +89,7 @@ export const useSelectedChatPersistence = ({
         setSelectedChatId(null);
       }
       writeStoredChatId(userId, null);
-      replaceUrlChatId(null);
+      replaceSelectedChatUrl(null);
       return;
     }
 
@@ -108,7 +108,7 @@ export const useSelectedChatPersistence = ({
       restoredUserRef.current = userId;
 
       if (urlChatId && !isAccessible(urlChatId)) {
-        replaceUrlChatId(null);
+        replaceSelectedChatUrl(null);
       }
 
       if (nextChatId !== selectedChatId) {
@@ -116,19 +116,19 @@ export const useSelectedChatPersistence = ({
       }
 
       writeStoredChatId(userId, nextChatId);
-      replaceUrlChatId(nextChatId);
+      replaceSelectedChatUrl(nextChatId);
       return;
     }
 
     if (isAccessible(selectedChatId)) {
       writeStoredChatId(userId, selectedChatId);
-      replaceUrlChatId(selectedChatId);
+      replaceSelectedChatUrl(selectedChatId);
       return;
     }
 
     const fallbackChatId = getMostRecentChatId(chats);
     setSelectedChatId(fallbackChatId);
     writeStoredChatId(userId, fallbackChatId);
-    replaceUrlChatId(fallbackChatId);
+    replaceSelectedChatUrl(fallbackChatId);
   }, [accessibleChatIds, chats, isChatsLoading, selectedChatId, setSelectedChatId, userId]);
 };

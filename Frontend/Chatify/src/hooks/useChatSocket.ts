@@ -61,6 +61,20 @@ const resolveSocketUrl = () => {
 // Typing timeout duration (3 seconds)
 const TYPING_TIMEOUT = 3000;
 
+const clearTypingTimeoutsForChat = (
+  timeouts: Record<string, ReturnType<typeof setTimeout>>,
+  chatId: string
+) => {
+  const timeoutPrefix = `${chatId}-`;
+
+  Object.entries(timeouts).forEach(([timeoutKey, timeoutId]) => {
+    if (timeoutKey.startsWith(timeoutPrefix)) {
+      clearTimeout(timeoutId);
+      delete timeouts[timeoutKey];
+    }
+  });
+};
+
 export const useChatSocket = ({
   chatId,
   enabled = true,
@@ -282,6 +296,7 @@ export const useChatSocket = ({
       // Clear all typing timeouts
       Object.values(typingTimeoutRef.current).forEach(clearTimeout);
       typingTimeoutRef.current = {};
+      presenceStoreRef.current.clearPresenceState();
 
       if (activeRoomRef.current) {
         socketInstance.emit('chat:leave', activeRoomRef.current);
@@ -449,6 +464,8 @@ export const useChatSocket = ({
 
     if (previousRoom && previousRoom !== nextRoom) {
       socket.emit('chat:leave', previousRoom);
+      presenceStoreRef.current.clearAllTypingForChat(previousRoom);
+      clearTypingTimeoutsForChat(typingTimeoutRef.current, previousRoom);
     }
 
     if (nextRoom && nextRoom !== previousRoom) {

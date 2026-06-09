@@ -20,6 +20,8 @@ interface PresenceState {
   clearUserTyping: (chatId: string, userId: string) => void;
   getTypingUsersForChat: (chatId: string) => TypingUser[];
   clearAllTypingForChat: (chatId: string) => void;
+  clearAllTyping: () => void;
+  clearPresenceState: () => void;
 }
 
 export const usePresenceStore = create<PresenceState>((set, get) => ({
@@ -122,5 +124,18 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
       newTypingUsers.delete(chatId);
       return { typingUsers: newTypingUsers };
     });
+  },
+
+  clearAllTyping: () => {
+    set(() => ({
+      typingUsers: new Map(),
+    }));
+  },
+
+  clearPresenceState: () => {
+    set(() => ({
+      onlineUsers: new Map(),
+      typingUsers: new Map(),
+    }));
   },
 }));

@@ -92,6 +92,20 @@ describe('ConversationPane', () => {
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
 
+  it('hides private messages and composer content when the session is expired', () => {
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      isSessionExpired: true,
+      messages: [makeMessage({ text: 'Private message content' })],
+      messageInput: 'private draft',
+    });
+
+    expect(screen.getByRole('heading', { name: 'Your session expired' })).toBeInTheDocument();
+    expect(screen.queryByText('Private message content')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Write a message' })).not.toBeInTheDocument();
+  });
+
   it('labels the conversation search input', () => {
     renderConversationPane({
       selectedChat: makeChat(),
