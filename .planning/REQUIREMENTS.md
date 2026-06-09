@@ -46,15 +46,15 @@
 
 - [x] **BASE-01**: User can search conversations or contacts from the sidebar.
 - [x] **BASE-02**: User can search messages within the selected conversation.
-- [ ] **BASE-03**: User can distinguish online, offline, and typing status without exposing unauthorized presence data.
+- [x] **BASE-03**: User can distinguish online, offline, and typing status without exposing unauthorized presence data.
 - [x] **BASE-04**: User can start or continue direct-message conversations from the existing user/chat data model.
-- [ ] **BASE-05**: User can navigate away and return without losing selected conversation context unnecessarily.
+- [x] **BASE-05**: User can navigate away and return without losing selected conversation context unnecessarily.
 
 ### Tests And Verification
 
 - [ ] **TEST-01**: Backend request tests cover auth lifecycle, CSRF enforcement, message authorization, validation boundaries, and password reset behavior.
 - [ ] **TEST-02**: Socket integration tests cover authenticated handshake, unauthorized event rejection, room membership, typing, delivery, read, edit, delete, reaction, and reconnect behavior.
-- [ ] **TEST-03**: Frontend tests cover optimistic send, rollback, duplicate merge, unread updates, session-expired state, and core chat UI states.
+- [x] **TEST-03**: Frontend tests cover optimistic send, rollback, duplicate merge, unread updates, session-expired state, and core chat UI states.
 - [ ] **TEST-04**: Each auth, socket, and message phase has blocking security acceptance criteria and verification evidence.
 
 ## v2 Requirements
@@ -110,12 +110,12 @@
 | UI-04 | Phase 4 | Pending |
 | UI-05 | Phase 4 | Pending |
 | UI-06 | Phase 4 | Pending |
-| TEST-03 | Phase 4 | Pending |
+| TEST-03 | Phase 4 | Complete |
 | BASE-01 | Phase 5 | Complete |
 | BASE-02 | Phase 5 | Complete |
-| BASE-03 | Phase 5 | Pending |
+| BASE-03 | Phase 5 | Complete |
 | BASE-04 | Phase 5 | Complete |
-| BASE-05 | Phase 5 | Pending |
+| BASE-05 | Phase 5 | Complete |
 
 **Coverage:**
 
