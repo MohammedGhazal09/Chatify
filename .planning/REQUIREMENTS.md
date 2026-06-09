@@ -44,10 +44,10 @@
 
 ### Messenger Baseline Features
 
-- [ ] **BASE-01**: User can search conversations or contacts from the sidebar.
-- [ ] **BASE-02**: User can search messages within the selected conversation.
+- [x] **BASE-01**: User can search conversations or contacts from the sidebar.
+- [x] **BASE-02**: User can search messages within the selected conversation.
 - [ ] **BASE-03**: User can distinguish online, offline, and typing status without exposing unauthorized presence data.
-- [ ] **BASE-04**: User can start or continue direct-message conversations from the existing user/chat data model.
+- [x] **BASE-04**: User can start or continue direct-message conversations from the existing user/chat data model.
 - [ ] **BASE-05**: User can navigate away and return without losing selected conversation context unnecessarily.
 
 ### Tests And Verification
@@ -111,13 +111,14 @@
 | UI-05 | Phase 4 | Pending |
 | UI-06 | Phase 4 | Pending |
 | TEST-03 | Phase 4 | Pending |
-| BASE-01 | Phase 5 | Pending |
-| BASE-02 | Phase 5 | Pending |
+| BASE-01 | Phase 5 | Complete |
+| BASE-02 | Phase 5 | Complete |
 | BASE-03 | Phase 5 | Pending |
-| BASE-04 | Phase 5 | Pending |
+| BASE-04 | Phase 5 | Complete |
 | BASE-05 | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 34 total
 - Mapped to phases: 34
 - Unmapped: 0
