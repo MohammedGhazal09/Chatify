@@ -36,6 +36,7 @@ import {
   MessageActionMenu,
 } from './components';
 import { useChatViewState } from './hooks/useChatViewState';
+import { useSelectedChatPersistence } from './hooks/useSelectedChatPersistence';
 import { getChatTitle, getOtherMember } from './utils/chatDisplay';
 import './chat.css';
 
@@ -141,6 +142,14 @@ const ChatPage = () => {
 
   const chatIds = useMemo(() => chats?.map((chat) => chat._id) ?? [], [chats]);
   const { data: unreadCounts } = useUnreadCounts(chatIds);
+
+  useSelectedChatPersistence({
+    userId: user?._id,
+    chats,
+    isChatsLoading,
+    selectedChatId,
+    setSelectedChatId,
+  });
 
   const markMessagesAsReadRef = useRef(markMessagesAsReadMutation.mutate);
   markMessagesAsReadRef.current = markMessagesAsReadMutation.mutate;
@@ -338,12 +347,6 @@ const ChatPage = () => {
 
     previousLastMessageKeyRef.current = lastMessageKey;
   }, [allMessages, user?._id]);
-
-  useEffect(() => {
-    if (!selectedChatId && chats && chats.length > 0) {
-      setSelectedChatId(chats[0]._id);
-    }
-  }, [chats, selectedChatId, setSelectedChatId]);
 
   useEffect(() => {
     if (!createChatError) {
