@@ -25,18 +25,18 @@ const ConversationHeader = ({
   onExportChat,
 }: ConversationHeaderProps) => {
   return (
-    <div className="flex min-h-16 items-center gap-3 border-b border-[#2E363C] bg-[#181C20] px-4 py-3">
+    <div className="flex min-h-16 min-w-0 max-w-full items-center gap-3 overflow-hidden border-b border-[#2E363C] bg-[#181C20] px-4 py-3">
       <button
         type="button"
         onClick={onOpenSidebar}
-        className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] md:hidden"
+        className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] md:hidden"
         aria-label="Open conversations"
       >
         <Menu aria-hidden="true" className="h-5 w-5" />
       </button>
 
       {otherMember && (
-        <div className="relative">
+        <div className="relative shrink-0">
           {otherMember.profilePic ? (
             <img
               src={otherMember.profilePic}
@@ -71,7 +71,7 @@ const ConversationHeader = ({
       <button
         type="button"
         onClick={onToggleMessageSearch}
-        className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+        className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
         title="Search messages"
         aria-label={showMessageSearch ? 'Close message search' : 'Search messages'}
       >
@@ -81,7 +81,7 @@ const ConversationHeader = ({
       <button
         type="button"
         onClick={onExportChat}
-        className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+        className="hidden h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] sm:grid"
         title="Export chat"
         aria-label="Export chat"
       >

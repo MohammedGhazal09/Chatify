@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { RefObject } from 'react';
+import { SmilePlus } from 'lucide-react';
 import type { Message } from '../../../types/chat';
 import type { MessageContextMenuState } from '../hooks/useChatViewState';
 import LazyEmojiPicker from './LazyEmojiPicker';
@@ -79,7 +80,7 @@ const MessageActionMenu = ({
           title="More reactions"
           aria-label="More reactions"
         >
-          <span aria-hidden="true">+</span>
+          <SmilePlus aria-hidden="true" className="h-5 w-5" />
         </button>
       </div>
 

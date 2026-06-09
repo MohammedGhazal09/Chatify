@@ -20,7 +20,7 @@
   background: rgba(20, 184, 166, 0.6);
   border-radius: 10px;
   border: 2px solid rgba(24, 28, 32, 0.8);
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .chat-sidebar-scroll::-webkit-scrollbar-thumb:hover {
@@ -52,7 +52,7 @@
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .chat-messages-scroll::-webkit-scrollbar-thumb:hover {

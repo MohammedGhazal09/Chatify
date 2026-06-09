@@ -61,7 +61,7 @@ describe('MessageActionMenu', () => {
 
     await user.click(screen.getByRole('button', { name: 'React with 😂' }));
     expect(onReaction).toHaveBeenCalledWith('message-1', '😂');
-    expect(screen.queryByText('Loading emoji...')).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading emoji…')).not.toBeInTheDocument();
 
     await user.keyboard('{Escape}');
 

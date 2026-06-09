@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { FormEvent, RefObject } from 'react';
+import { LoaderCircle, X } from 'lucide-react';
 
 interface NewChatDialogProps {
   isOpen: boolean;
@@ -104,7 +105,7 @@ const NewChatDialog = ({
             className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#181C20] hover:text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
             aria-label="Close new chat dialog"
           >
-            <span aria-hidden="true">x</span>
+            <X aria-hidden="true" className="h-4 w-4" />
           </button>
         </div>
         <form onSubmit={onSubmit} className="space-y-3">
@@ -140,7 +141,14 @@ const NewChatDialog = ({
               disabled={isSubmitting}
               className="min-h-10 cursor-pointer rounded-lg bg-[#14B8A6] px-3 py-2 text-sm font-semibold text-[#101113] transition-colors hover:bg-[#22C55E] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isSubmitting ? 'Adding...' : 'Start chat'}
+              {isSubmitting ? (
+                <span className="inline-flex items-center gap-2">
+                  <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
+                  Adding…
+                </span>
+              ) : (
+                'Start chat'
+              )}
             </button>
           </div>
         </form>

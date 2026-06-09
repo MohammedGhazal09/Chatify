@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import type { MouseEvent } from 'react';
+import { ArrowDown, LoaderCircle } from 'lucide-react';
 import type { Chat, Message } from '../../../types/chat';
 import { formatMessageDate, isDifferentDay } from '../utils/chatDisplay';
 import ChatStateView from './ChatStateView';
@@ -63,10 +64,10 @@ const MessageList = ({
   return (
     <div
       ref={messagesContainerRef}
-      className="relative flex-1 overflow-y-auto bg-[#101113] px-4 py-4 space-y-3 chat-messages-scroll md:px-6"
+      className="relative flex-1 w-full max-w-full overflow-x-hidden overflow-y-auto bg-[#101113] px-4 py-4 space-y-3 chat-messages-scroll md:px-6"
     >
       {isLoading ? (
-        <ChatStateView heading="Loading messages" body="Loading messages..." />
+        <MessageListSkeleton />
       ) : isError ? (
         <ChatStateView
           heading="Conversation unavailable"
@@ -84,7 +85,14 @@ const MessageList = ({
                 disabled={isLoadingMore}
                 className="min-h-8 cursor-pointer rounded-lg border border-[#2E363C] bg-[#20262B] px-3 py-1 text-xs font-semibold text-[#14B8A6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isLoadingMore ? 'Loading...' : 'Load older messages'}
+                {isLoadingMore ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 motion-safe:animate-spin" />
+                    Loading…
+                  </span>
+                ) : (
+                  'Load older messages'
+                )}
               </button>
             </div>
           )}
@@ -127,7 +135,14 @@ const MessageList = ({
                           disabled={isSavingEdit}
                           className="min-h-8 cursor-pointer rounded-lg bg-[#14B8A6] px-3 py-1 text-xs font-semibold text-[#101113] hover:bg-[#22C55E] disabled:cursor-not-allowed"
                         >
-                          {isSavingEdit ? 'Saving...' : 'Save'}
+                          {isSavingEdit ? (
+                            <span className="inline-flex items-center gap-2">
+                              <LoaderCircle aria-hidden="true" className="h-3.5 w-3.5 motion-safe:animate-spin" />
+                              Saving…
+                            </span>
+                          ) : (
+                            'Save'
+                          )}
                         </button>
                       </div>
                     </div>
@@ -161,15 +176,30 @@ const MessageList = ({
         <button
           type="button"
           onClick={onScrollToBottom}
-          className="absolute bottom-6 right-6 z-40 min-h-10 min-w-10 rounded-full bg-[#14B8A6] p-3 text-[#101113] shadow-lg transition-all hover:bg-[#22C55E]"
+          className="absolute bottom-6 right-6 z-40 min-h-10 min-w-10 rounded-full bg-[#14B8A6] p-3 text-[#101113] shadow-lg transition-colors hover:bg-[#22C55E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
           title="Scroll to bottom"
           aria-label="Scroll to bottom"
         >
-          <span aria-hidden="true">Down</span>
+          <ArrowDown aria-hidden="true" className="h-4 w-4" />
         </button>
       )}
     </div>
   );
 };
+
+const MessageListSkeleton = () => (
+  <div className="space-y-3" aria-label="Loading messages">
+    <div className="mx-auto h-6 w-28 motion-safe:animate-pulse rounded-full border border-[#2E363C] bg-[#20262B]" />
+    {[0, 1, 2, 3, 4].map((item) => (
+      <div key={item} className={`flex ${item % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+        <div
+          className={`h-16 motion-safe:animate-pulse rounded-2xl border border-[#2E363C] bg-[#20262B] ${
+            item % 2 === 0 ? 'w-[72%] md:w-[48%]' : 'w-[66%] bg-[#123C35] md:w-[42%]'
+          }`}
+        />
+      </div>
+    ))}
+  </div>
+);
 
 export default MessageList;

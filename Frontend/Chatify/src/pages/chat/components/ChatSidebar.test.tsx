@@ -55,6 +55,13 @@ describe('ChatSidebar', () => {
     expect(onCloseSidebar).toHaveBeenCalledTimes(1);
   });
 
+  it('renders stable skeleton rows while loading chats', () => {
+    renderSidebar({ isLoading: true });
+
+    expect(screen.getByLabelText('Loading chats')).toBeInTheDocument();
+    expect(screen.queryByText('No conversations yet')).not.toBeInTheDocument();
+  });
+
   it('shows unread counts and selects a conversation', async () => {
     const user = userEvent.setup();
     const onSelectChat = vi.fn();

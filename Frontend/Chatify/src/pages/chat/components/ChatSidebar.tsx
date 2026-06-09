@@ -1,6 +1,7 @@
 import AccountsButton from '../../../components/accountsButton';
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
+import { X } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
 import { getChatTitle, getOtherMember } from '../utils/chatDisplay';
@@ -94,7 +95,7 @@ const ChatSidebar = ({
             className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] transition-colors hover:bg-[#20262B] hover:text-[#14B8A6] md:hidden"
             aria-label="Close conversations"
           >
-            <span aria-hidden="true">x</span>
+            <X aria-hidden="true" className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -132,7 +133,7 @@ const ChatSidebar = ({
           type="text"
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search chats..."
+          placeholder="Search chats…"
           aria-label="Search chats"
           className="w-full rounded-lg border border-[#2E363C] bg-[#101113] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:border-[#14B8A6] focus:outline-none"
         />
@@ -151,7 +152,7 @@ const ChatSidebar = ({
 
       <div className="flex-1 overflow-y-auto chat-sidebar-scroll">
         {isLoading ? (
-          <div className="flex h-full items-center justify-center text-sm text-[#A8B3AF]">Loading chats...</div>
+          <ChatListSkeleton />
         ) : isError ? (
           <div className="space-y-2 p-4 text-sm text-[#EF4444]">
             <p>We could not load your chats.</p>
@@ -192,5 +193,20 @@ const ChatSidebar = ({
     </aside>
   );
 };
+
+const ChatListSkeleton = () => (
+  <div className="space-y-1 p-2" aria-label="Loading chats">
+    {[0, 1, 2, 3, 4, 5].map((item) => (
+      <div key={item} className="flex min-h-[72px] items-center gap-3 rounded-lg px-3 py-2">
+        <div className="h-10 w-10 shrink-0 motion-safe:animate-pulse rounded-full bg-[#20262B]" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className={`h-3 motion-safe:animate-pulse rounded bg-[#20262B] ${item % 2 === 0 ? 'w-32' : 'w-24'}`} />
+          <div className="h-3 w-full max-w-[180px] motion-safe:animate-pulse rounded bg-[#20262B]" />
+        </div>
+        <div className="h-3 w-10 motion-safe:animate-pulse rounded bg-[#20262B]" />
+      </div>
+    ))}
+  </div>
+);
 
 export default ChatSidebar;

@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import type { MouseEvent } from 'react';
+import { MoreHorizontal } from 'lucide-react';
 import MessageStatus from '../../../components/MessageStatus';
 import type { Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
@@ -68,7 +69,7 @@ const MessageBubble = memo(({
       onContextMenu={onContextMenu ? (event) => onContextMenu(event, message) : undefined}
       onDoubleClick={onDoubleClick && isOwnMessage ? () => onDoubleClick(message) : undefined}
     >
-      <div className="group flex max-w-[85%] flex-col md:max-w-[75%] xl:max-w-[68%]">
+      <div className="group flex max-w-[calc(100vw-32px)] flex-col sm:max-w-[85%] md:max-w-[75%] xl:max-w-[68%]">
         <div
           className={`message-bubble relative rounded-2xl border py-2 pl-3 pr-10 text-sm leading-5 shadow cursor-pointer ${bubbleTone}`}
         >
@@ -78,7 +79,7 @@ const MessageBubble = memo(({
             className="absolute right-1.5 top-1.5 grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] opacity-100 transition hover:bg-black/20 hover:text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
             aria-label="Open message actions"
           >
-            <span aria-hidden="true">...</span>
+            <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
           </button>
           {message.deletedForEveryone ? (
             <p className="italic text-[#A8B3AF]">This message was deleted</p>

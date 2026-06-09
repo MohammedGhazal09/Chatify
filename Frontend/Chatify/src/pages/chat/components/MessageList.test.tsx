@@ -55,6 +55,13 @@ describe('MessageList', () => {
     expect(screen.getByText('Try a different name or message term.')).toBeInTheDocument();
   });
 
+  it('renders stable skeleton rows while loading messages', () => {
+    renderMessageList({ isLoading: true });
+
+    expect(screen.getByLabelText('Loading messages')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Loading messages' })).not.toBeInTheDocument();
+  });
+
   it('renders deduped message display and scroll/load callbacks', async () => {
     const user = userEvent.setup();
     const onLoadMore = vi.fn();

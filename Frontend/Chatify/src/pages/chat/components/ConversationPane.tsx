@@ -157,7 +157,7 @@ const ConversationPane = ({
             type="text"
             value={messageSearch}
             onChange={(event) => onMessageSearchChange(event.target.value)}
-            placeholder="Search in conversation..."
+            placeholder="Search in conversation…"
             aria-label="Search messages in this conversation"
             className="w-full rounded-lg border border-[#2E363C] bg-[#20262B] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
           />

@@ -24,7 +24,7 @@ const EmojiPicker = lazy(async () => {
 
 const LazyEmojiPicker = (props: LazyEmojiPickerProps) => {
   return (
-    <Suspense fallback={<div className="rounded-lg border border-[#2E363C] bg-[#20262B] p-4 text-sm text-[#A8B3AF]">Loading emoji...</div>}>
+    <Suspense fallback={<div className="rounded-lg border border-[#2E363C] bg-[#20262B] p-4 text-sm text-[#A8B3AF]">Loading emoji…</div>}>
       <EmojiPicker {...props} />
     </Suspense>
   );
