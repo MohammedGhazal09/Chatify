@@ -219,7 +219,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02: Restore live-state UI behavior and honest disabled or unavailable surfaces
+- [x] 07-02: Restore live-state UI behavior and honest disabled or unavailable surfaces
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -302,6 +302,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 4. Messenger UI Reconstruction | 3/3 | Complete | 2026-06-09 |
 | 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
 | 6. Messenger Visual Parity | 3/3 | Complete   | 2026-06-12 |
-| 7. Messenger Functional Parity Restoration | 1/3 | In Progress|  |
+| 7. Messenger Functional Parity Restoration | 2/3 | In Progress|  |
 | 8. Media Files And Conversation Detail Implementation | 0/0 | Not planned | - |
 | 9. Messenger Interaction Quality Gate | 0/0 | Not planned | - |

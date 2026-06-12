@@ -25,11 +25,11 @@
 
 ### Message Reliability
 
-- [ ] **MSG-01**: User can send a direct message and see it transition through one canonical sending, sent, delivered, and read lifecycle.
-- [ ] **MSG-02**: User can receive messages in real time without duplicates from optimistic updates, mutation responses, and socket events.
+- [x] **MSG-01**: User can send a direct message and see it transition through one canonical sending, sent, delivered, and read lifecycle.
+- [x] **MSG-02**: User can receive messages in real time without duplicates from optimistic updates, mutation responses, and socket events.
 - [ ] **MSG-03**: User can reload a chat and see only messages they are authorized to view, excluding messages deleted for that user.
-- [ ] **MSG-04**: User can edit, delete for self, delete for everyone, and react to messages only when authorized.
-- [ ] **MSG-05**: Unread counts are derived or synchronized per user and do not drift from read receipt state.
+- [x] **MSG-04**: User can edit, delete for self, delete for everyone, and react to messages only when authorized.
+- [x] **MSG-05**: Unread counts are derived or synchronized per user and do not drift from read receipt state.
 - [ ] **MSG-06**: Message history loads with scalable pagination that avoids deep offset behavior for large chats.
 - [ ] **MSG-07**: Message validation boundaries are consistent between controller checks, model constraints, and frontend form rules.
 
@@ -53,7 +53,7 @@
 ### Functional Product Parity
 
 - [x] **PARITY-01**: The messenger reference UI renders production chat, message, presence, status, search, and session state instead of static demo fixtures.
-- [ ] **PARITY-02**: Every visible messenger control performs a supported action or is intentionally hidden/disabled with an honest state.
+- [x] **PARITY-02**: Every visible messenger control performs a supported action or is intentionally hidden/disabled with an honest state.
 - [x] **PARITY-03**: Desktop, mobile, light theme, and dark theme variants preserve the same working workflows and do not fork into layout-only implementations.
 
 ### Media And Detail Surfaces
@@ -109,11 +109,11 @@
 | RT-04 | Phase 2 | Complete |
 | RT-05 | Phase 2 | Pending |
 | TEST-02 | Phase 2 | Pending |
-| MSG-01 | Phase 3 | Pending |
-| MSG-02 | Phase 3 | Pending |
+| MSG-01 | Phase 3 | Complete |
+| MSG-02 | Phase 3 | Complete |
 | MSG-03 | Phase 3 | Pending |
-| MSG-04 | Phase 3 | Pending |
-| MSG-05 | Phase 3 | Pending |
+| MSG-04 | Phase 3 | Complete |
+| MSG-05 | Phase 3 | Complete |
 | MSG-06 | Phase 3 | Pending |
 | MSG-07 | Phase 3 | Pending |
 | UI-01 | Phase 6 | Complete |
@@ -129,7 +129,7 @@
 | BASE-04 | Phase 5 | Complete |
 | BASE-05 | Phase 5 | Complete |
 | PARITY-01 | Phase 7 | Complete |
-| PARITY-02 | Phase 7 | Pending |
+| PARITY-02 | Phase 7 | Complete |
 | PARITY-03 | Phase 7 | Complete |
 | MEDIA-01 | Phase 8 | Pending |
 | MEDIA-02 | Phase 8 | Pending |
