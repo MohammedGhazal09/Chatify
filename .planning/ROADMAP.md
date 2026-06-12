@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Messenger UI Reconstruction** - Rebuild the chat page into a polished responsive messenger interface. (completed 2026-06-09)
 - [x] **Phase 5: Messenger Baseline Completion** - Add search, conversation continuity, and final account/session polish for v1. (completed 2026-06-09)
 - [x] **Phase 6: Messenger Visual Parity** - Match the supplied desktop and mobile light/dark messenger references as closely as possible. (completed 2026-06-12)
-- [ ] **Phase 7: Messenger Functional Parity Restoration** - Rewire the reference UI to real chat state, actions, navigation, search, status, and session behavior so no production surface is static-only.
+- [x] **Phase 7: Messenger Functional Parity Restoration** - Rewire the reference UI to real chat state, actions, navigation, search, status, and session behavior so no production surface is static-only. (completed 2026-06-12)
 - [ ] **Phase 8: Media Files And Conversation Detail Implementation** - Implement real attachments, previews, downloads, shared media/files, pinned items, and conversation detail/security panels.
 - [ ] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence.
 
@@ -223,7 +223,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 07-03: Add behavior-first Playwright coverage and after-interaction evidence
+- [x] 07-03: Add behavior-first Playwright coverage and after-interaction evidence
 
 Cross-cutting constraints:
 
@@ -302,6 +302,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 4. Messenger UI Reconstruction | 3/3 | Complete | 2026-06-09 |
 | 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
 | 6. Messenger Visual Parity | 3/3 | Complete   | 2026-06-12 |
-| 7. Messenger Functional Parity Restoration | 2/3 | In Progress|  |
+| 7. Messenger Functional Parity Restoration | 3/3 | Complete   | 2026-06-12 |
 | 8. Media Files And Conversation Detail Implementation | 0/0 | Not planned | - |
 | 9. Messenger Interaction Quality Gate | 0/0 | Not planned | - |
