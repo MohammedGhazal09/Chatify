@@ -8,10 +8,11 @@ describe('ChatShell', () => {
     const user = userEvent.setup();
     const onCloseSidebar = vi.fn();
 
-    render(
+    const { rerender } = render(
       <ChatShell
         isSidebarOpen
         onCloseSidebar={onCloseSidebar}
+        isRightRailOpen
         sidebar={<aside data-testid="chat-sidebar">Sidebar</aside>}
         conversation={<div>Conversation</div>}
         rightRail={<aside data-testid="chat-context-rail">Details</aside>}
@@ -25,5 +26,18 @@ describe('ChatShell', () => {
 
     await user.click(screen.getByRole('button', { name: 'Close chat list' }));
     expect(onCloseSidebar).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByTestId('chat-shell')).toHaveAttribute('data-right-rail', 'open');
+
+    rerender(
+      <ChatShell
+        isSidebarOpen={false}
+        onCloseSidebar={onCloseSidebar}
+        sidebar={<aside data-testid="chat-sidebar">Sidebar</aside>}
+        conversation={<div>Conversation</div>}
+      />
+    );
+
+    expect(screen.getByTestId('chat-shell')).toHaveAttribute('data-right-rail', 'closed');
   });
 });

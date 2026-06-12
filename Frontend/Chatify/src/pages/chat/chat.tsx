@@ -1044,37 +1044,38 @@ const ChatPage = () => {
       data-chat-theme={chatTheme.theme}
     >
       <ChatShell
-      isSidebarOpen={isSidebarOpen}
-      onCloseSidebar={() => setIsSidebarOpen(false)}
-      sidebar={(
-        <ChatSidebar
-          user={user}
-          chats={chats}
-          selectedChatId={selectedChatId}
-          isOpen={isSidebarOpen}
-          isLoading={isChatsLoading}
-          isError={chatsError}
-          searchQuery={searchQuery}
-          isNewChatOpen={isNewChatOpen}
-          newChatEmail={newChatEmail}
-          createChatError={createChatError}
-          isCreatingChat={createChat.isPending}
-          unreadCounts={unreadCounts}
-          onlineUsers={onlineUsers}
-          newChatButtonRef={newChatButtonRef}
-          onSearchChange={setSearchQuery}
-          onSelectChat={handleSelectChat}
-          onCloseSidebar={() => setIsSidebarOpen(false)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onLogout={handleLogout}
-          onToggleNewChat={handleToggleNewChat}
-          onNewChatEmailChange={setNewChatEmail}
-          onCreateChatSubmit={handleCreateChatSubmit}
-          onRefetchChats={() => refetchChats()}
-        />
-      )}
-      conversation={(
-        <ConversationPane
+        isSidebarOpen={isSidebarOpen}
+        onCloseSidebar={() => setIsSidebarOpen(false)}
+        isRightRailOpen={Boolean(selectedChat && isDetailRailOpen)}
+        sidebar={(
+          <ChatSidebar
+            user={user}
+            chats={chats}
+            selectedChatId={selectedChatId}
+            isOpen={isSidebarOpen}
+            isLoading={isChatsLoading}
+            isError={chatsError}
+            searchQuery={searchQuery}
+            isNewChatOpen={isNewChatOpen}
+            newChatEmail={newChatEmail}
+            createChatError={createChatError}
+            isCreatingChat={createChat.isPending}
+            unreadCounts={unreadCounts}
+            onlineUsers={onlineUsers}
+            newChatButtonRef={newChatButtonRef}
+            onSearchChange={setSearchQuery}
+            onSelectChat={handleSelectChat}
+            onCloseSidebar={() => setIsSidebarOpen(false)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onLogout={handleLogout}
+            onToggleNewChat={handleToggleNewChat}
+            onNewChatEmailChange={setNewChatEmail}
+            onCreateChatSubmit={handleCreateChatSubmit}
+            onRefetchChats={() => refetchChats()}
+          />
+        )}
+        conversation={(
+          <ConversationPane
           selectedChat={selectedChat}
           selectedChatId={selectedChatId}
           currentUserId={user?._id}

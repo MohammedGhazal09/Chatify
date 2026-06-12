@@ -17,6 +17,10 @@ const requiredEnvVars = [
 ] as const;
 
 type RequiredEnvVar = typeof requiredEnvVars[number];
+type UrlEnvVar = 'CHATIFY_PROD_FRONTEND_URL' | 'CHATIFY_PROD_BACKEND_URL';
+
+const defaultFrontendUrl = 'https://chatify-ten-rho.vercel.app';
+const defaultBackendUrl = 'https://chatify-ckmn.onrender.com';
 
 export interface ProductionSmokeAccount {
   label: 'Smoke user A' | 'Smoke user B';
@@ -30,6 +34,7 @@ export interface ProductionSmokeMetadata {
   backendOrigin: string;
   accounts: Array<Pick<ProductionSmokeAccount, 'label' | 'redactedEmail'>>;
   missingEnv: RequiredEnvVar[];
+  invalidUrlEnv: UrlEnvVar[];
   optIn: boolean;
 }
 
@@ -61,38 +66,59 @@ const redactEmail = (email: string) => {
   return `${visiblePrefix}***@${redactedDomain}`;
 };
 
-const normalizeUrl = (value: string, fallback: string) => {
+const parseSmokeUrl = (name: UrlEnvVar, fallback: string) => {
+  const value = readEnv(name);
+
   try {
     const parsed = new URL(value || fallback);
+
+    if (value && !['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Production smoke URL must use http or https.');
+    }
+
     parsed.hash = '';
-    return parsed.toString().replace(/\/$/, '');
+    const normalized = parsed.toString().replace(/\/$/, '');
+
+    return {
+      invalidEnv: null,
+      origin: parsed.origin,
+      url: normalized,
+    };
   } catch {
-    return fallback;
+    return {
+      invalidEnv: name,
+      origin: '[invalid]',
+      url: fallback,
+    };
   }
 };
 
 export const getProductionSmokeConfig = (): ProductionSmokeConfig => {
   const missingEnv = requiredEnvVars.filter((name) => !readEnv(name));
   const optIn = readEnv('CHATIFY_PRODUCTION_SMOKE') === '1';
-  const frontendUrl = normalizeUrl(readEnv('CHATIFY_PROD_FRONTEND_URL'), 'https://chatify-ten-rho.vercel.app');
-  const backendUrl = normalizeUrl(readEnv('CHATIFY_PROD_BACKEND_URL'), 'https://chatify-ckmn.onrender.com');
+  const frontendUrl = parseSmokeUrl('CHATIFY_PROD_FRONTEND_URL', defaultFrontendUrl);
+  const backendUrl = parseSmokeUrl('CHATIFY_PROD_BACKEND_URL', defaultBackendUrl);
+  const invalidUrlEnv = [frontendUrl.invalidEnv, backendUrl.invalidEnv].filter((name): name is UrlEnvVar => Boolean(name));
   const senderEmail = readEnv('CHATIFY_SMOKE_USER_A_EMAIL');
   const recipientEmail = readEnv('CHATIFY_SMOKE_USER_B_EMAIL');
   const metadata: ProductionSmokeMetadata = {
-    frontendOrigin: new URL(frontendUrl).origin,
-    backendOrigin: new URL(backendUrl).origin,
+    frontendOrigin: frontendUrl.origin,
+    backendOrigin: backendUrl.origin,
     accounts: [
       { label: 'Smoke user A', redactedEmail: senderEmail ? redactEmail(senderEmail) : '[missing]' },
       { label: 'Smoke user B', redactedEmail: recipientEmail ? redactEmail(recipientEmail) : '[missing]' },
     ],
+    invalidUrlEnv,
     missingEnv,
     optIn,
   };
 
-  if (!optIn || missingEnv.length > 0) {
+  if (!optIn || missingEnv.length > 0 || invalidUrlEnv.length > 0) {
     const reason = !optIn
       ? 'CHATIFY_PRODUCTION_SMOKE=1 is required for live production smoke.'
-      : `Missing production smoke environment: ${missingEnv.join(', ')}.`;
+      : missingEnv.length > 0
+        ? `Missing production smoke environment: ${missingEnv.join(', ')}.`
+        : `Invalid production smoke URL environment: ${invalidUrlEnv.join(', ')}.`;
 
     return {
       enabled: false,
@@ -103,8 +129,8 @@ export const getProductionSmokeConfig = (): ProductionSmokeConfig => {
 
   return {
     enabled: true,
-    frontendUrl,
-    backendUrl,
+    frontendUrl: frontendUrl.url,
+    backendUrl: backendUrl.url,
     accounts: {
       sender: {
         label: 'Smoke user A',

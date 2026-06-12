@@ -101,6 +101,18 @@ const sendAttachmentMessage = async (page: Page) => {
   await expect(page.getByTestId('conversation-pane').getByText('phase09-upload-sample.txt')).toBeVisible();
 };
 
+const expectConversationReclaimsClosedRailSpace = async (page: Page) => {
+  await expect.poll(async () => {
+    const box = await page.getByTestId('conversation-pane').boundingBox();
+
+    if (!box) {
+      return 0;
+    }
+
+    return Math.round(box.x + box.width);
+  }).toBeGreaterThanOrEqual(1430);
+};
+
 const resolveRetryAndDismiss = async (page: Page) => {
   const conversationPane = page.getByTestId('conversation-pane');
   await conversationPane.locator('.chat-messages-scroll').evaluate((element) => {
@@ -253,9 +265,12 @@ test.describe('Phase 10 production messenger reality', () => {
     await rail.getByRole('button', { name: 'Close conversation details' }).click();
     await expect(rail).toBeHidden();
     await expect(detailsButton).toBeFocused();
+    await expect(page.getByTestId('chat-shell')).toHaveAttribute('data-right-rail', 'closed');
+    await expectConversationReclaimsClosedRailSpace(page);
 
     await detailsButton.click();
     await expect(rail).toBeVisible();
+    await expect(page.getByTestId('chat-shell')).toHaveAttribute('data-right-rail', 'open');
     await rail.getByRole('button', { name: 'Search messages' }).click();
     await expect(page.getByRole('textbox', { name: 'Search this conversation' })).toBeFocused();
     await page.keyboard.press('Escape');

@@ -3,16 +3,26 @@ import type { ReactNode } from 'react';
 interface ChatShellProps {
   isSidebarOpen: boolean;
   onCloseSidebar: () => void;
+  isRightRailOpen?: boolean;
   sidebar: ReactNode;
   conversation: ReactNode;
   rightRail?: ReactNode;
   overlays?: ReactNode;
 }
 
-const ChatShell = ({ isSidebarOpen, onCloseSidebar, sidebar, conversation, rightRail, overlays }: ChatShellProps) => {
+const ChatShell = ({
+  isSidebarOpen,
+  onCloseSidebar,
+  isRightRailOpen = false,
+  sidebar,
+  conversation,
+  rightRail,
+  overlays,
+}: ChatShellProps) => {
   return (
     <div
       data-testid="chat-shell"
+      data-right-rail={isRightRailOpen ? 'open' : 'closed'}
       className="chat-shell grid h-[100dvh] w-screen max-w-screen overflow-hidden bg-[var(--chat-bg)] text-[var(--chat-text)]"
     >
       <button

@@ -79,6 +79,36 @@ const createSmokePage = async (browser: Browser) => {
   return { context, page };
 };
 
+const describeSmokeError = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.name || 'Error';
+  }
+
+  return 'Unknown error';
+};
+
+const appendSmokeRunAudit = ({
+  config,
+  observations,
+  status,
+}: {
+  config: ReturnType<typeof requireProductionSmokeConfig>;
+  observations: string[];
+  status: 'passed' | 'failed';
+}) => {
+  appendProductionSmokeAudit(`
+## Automated Production Smoke Run
+
+- Status: ${status}
+- Frontend origin: ${config.metadata.frontendOrigin}
+- Backend origin: ${config.metadata.backendOrigin}
+- Accounts: ${config.metadata.accounts.map((account) => `${account.label} (${account.redactedEmail})`).join(', ')}
+- Smoke marker: redacted unique Phase 10 marker
+- Observations:
+${observations.map((observation) => `  - ${observation}`).join('\n')}
+`);
+};
+
 test.describe('Phase 10 production smoke', () => {
   test.skip(!initialConfig.enabled, initialConfig.enabled ? undefined : initialConfig.blockedReason);
 
@@ -88,6 +118,7 @@ test.describe('Phase 10 production smoke', () => {
     const sender = await createSmokePage(browser);
     const recipient = await createSmokePage(browser);
     const observations: string[] = [];
+    let auditAppended = false;
 
     try {
       await signIn(sender.page, config.frontendUrl, config.accounts.sender);
@@ -102,28 +133,43 @@ test.describe('Phase 10 production smoke', () => {
 
       const senderBubbleCount = await sender.page.getByTestId('conversation-pane').getByText(marker).count();
       observations.push(`Sender message bubble count for marker: ${senderBubbleCount}.`);
+      let recipientSawMarkerWithoutRefresh = false;
+      let recipientMarkerCountAfterRefresh: number | null = null;
 
       try {
         await expect(recipient.page.getByTestId('conversation-pane').getByText(marker).first()).toBeVisible({ timeout: 15000 });
+        recipientSawMarkerWithoutRefresh = true;
         observations.push('Recipient saw marker without refresh: yes.');
       } catch {
         observations.push('Recipient saw marker without refresh: no.');
         await recipient.page.reload({ waitUntil: 'networkidle' });
-        const afterRefreshCount = await recipient.page.getByTestId('conversation-pane').getByText(marker).count();
-        observations.push(`Recipient marker count after refresh: ${afterRefreshCount}.`);
+        recipientMarkerCountAfterRefresh = await recipient.page.getByTestId('conversation-pane').getByText(marker).count();
+        observations.push(`Recipient marker count after refresh: ${recipientMarkerCountAfterRefresh}.`);
       }
 
-      appendProductionSmokeAudit(`
-## Automated Production Smoke Run
+      const deliveryPassed = senderBubbleCount === 1 && recipientSawMarkerWithoutRefresh;
+      observations.push(`Delivery baseline status: ${deliveryPassed ? 'passed' : 'failed'}.`);
+      appendSmokeRunAudit({
+        config,
+        observations,
+        status: deliveryPassed ? 'passed' : 'failed',
+      });
+      auditAppended = true;
 
-- Status: executed
-- Frontend origin: ${config.metadata.frontendOrigin}
-- Backend origin: ${config.metadata.backendOrigin}
-- Accounts: ${config.metadata.accounts.map((account) => `${account.label} (${account.redactedEmail})`).join(', ')}
-- Smoke marker: redacted unique Phase 10 marker
-- Observations:
-${observations.map((observation) => `  - ${observation}`).join('\n')}
-`);
+      expect(senderBubbleCount).toBe(1);
+      expect(recipientSawMarkerWithoutRefresh).toBe(true);
+      expect(recipientMarkerCountAfterRefresh).toBeNull();
+    } catch (error) {
+      if (!auditAppended) {
+        observations.push(`Run failed before completion: ${describeSmokeError(error)}.`);
+        appendSmokeRunAudit({
+          config,
+          observations,
+          status: 'failed',
+        });
+      }
+
+      throw error;
     } finally {
       await sender.context.close();
       await recipient.context.close();
