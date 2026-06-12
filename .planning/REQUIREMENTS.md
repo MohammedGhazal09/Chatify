@@ -50,19 +50,31 @@
 - [x] **BASE-04**: User can start or continue direct-message conversations from the existing user/chat data model.
 - [x] **BASE-05**: User can navigate away and return without losing selected conversation context unnecessarily.
 
+### Functional Product Parity
+
+- [ ] **PARITY-01**: The messenger reference UI renders production chat, message, presence, status, search, and session state instead of static demo fixtures.
+- [ ] **PARITY-02**: Every visible messenger control performs a supported action or is intentionally hidden/disabled with an honest state.
+- [ ] **PARITY-03**: Desktop, mobile, light theme, and dark theme variants preserve the same working workflows and do not fork into layout-only implementations.
+
+### Media And Detail Surfaces
+
+- [ ] **MEDIA-01**: User can attach and send supported images or files with validation, recoverable failures, and persisted message metadata.
+- [ ] **MEDIA-02**: User can preview, open, and download shared media/files only when authorized for the conversation.
+- [ ] **MEDIA-03**: Conversation detail surfaces for shared media, shared files, pinned messages, and security status use real data or are intentionally hidden until supported.
+
 ### Tests And Verification
 
 - [ ] **TEST-01**: Backend request tests cover auth lifecycle, CSRF enforcement, message authorization, validation boundaries, and password reset behavior.
 - [ ] **TEST-02**: Socket integration tests cover authenticated handshake, unauthorized event rejection, room membership, typing, delivery, read, edit, delete, reaction, and reconnect behavior.
 - [x] **TEST-03**: Frontend tests cover optimistic send, rollback, duplicate merge, unread updates, session-expired state, and core chat UI states.
 - [ ] **TEST-04**: Each auth, socket, and message phase has blocking security acceptance criteria and verification evidence.
+- [ ] **TEST-05**: End-to-end UI quality gates cover real messenger workflows across desktop, mobile, light theme, and dark theme after behavior interactions.
 
 ## v2 Requirements
 
 ### Platform Expansion
 
 - **V2-GRP-01**: User can create and participate in group conversations.
-- **V2-MEDIA-01**: User can send attachments or media previews.
 - **V2-NOTF-01**: User can receive push or email notifications for new messages.
 - **V2-MOD-01**: User can block or report another user.
 - **V2-ADMIN-01**: Admin can review abuse reports and moderate accounts or content.
@@ -116,13 +128,20 @@
 | BASE-03 | Phase 5 | Complete |
 | BASE-04 | Phase 5 | Complete |
 | BASE-05 | Phase 5 | Complete |
+| PARITY-01 | Phase 7 | Pending |
+| PARITY-02 | Phase 7 | Pending |
+| PARITY-03 | Phase 7 | Pending |
+| MEDIA-01 | Phase 8 | Pending |
+| MEDIA-02 | Phase 8 | Pending |
+| MEDIA-03 | Phase 8 | Pending |
+| TEST-05 | Phase 9 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 34 total
-- Mapped to phases: 34
+- v1 requirements: 41 total
+- Mapped to phases: 41
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-07 after initial definition*
+*Last updated: 2026-06-12 after Phase 07-09 correction planning*

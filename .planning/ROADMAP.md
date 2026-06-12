@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants.
+Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, and enforce an interaction quality gate.
 
 ## Phases
 
@@ -19,6 +19,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Messenger UI Reconstruction** - Rebuild the chat page into a polished responsive messenger interface. (completed 2026-06-09)
 - [x] **Phase 5: Messenger Baseline Completion** - Add search, conversation continuity, and final account/session polish for v1. (completed 2026-06-09)
 - [x] **Phase 6: Messenger Visual Parity** - Match the supplied desktop and mobile light/dark messenger references as closely as possible. (completed 2026-06-12)
+- [ ] **Phase 7: Messenger Functional Parity Restoration** - Rewire the reference UI to real chat state, actions, navigation, search, status, and session behavior so no production surface is static-only.
+- [ ] **Phase 8: Media Files And Conversation Detail Implementation** - Implement real attachments, previews, downloads, shared media/files, pinned items, and conversation detail/security panels.
+- [ ] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence.
 
 ## Phase Details
 
@@ -192,10 +195,104 @@ Plans:
 
 - [x] 06-03: Add light/dark desktop/mobile screenshot checks and close remaining visual drift
 
+### Phase 7: Messenger Functional Parity Restoration
+
+**Goal**: Users get the Phase 6 visual design as a working messenger: conversations, messages, composer, search, presence, status, retry, selection, navigation, and theme behavior are backed by real state and existing APIs instead of static placeholders.
+**Mode:** mvp
+**Depends on**: Phase 6
+**Requirements**: PARITY-01, PARITY-02, PARITY-03, UI-01, UI-02, UI-03, UI-04, UI-05, BASE-01, BASE-02, BASE-03, BASE-04, BASE-05, MSG-01, MSG-02, MSG-04, MSG-05, RT-04, TEST-03, TEST-05
+**Success Criteria** (what must be TRUE):
+
+  1. Conversation list, selected header, message list, unread badges, delivery/read states, typing, presence, and connection/session surfaces render from TanStack Query, Zustand, Socket.IO, and API data instead of reference fixtures.
+  2. Composer send, retry failed send, edit/delete/reaction entry points, search, conversation selection, mobile back/drawer navigation, and theme switching perform real supported behavior without breaking the reference layout.
+  3. Any visible control that is not supported yet is removed, hidden, or rendered as an honest disabled state; the UI must not expose decorative buttons that look functional but do nothing.
+  4. Desktop and mobile light/dark variants preserve the same real workflows, with no layout-only fork that skips app state, auth/session handling, socket state, or error recovery.
+  5. Component tests and Playwright smoke tests cover real send/search/navigation/status workflows and fail if static demo data replaces production state.
+
+**Plans**: 3 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 07-01: Isolate Phase 6 visual fixtures from production runtime and add fixture-leak guardrails
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-02: Restore live-state UI behavior and honest disabled or unavailable surfaces
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 07-03: Add behavior-first Playwright coverage and after-interaction evidence
+
+Cross-cutting constraints:
+
+- Execution must be inline in the current Codex thread; do not use subagents.
+
+### Phase 8: Media Files And Conversation Detail Implementation
+
+**Goal**: Users can attach, view, preview, download, and inspect shared conversation assets through real data-backed media, file, pinned-item, and detail/security surfaces without weakening message privacy or the responsive reference design.
+**Mode:** mvp
+**Depends on**: Phase 7
+**Requirements**: MEDIA-01, MEDIA-02, MEDIA-03, PARITY-01, PARITY-02, UI-01, UI-02, UI-04, UI-05, MSG-03, MSG-04, TEST-05
+**Success Criteria** (what must be TRUE):
+
+  1. The composer attachment control opens a supported upload/selection flow with validation for file type, size, auth, ownership, and recoverable failure states.
+  2. Image/media previews, file cards, download actions, and message attachments render from persisted message data and survive reload, pagination, search, and realtime updates.
+  3. Shared files, shared media, pinned messages, and conversation security/detail panels are backed by real conversation data or are intentionally hidden until a specific backend capability exists.
+  4. File/media access is membership-checked on the backend and does not expose private assets, object keys, unauthorized previews, or stale conversation details.
+  5. Desktop right panel and mobile detail surfaces work in both themes without overflow, dead controls, or decorative static content.
+
+**Plans**: 0 plans
+
+Recommended planning focus:
+
+**Wave 1**
+
+- Define and implement secure attachment and conversation-detail data contracts.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- Build real composer upload, message attachment, preview, download, pinned, and shared-asset UI flows.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- Verify media/file authorization, responsive detail surfaces, and theme parity with tests and smoke evidence.
+
+### Phase 9: Messenger Interaction Quality Gate
+
+**Goal**: The rebuilt messenger is accepted only when the UI behaves like a real website across critical workflows, not just a visually accurate screenshot.
+**Mode:** mvp
+**Depends on**: Phase 8
+**Requirements**: TEST-03, TEST-05, PARITY-01, PARITY-02, PARITY-03, UI-01, UI-02, UI-03, UI-04, UI-05, BASE-01, BASE-02, MEDIA-01, MEDIA-02, MEDIA-03
+**Success Criteria** (what must be TRUE):
+
+  1. End-to-end tests exercise login/session recovery, conversation selection, send/retry, search, read/delivery state, typing/presence, theme switching, mobile navigation, attachments, and detail panels against app behavior.
+  2. Visual screenshot tests for desktop/mobile and light/dark themes run after behavior interactions, proving the real UI remains aligned after data changes instead of only at initial render.
+  3. Accessibility and keyboard checks cover the chat shell, composer, actions, drawers/panels, media/file controls, and disabled/unsupported states.
+  4. Test fixtures are centralized, named, and separated from production UI paths so reference-demo data cannot accidentally ship as product behavior.
+  5. The phase summary records exact lint, build, unit, integration, Playwright, and screenshot outcomes before the messenger can be considered v1-ready.
+
+**Plans**: 0 plans
+
+Recommended planning focus:
+
+**Wave 1**
+
+- Build the behavior-first Playwright matrix and fixture guardrails.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- Add accessibility, keyboard, and responsive interaction coverage for the rebuilt messenger.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- Run the full quality gate, capture evidence, and close remaining interaction drift.
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -205,3 +302,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 4. Messenger UI Reconstruction | 3/3 | Complete | 2026-06-09 |
 | 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
 | 6. Messenger Visual Parity | 3/3 | Complete   | 2026-06-12 |
+| 7. Messenger Functional Parity Restoration | 0/3 | Planned | - |
+| 8. Media Files And Conversation Detail Implementation | 0/0 | Not planned | - |
+| 9. Messenger Interaction Quality Gate | 0/0 | Not planned | - |

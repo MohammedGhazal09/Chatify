@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Correction phase added to restore working product behavior behind the Phase 06 visual shell
-stopped_at: Phase 07 context gathered
-last_updated: "2026-06-12T13:23:09.044Z"
-last_activity: 2026-06-12 -- Phase 07-09 correction phases added after static UI gap
+status: Ready to execute Phase 07 plans
+stopped_at: Phase 07 planned
+last_updated: "2026-06-12T13:35:08.000Z"
+last_activity: 2026-06-12 -- Phase 07 planned with 3 waves for fixture isolation, live UI repair, and behavior-first verification
 progress:
   total_phases: 9
   completed_phases: 5
-  total_plans: 17
+  total_plans: 20
   completed_plans: 14
-  percent: 82
+  percent: 70
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 
 ## Current Position
 
-Phase: 07 (messenger-functional-parity-restoration) — NOT PLANNED
-Plan: not planned yet
-Status: Correction phase added to restore working product behavior behind the Phase 06 visual shell
-Last activity: 2026-06-12 -- Phase 07-09 correction phases added after static UI gap
+Phase: 07 (messenger-functional-parity-restoration) — PLANNED
+Plan: 07-01 next
+Status: Ready to execute Phase 07 plans
+Last activity: 2026-06-12 -- Phase 07 planned with 3 waves for fixture isolation, live UI repair, and behavior-first verification
 
-Progress: 82%
+Progress: 70%
 
 ## Performance Metrics
 
@@ -91,12 +91,13 @@ Recent decisions affecting current work:
 - Phase 6 planned with 3 waves for theme/desktop shell, mobile conversation parity, and four-variant visual smoke evidence.
 - Phase 6 completed visual parity, but it did not sufficiently prove that every reference UI surface was wired to real product behavior.
 - Phase 7 added: Messenger Functional Parity Restoration.
+- Phase 7 planned with 3 waves: fixture isolation/guardrails, live-state UI repair/honesty, and behavior-first Playwright verification.
 - Phase 8 added: Media Files And Conversation Detail Implementation.
 - Phase 9 added: Messenger Interaction Quality Gate.
 
 ### Pending Todos
 
-- Run `$gsd-spec-phase 7` or `$gsd-discuss-phase 7` to lock functional parity scope before implementation.
+- Run `$gsd-execute-phase 7` to start with Plan 07-01.
 - Phase 07 must restore real behavior behind the reference UI before Phase 08 media/detail work starts.
 
 ### Blockers/Concerns
@@ -113,6 +114,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-12T13:23:09.032Z
-Stopped at: Phase 07 context gathered
-Resume file: .planning/phases/07-messenger-functional-parity-restoration/07-CONTEXT.md
+Last session: 2026-06-12T13:35:08.000Z
+Stopped at: Phase 07 planned
+Resume file: .planning/phases/07-messenger-functional-parity-restoration/07-01-PLAN.md
