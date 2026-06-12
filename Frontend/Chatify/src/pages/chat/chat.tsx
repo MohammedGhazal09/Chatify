@@ -73,10 +73,6 @@ const useDebounce = (callback: () => void, delay: number) => {
 const isValidEmailAddress = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const INVALID_EMAIL_COPY = 'Enter a valid email address.';
 const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the email and try again.';
-const isPhase06VisualSmoke = () => (
-  typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('chatVisualSmoke') === 'phase06'
-);
 
 const ChatPage = () => {
   const { user, isAuthenticated } = useAuthStore();
@@ -141,7 +137,6 @@ const ChatPage = () => {
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
   const chatTheme = useChatTheme(user?._id);
-  const isVisualSmokeMode = isPhase06VisualSmoke();
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
   const {
@@ -254,7 +249,7 @@ const ChatPage = () => {
     emitMessageDelivered,
   } = useChatSocket({
     chatId: selectedChatId,
-    enabled: !isVisualSmokeMode && !!selectedChatId && isAuthenticated,
+    enabled: !!selectedChatId && isAuthenticated,
     onMessage: (message) => {
       upsertMessage(message);
       if (message.sender !== user?._id) {
@@ -899,7 +894,7 @@ const ChatPage = () => {
 
   const isOffline = !isBrowserOnline;
   const isSessionExpired = !isAuthenticated && !isChatsLoading;
-  const isReconnecting = Boolean(!isVisualSmokeMode && selectedChatId && isAuthenticated && !isOffline && (socketError || (socket && !socket.connected)));
+  const isReconnecting = Boolean(selectedChatId && isAuthenticated && !isOffline && (socketError || (socket && !socket.connected)));
 
   if (!isAuthenticated && isChatsLoading) {
     return <LoadingSpinner />;

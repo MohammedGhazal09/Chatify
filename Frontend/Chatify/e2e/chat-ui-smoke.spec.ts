@@ -3,7 +3,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import {
   PHASE06_SELECTED_CHAT_ID,
   phase06VisualFixture,
-} from '../src/pages/chat/components/Phase06VisualFixture';
+} from './fixtures/phase06VisualFixture';
 
 const phase06ArtifactPath = (fileName: string) => path.resolve(
   process.cwd(),
@@ -84,7 +84,7 @@ const seedPhase06Presence = async (page: Page) => {
 
 const openPhase06Chat = async (page: Page, theme: 'light' | 'dark') => {
   await mockChatifyApi(page);
-  await page.goto(`/?chatId=${PHASE06_SELECTED_CHAT_ID}&chatTheme=${theme}&chatVisualSmoke=phase06`);
+  await page.goto(`/?chatId=${PHASE06_SELECTED_CHAT_ID}&chatTheme=${theme}`);
   await expect(page.getByTestId('chat-root')).toHaveAttribute('data-chat-theme', theme);
   await expect(page.getByTestId('conversation-pane').getByRole('heading', { name: phase06VisualFixture.selectedTitle })).toBeVisible();
   await seedPhase06Presence(page);

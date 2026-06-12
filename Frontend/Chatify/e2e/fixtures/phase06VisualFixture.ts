@@ -1,6 +1,6 @@
-import type { User } from '../../../types/auth';
-import type { Chat, Message, TypingUser, UserOnlineStatus } from '../../../types/chat';
-import { makeChat, makeCodedUser, makeMessage } from '../../../test/chatFixtures';
+import type { User } from '../../src/types/auth';
+import type { Chat, Message, TypingUser, UserOnlineStatus } from '../../src/types/chat';
+import { makeChat, makeCodedUser, makeMessage } from '../../src/test/chatFixtures';
 
 export interface Phase06FileChip {
   name: string;
