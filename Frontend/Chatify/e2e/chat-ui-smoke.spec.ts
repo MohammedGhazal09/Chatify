@@ -102,7 +102,7 @@ const assertConversationBasics = async (page: Page) => {
   await expect(page.getByRole('textbox', { name: 'Write a private message' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Attach file unavailable in this phase' })).toBeVisible();
-  await expect(page.getByText('Secure session active')).toBeVisible();
+  await expect(page.getByText('Authenticated private session')).toBeVisible();
   await expect(page.getByText('IN-8B21 is typing')).toBeVisible();
   await expect(page.getByTestId('conversation-pane').getByText('message-states-spec.pdf')).toBeVisible();
   await expect(page.getByTestId('conversation-pane').getByText('Message failed to send. Retry or dismiss it.')).toBeVisible();

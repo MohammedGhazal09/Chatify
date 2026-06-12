@@ -51,6 +51,8 @@ describe('ChatSidebar', () => {
     expect(screen.getByText('No conversations yet')).toBeInTheDocument();
     expect(screen.getByText('Start a chat to begin messaging.')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument();
+    expect(screen.getByText('Authenticated private chat')).toBeInTheDocument();
+    expect(screen.queryByText('End-to-end encrypted')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Close conversations' }));
     expect(onCloseSidebar).toHaveBeenCalledTimes(1);

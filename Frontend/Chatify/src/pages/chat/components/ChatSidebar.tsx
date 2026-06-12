@@ -209,7 +209,7 @@ const ChatSidebar = ({
       <div className="flex items-center justify-between border-t border-[var(--chat-border)] px-4 py-3 text-xs text-[var(--chat-text-muted)]">
         <span className="inline-flex items-center gap-2">
           <Lock aria-hidden="true" className="h-4 w-4" />
-          End-to-end encrypted
+          Authenticated private chat
         </span>
         <button
           type="button"

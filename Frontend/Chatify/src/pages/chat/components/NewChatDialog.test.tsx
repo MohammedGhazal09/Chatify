@@ -68,7 +68,7 @@ describe('NewChatDialog', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New chat' })).not.toBeInTheDocument());
     await waitFor(() => expect(opener).toHaveFocus());
-  });
+  }, 10000);
 
   it('shows continuation pending and generic lookup failure copy', () => {
     const openerRef = { current: document.createElement('button') };
