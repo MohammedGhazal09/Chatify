@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then redesign the chat UI, then finish the messenger baseline features.
+Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants.
 
 ## Phases
 
@@ -16,8 +16,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Security And Test Foundation** - Establish blocking security controls, test harnesses, and auth/session safety.
 - [x] **Phase 2: Authenticated Realtime Contract** - Rebuild Socket.IO identity, membership checks, presence, and reconnect behavior.
 - [x] **Phase 3: Canonical Message State** - Make send, receive, status, delete, edit, reaction, unread, and pagination behavior deterministic. (completed 2026-06-08)
-- [ ] **Phase 4: Messenger UI Reconstruction** - Rebuild the chat page into a polished responsive messenger interface.
+- [x] **Phase 4: Messenger UI Reconstruction** - Rebuild the chat page into a polished responsive messenger interface. (completed 2026-06-09)
 - [x] **Phase 5: Messenger Baseline Completion** - Add search, conversation continuity, and final account/session polish for v1. (completed 2026-06-09)
+- [ ] **Phase 6: Messenger Visual Parity** - Match the supplied desktop and mobile light/dark messenger references as closely as possible.
 
 ## Phase Details
 
@@ -128,15 +129,15 @@ Plans:
 
 **Wave 1**
 
-- [ ] 04-01: Split the monolithic chat page into focused layout, sidebar, list, bubble, composer, and action units
+- [x] 04-01: Split the monolithic chat page into focused layout, sidebar, list, bubble, composer, and action units
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-02: Redesign desktop and mobile messenger visual states and interactions
+- [x] 04-02: Redesign desktop and mobile messenger visual states and interactions
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-03: Add frontend chat UI and optimistic-state regression coverage
+- [x] 04-03: Add frontend chat UI and optimistic-state regression coverage
 
 ### Phase 5: Messenger Baseline Completion
 
@@ -162,15 +163,45 @@ Plans:
 
 - [x] 05-02: Polish presence, navigation continuity, account/session edge states, and v1 verification
 
+### Phase 6: Messenger Visual Parity
+
+**Goal**: Rebuild the chat surface so the desktop and mobile light/dark variants match the supplied reference images as closely as possible while preserving the Phase 3 canonical message state and Phase 5 baseline behavior.
+**Mode:** mvp
+**Depends on**: Phase 5
+**Requirements**: UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, TEST-03
+**Success Criteria** (what must be TRUE):
+
+  1. The desktop light and dark messenger shells reproduce the same three-column information architecture, spacing, icon placement, and state surfaces shown in the reference images.
+  2. The mobile light and dark messenger shells reproduce the same single-column chat screen, safe-area header, date divider, composer, typing row, and secure-session footer shown in the reference images.
+  3. Abstract geometric identity tiles or monograms are used everywhere; no photographic avatars, life-form imagery, or mascot art appear in any variant.
+  4. Theme switching is token-driven and changes only colors and surfaces, not layout, message flow, search behavior, or presence/session behavior.
+  5. Screenshot verification proves the four reference variants remain visually aligned at desktop and mobile sizes without overflow, clipping, or overlapping controls.
+
+**Plans**: 3 plans
+Plans:
+
+**Wave 1**
+
+- [ ] 06-01: Lock the shared messenger theme tokens and desktop three-column shell against the light and dark references
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-02: Rebuild the mobile single-column chat surface, composer, and status surfaces against the light and dark references
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 06-03: Add light/dark desktop/mobile screenshot checks and close remaining visual drift
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Security And Test Foundation | 0/3 | Not started | - |
 | 2. Authenticated Realtime Contract | 3/3 | Complete | 2026-06-08 |
 | 3. Canonical Message State | 3/3 | Complete | 2026-06-08 |
-| 4. Messenger UI Reconstruction | 0/3 | Not started | - |
-| 5. Messenger Baseline Completion | 2/2 | Complete    | 2026-06-09 |
+| 4. Messenger UI Reconstruction | 3/3 | Complete | 2026-06-09 |
+| 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
+| 6. Messenger Visual Parity | 0/3 | Not started | - |
