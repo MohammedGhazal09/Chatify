@@ -24,6 +24,40 @@ const reactionSchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+const attachmentSummarySchema = new mongoose.Schema({
+  attachmentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Attachments",
+    required: true,
+  },
+  displayName: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  mimeType: {
+    type: String,
+    required: true,
+  },
+  size: {
+    type: Number,
+    required: true,
+  },
+  kind: {
+    type: String,
+    enum: ["media", "file"],
+    required: true,
+  },
+  status: {
+    type: String,
+    enum: ["active", "deleted"],
+    default: "active",
+  },
+  createdAt: {
+    type: Date,
+  },
+}, { _id: false });
+
 const messageSchema = new mongoose.Schema({
   chatId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -40,9 +74,18 @@ const messageSchema = new mongoose.Schema({
   text: {
     type: String,
     required() {
-      return !this.deletedForEveryone;
+      return !this.deletedForEveryone && (!this.attachments || this.attachments.length === 0);
     },
     maxlength: 1000,
+    default: '',
+  },
+  attachments: {
+    type: [attachmentSummarySchema],
+    default: [],
+  },
+  attachmentFingerprint: {
+    type: String,
+    select: false,
   },
   read: {
     type: Boolean,
@@ -86,6 +129,17 @@ const messageSchema = new mongoose.Schema({
   deletedAt: {
     type: Date,
   },
+  pinned: {
+    type: Boolean,
+    default: false,
+  },
+  pinnedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+  },
+  pinnedAt: {
+    type: Date,
+  },
 }, {
   timestamps: true,
   versionKey: false,
@@ -95,6 +149,7 @@ const messageSchema = new mongoose.Schema({
 messageSchema.index({ chatId: 1, createdAt: 1 });
 messageSchema.index({ chatId: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ chatId: 1, sender: 1, status: 1 });
+messageSchema.index({ chatId: 1, pinned: 1, pinnedAt: -1 });
 // Compound index for unread messages query optimization
 messageSchema.index({ chatId: 1, sender: 1, 'readBy.user': 1 });
 messageSchema.index({ chatId: 1, deletedFor: 1, deletedForEveryone: 1, createdAt: -1, _id: -1 });

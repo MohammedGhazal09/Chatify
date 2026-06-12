@@ -44,10 +44,15 @@ export const idsEqual = (left, right) => {
   return Boolean(leftId && rightId && leftId === rightId);
 };
 
-export const normalizeMessageText = (value) => {
+export const normalizeMessageText = (value, options = {}) => {
   const text = typeof value === 'string' ? value.trim() : '';
+  const allowEmpty = options.allowEmpty === true;
 
   if (!text) {
+    if (allowEmpty) {
+      return { ok: true, text: '' };
+    }
+
     return {
       ok: false,
       statusCode: 400,
@@ -103,6 +108,21 @@ export const serializeReactions = (reactions = []) => reactions.map((reaction) =
   emoji: reaction.emoji,
 }));
 
+export const serializeAttachmentSummary = (attachment = {}) => {
+  const attachmentId = toIdString(attachment.attachmentId ?? attachment._id);
+
+  return {
+    _id: attachmentId,
+    attachmentId,
+    displayName: attachment.displayName ?? 'attachment',
+    mimeType: attachment.mimeType ?? 'application/octet-stream',
+    size: Number.isFinite(Number(attachment.size)) ? Number(attachment.size) : 0,
+    kind: attachment.kind === 'media' ? 'media' : 'file',
+    status: attachment.status ?? 'active',
+    createdAt: serializeDate(attachment.createdAt),
+  };
+};
+
 export const serializeMessage = (message) => {
   const plainMessage = toPlainObject(message);
 
@@ -118,14 +138,36 @@ export const serializeMessage = (message) => {
     readAt: serializeDate(plainMessage.readAt),
     readBy: serializeReadBy(plainMessage.readBy ?? []),
     reactions: serializeReactions(plainMessage.reactions ?? []),
+    attachments: (plainMessage.attachments ?? []).map((attachment) => serializeAttachmentSummary(attachment)),
     isEdited: Boolean(plainMessage.isEdited),
     editedAt: serializeDate(plainMessage.editedAt),
     deletedFor: (plainMessage.deletedFor ?? []).map((userId) => toIdString(userId)).filter(Boolean),
     deletedForEveryone: Boolean(plainMessage.deletedForEveryone),
     deletedBy: toIdString(plainMessage.deletedBy),
     deletedAt: serializeDate(plainMessage.deletedAt),
+    pinned: Boolean(plainMessage.pinned),
+    pinnedBy: toIdString(plainMessage.pinnedBy),
+    pinnedAt: serializeDate(plainMessage.pinnedAt),
     createdAt: serializeDate(plainMessage.createdAt),
     updatedAt: serializeDate(plainMessage.updatedAt),
+  };
+};
+
+export const serializePinnedMessage = (message) => {
+  const serializedMessage = serializeMessage(message);
+
+  return {
+    messageId: serializedMessage._id,
+    chatId: serializedMessage.chatId,
+    sender: serializedMessage.sender,
+    text: serializedMessage.text,
+    attachments: serializedMessage.attachments,
+    pinned: serializedMessage.pinned,
+    pinnedBy: serializedMessage.pinnedBy,
+    pinnedAt: serializedMessage.pinnedAt,
+    createdAt: serializedMessage.createdAt,
+    updatedAt: serializedMessage.updatedAt,
+    message: serializedMessage,
   };
 };
 

@@ -1,8 +1,16 @@
 import { Router } from 'express';
+import { attachmentUploadLimiter } from '../Middlewares/rateLimiters.mjs';
 import {
   newMessage,
+  parseMessageAttachments,
   getAllMessages,
   searchMessages,
+  previewAttachment,
+  downloadAttachment,
+  listSharedAssets,
+  listPinnedMessages,
+  pinMessage,
+  unpinMessage,
   markMessageAsRead,
   markMessagesAsRead,
   getUnreadCount,
@@ -15,10 +23,14 @@ import {
 const router = Router();
 
 // Static routes first
-router.route('/new-message').post(newMessage)
+router.route('/new-message').post(attachmentUploadLimiter, parseMessageAttachments, newMessage)
 router.route('/get-all-messages/:id').get(getAllMessages)
 router.route('/search/:chatId').get(searchMessages)
 router.route('/batch/unread-counts').post(getBatchUnreadCounts)
+router.route('/attachments/:attachmentId/preview').get(previewAttachment)
+router.route('/attachments/:attachmentId/download').get(downloadAttachment)
+router.route('/:chatId/shared-assets').get(listSharedAssets)
+router.route('/:chatId/pinned').get(listPinnedMessages)
 
 // Parameterized routes after
 router.route('/:messageId/read').patch(markMessageAsRead)
@@ -27,5 +39,6 @@ router.route('/:chatId/unread-count').get(getUnreadCount)
 router.route('/:messageId').delete(deleteMessage)
 router.route('/:messageId/edit').patch(editMessage)
 router.route('/:messageId/reaction').post(toggleReaction)
+router.route('/:messageId/pin').post(pinMessage).delete(unpinMessage)
 
 export default router

@@ -30,3 +30,12 @@ export const refreshTokenLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const attachmentUploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  skip: skipInTests,
+  message: { status: 'error', message: 'Uploading attachments too fast, slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

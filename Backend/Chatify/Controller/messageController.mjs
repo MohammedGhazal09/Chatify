@@ -1,8 +1,23 @@
 import mongoose from 'mongoose';
+import multer from 'multer';
+import Attachment from '../Models/attachmentModel.mjs';
 import Message from '../Models/messageModel.mjs';
 import Chats from '../Models/chatModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
 import { emitToUserSockets, getIO } from '../Config/socket.mjs';
+import {
+  deleteAttachmentFile,
+  openAttachmentDownloadStream,
+  uploadAttachmentBuffer,
+} from '../Services/attachmentStorageService.mjs';
+import {
+  ATTACHMENT_ERROR_CODES,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_ATTACHMENT_SIZE_BYTES,
+  normalizeSharedAssetKind,
+  normalizeSharedAssetLimit,
+  validateIncomingAttachments,
+} from '../Utils/attachmentValidation.mjs';
 import {
   applyReactionToggle,
   applyBeforeCursorFilter,
@@ -22,13 +37,56 @@ import {
   MESSAGE_STATUS,
   MESSAGE_CURSOR_SORT_DESC,
   buildStatusPatch,
+  serializeAttachmentSummary,
   serializeMessage,
+  serializePinnedMessage,
+  toObjectId,
 } from '../Utils/messageState.mjs';
+
+const PINNED_MESSAGES_LIMIT = 50;
+const SHARED_ASSET_CURSOR_SORT_DESC = Object.freeze({ createdAt: -1, _id: -1 });
+const PRIVATE_ATTACHMENT_ERROR = 'Attachment not found';
 
 const respondWithChatAccessError = (res, statusCode, message) => {
   res.status(statusCode).json({
     status: 'fail',
     message,
+  });
+};
+
+const attachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_ATTACHMENT_SIZE_BYTES,
+    files: MAX_ATTACHMENTS_PER_MESSAGE,
+  },
+});
+
+export const parseMessageAttachments = (req, res, next) => {
+  attachmentUpload.array('attachments', MAX_ATTACHMENTS_PER_MESSAGE)(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    const isTooLarge = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
+    const isTooMany = error instanceof multer.MulterError && (
+      error.code === 'LIMIT_FILE_COUNT' || error.code === 'LIMIT_UNEXPECTED_FILE'
+    );
+
+    res.status(400).json({
+      status: 'fail',
+      code: isTooMany
+        ? ATTACHMENT_ERROR_CODES.COUNT_EXCEEDED
+        : isTooLarge
+          ? ATTACHMENT_ERROR_CODES.SIZE_EXCEEDED
+          : 'ATTACHMENT_UPLOAD_INVALID',
+      message: isTooMany
+        ? `Maximum ${MAX_ATTACHMENTS_PER_MESSAGE} attachments allowed per message`
+        : isTooLarge
+          ? 'Attachment exceeds the 10 MB attachment limit'
+          : 'Attachment upload is invalid',
+    });
   });
 };
 
@@ -79,6 +137,206 @@ const emitUnreadCountsForRecipients = async (chat, senderId) => {
   );
 };
 
+const createAttachmentSummary = (attachment) => serializeAttachmentSummary({
+  attachmentId: attachment._id,
+  displayName: attachment.displayName,
+  mimeType: attachment.mimeType,
+  size: attachment.size,
+  kind: attachment.kind,
+  status: attachment.status,
+  createdAt: attachment.createdAt,
+});
+
+const cleanupStoredAttachments = async (storedAttachments = []) => {
+  await Promise.allSettled(storedAttachments.map(async (storedAttachment) => {
+    if (storedAttachment.attachmentId) {
+      await Attachment.deleteOne({ _id: storedAttachment.attachmentId });
+    }
+
+    if (storedAttachment.storageFileId) {
+      await deleteAttachmentFile(storedAttachment.storageFileId);
+    }
+  }));
+};
+
+const storeMessageAttachments = async ({
+  normalizedAttachments,
+  chat,
+  messageId,
+  uploader,
+}) => {
+  const storedAttachments = [];
+
+  for (const attachment of normalizedAttachments) {
+    const storageFileId = await uploadAttachmentBuffer({
+      buffer: attachment.buffer,
+      filename: attachment.displayName,
+      contentType: attachment.mimeType,
+      metadata: {
+        chatId: chat._id.toString(),
+        messageId: messageId.toString(),
+        uploader: uploader.toString(),
+        kind: attachment.kind,
+      },
+    });
+
+    const createdAttachment = await Attachment.create({
+      chatId: chat._id,
+      messageId,
+      uploader,
+      storageFileId,
+      displayName: attachment.displayName,
+      originalExtension: attachment.originalExtension,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      kind: attachment.kind,
+      hash: attachment.hash,
+      status: 'active',
+    });
+
+    storedAttachments.push({
+      attachmentId: createdAttachment._id,
+      storageFileId,
+      summary: createAttachmentSummary(createdAttachment),
+    });
+  }
+
+  return storedAttachments;
+};
+
+const getMessageAttachmentFingerprint = (message) => message.attachmentFingerprint ?? '';
+
+const isSameIdempotentPayload = ({ message, text, attachmentFingerprint }) => (
+  message.text === text && getMessageAttachmentFingerprint(message) === attachmentFingerprint
+);
+
+const encodeSharedAssetCursor = (attachment) => {
+  if (!attachment?.createdAt || !attachment?._id) {
+    return null;
+  }
+
+  const createdAt = attachment.createdAt instanceof Date
+    ? attachment.createdAt.toISOString()
+    : new Date(attachment.createdAt).toISOString();
+
+  return `${createdAt}_${attachment._id.toString()}`;
+};
+
+const parseSharedAssetCursor = (cursor) => {
+  if (cursor === undefined || cursor === null || cursor === '') {
+    return { ok: true, cursor: null };
+  }
+
+  if (typeof cursor !== 'string') {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Invalid shared asset cursor',
+    };
+  }
+
+  const separatorIndex = cursor.lastIndexOf('_');
+
+  if (separatorIndex <= 0) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Invalid shared asset cursor',
+    };
+  }
+
+  const createdAt = new Date(cursor.slice(0, separatorIndex));
+  const _id = toObjectId(cursor.slice(separatorIndex + 1));
+
+  if (Number.isNaN(createdAt.getTime()) || !_id) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Invalid shared asset cursor',
+    };
+  }
+
+  return { ok: true, cursor: { createdAt, _id } };
+};
+
+const applySharedAssetCursorFilter = (filter, cursor) => {
+  if (!cursor) {
+    return filter;
+  }
+
+  return {
+    ...filter,
+    $or: [
+      { createdAt: { $lt: cursor.createdAt } },
+      {
+        createdAt: cursor.createdAt,
+        _id: { $lt: cursor._id },
+      },
+    ],
+  };
+};
+
+const serializeSharedAsset = (attachment) => ({
+  _id: attachment._id.toString(),
+  attachmentId: attachment._id.toString(),
+  messageId: attachment.messageId.toString(),
+  chatId: attachment.chatId.toString(),
+  uploader: attachment.uploader.toString(),
+  displayName: attachment.displayName,
+  mimeType: attachment.mimeType,
+  size: attachment.size,
+  kind: attachment.kind,
+  status: attachment.status,
+  createdAt: attachment.createdAt?.toISOString?.() ?? null,
+});
+
+const loadVisibleAttachmentForUser = async ({ attachmentId, userObjectId, res }) => {
+  if (!mongoose.Types.ObjectId.isValid(attachmentId)) {
+    respondWithChatAccessError(res, 404, PRIVATE_ATTACHMENT_ERROR);
+    return null;
+  }
+
+  const attachment = await Attachment.findById(attachmentId);
+
+  if (!attachment || attachment.status !== 'active') {
+    respondWithChatAccessError(res, 404, PRIVATE_ATTACHMENT_ERROR);
+    return null;
+  }
+
+  const message = await Message.findById(attachment.messageId).select('+attachmentFingerprint');
+
+  if (!message || message.deletedForEveryone || !canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, PRIVATE_ATTACHMENT_ERROR);
+    return null;
+  }
+
+  const chat = await loadChatForUser(attachment.chatId.toString(), userObjectId, res, {
+    privateResourceMessage: PRIVATE_ATTACHMENT_ERROR,
+  });
+
+  if (!chat) {
+    return null;
+  }
+
+  return { attachment, message, chat };
+};
+
+const emitPinEvent = async ({ chat, eventName, message }) => {
+  try {
+    const io = getIO();
+    const serializedMessage = serializeMessage(message);
+
+    io.in(chat._id.toString()).emit(eventName, {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      message: serializedMessage,
+      pinnedMessage: serializePinnedMessage(message),
+    });
+  } catch (err) {
+    console.error(`Failed to emit ${eventName}:`, err);
+  }
+};
+
 const promoteMessageReadState = async ({ message, chat, userObjectId }) => {
   const updatedMessage = await Message.findOneAndUpdate(
     {
@@ -120,6 +378,7 @@ const promoteMessageReadState = async ({ message, chat, userObjectId }) => {
 
 export const newMessage = asyncErrorHandler(async (req, res) => {
   const { chatId, text, clientMessageId } = req.body ?? {};
+  const incomingFiles = Array.isArray(req.files) ? req.files : [];
 
   if (!req.userId) {
     respondWithChatAccessError(res, 401, 'Authentication required');
@@ -141,7 +400,19 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  const normalizedText = normalizeMessageText(text);
+  const validatedAttachments = await validateIncomingAttachments(incomingFiles);
+
+  if (!validatedAttachments.ok) {
+    res.status(validatedAttachments.statusCode).json({
+      status: 'fail',
+      code: validatedAttachments.code,
+      message: validatedAttachments.message,
+    });
+    return;
+  }
+
+  const hasAttachments = validatedAttachments.attachments.length > 0;
+  const normalizedText = normalizeMessageText(text, { allowEmpty: hasAttachments });
 
   if (!normalizedText.ok) {
     res.status(normalizedText.statusCode).json({
@@ -168,17 +439,22 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
         clientMessageId: normalizedClientMessageId.clientMessageId,
       }
     : null;
+  const attachmentFingerprint = validatedAttachments.fingerprint;
 
   let message;
 
   if (idempotencyFilter) {
-    message = await Message.findOne(idempotencyFilter);
+    message = await Message.findOne(idempotencyFilter).select('+attachmentFingerprint');
 
     if (message) {
-      if (message.text !== normalizedText.text) {
+      if (!isSameIdempotentPayload({
+        message,
+        text: normalizedText.text,
+        attachmentFingerprint,
+      })) {
         res.status(409).json({
           status: 'fail',
-          message: 'clientMessageId already exists with different message text',
+          message: 'clientMessageId already exists with different message text or attachment payload',
         });
         return;
       }
@@ -194,23 +470,42 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     }
   }
 
+  const messageObjectId = new mongoose.Types.ObjectId();
+  let storedAttachments = [];
+
   try {
+    storedAttachments = await storeMessageAttachments({
+      normalizedAttachments: validatedAttachments.attachments,
+      chat,
+      messageId: messageObjectId,
+      uploader: userObjectId,
+    });
+
     message = await Message.create({
-      chatId: chat._id.toString(),
+      _id: messageObjectId,
+      chatId: chat._id,
       sender: userObjectId,
       clientMessageId: normalizedClientMessageId.clientMessageId ?? undefined,
       text: normalizedText.text,
+      attachments: storedAttachments.map((attachment) => attachment.summary),
+      attachmentFingerprint,
       status: 'sent',
     });
   } catch (error) {
+    await cleanupStoredAttachments(storedAttachments);
+
     if (error?.code === 11000 && idempotencyFilter) {
-      const existingMessage = await Message.findOne(idempotencyFilter);
+      const existingMessage = await Message.findOne(idempotencyFilter).select('+attachmentFingerprint');
 
       if (existingMessage) {
-        if (existingMessage.text !== normalizedText.text) {
+        if (!isSameIdempotentPayload({
+          message: existingMessage,
+          text: normalizedText.text,
+          attachmentFingerprint,
+        })) {
           res.status(409).json({
             status: 'fail',
-            message: 'clientMessageId already exists with different message text',
+            message: 'clientMessageId already exists with different message text or attachment payload',
           });
           return;
         }
@@ -354,13 +649,22 @@ export const searchMessages = asyncErrorHandler(async (req, res) => {
   }
 
   const limit = normalizeMessageSearchLimit(req.query.limit);
+  const visibleMessageFilter = buildVisibleMessageFilter({
+    chatId: chat._id,
+    userId: userObjectId,
+    includeTombstones: false,
+  });
+  const matchingAttachmentMessageIds = await Attachment.distinct('messageId', {
+    chatId: chat._id,
+    status: 'active',
+    displayName: { $regex: normalizedQuery.escapedQuery, $options: 'i' },
+  });
   const messages = await Message.find({
-    ...buildVisibleMessageFilter({
-      chatId: chat._id,
-      userId: userObjectId,
-      includeTombstones: false,
-    }),
-    text: { $regex: normalizedQuery.escapedQuery, $options: 'i' },
+    ...visibleMessageFilter,
+    $or: [
+      { text: { $regex: normalizedQuery.escapedQuery, $options: 'i' } },
+      { _id: { $in: matchingAttachmentMessageIds } },
+    ],
   })
     .sort(MESSAGE_CURSOR_SORT_DESC)
     .limit(limit);
@@ -371,6 +675,358 @@ export const searchMessages = asyncErrorHandler(async (req, res) => {
       messages: messages.map((message) => serializeMessage(message)),
       query: normalizedQuery.query,
       limit,
+    },
+  });
+});
+
+export const previewAttachment = asyncErrorHandler(async (req, res) => {
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const result = await loadVisibleAttachmentForUser({
+    attachmentId: req.params.attachmentId,
+    userObjectId,
+    res,
+  });
+
+  if (!result) {
+    return;
+  }
+
+  const { attachment } = result;
+  const safeFilename = attachment.displayName.replace(/"/g, '');
+
+  res.setHeader('Content-Type', attachment.mimeType);
+  res.setHeader('Content-Length', String(attachment.size));
+  res.setHeader('Content-Disposition', `inline; filename="${safeFilename}"`);
+  res.setHeader('Cache-Control', 'private, no-store');
+
+  const stream = openAttachmentDownloadStream(attachment.storageFileId);
+  stream.on('error', () => {
+    if (!res.headersSent) {
+      res.status(404).json({ status: 'fail', message: PRIVATE_ATTACHMENT_ERROR });
+    } else {
+      res.destroy();
+    }
+  });
+  stream.pipe(res);
+});
+
+export const downloadAttachment = asyncErrorHandler(async (req, res) => {
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const result = await loadVisibleAttachmentForUser({
+    attachmentId: req.params.attachmentId,
+    userObjectId,
+    res,
+  });
+
+  if (!result) {
+    return;
+  }
+
+  const { attachment } = result;
+  const safeFilename = attachment.displayName.replace(/"/g, '');
+
+  res.setHeader('Content-Type', attachment.mimeType);
+  res.setHeader('Content-Length', String(attachment.size));
+  res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+  res.setHeader('Cache-Control', 'private, no-store');
+
+  const stream = openAttachmentDownloadStream(attachment.storageFileId);
+  stream.on('error', () => {
+    if (!res.headersSent) {
+      res.status(404).json({ status: 'fail', message: PRIVATE_ATTACHMENT_ERROR });
+    } else {
+      res.destroy();
+    }
+  });
+  stream.pipe(res);
+});
+
+export const listSharedAssets = asyncErrorHandler(async (req, res) => {
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const chat = await loadChatForUser(req.params.chatId, userObjectId, res, {
+    privateResourceMessage: 'Forbidden or not found',
+  });
+
+  if (!chat) {
+    return;
+  }
+
+  const normalizedKind = normalizeSharedAssetKind(req.query.kind);
+
+  if (!normalizedKind.ok) {
+    res.status(normalizedKind.statusCode).json({
+      status: 'fail',
+      message: normalizedKind.message,
+    });
+    return;
+  }
+
+  const parsedCursor = parseSharedAssetCursor(req.query.cursor);
+
+  if (!parsedCursor.ok) {
+    res.status(parsedCursor.statusCode).json({
+      status: 'fail',
+      message: parsedCursor.message,
+    });
+    return;
+  }
+
+  const limit = normalizeSharedAssetLimit(req.query.limit);
+  const visibleMessageIds = await Message.find(buildVisibleMessageFilter({
+    chatId: chat._id,
+    userId: userObjectId,
+    includeTombstones: false,
+  })).distinct('_id');
+  const baseFilter = {
+    chatId: chat._id,
+    messageId: { $in: visibleMessageIds },
+    status: 'active',
+  };
+
+  if (normalizedKind.kind) {
+    baseFilter.kind = normalizedKind.kind;
+  }
+
+  const filter = applySharedAssetCursorFilter(baseFilter, parsedCursor.cursor);
+  const fetchedAssets = await Attachment.find(filter)
+    .sort(SHARED_ASSET_CURSOR_SORT_DESC)
+    .limit(limit + 1);
+  const assets = fetchedAssets.slice(0, limit);
+  const hasMore = fetchedAssets.length > limit;
+  const nextCursor = hasMore && assets.length > 0
+    ? encodeSharedAssetCursor(assets.at(-1))
+    : null;
+
+  res.status(200).json({
+    status: 'shared assets fetched successfully',
+    data: {
+      assets: assets.map((attachment) => serializeSharedAsset(attachment)),
+      sharedAssets: assets.map((attachment) => serializeSharedAsset(attachment)),
+      kind: normalizedKind.kind,
+      cursor: {
+        nextCursor,
+        hasMore,
+        limit,
+      },
+      nextCursor,
+      hasMore,
+    },
+  });
+});
+
+export const listPinnedMessages = asyncErrorHandler(async (req, res) => {
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const chat = await loadChatForUser(req.params.chatId, userObjectId, res, {
+    privateResourceMessage: 'Forbidden or not found',
+  });
+
+  if (!chat) {
+    return;
+  }
+
+  const messages = await Message.find({
+    ...buildVisibleMessageFilter({
+      chatId: chat._id,
+      userId: userObjectId,
+      includeTombstones: false,
+    }),
+    pinned: true,
+  })
+    .sort({ pinnedAt: -1, createdAt: -1 })
+    .limit(PINNED_MESSAGES_LIMIT);
+
+  res.status(200).json({
+    status: 'pinned messages fetched successfully',
+    data: {
+      pinnedMessages: messages.map((message) => serializePinnedMessage(message)),
+      messages: messages.map((message) => serializeMessage(message)),
+      limit: PINNED_MESSAGES_LIMIT,
+    },
+  });
+});
+
+export const pinMessage = asyncErrorHandler(async (req, res) => {
+  const { messageId } = req.params;
+
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    respondWithChatAccessError(res, 400, 'Invalid message id');
+    return;
+  }
+
+  const message = await Message.findById(messageId);
+
+  if (!message) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
+  if (!chat) {
+    return;
+  }
+
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  if (message.deletedForEveryone) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Deleted messages cannot be pinned',
+    });
+    return;
+  }
+
+  if (!message.pinned) {
+    const pinnedCount = await Message.countDocuments({
+      chatId: chat._id,
+      pinned: true,
+      deletedForEveryone: { $ne: true },
+    });
+
+    if (pinnedCount >= PINNED_MESSAGES_LIMIT) {
+      res.status(400).json({
+        status: 'fail',
+        message: `Maximum ${PINNED_MESSAGES_LIMIT} pinned messages allowed per chat`,
+      });
+      return;
+    }
+
+    message.pinned = true;
+    message.pinnedBy = userObjectId;
+    message.pinnedAt = new Date();
+    await message.save();
+  }
+
+  await emitPinEvent({ chat, eventName: 'message:pinned', message });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      message: serializeMessage(message),
+      pinnedMessage: serializePinnedMessage(message),
+    },
+  });
+});
+
+export const unpinMessage = asyncErrorHandler(async (req, res) => {
+  const { messageId } = req.params;
+
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    respondWithChatAccessError(res, 400, 'Invalid message id');
+    return;
+  }
+
+  const message = await Message.findById(messageId);
+
+  if (!message) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
+  if (!chat) {
+    return;
+  }
+
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  if (message.pinned) {
+    message.pinned = false;
+    message.pinnedBy = undefined;
+    message.pinnedAt = undefined;
+    await message.save();
+  }
+
+  await emitPinEvent({ chat, eventName: 'message:unpinned', message });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      message: serializeMessage(message),
+      pinnedMessage: serializePinnedMessage(message),
     },
   });
 });
@@ -705,7 +1361,15 @@ export const deleteMessage = asyncErrorHandler(async (req, res) => {
       message.deletedBy = userObjectId;
       message.deletedAt = new Date();
       message.reactions = [];
+      message.attachments = (message.attachments ?? []).map((attachment) => ({
+        ...(attachment.toObject?.() ?? attachment),
+        status: 'deleted',
+      }));
       await message.save();
+      await Attachment.updateMany(
+        { messageId: message._id },
+        { $set: { status: 'deleted' } }
+      );
 
       try {
         const io = getIO();
