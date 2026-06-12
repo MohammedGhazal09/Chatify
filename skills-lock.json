@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "csrf-protection": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "sourceType": "github",
+      "skillPath": "skills/csrf-protection/SKILL.md",
+      "computedHash": "c00837d39638a52363e2052981237bb33750c954d9ae41b370c366d4a909e9fb"
+    },
+    "session-management": {
+      "source": "aj-geddes/useful-ai-prompts",
+      "sourceType": "github",
+      "skillPath": "skills/session-management/SKILL.md",
+      "computedHash": "b48e0e80486d9539b38bc7ca02a3669ffc6b10499340e027980c02a4f8e4e8d2"
+    },
+    "vitest": {
+      "source": "antfu/skills",
+      "sourceType": "github",
+      "skillPath": "skills/vitest/SKILL.md",
+      "computedHash": "0efd9cf8c56aada060d418d009cfe621a7915d0c73a958fe611985bc0c2fa4b8"
+    }
+  }
+}

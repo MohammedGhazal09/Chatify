@@ -86,7 +86,7 @@ export const OnlineStatus = ({
     return (
       <span
         className={`inline-block ${sizeClasses[size]} rounded-full border-2 border-slate-900 ${
-          isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-500'
+          isOnline ? 'bg-[var(--chat-success)] animate-pulse' : 'bg-[var(--chat-text-soft)]'
         }`}
         title={isOnline ? 'Online' : lastSeen ? formatLastSeen(lastSeen) : 'Offline'}
       />
@@ -95,11 +95,11 @@ export const OnlineStatus = ({
 
   if (showText) {
     return (
-      <span className="text-xs text-slate-400">
+      <span className="text-xs text-[var(--chat-text-muted)]">
         {isOnline ? (
           <span className="flex items-center gap-1">
             {showDot && (
-              <span className={`inline-block ${sizeClasses[size]} rounded-full bg-green-500`} />
+              <span className={`inline-block ${sizeClasses[size]} rounded-full bg-[var(--chat-success)]`} />
             )}
             Online
           </span>
@@ -121,7 +121,7 @@ export const OnlineDot = ({ isOnline, size = 'md' }: { isOnline: boolean; size?:
 
   return (
     <span
-      className={`absolute bottom-0 right-0 ${sizeClasses[size]} rounded-full bg-green-500 border-2 border-slate-900`}
+      className={`absolute bottom-0 right-0 ${sizeClasses[size]} rounded-full bg-[var(--chat-success)] border-2 border-[var(--chat-panel)]`}
       style={{ animation: 'pulse 2s infinite' }}
     />
   );

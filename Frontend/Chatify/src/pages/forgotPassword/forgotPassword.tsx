@@ -130,8 +130,6 @@ const ForgotPassword = () => {
           navigate("/login");
         },
         onError: (err: unknown) => {
-          console.log(err)
-          console.log(axios.isAxiosError(err));
           if (axios.isAxiosError(err)) {
             setError("root", {
               type: "manual",

@@ -2,7 +2,28 @@ import mongoose from 'mongoose';
 import Message from '../Models/messageModel.mjs';
 import Chats from '../Models/chatModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
-import { getIO } from '../Config/socket.mjs';
+import { emitToUserSockets, getIO } from '../Config/socket.mjs';
+import {
+  applyReactionToggle,
+  applyBeforeCursorFilter,
+  buildUnreadMessageFilter,
+  buildVisibleMessageFilter,
+  canUserSeeMessage,
+  encodeMessageCursor,
+  buildReadReceiptUpdatePipeline,
+  hasReceiptStateChanged,
+  normalizeClientMessageId,
+  normalizeMessageHistoryLimit,
+  normalizeMessageSearchLimit,
+  normalizeMessageSearchQuery,
+  normalizeMessageText,
+  normalizeReactionEmoji,
+  parseMessageCursor,
+  MESSAGE_STATUS,
+  MESSAGE_CURSOR_SORT_DESC,
+  buildStatusPatch,
+  serializeMessage,
+} from '../Utils/messageState.mjs';
 
 const respondWithChatAccessError = (res, statusCode, message) => {
   res.status(statusCode).json({
@@ -11,7 +32,9 @@ const respondWithChatAccessError = (res, statusCode, message) => {
   });
 };
 
-const loadChatForUser = async (chatId, userObjectId, res) => {
+const loadChatForUser = async (chatId, userObjectId, res, options = {}) => {
+  const privateResourceMessage = options.privateResourceMessage ?? null;
+
   if (!mongoose.Types.ObjectId.isValid(chatId)) {
     respondWithChatAccessError(res, 400, 'Invalid chat id');
     return null;
@@ -20,22 +43,83 @@ const loadChatForUser = async (chatId, userObjectId, res) => {
   const chat = await Chats.findById(chatId);
 
   if (!chat) {
-    respondWithChatAccessError(res, 404, 'Chat not found');
+    respondWithChatAccessError(res, 404, privateResourceMessage ?? 'Chat not found');
     return null;
   }
 
   const isMember = chat.members.some((memberId) => memberId.equals(userObjectId));
 
   if (!isMember) {
-    respondWithChatAccessError(res, 403, 'You are not authorized to access this chat');
+    respondWithChatAccessError(res, 403, privateResourceMessage ?? 'You are not authorized to access this chat');
     return null;
   }
 
   return chat;
 };
 
-export const newMessage = asyncErrorHandler(async (req, res, next) => {
-  const { chatId, text } = req.body ?? {};
+const countUnreadForUser = (chatId, userId) => {
+  return Message.countDocuments(buildUnreadMessageFilter({ chatId, userId }));
+};
+
+const emitUnreadCountToUser = async (chatId, userId) => {
+  const count = await countUnreadForUser(chatId, userId);
+  emitToUserSockets(userId, 'unread:update', {
+    chatId: chatId.toString(),
+    userId: userId.toString(),
+    count,
+  });
+  return count;
+};
+
+const emitUnreadCountsForRecipients = async (chat, senderId) => {
+  await Promise.all(
+    chat.members
+      .filter((memberId) => !memberId.equals(senderId))
+      .map((memberId) => emitUnreadCountToUser(chat._id, memberId))
+  );
+};
+
+const promoteMessageReadState = async ({ message, chat, userObjectId }) => {
+  const updatedMessage = await Message.findOneAndUpdate(
+    {
+      _id: message._id,
+      status: { $ne: MESSAGE_STATUS.READ },
+      sender: { $ne: userObjectId },
+      deletedForEveryone: { $ne: true },
+      deletedFor: { $ne: userObjectId },
+    },
+    buildReadReceiptUpdatePipeline({
+      readerId: userObjectId,
+      chatMemberIds: chat.members,
+      senderId: message.sender,
+    }),
+    { new: true }
+  );
+
+  const sourceMessage = updatedMessage ?? message;
+  const readByEntry = sourceMessage.readBy?.find((entry) => (
+    entry.user?.equals?.(userObjectId) || entry.user?.toString?.() === userObjectId.toString()
+  )) ?? null;
+  const readEntry = readByEntry
+    ? {
+        user: readByEntry.user,
+        readAt: readByEntry.readAt,
+      }
+    : null;
+
+  if (updatedMessage && hasReceiptStateChanged(message, updatedMessage)) {
+    return { changed: true, message: updatedMessage, readEntry };
+  }
+
+  if (updatedMessage) {
+    return { changed: false, message: updatedMessage, readEntry };
+  }
+
+  return { changed: false, message, readEntry: null };
+};
+
+export const newMessage = asyncErrorHandler(async (req, res) => {
+  const { chatId, text, clientMessageId } = req.body ?? {};
 
   if (!req.userId) {
     respondWithChatAccessError(res, 401, 'Authentication required');
@@ -57,68 +141,104 @@ export const newMessage = asyncErrorHandler(async (req, res, next) => {
     return;
   }
 
-  const sanitizedText = typeof text === 'string' ? text.trim() : '';
+  const normalizedText = normalizeMessageText(text);
 
-  if (!sanitizedText) {
-    res.status(400).json({
+  if (!normalizedText.ok) {
+    res.status(normalizedText.statusCode).json({
       status: 'fail',
-      message: 'Message text is required',
+      message: normalizedText.message,
     });
     return;
   }
 
-  // Validate message length
-  const MAX_MESSAGE_LENGTH = 1000;
-  if (sanitizedText.length > MAX_MESSAGE_LENGTH) {
-    res.status(400).json({
+  const normalizedClientMessageId = normalizeClientMessageId(clientMessageId);
+
+  if (!normalizedClientMessageId.ok) {
+    res.status(normalizedClientMessageId.statusCode).json({
       status: 'fail',
-      message: `Message exceeds maximum length of ${MAX_MESSAGE_LENGTH} characters`,
+      message: normalizedClientMessageId.message,
     });
     return;
   }
 
-  const message = await Message.create({
-    chatId: chat._id,
-    sender: userObjectId,
-    text: sanitizedText,
-    status: 'sent',
-  });
+  const idempotencyFilter = normalizedClientMessageId.clientMessageId
+    ? {
+        chatId: chat._id,
+        sender: userObjectId,
+        clientMessageId: normalizedClientMessageId.clientMessageId,
+      }
+    : null;
 
-  const seializedMessage = message.toObject();
+  let message;
 
-  const recipientCount = chat.members.reduce((count, memberId) => {
-    if (memberId.equals(userObjectId)) {
-      return count;
+  if (idempotencyFilter) {
+    message = await Message.findOne(idempotencyFilter);
+
+    if (message) {
+      if (message.text !== normalizedText.text) {
+        res.status(409).json({
+          status: 'fail',
+          message: 'clientMessageId already exists with different message text',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        status: 'message already created',
+        data: {
+          message: serializeMessage(message),
+          idempotent: true,
+        },
+      });
+      return;
+    }
+  }
+
+  try {
+    message = await Message.create({
+      chatId: chat._id.toString(),
+      sender: userObjectId,
+      clientMessageId: normalizedClientMessageId.clientMessageId ?? undefined,
+      text: normalizedText.text,
+      status: 'sent',
+    });
+  } catch (error) {
+    if (error?.code === 11000 && idempotencyFilter) {
+      const existingMessage = await Message.findOne(idempotencyFilter);
+
+      if (existingMessage) {
+        if (existingMessage.text !== normalizedText.text) {
+          res.status(409).json({
+            status: 'fail',
+            message: 'clientMessageId already exists with different message text',
+          });
+          return;
+        }
+
+        res.status(200).json({
+          status: 'message already created',
+          data: {
+            message: serializeMessage(existingMessage),
+            idempotent: true,
+          },
+        });
+        return;
+      }
     }
 
-    return count + 1;
-  }, 0);
-
-  const chatUpdate = {
-    $set: { latestMessage: message._id },
-  };
-
-  if (recipientCount > 0) {
-    chatUpdate.$inc = { unReadMessages: recipientCount };
+    throw error;
   }
 
-  await Chats.findByIdAndUpdate(chat._id, chatUpdate, { new: true });
+  await Chats.findByIdAndUpdate(chat._id, {
+    $set: { latestMessage: message._id },
+  }, { new: true });
+
+  const serializedMessage = serializeMessage(message);
 
   try {
     const io = getIO();
-    // Emit to everyone in the room including sender
-    io.in(chat._id.toString()).emit('message:new', seializedMessage);
-
-    // Emit unread count update to all chat members (except sender)
-    chat.members.forEach((memberId) => {
-      if (!memberId.equals(userObjectId)) {
-        io.in(chat._id.toString()).emit('unread:update', {
-          chatId: chat._id.toString(),
-          userId: memberId.toString(),
-          increment: 1,
-        });
-      }
-    });
+    io.in(chat._id.toString()).emit('message:new', serializedMessage);
+    await emitUnreadCountsForRecipients(chat, userObjectId);
   } catch (err) {
     console.error("Message sent but failed to emit via socket.io:", err);
   }
@@ -126,7 +246,7 @@ export const newMessage = asyncErrorHandler(async (req, res, next) => {
   res.status(201).json({
     status: 'message created successfully',
     data: {
-      message,
+      message: serializedMessage,
     },
   });
 });
@@ -152,35 +272,105 @@ export const getAllMessages = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Pagination params
-  const page = parseInt(req.query.page) || 1;
-  const limit = Math.min(parseInt(req.query.limit) || 50, 100); // Max 100 messages per request
-  const skip = (page - 1) * limit;
+  const limit = normalizeMessageHistoryLimit(req.query.limit);
+  const parsedCursor = parseMessageCursor(req.query.before);
 
-  // Get total count for pagination info
-  const totalMessages = await Message.countDocuments({ chatId: chat._id });
-  const totalPages = Math.ceil(totalMessages / limit);
+  if (!parsedCursor.ok) {
+    res.status(parsedCursor.statusCode).json({
+      status: 'fail',
+      message: parsedCursor.message,
+    });
+    return;
+  }
 
-  // Fetch messages with pagination (newest first for infinite scroll)
-  const allMessages = await Message.find({ chatId: chat._id })
-    .sort({ createdAt: -1 }) // Newest first
-    .skip(skip)
-    .limit(limit);
-
-  // Reverse to show oldest first in UI
-  const orderedMessages = allMessages.reverse();
+  const visibleMessageFilter = applyBeforeCursorFilter(
+    buildVisibleMessageFilter({ chatId: chat._id, userId: userObjectId }),
+    parsedCursor.cursor
+  );
+  const fetchedMessages = await Message.find(visibleMessageFilter)
+    .sort(MESSAGE_CURSOR_SORT_DESC)
+    .limit(limit + 1);
+  const pageMessages = fetchedMessages.slice(0, limit);
+  const hasMore = fetchedMessages.length > limit;
+  const orderedMessages = pageMessages.reverse();
+  const nextCursor = hasMore && orderedMessages.length > 0
+    ? encodeMessageCursor(orderedMessages[0])
+    : null;
 
   res.status(200).json({
     status: 'messages fetched successfully',
     data: {
-      messages: orderedMessages,
+      messages: orderedMessages.map((message) => serializeMessage(message)),
       pagination: {
-        currentPage: page,
-        totalPages,
-        totalMessages,
-        hasMore: page < totalPages,
+        currentPage: 1,
+        totalPages: hasMore ? 2 : 1,
+        totalMessages: undefined,
+        hasMore,
+        limit,
+        nextCursor,
+      },
+      cursor: {
+        nextCursor,
+        hasMore,
         limit,
       },
+      nextCursor,
+      hasMore,
+    },
+  });
+});
+
+export const searchMessages = asyncErrorHandler(async (req, res) => {
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const chat = await loadChatForUser(req.params.chatId, userObjectId, res, {
+    privateResourceMessage: 'Forbidden or not found',
+  });
+
+  if (!chat) {
+    return;
+  }
+
+  const normalizedQuery = normalizeMessageSearchQuery(req.query.q);
+
+  if (!normalizedQuery.ok) {
+    res.status(normalizedQuery.statusCode).json({
+      status: 'fail',
+      message: normalizedQuery.message,
+    });
+    return;
+  }
+
+  const limit = normalizeMessageSearchLimit(req.query.limit);
+  const messages = await Message.find({
+    ...buildVisibleMessageFilter({
+      chatId: chat._id,
+      userId: userObjectId,
+      includeTombstones: false,
+    }),
+    text: { $regex: normalizedQuery.escapedQuery, $options: 'i' },
+  })
+    .sort(MESSAGE_CURSOR_SORT_DESC)
+    .limit(limit);
+
+  res.status(200).json({
+    status: 'messages searched successfully',
+    data: {
+      messages: messages.map((message) => serializeMessage(message)),
+      query: normalizedQuery.query,
+      limit,
     },
   });
 });
@@ -220,66 +410,44 @@ export const markMessageAsRead = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Don't mark own messages as read
-  if (message.sender.equals(userObjectId)) {
-    res.status(200).json({
-      status: 'success',
-      message: 'Cannot mark own message as read',
-      data: { message },
-    });
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
     return;
   }
 
-  // Check if user already read this message
-  const alreadyRead = message.readBy.some(entry => entry.user.equals(userObjectId));
-  
-  if (!alreadyRead) {
-    const now = new Date();
-    message.readBy.push({ user: userObjectId, readAt: now });
-    
-    // For 1-on-1 chats, mark as read immediately
-    // For group chats, mark as read when all members have read
-    if (!chat.isGroupChat) {
-      message.status = 'read';
-      message.readAt = now;
-      message.read = true;
-    } else {
-      // For group chats, check if all members (except sender) have read
-      const otherMembers = chat.members.filter(m => !m.equals(message.sender));
-      const readCount = message.readBy.length;
-      if (readCount >= otherMembers.length) {
-        message.status = 'read';
-        message.readAt = now;
-        message.read = true;
-      }
-    }
+  const readResult = await promoteMessageReadState({ message, chat, userObjectId });
 
-    await message.save();
-
-    // Emit socket event for read receipt
+  if (readResult.changed) {
     try {
       const io = getIO();
+      const patch = buildStatusPatch(readResult.message);
+
       io.in(chat._id.toString()).emit('message:read', {
-        messageId: message._id,
-        readBy: { user: userObjectId, readAt: now },
-        status: message.status,
-        readAt: message.readAt,
+        ...patch,
+        readerId: userObjectId.toString(),
+        readEntry: readResult.readEntry
+          ? {
+              user: userObjectId.toString(),
+              readAt: readResult.readEntry.readAt.toISOString(),
+            }
+          : null,
       });
-      
-      // Notify sender specifically about status update
-      io.in(chat._id.toString()).emit('message:status-update', {
-        messageId: message._id,
-        status: message.status,
-        readBy: message.readBy,
-      });
+      io.in(chat._id.toString()).emit('message:status-update', patch);
+      await emitUnreadCountToUser(chat._id, userObjectId);
     } catch (err) {
-      console.error('📛 Failed to emit read receipt:', err);
+      console.error('Failed to emit read receipt:', err);
     }
   }
 
+  const unreadCount = await countUnreadForUser(chat._id, userObjectId);
+
   res.status(200).json({
     status: 'success',
-    data: { message },
+    data: {
+      message: serializeMessage(readResult.message),
+      receipt: buildStatusPatch(readResult.message),
+      unreadCount,
+    },
   });
 });
 
@@ -315,62 +483,45 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
   }
 
   const validMessageIds = messageIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-  const now = new Date();
-
-  // Find messages that need to be marked as read
-  const messages = await Message.find({
-    _id: { $in: validMessageIds },
+  const visibleMessageFilter = buildVisibleMessageFilter({
     chatId: chat._id,
-    sender: { $ne: userObjectId }, // Exclude own messages
-    'readBy.user': { $ne: userObjectId }, // Exclude already read
+    userId: userObjectId,
+    includeTombstones: false,
+  });
+
+  const messages = await Message.find({
+    ...visibleMessageFilter,
+    _id: { $in: validMessageIds },
+    sender: { $ne: userObjectId },
   });
 
   const updatedMessages = [];
+  const receiptPatches = [];
 
   for (const message of messages) {
-    message.readBy.push({ user: userObjectId, readAt: now });
+    const readResult = await promoteMessageReadState({ message, chat, userObjectId });
 
-    // Determine status based on chat type
-    if (!chat.isGroupChat) {
-      message.status = 'read';
-      message.readAt = now;
-      message.read = true;
-    } else {
-      const otherMembers = chat.members.filter(m => !m.equals(message.sender));
-      const readCount = message.readBy.length;
-      if (readCount >= otherMembers.length) {
-        message.status = 'read';
-        message.readAt = now;
-        message.read = true;
-      }
+    if (readResult.changed) {
+      updatedMessages.push(readResult.message);
+      receiptPatches.push(buildStatusPatch(readResult.message));
     }
-
-    await message.save();
-    updatedMessages.push(message);
   }
+
+  const unreadCount = await countUnreadForUser(chat._id, userObjectId);
 
   // Emit socket events for all updated messages
   if (updatedMessages.length > 0) {
     try {
       const io = getIO();
       io.in(chat._id.toString()).emit('messages:read-batch', {
-        chatId: chat._id,
-        userId: userObjectId,
-        messages: updatedMessages.map(m => ({
-          messageId: m._id,
-          status: m.status,
-          readBy: m.readBy,
-        })),
-      });
-
-      // Emit unread count reset for the user who read the messages
-      io.in(chat._id.toString()).emit('unread:update', {
         chatId: chat._id.toString(),
         userId: userObjectId.toString(),
-        count: 0,
+        messages: receiptPatches,
+        receipts: receiptPatches,
       });
+      await emitUnreadCountToUser(chat._id, userObjectId);
     } catch (err) {
-      console.error('📛 Failed to emit batch read receipt:', err);
+      console.error('Failed to emit batch read receipt:', err);
     }
   }
 
@@ -378,7 +529,9 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
     status: 'success',
     data: {
       updatedCount: updatedMessages.length,
-      messages: updatedMessages,
+      messages: updatedMessages.map((message) => serializeMessage(message)),
+      receipts: receiptPatches,
+      unreadCount,
     },
   });
 });
@@ -405,17 +558,12 @@ export const getUnreadCount = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Count messages not sent by user and not read by user
-  const unreadCount = await Message.countDocuments({
-    chatId: chat._id,
-    sender: { $ne: userObjectId },
-    'readBy.user': { $ne: userObjectId },
-  });
+  const unreadCount = await countUnreadForUser(chat._id, userObjectId);
 
   res.status(200).json({
     status: 'success',
     data: {
-      chatId: chat._id,
+      chatId: chat._id.toString(),
       unreadCount,
     },
   });
@@ -474,6 +622,8 @@ export const getBatchUnreadCounts = asyncErrorHandler(async (req, res) => {
         chatId: { $in: userChatIds },
         sender: { $ne: userObjectId },
         'readBy.user': { $ne: userObjectId },
+        deletedFor: { $ne: userObjectId },
+        deletedForEveryone: { $ne: true },
       },
     },
     {
@@ -501,7 +651,7 @@ export const getBatchUnreadCounts = asyncErrorHandler(async (req, res) => {
   });
 });
 
-// Delete a message (only sender can delete)
+// Delete a message for the current user or tombstone it for everyone.
 export const deleteMessage = asyncErrorHandler(async (req, res) => {
   const { messageId } = req.params;
   const { deleteForEveryone } = req.body ?? {};
@@ -531,62 +681,89 @@ export const deleteMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Verify user is the sender
-  if (!message.sender.equals(userObjectId)) {
-    respondWithChatAccessError(res, 403, 'You can only delete your own messages');
-    return;
-  }
-
   const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
   if (!chat) {
     return;
   }
 
-  if (deleteForEveryone) {
-    // Delete for everyone - remove the message entirely
-    await Message.findByIdAndDelete(messageId);
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
 
-    // Update latest message if this was it
-    if (chat.latestMessage?.toString() === messageId) {
-      const newLatestMessage = await Message.findOne({ chatId: chat._id })
-        .sort({ createdAt: -1 });
-      await Chats.findByIdAndUpdate(chat._id, {
-        latestMessage: newLatestMessage?._id || null,
-      });
+  if (deleteForEveryone) {
+    if (!message.sender.equals(userObjectId)) {
+      respondWithChatAccessError(res, 403, 'You can only delete your own messages for everyone');
+      return;
     }
 
-    // Emit socket event for message deletion
-    try {
-      const io = getIO();
-      io.in(chat._id.toString()).emit('message:deleted', {
-        messageId,
-        chatId: chat._id,
-        deletedBy: userObjectId,
-        deleteForEveryone: true,
-      });
-    } catch (err) {
-      console.error('📛 Failed to emit message deletion:', err);
+    const shouldEmitDeletion = !message.deletedForEveryone;
+
+    if (shouldEmitDeletion) {
+      message.text = '';
+      message.deletedForEveryone = true;
+      message.deletedBy = userObjectId;
+      message.deletedAt = new Date();
+      message.reactions = [];
+      await message.save();
+
+      try {
+        const io = getIO();
+        const serializedMessage = serializeMessage(message);
+        io.in(chat._id.toString()).emit('message:deleted', {
+          ...serializedMessage,
+          message: serializedMessage,
+          messageId: serializedMessage._id,
+          deleteForEveryone: true,
+        });
+        await Promise.all(chat.members.map((memberId) => emitUnreadCountToUser(chat._id, memberId)));
+      } catch (err) {
+        console.error('Failed to emit message deletion:', err);
+      }
     }
 
     res.status(200).json({
       status: 'success',
       message: 'Message deleted for everyone',
-      data: { messageId },
+      data: {
+        messageId,
+        message: serializeMessage(message),
+      },
     });
   } else {
-    // Soft delete - just mark as deleted for the user
     if (!message.deletedFor) {
       message.deletedFor = [];
     }
-    if (!message.deletedFor.includes(userObjectId)) {
+
+    const alreadyDeletedForUser = message.deletedFor.some((deletedUserId) => (
+      deletedUserId.equals(userObjectId)
+    ));
+
+    if (!alreadyDeletedForUser) {
       message.deletedFor.push(userObjectId);
+      await message.save();
+
+      try {
+        const serializedMessage = serializeMessage(message);
+        emitToUserSockets(userObjectId, 'message:deleted', {
+          ...serializedMessage,
+          message: serializedMessage,
+          messageId: serializedMessage._id,
+          deleteForEveryone: false,
+        });
+        await emitUnreadCountToUser(chat._id, userObjectId);
+      } catch (err) {
+        console.error('Failed to emit self message deletion:', err);
+      }
     }
-    await message.save();
 
     res.status(200).json({
       status: 'success',
       message: 'Message deleted for you',
-      data: { messageId },
+      data: {
+        messageId,
+        message: serializeMessage(message),
+      },
     });
   }
 });
@@ -614,11 +791,12 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  const sanitizedText = typeof text === 'string' ? text.trim() : '';
-  if (!sanitizedText) {
-    res.status(400).json({
+  const normalizedText = normalizeMessageText(text);
+
+  if (!normalizedText.ok) {
+    res.status(normalizedText.statusCode).json({
       status: 'fail',
-      message: 'Message text is required',
+      message: normalizedText.message,
     });
     return;
   }
@@ -630,14 +808,30 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Verify user is the sender
+  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
+  if (!chat) {
+    return;
+  }
+
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  if (message.deletedForEveryone) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Deleted messages cannot be edited',
+    });
+    return;
+  }
+
   if (!message.sender.equals(userObjectId)) {
     respondWithChatAccessError(res, 403, 'You can only edit your own messages');
     return;
   }
 
-  // Check if message is within edit time limit (15 minutes)
-  const editTimeLimit = 15 * 60 * 1000; // 15 minutes
+  const editTimeLimit = 15 * 60 * 1000;
   const messageAge = Date.now() - new Date(message.createdAt).getTime();
   if (messageAge > editTimeLimit) {
     res.status(400).json({
@@ -647,34 +841,31 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
-  if (!chat) {
-    return;
-  }
-
-  // Update the message
-  message.text = sanitizedText;
+  message.text = normalizedText.text;
   message.isEdited = true;
   message.editedAt = new Date();
   await message.save();
 
-  // Emit socket event for message edit
+  const serializedMessage = serializeMessage(message);
+
   try {
     const io = getIO();
     io.in(chat._id.toString()).emit('message:edited', {
-      messageId,
-      chatId: chat._id,
-      text: sanitizedText,
+      ...serializedMessage,
+      message: serializedMessage,
+      messageId: serializedMessage._id,
+      chatId: serializedMessage.chatId,
+      text: serializedMessage.text,
       isEdited: true,
-      editedAt: message.editedAt,
+      editedAt: serializedMessage.editedAt,
     });
   } catch (err) {
-    console.error('📛 Failed to emit message edit:', err);
+    console.error('Failed to emit message edit:', err);
   }
 
   res.status(200).json({
     status: 'success',
-    data: { message },
+    data: { message: serializedMessage },
   });
 });
 
@@ -688,19 +879,21 @@ export const toggleReaction = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  if (!emoji || typeof emoji !== 'string') {
-    res.status(400).json({
-      status: 'fail',
-      message: 'Emoji is required',
-    });
-    return;
-  }
-
   let userObjectId;
   try {
     userObjectId = new mongoose.Types.ObjectId(req.userId);
   } catch (error) {
     respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const normalizedEmoji = normalizeReactionEmoji(emoji);
+
+  if (!normalizedEmoji.ok) {
+    res.status(normalizedEmoji.statusCode).json({
+      status: 'fail',
+      message: normalizedEmoji.message,
+    });
     return;
   }
 
@@ -726,48 +919,55 @@ export const toggleReaction = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  // Check if user already reacted with this emoji
-  const existingReactionIndex = message.reactions?.findIndex(
-    (r) => r.user.equals(userObjectId) && r.emoji === emoji
-  ) ?? -1;
+  if (!canUserSeeMessage(message, userObjectId)) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
 
-  let action;
-  if (existingReactionIndex > -1) {
-    // Remove the reaction (toggle off)
-    message.reactions.splice(existingReactionIndex, 1);
-    action = 'removed';
-  } else {
-    // Add the reaction
-    if (!message.reactions) {
-      message.reactions = [];
-    }
-    message.reactions.push({ user: userObjectId, emoji });
-    action = 'added';
+  if (message.deletedForEveryone) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'Deleted messages cannot receive reactions',
+    });
+    return;
+  }
+
+  const reactionResult = applyReactionToggle(message, userObjectId, normalizedEmoji.emoji);
+
+  if (!reactionResult.ok) {
+    res.status(reactionResult.statusCode).json({
+      status: 'fail',
+      message: reactionResult.message,
+    });
+    return;
   }
 
   await message.save();
+  const serializedMessage = serializeMessage(message);
 
-  // Emit socket event for reaction update
   try {
     const io = getIO();
     io.in(chat._id.toString()).emit('message:reaction', {
-      messageId,
-      chatId: chat._id.toString(),
-      reactions: message.reactions,
-      action,
-      userId: req.userId,
-      emoji,
+      ...serializedMessage,
+      message: serializedMessage,
+      messageId: serializedMessage._id,
+      chatId: serializedMessage.chatId,
+      reactions: serializedMessage.reactions,
+      action: reactionResult.action,
+      userId: userObjectId.toString(),
+      emoji: normalizedEmoji.emoji,
     });
   } catch (err) {
-    console.error('📛 Failed to emit reaction update:', err);
+    console.error('Failed to emit reaction update:', err);
   }
 
   res.status(200).json({
     status: 'success',
     data: {
-      messageId,
-      reactions: message.reactions,
-      action,
+      messageId: serializedMessage._id,
+      message: serializedMessage,
+      reactions: serializedMessage.reactions,
+      action: reactionResult.action,
     },
   });
 });

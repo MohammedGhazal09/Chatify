@@ -3,7 +3,18 @@ import { io, type Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { chatsQueryKey } from './useChatQueries';
+import { chatsQueryKey, messagesQueryKey } from './useChatQueries';
+import {
+  applyBatchReadInCache,
+  applyDeletedMessageInCache,
+  applyEditedMessageInCache,
+  applyReactionInCache,
+  applyReceiptPatchInCache,
+  applyUnreadUpdate,
+  mergeCanonicalMessage,
+  upsertMessageInCache,
+  type MessagesCacheData,
+} from './messageCache';
 import { playNotificationSound, isSoundEnabled } from '../utils/sounds';
 import type {
   Chat,
@@ -17,6 +28,8 @@ import type {
   MessageEditedEvent,
   MessageReactionEvent,
   UnreadUpdateEvent,
+  SocketErrorEvent,
+  SocketReadyEvent,
 } from '../types/chat';
 
 type UseChatSocketOptions = {
@@ -48,6 +61,20 @@ const resolveSocketUrl = () => {
 // Typing timeout duration (3 seconds)
 const TYPING_TIMEOUT = 3000;
 
+const clearTypingTimeoutsForChat = (
+  timeouts: Record<string, ReturnType<typeof setTimeout>>,
+  chatId: string
+) => {
+  const timeoutPrefix = `${chatId}-`;
+
+  Object.entries(timeouts).forEach(([timeoutKey, timeoutId]) => {
+    if (timeoutKey.startsWith(timeoutPrefix)) {
+      clearTimeout(timeoutId);
+      delete timeouts[timeoutKey];
+    }
+  });
+};
+
 export const useChatSocket = ({
   chatId,
   enabled = true,
@@ -63,6 +90,7 @@ export const useChatSocket = ({
   const presenceStore = usePresenceStore();
   const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [socketError, setSocketError] = useState<SocketErrorEvent | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const typingTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   
@@ -75,6 +103,60 @@ export const useChatSocket = ({
   queryClientRef.current = queryClient;
 
   const socketUrl = useMemo(() => resolveSocketUrl(), []);
+
+  const reconcileRealtimeState = useCallback((ready?: SocketReadyEvent) => {
+    queryClientRef.current.invalidateQueries({ queryKey: chatsQueryKey });
+    queryClientRef.current.invalidateQueries({ queryKey: ['unreadCounts'] });
+
+    if (activeRoomRef.current) {
+      queryClientRef.current.invalidateQueries({
+        queryKey: messagesQueryKey(activeRoomRef.current),
+      });
+    }
+
+    if (ready?.presence) {
+      presenceStoreRef.current.replaceOnlineUsers(ready.presence);
+    }
+  }, []);
+
+  const updateChatsLatestMessage = useCallback((incoming: Message) => {
+    queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+      if (!old) {
+        return old;
+      }
+
+      let touched = false;
+
+      const nextChats = old.map((chat) => {
+        if (chat._id !== incoming.chatId) {
+          return chat;
+        }
+
+        touched = true;
+        const latestMessage = chat.latestMessage &&
+          (chat.latestMessage._id === incoming._id ||
+            (chat.latestMessage.clientMessageId &&
+              incoming.clientMessageId &&
+              chat.latestMessage.clientMessageId === incoming.clientMessageId))
+          ? mergeCanonicalMessage(chat.latestMessage, incoming)
+          : incoming;
+
+        return {
+          ...chat,
+          latestMessage,
+          updatedAt: incoming.createdAt,
+        };
+      });
+
+      if (!touched) {
+        return old;
+      }
+
+      return [...nextChats].sort((left, right) => (
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+      ));
+    });
+  }, []);
 
   // Connect socket and set up user connection
   useEffect(() => {
@@ -89,11 +171,32 @@ export const useChatSocket = ({
 
     setSocket(socketInstance);
 
-    // Once connected, identify the user
+    const handleReconnect = () => {
+      setSocketError(null);
+      reconcileRealtimeState();
+    };
+
     socketInstance.on('connect', () => {
-      if (user?._id) {
-        socketInstance.emit('user:connect', user._id);
-      }
+      setSocketError(null);
+      reconcileRealtimeState();
+    });
+
+    socketInstance.on('socket:ready', (data: SocketReadyEvent) => {
+      setSocketError(null);
+      reconcileRealtimeState(data);
+    });
+
+    socketInstance.io.on('reconnect', handleReconnect);
+
+    socketInstance.on('connect_error', (error: Error & { data?: Partial<SocketErrorEvent> }) => {
+      setSocketError({
+        code: error.data?.code ?? 'socket_connect_error',
+        message: error.data?.message ?? error.message,
+      });
+    });
+
+    socketInstance.on('socket:error', (data: SocketErrorEvent) => {
+      setSocketError(data);
     });
 
     // Listen for user status changes
@@ -185,19 +288,7 @@ export const useChatSocket = ({
       // Update the cached unread counts directly
       queryClientRef.current.setQueriesData<Map<string, number>>(
         { queryKey: ['unreadCounts'] },
-        (old) => {
-          if (!old) return old;
-          const newMap = new Map(old);
-          if (typeof data.count === 'number') {
-            // Absolute count (e.g., messages marked as read)
-            newMap.set(data.chatId, data.count);
-          } else if (typeof data.increment === 'number') {
-            // Increment (e.g., new message arrived)
-            const current = newMap.get(data.chatId) ?? 0;
-            newMap.set(data.chatId, current + data.increment);
-          }
-          return newMap;
-        }
+        (old) => applyUnreadUpdate(old, data)
       );
     });
 
@@ -205,36 +296,58 @@ export const useChatSocket = ({
       // Clear all typing timeouts
       Object.values(typingTimeoutRef.current).forEach(clearTimeout);
       typingTimeoutRef.current = {};
+      presenceStoreRef.current.clearPresenceState();
 
       if (activeRoomRef.current) {
         socketInstance.emit('chat:leave', activeRoomRef.current);
         activeRoomRef.current = null;
       }
+      socketInstance.io.off('reconnect', handleReconnect);
       socketInstance.disconnect();
       setSocket(null);
+      setSocketError(null);
     };
-  }, [enabled, isAuthenticated, socketUrl, user?._id]);
+  }, [enabled, isAuthenticated, socketUrl, user?._id, reconcileRealtimeState]);
 
   // Handle incoming messages
   const handleIncomingMessage = useCallback(
     (message: Message) => {
-      if (!message || (chatId && message.chatId !== chatId)) {
+      if (!message) {
         return;
       }
-      
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(message.chatId),
+        (old) => upsertMessageInCache(old, message)
+      );
+      updateChatsLatestMessage(message);
+
+      if (chatId && message.chatId !== chatId) {
+        return;
+      }
+
       // Play notification sound for messages from others
       if (message.sender !== user?._id && isSoundEnabled()) {
         playNotificationSound();
       }
-      
+
       onMessage?.(message);
     },
-    [chatId, onMessage, user?._id]
+    [chatId, onMessage, updateChatsLatestMessage, user?._id]
   );
 
   // Handle message status updates
   const handleMessageStatusUpdate = useCallback(
     (event: MessageStatusUpdateEvent) => {
+      const targetChatId = event.chatId ?? activeRoomRef.current;
+
+      if (targetChatId) {
+        queryClientRef.current.setQueryData<MessagesCacheData>(
+          messagesQueryKey(targetChatId),
+          (old) => applyReceiptPatchInCache(old, event)
+        );
+      }
+
       onMessageStatusUpdate?.(event);
     },
     [onMessageStatusUpdate]
@@ -243,6 +356,15 @@ export const useChatSocket = ({
   // Handle message read events
   const handleMessageRead = useCallback(
     (event: MessageReadEvent) => {
+      const targetChatId = event.chatId ?? activeRoomRef.current;
+
+      if (targetChatId) {
+        queryClientRef.current.setQueryData<MessagesCacheData>(
+          messagesQueryKey(targetChatId),
+          (old) => applyReceiptPatchInCache(old, event)
+        );
+      }
+
       onMessageRead?.(event);
     },
     [onMessageRead]
@@ -251,6 +373,11 @@ export const useChatSocket = ({
   // Handle batch read events
   const handleBatchRead = useCallback(
     (event: BatchReadEvent) => {
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(event.chatId),
+        (old) => applyBatchReadInCache(old, event)
+      );
+
       onBatchRead?.(event);
     },
     [onBatchRead]
@@ -259,6 +386,13 @@ export const useChatSocket = ({
   // Handle message deleted events
   const handleMessageDeleted = useCallback(
     (event: MessageDeletedEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyDeletedMessageInCache(old, event)
+      );
+
       onMessageDeleted?.(event);
     },
     [onMessageDeleted]
@@ -267,6 +401,13 @@ export const useChatSocket = ({
   // Handle message edited events
   const handleMessageEdited = useCallback(
     (event: MessageEditedEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyEditedMessageInCache(old, event)
+      );
+
       onMessageEdited?.(event);
     },
     [onMessageEdited]
@@ -275,6 +416,13 @@ export const useChatSocket = ({
   // Handle message reaction events
   const handleMessageReaction = useCallback(
     (event: MessageReactionEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyReactionInCache(old, event)
+      );
+
       onMessageReaction?.(event);
     },
     [onMessageReaction]
@@ -316,6 +464,8 @@ export const useChatSocket = ({
 
     if (previousRoom && previousRoom !== nextRoom) {
       socket.emit('chat:leave', previousRoom);
+      presenceStoreRef.current.clearAllTypingForChat(previousRoom);
+      clearTypingTimeoutsForChat(typingTimeoutRef.current, previousRoom);
     }
 
     if (nextRoom && nextRoom !== previousRoom) {
@@ -330,6 +480,8 @@ export const useChatSocket = ({
     return () => {
       if (nextRoom && activeRoomRef.current === nextRoom) {
         socket.emit('chat:leave', nextRoom);
+        presenceStoreRef.current.clearAllTypingForChat(nextRoom);
+        clearTypingTimeoutsForChat(typingTimeoutRef.current, nextRoom);
         activeRoomRef.current = null;
       }
     };
@@ -358,6 +510,7 @@ export const useChatSocket = ({
 
   return {
     socket,
+    socketError,
     emitTypingStart,
     emitTypingStop,
     emitMessageDelivered,

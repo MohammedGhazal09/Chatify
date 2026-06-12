@@ -39,13 +39,11 @@ const Login = () => {
     
     if (authStatus === "success") {
       // OAuth successful - check auth and redirect
-      console.log('✅ OAuth authentication successful');
       // Trigger auth check to update store
       window.location.href = '/';
     } else if (error) {
       try {
         const errorDetails = JSON.parse(decodeURIComponent(error));
-        console.error("OAuth Error Details:", errorDetails);
 
         setError("root", {
           type: "manual",
@@ -53,7 +51,6 @@ const Login = () => {
         });
       } catch {
         // Fallback for simple error strings
-        console.error("OAuth Error:", error);
         let errorMessage = "Authentication failed";
         
         switch (error) {
@@ -83,22 +80,21 @@ const Login = () => {
 
   // form submission handler
   const onSubmit = async (data: LoginFormData) => {
-    console.log(data);
-    
     clearErrors("root");
     try {
     loginMutation.mutate(data, {
       onError: (err: unknown | AxiosError) => {
-        console.log(err);
-        
-        let message = "Signup failed";
+        let message = "Login failed";
         if (axios.isAxiosError(err))
           message = err.response?.data?.message || err.message;
         setError("root", { type: "manual", message });
       },
     })
   } catch (error) {
-    console.error("Login error inside catch:", error);
+    setError("root", {
+      type: "manual",
+      message: error instanceof Error ? error.message : "Login failed",
+    });
   }
     
   };

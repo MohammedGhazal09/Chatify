@@ -42,7 +42,6 @@ const Signup = () => {
     } else if (error) {
       try {
         const errorDetails = JSON.parse(decodeURIComponent(error));
-        console.error('OAuth Error Details:', errorDetails);
         
         setError('root', { 
           type: 'manual', 
@@ -50,7 +49,6 @@ const Signup = () => {
         });
       } catch  {
         // Fallback for simple error strings
-        console.error('OAuth Error:', error);
         setError('root', { 
           type: 'manual', 
           message: `Authentication failed: ${error}` 

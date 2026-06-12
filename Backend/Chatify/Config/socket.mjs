@@ -2,6 +2,12 @@ import { Server } from 'socket.io'
 import User from '../Models/userModel.mjs'
 import Message from '../Models/messageModel.mjs'
 import Chats from '../Models/chatModel.mjs'
+import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
+import { assertChatMember, assertMessageChatMember, normalizeObjectId } from '../Utils/chatAccess.mjs'
+import {
+  buildStatusPatch,
+  MESSAGE_STATUS,
+} from '../Utils/messageState.mjs'
 
 let io
 const isProd = process.env.NODE_ENV === 'production'
@@ -10,6 +16,9 @@ const isProd = process.env.NODE_ENV === 'production'
 const socketToUser = new Map()
 // Track user to sockets: Map<userId, Set<socketId>>
 const userToSockets = new Map()
+// Single-process presence state. Use a Redis adapter/shared state before horizontal Socket.IO scaling.
+const offlineTimers = new Map()
+const OFFLINE_DEBOUNCE_MS = 4000
 
 // Debug logging helper - only logs in development
 const debugLog = (...args) => {
@@ -26,6 +35,138 @@ const getCorsOrigin = () => {
   }
 }
 
+const createSocketAuthError = (code, message) => {
+  const error = new Error(message)
+  error.data = { code }
+  return error
+}
+
+const socketErrorMessages = {
+  invalid_payload: 'Invalid socket payload',
+  forbidden_or_not_found: 'Forbidden or not found',
+  deprecated_socket_message_send: 'Send messages through the HTTP message API',
+  rate_limited: 'Too many socket events',
+  server_error: 'Socket event failed',
+}
+
+const socketEventLimits = {
+  'chat:join': { max: 20, windowMs: 10_000 },
+  'chat:leave': { max: 30, windowMs: 10_000 },
+  'message:delivered': { max: 40, windowMs: 10_000 },
+  'typing:start': { max: 30, windowMs: 10_000 },
+  'typing:stop': { max: 30, windowMs: 10_000 },
+}
+
+const socketEventWindows = new Map()
+
+const getAllowedSocketOrigins = () => {
+  const origins = [getCorsOrigin()]
+    .filter(Boolean)
+    .map(origin => origin.trim())
+    .filter(Boolean)
+
+  return new Set(origins)
+}
+
+const isAllowedSocketRequest = (request) => {
+  const origin = request.headers.origin
+
+  if (!origin) {
+    return !isProd
+  }
+
+  return getAllowedSocketOrigins().has(origin)
+}
+
+const allowSocketRequest = (request, callback) => {
+  if (isAllowedSocketRequest(request)) {
+    callback(null, true)
+    return
+  }
+
+  callback('Socket origin not allowed', false)
+}
+
+const getSocketEventWindowKey = (socket, event) => `${socket.id}:${event}`
+
+const clearSocketEventWindows = (socket) => {
+  const prefix = `${socket.id}:`
+
+  for (const key of socketEventWindows.keys()) {
+    if (key.startsWith(prefix)) {
+      socketEventWindows.delete(key)
+    }
+  }
+}
+
+const guardSocketEventRateLimit = (socket, event, ack) => {
+  const limit = socketEventLimits[event]
+
+  if (!limit) {
+    return true
+  }
+
+  const now = Date.now()
+  const key = getSocketEventWindowKey(socket, event)
+  const currentWindow = socketEventWindows.get(key)
+
+  if (!currentWindow || now >= currentWindow.resetAt) {
+    socketEventWindows.set(key, {
+      count: 1,
+      resetAt: now + limit.windowMs,
+    })
+    return true
+  }
+
+  if (currentWindow.count >= limit.max) {
+    respondSocketError(socket, event, { code: 'rate_limited' }, ack)
+    return false
+  }
+
+  currentWindow.count += 1
+  return true
+}
+
+export const respondSocketError = (socket, event, error, ack) => {
+  const code = error?.code ?? 'server_error'
+  const payload = {
+    ok: false,
+    code,
+    event,
+    message: socketErrorMessages[code] ?? socketErrorMessages.server_error,
+  }
+
+  if (typeof ack === 'function') {
+    ack(payload)
+    return payload
+  }
+
+  socket.emit('socket:error', payload)
+  return payload
+}
+
+const respondSocketSuccess = (event, data = {}) => ({
+  ok: true,
+  event,
+  ...data,
+})
+
+const authenticateSocket = (socket, next) => {
+  const token = readAccessTokenFromCookieHeader(socket.handshake.headers.cookie)
+
+  if (!token) {
+    return next(createSocketAuthError('socket_auth_required', 'Socket authentication required'))
+  }
+
+  try {
+    const { userId } = verifyAccessToken(token)
+    socket.data.userId = userId
+    next()
+  } catch {
+    next(createSocketAuthError('socket_auth_invalid', 'Socket authentication invalid'))
+  }
+}
+
 // Helper to get user's chat rooms
 const getUserChatRooms = async (userId) => {
   try {
@@ -37,29 +178,77 @@ const getUserChatRooms = async (userId) => {
   }
 }
 
-// Helper to broadcast user status to their contacts
+const formatUserStatus = (user, isOnline, lastSeen = null) => {
+  const payload = {
+    userId: user._id.toString(),
+    userName: `${user.firstName} ${user.lastName || ''}`.trim(),
+    isOnline,
+  }
+
+  if (!isOnline && lastSeen) {
+    payload.lastSeen = lastSeen instanceof Date ? lastSeen.toISOString() : lastSeen
+  }
+
+  return payload
+}
+
+const getAuthorizedContactIds = async (userId) => {
+  const chats = await getUserChatRooms(userId)
+  const contactIds = new Set()
+  const normalizedUserId = userId.toString()
+
+  chats.forEach(chat => {
+    chat.members.forEach(memberId => {
+      const contactId = memberId.toString()
+      if (contactId !== normalizedUserId) {
+        contactIds.add(contactId)
+      }
+    })
+  })
+
+  return Array.from(contactIds)
+}
+
+const getAuthorizedPresenceSnapshot = async (userId) => {
+  const contactIds = await getAuthorizedContactIds(userId)
+
+  if (contactIds.length === 0) {
+    return []
+  }
+
+  const contacts = await User.find({
+    _id: { $in: contactIds },
+    isOnline: true,
+    showOnlineStatus: true,
+  }).select('firstName lastName isOnline lastSeen showOnlineStatus')
+
+  return contacts.map(contact => formatUserStatus(contact, true, contact.lastSeen))
+}
+
+const clearOfflineTimer = (userId) => {
+  const normalizedUserId = userId.toString()
+  const timer = offlineTimers.get(normalizedUserId)
+
+  if (timer) {
+    clearTimeout(timer)
+    offlineTimers.delete(normalizedUserId)
+  }
+}
+
+// Helper to broadcast user status to authorized contacts only.
 const broadcastUserStatus = async (userId, isOnline, lastSeen = null) => {
   try {
-    const chats = await getUserChatRooms(userId)
     const user = await User.findById(userId).select('firstName lastName showOnlineStatus')
     
     if (!user || !user.showOnlineStatus) {
       return // User has privacy enabled, don't broadcast
     }
 
-    const statusPayload = {
-      userId,
-      userName: `${user.firstName} ${user.lastName || ''}`.trim(),
-      isOnline,
-    }
+    const statusPayload = formatUserStatus(user, isOnline, lastSeen)
+    const contactIds = await getAuthorizedContactIds(userId)
 
-    if (!isOnline && lastSeen) {
-      statusPayload.lastSeen = lastSeen
-    }
-
-    // Broadcast to all chat rooms the user is in
-    chats.forEach(chat => {
-      io.to(chat._id.toString()).emit('user:status-change', statusPayload)
+    contactIds.forEach(contactId => {
+      emitToUserSockets(contactId, 'user:status-change', statusPayload)
     })
 
     debugLog(`📡 Broadcasted status for ${user.firstName}: ${isOnline ? 'online' : 'offline'}`)
@@ -76,9 +265,29 @@ const setUserOnline = async (userId, isOnline) => {
       updateData.lastSeen = new Date()
     }
     await User.findByIdAndUpdate(userId, updateData)
+    return updateData.lastSeen ?? null
   } catch (err) {
     console.error('📛 Error updating user online status:', err)
+    return null
   }
+}
+
+const scheduleOfflineTransition = (userId) => {
+  const normalizedUserId = userId.toString()
+  clearOfflineTimer(normalizedUserId)
+
+  const timer = setTimeout(async () => {
+    offlineTimers.delete(normalizedUserId)
+
+    if (getUserSockets(normalizedUserId).size > 0) {
+      return
+    }
+
+    const lastSeen = await setUserOnline(normalizedUserId, false)
+    await broadcastUserStatus(normalizedUserId, false, lastSeen)
+  }, OFFLINE_DEBOUNCE_MS)
+
+  offlineTimers.set(normalizedUserId, timer)
 }
 
 export const initSocket = (server) => {
@@ -87,6 +296,7 @@ export const initSocket = (server) => {
   }
 
   io = new Server(server, {
+    allowRequest: allowSocketRequest,
     cors: {
       origin: getCorsOrigin(),
       credentials: true,
@@ -94,141 +304,202 @@ export const initSocket = (server) => {
     },
   })
 
+  io.use(authenticateSocket)
+
   io.on('connection', async (socket) => {
     debugLog(`🔌 Socket connected: ${socket.id}`)
 
-    // Handle user authentication/identification
-    socket.on('user:connect', async (userId) => {
-      if (!userId) {
-        debugLog('⚠️ No userId provided for socket connection')
-        return
-      }
+    const userId = socket.data.userId
+    const userHadSockets = getUserSockets(userId).size > 0
+    const reconnectingDuringDebounce = offlineTimers.has(userId)
+    clearOfflineTimer(userId)
 
-      debugLog(`👤 User connected via socket ${socket.id}`)
-      
-      // Track socket-user mapping
-      socketToUser.set(socket.id, userId)
-      
-      if (!userToSockets.has(userId)) {
-        userToSockets.set(userId, new Set())
-      }
-      userToSockets.get(userId).add(socket.id)
+    socketToUser.set(socket.id, userId)
 
-      // Auto-join all user's chat rooms for real-time message reception
-      const userChats = await getUserChatRooms(userId)
-      userChats.forEach(chat => {
-        socket.join(chat._id.toString())
-        debugLog(`📥 Auto-joined socket ${socket.id} to chat: ${chat._id}`)
-      })
+    if (!userToSockets.has(userId)) {
+      userToSockets.set(userId, new Set())
+    }
+    userToSockets.get(userId).add(socket.id)
 
-      // Set user online
-      await setUserOnline(userId, true)
+    const userChats = await getUserChatRooms(userId)
+    userChats.forEach(chat => {
+      socket.join(chat._id.toString())
+      debugLog(`📥 Auto-joined socket ${socket.id} to chat: ${chat._id}`)
+    })
+
+    await setUserOnline(userId, true)
+    if (!userHadSockets && !reconnectingDuringDebounce) {
       await broadcastUserStatus(userId, true)
+    }
 
-      // Emit confirmation with joined chats count
-      socket.emit('user:connected', { userId, socketId: socket.id, joinedChats: userChats.length })
-    })
+    const readyPayload = {
+      userId,
+      socketId: socket.id,
+      joinedChats: userChats.length,
+      presence: await getAuthorizedPresenceSnapshot(userId),
+    }
+    socket.emit('socket:ready', readyPayload)
+    socket.emit('user:connected', readyPayload)
 
-    socket.on('chat:join', (chatId) => {
-      if (!chatId) {
+    // Compatibility no-op. Identity is already verified during the Socket.IO handshake.
+    socket.on('user:connect', (_claimedUserId, ack) => {
+      const payload = {
+        ok: false,
+        code: 'identity_already_verified',
+        message: 'Socket identity is verified during handshake',
+      }
+
+      if (typeof ack === 'function') {
+        ack(payload)
         return
       }
 
-      debugLog(`📥 Socket ${socket.id} joining chat: ${chatId}`)
-      socket.join(chatId.toString())
+      socket.emit('socket:error', { ...payload, event: 'user:connect' })
+    })
 
-      // Mark messages as delivered when user joins chat
-      const userId = socketToUser.get(socket.id)
-      if (userId) {
-        markMessagesAsDelivered(chatId, userId)
+    socket.on('chat:join', async (chatId, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'chat:join', ack)) return
+
+      try {
+        const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        const roomId = chat._id.toString()
+        debugLog(`📥 Socket ${socket.id} joining chat: ${roomId}`)
+        socket.join(roomId)
+
+        await markMessagesAsDelivered(roomId, socket.data.userId)
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('chat:join', { chatId: roomId }))
+        }
+      } catch (err) {
+        respondSocketError(socket, 'chat:join', err, ack)
       }
     })
 
-    socket.on('chat:leave', (chatId) => {
-      if (!chatId) {
-        return
-      }
+    socket.on('chat:leave', (chatId, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'chat:leave', ack)) return
 
-      debugLog(`📤 Socket ${socket.id} leaving chat: ${chatId}`)
-      socket.leave(chatId.toString())
+      try {
+        const roomId = normalizeObjectId(chatId).toString()
+
+        if (socket.rooms.has(roomId)) {
+          debugLog(`📤 Socket ${socket.id} leaving chat: ${roomId}`)
+          socket.leave(roomId)
+        }
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('chat:leave', { chatId: roomId }))
+        }
+      } catch (err) {
+        respondSocketError(socket, 'chat:leave', err, ack)
+      }
     })
 
-    socket.on('message:send', ({ chatId, message }) => {
-      if (!chatId || !message) {
-        return
-      }
-
-      socket.to(chatId.toString()).emit('message:new', message)
+    socket.on('message:send', (_payload, ack) => {
+      respondSocketError(
+        socket,
+        'message:send',
+        { code: 'deprecated_socket_message_send' },
+        ack
+      )
     })
 
     // Handle message delivered event
-    socket.on('message:delivered', async ({ messageId, chatId }) => {
-      const userId = socketToUser.get(socket.id)
-      if (!userId || !messageId) return
+    socket.on('message:delivered', async ({ messageId } = {}, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'message:delivered', ack)) return
 
       try {
-        const message = await Message.findById(messageId)
-        if (!message || message.sender.toString() === userId) return
+        const { message, chat } = await assertMessageChatMember({
+          messageId,
+          userId: socket.data.userId,
+        })
 
-        if (message.status === 'sent') {
-          message.status = 'delivered'
-          message.deliveredAt = new Date()
-          await message.save()
+        if (message.sender.toString() === socket.data.userId) {
+          if (typeof ack === 'function') {
+            ack(respondSocketSuccess('message:delivered', { messageId: message._id.toString() }))
+          }
+          return
+        }
 
-          // Notify sender
-          io.to(chatId.toString()).emit('message:status-update', {
-            messageId: message._id,
-            status: 'delivered',
-            deliveredAt: message.deliveredAt,
-          })
+        const deliveredMessage = await Message.findOneAndUpdate(
+          {
+            _id: message._id,
+            sender: { $ne: socket.data.userId },
+            status: MESSAGE_STATUS.SENT,
+            deletedFor: { $ne: socket.data.userId },
+            deletedForEveryone: { $ne: true },
+          },
+          {
+            $set: {
+              status: MESSAGE_STATUS.DELIVERED,
+              deliveredAt: new Date(),
+            },
+          },
+          { new: true }
+        )
+
+        if (deliveredMessage) {
+          io.to(chat._id.toString()).emit('message:status-update', buildStatusPatch(deliveredMessage))
+        }
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('message:delivered', { messageId: message._id.toString() }))
         }
       } catch (err) {
-        console.error('📛 Error marking message delivered:', err)
+        respondSocketError(socket, 'message:delivered', err, ack)
       }
     })
 
     // Handle typing events
-    socket.on('typing:start', async ({ chatId }) => {
-      const userId = socketToUser.get(socket.id)
-      if (!userId || !chatId) return
+    socket.on('typing:start', async ({ chatId } = {}, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'typing:start', ack)) return
 
       try {
-        const user = await User.findById(userId).select('firstName lastName')
+        const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        const user = await User.findById(socket.data.userId).select('firstName lastName')
         if (!user) return
 
-        // Broadcast to other users in the chat
-        socket.to(chatId.toString()).emit('user:typing', {
-          chatId,
-          userId,
+        socket.to(chat._id.toString()).emit('user:typing', {
+          chatId: chat._id.toString(),
+          userId: socket.data.userId,
           userName: `${user.firstName} ${user.lastName || ''}`.trim(),
           isTyping: true,
         })
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('typing:start', { chatId: chat._id.toString() }))
+        }
       } catch (err) {
-        console.error('📛 Error handling typing:start:', err)
+        respondSocketError(socket, 'typing:start', err, ack)
       }
     })
 
-    socket.on('typing:stop', async ({ chatId }) => {
-      const userId = socketToUser.get(socket.id)
-      if (!userId || !chatId) return
+    socket.on('typing:stop', async ({ chatId } = {}, ack) => {
+      if (!guardSocketEventRateLimit(socket, 'typing:stop', ack)) return
 
       try {
-        const user = await User.findById(userId).select('firstName lastName')
+        const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        const user = await User.findById(socket.data.userId).select('firstName lastName')
         if (!user) return
 
-        socket.to(chatId.toString()).emit('user:typing', {
-          chatId,
-          userId,
+        socket.to(chat._id.toString()).emit('user:typing', {
+          chatId: chat._id.toString(),
+          userId: socket.data.userId,
           userName: `${user.firstName} ${user.lastName || ''}`.trim(),
           isTyping: false,
         })
+
+        if (typeof ack === 'function') {
+          ack(respondSocketSuccess('typing:stop', { chatId: chat._id.toString() }))
+        }
       } catch (err) {
-        console.error('📛 Error handling typing:stop:', err)
+        respondSocketError(socket, 'typing:stop', err, ack)
       }
     })
 
     socket.on('disconnect', async (reason) => {
       debugLog(`🔌 Socket disconnected (${socket.id}): ${reason}`)
+      clearSocketEventWindows(socket)
       
       const userId = socketToUser.get(socket.id)
       if (userId) {
@@ -240,9 +511,7 @@ export const initSocket = (server) => {
           // If user has no more sockets, they're offline
           if (userSockets.size === 0) {
             userToSockets.delete(userId)
-            const lastSeen = new Date()
-            await setUserOnline(userId, false)
-            await broadcastUserStatus(userId, false, lastSeen)
+            scheduleOfflineTransition(userId)
           }
         }
         
@@ -257,40 +526,40 @@ export const initSocket = (server) => {
 // Mark messages as delivered when user joins a chat
 const markMessagesAsDelivered = async (chatId, userId) => {
   try {
-    // Use updateMany for better performance instead of iterating
-    const result = await Message.updateMany(
-      {
-        chatId,
-        sender: { $ne: userId },
-        status: 'sent',
-      },
-      {
-        $set: {
-          status: 'delivered',
-          deliveredAt: new Date(),
+    const chatObjectId = normalizeObjectId(chatId)
+    const userObjectId = normalizeObjectId(userId)
+    const messages = await Message.find({
+      chatId: chatObjectId,
+      sender: { $ne: userObjectId },
+      status: MESSAGE_STATUS.SENT,
+      deletedFor: { $ne: userObjectId },
+      deletedForEveryone: { $ne: true },
+    })
+
+    for (const message of messages) {
+      const deliveredMessage = await Message.findOneAndUpdate(
+        {
+          _id: message._id,
+          sender: { $ne: userObjectId },
+          status: MESSAGE_STATUS.SENT,
+          deletedFor: { $ne: userObjectId },
+          deletedForEveryone: { $ne: true },
         },
+        {
+          $set: {
+            status: MESSAGE_STATUS.DELIVERED,
+            deliveredAt: new Date(),
+          },
+        },
+        { new: true }
+      )
+
+      if (deliveredMessage) {
+        io.to(chatObjectId.toString()).emit('message:status-update', buildStatusPatch(deliveredMessage))
       }
-    )
-
-    if (result.modifiedCount > 0) {
-      // Fetch updated messages to emit events
-      const updatedMessages = await Message.find({
-        chatId,
-        sender: { $ne: userId },
-        status: 'delivered',
-        deliveredAt: { $gte: new Date(Date.now() - 1000) }, // Messages updated in last second
-      }).select('_id deliveredAt')
-
-      updatedMessages.forEach(message => {
-        io.to(chatId.toString()).emit('message:status-update', {
-          messageId: message._id,
-          status: 'delivered',
-          deliveredAt: message.deliveredAt,
-        })
-      })
     }
   } catch (err) {
-    console.error('📛 Error marking messages as delivered:', err)
+    console.error('Error marking messages as delivered:', err)
   }
 }
 
@@ -313,7 +582,22 @@ export const getOnlineUsers = () => {
 
 // Get all sockets for a specific user
 export const getUserSockets = (userId) => {
-  return userToSockets.get(userId) || new Set()
+  return userToSockets.get(userId.toString()) || new Set()
+}
+
+export const emitToUserSockets = (userId, eventName, payload) => {
+  const userSockets = getUserSockets(userId)
+  let emittedCount = 0
+
+  userSockets.forEach(socketId => {
+    const socket = io?.sockets.sockets.get(socketId)
+    if (socket) {
+      socket.emit(eventName, payload)
+      emittedCount += 1
+    }
+  })
+
+  return emittedCount
 }
 
 // Join a user to a specific chat room (used when new chat is created)
@@ -346,4 +630,27 @@ export const removeUserFromChat = (userId, chatId) => {
     return true
   }
   return false
+}
+
+export const closeSocketServer = async () => {
+  if (!io) {
+    offlineTimers.forEach(timer => clearTimeout(timer))
+    offlineTimers.clear()
+    socketToUser.clear()
+    userToSockets.clear()
+    socketEventWindows.clear()
+    return
+  }
+
+  const currentIO = io
+  io = undefined
+  offlineTimers.forEach(timer => clearTimeout(timer))
+  offlineTimers.clear()
+  socketToUser.clear()
+  userToSockets.clear()
+  socketEventWindows.clear()
+
+  await new Promise((resolve) => {
+    currentIO.close(() => resolve())
+  })
 }

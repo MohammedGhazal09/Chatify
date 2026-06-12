@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   newMessage,
   getAllMessages,
+  searchMessages,
   markMessageAsRead,
   markMessagesAsRead,
   getUnreadCount,
@@ -16,6 +17,7 @@ const router = Router();
 // Static routes first
 router.route('/new-message').post(newMessage)
 router.route('/get-all-messages/:id').get(getAllMessages)
+router.route('/search/:chatId').get(searchMessages)
 router.route('/batch/unread-counts').post(getBatchUnreadCounts)
 
 // Parameterized routes after

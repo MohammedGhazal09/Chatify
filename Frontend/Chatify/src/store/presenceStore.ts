@@ -11,6 +11,7 @@ interface PresenceState {
   setUserOnline: (userId: string, status: UserOnlineStatus) => void;
   setUserOffline: (userId: string, lastSeen?: string) => void;
   setMultipleOnline: (users: UserOnlineStatus[]) => void;
+  replaceOnlineUsers: (users: UserOnlineStatus[]) => void;
   isUserOnline: (userId: string) => boolean;
   getUserStatus: (userId: string) => UserOnlineStatus | undefined;
   
@@ -19,6 +20,8 @@ interface PresenceState {
   clearUserTyping: (chatId: string, userId: string) => void;
   getTypingUsersForChat: (chatId: string) => TypingUser[];
   clearAllTypingForChat: (chatId: string) => void;
+  clearAllTyping: () => void;
+  clearPresenceState: () => void;
 }
 
 export const usePresenceStore = create<PresenceState>((set, get) => ({
@@ -62,6 +65,12 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
       });
       return { onlineUsers: newOnlineUsers };
     });
+  },
+
+  replaceOnlineUsers: (users) => {
+    set(() => ({
+      onlineUsers: new Map(users.map((user) => [user.userId, user])),
+    }));
   },
 
   isUserOnline: (userId) => {
@@ -115,5 +124,18 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
       newTypingUsers.delete(chatId);
       return { typingUsers: newTypingUsers };
     });
+  },
+
+  clearAllTyping: () => {
+    set(() => ({
+      typingUsers: new Map(),
+    }));
+  },
+
+  clearPresenceState: () => {
+    set(() => ({
+      onlineUsers: new Map(),
+      typingUsers: new Map(),
+    }));
   },
 }));

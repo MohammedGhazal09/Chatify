@@ -1,0 +1,14 @@
+process.env.NODE_ENV = 'test';
+process.env.SECRET_JWT_KEY = 'test-secret-key';
+process.env.EXPIRES_IN = '15m';
+process.env.PASSWORD_RESET_SECRET = 'test-password-reset-secret';
+process.env.FRONTEND_ORIGIN = 'http://localhost:5173';
+process.env.FRONTEND_ORIGIN_DEV = 'http://localhost:5173';
+process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
+process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
+process.env.GITHUB_CLIENT_ID = 'test-github-client-id';
+process.env.GITHUB_CLIENT_SECRET = 'test-github-client-secret';
+process.env.DISCORD_CLIENT_ID = 'test-discord-client-id';
+process.env.DISCORD_CLIENT_SECRET = 'test-discord-client-secret';
+process.env.EMAIL_USER_SENDER = 'chatify@example.test';
+process.env.BREVO_API_KEY = 'test-brevo-api-key';
