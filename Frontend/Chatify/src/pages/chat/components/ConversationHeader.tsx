@@ -1,8 +1,9 @@
 import OnlineStatus, { OnlineDot } from '../../../components/OnlineStatus';
-import { Download, Menu, Search } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Phone, Search, Video } from 'lucide-react';
 import type { RefObject } from 'react';
 import type { User } from '../../../types/auth';
 import type { Chat, UserOnlineStatus } from '../../../types/chat';
+import AbstractIdentityTile from './AbstractIdentityTile';
 
 interface ConversationHeaderProps {
   selectedChat: Chat;
@@ -25,40 +26,34 @@ const ConversationHeader = ({
   searchButtonRef,
   onOpenSidebar,
   onToggleMessageSearch,
-  onExportChat,
 }: ConversationHeaderProps) => {
   return (
-    <div className="flex min-h-16 min-w-0 max-w-full items-center gap-3 overflow-hidden border-b border-[#2E363C] bg-[#181C20] px-4 py-3">
+    <div className="flex min-h-20 min-w-0 max-w-full items-center gap-3 overflow-hidden border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-3 text-[var(--chat-text)] md:px-8">
       <button
         type="button"
         onClick={onOpenSidebar}
-        className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] md:hidden"
+        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:hidden"
         aria-label="Open conversations"
       >
-        <Menu aria-hidden="true" className="h-5 w-5" />
+        <ArrowLeft aria-hidden="true" className="h-6 w-6" />
       </button>
 
       {otherMember && (
         <div className="relative shrink-0">
-          {otherMember.profilePic ? (
-            <img
-              src={otherMember.profilePic}
-              alt={otherMember.firstName}
-              className="h-10 w-10 rounded-full object-cover md:h-11 md:w-11"
-            />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#20262B] text-sm font-semibold text-[#F4F7F6] md:h-11 md:w-11">
-              {otherMember.firstName?.charAt(0)}
-            </div>
-          )}
+          <AbstractIdentityTile
+            id={otherMember._id}
+            label={`${otherMember.firstName} ${otherMember.lastName ?? ''}`.trim()}
+            variant="conversation"
+            className="h-12 w-12 md:h-14 md:w-14"
+          />
           <OnlineDot isOnline={otherMemberStatus?.isOnline ?? false} size="sm" />
         </div>
       )}
 
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-base font-bold text-[#F4F7F6]" title={title}>{title}</h2>
+        <h2 className="truncate text-lg font-bold text-[var(--chat-text)] md:text-xl" title={title}>{title}</h2>
         {selectedChat.isGroupChat ? (
-          <p className="text-xs font-medium text-[#A8B3AF]">
+          <p className="text-xs font-medium text-[var(--chat-text-muted)]">
             {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
           </p>
         ) : otherMember ? (
@@ -72,24 +67,42 @@ const ConversationHeader = ({
       </div>
 
       <button
+        type="button"
+        className="hidden h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
+        aria-label="Call unavailable in this phase"
+        aria-disabled="true"
+      >
+        <Phone aria-hidden="true" className="h-5 w-5" />
+      </button>
+
+      <button
+        type="button"
+        className="hidden h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
+        aria-label="Video call unavailable in this phase"
+        aria-disabled="true"
+      >
+        <Video aria-hidden="true" className="h-5 w-5" />
+      </button>
+
+      <button
         ref={searchButtonRef}
         type="button"
         onClick={onToggleMessageSearch}
-        className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
         title="Search messages"
-        aria-label={showMessageSearch ? 'Close message search' : 'Search messages'}
+        aria-label="Search messages"
+        aria-pressed={showMessageSearch}
       >
         <Search aria-hidden="true" className="h-5 w-5" />
       </button>
 
       <button
         type="button"
-        onClick={onExportChat}
-        className="hidden h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#14B8A6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] sm:grid"
-        title="Export chat"
-        aria-label="Export chat"
+        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        aria-label="More conversation actions unavailable in this phase"
+        aria-disabled="true"
       >
-        <Download aria-hidden="true" className="h-5 w-5" />
+        <MoreVertical aria-hidden="true" className="h-5 w-5" />
       </button>
     </div>
   );

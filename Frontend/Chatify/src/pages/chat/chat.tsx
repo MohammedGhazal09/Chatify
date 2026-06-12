@@ -32,11 +32,13 @@ import type {
   MessageStatusUpdateEvent,
 } from '../../types/chat';
 import {
+  ChatContextRail,
   ChatShell,
   ChatSidebar,
   ConversationPane,
   MessageActionMenu,
 } from './components';
+import { useChatTheme } from './hooks/useChatTheme';
 import { useChatViewState } from './hooks/useChatViewState';
 import {
   getSelectedChatStorageKey,
@@ -134,6 +136,7 @@ const ChatPage = () => {
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
+  const chatTheme = useChatTheme(user?._id);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
   const {
@@ -867,7 +870,12 @@ const ChatPage = () => {
   }
 
   return (
-    <ChatShell
+    <div
+      className="chat-theme-root"
+      data-testid="chat-root"
+      data-chat-theme={chatTheme.theme}
+    >
+      <ChatShell
       isSidebarOpen={isSidebarOpen}
       onCloseSidebar={() => setIsSidebarOpen(false)}
       sidebar={(
@@ -960,6 +968,16 @@ const ChatPage = () => {
           onCancelReply={() => setReplyingTo(null)}
         />
       )}
+      rightRail={selectedChat ? (
+        <ChatContextRail
+          selectedChat={selectedChat}
+          currentUserId={user?._id}
+          otherMember={otherMember}
+          otherMemberStatus={otherMemberStatus}
+          messages={allMessages}
+          onSearchMessages={handleToggleMessageSearch}
+        />
+      ) : null}
       overlays={(
         <>
           <MessageActionMenu
@@ -975,10 +993,18 @@ const ChatPage = () => {
             onCopy={handleCopyMessage}
             onClose={closeContextMenu}
           />
-          <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            chatTheme={chatTheme.theme}
+            chatThemePreference={chatTheme.preference}
+            isChatThemeForced={chatTheme.isForced}
+            onChatThemePreferenceChange={chatTheme.setPreference}
+          />
         </>
       )}
     />
+    </div>
   );
 };
 

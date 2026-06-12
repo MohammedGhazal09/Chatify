@@ -1,10 +1,11 @@
 import AccountsButton from '../../../components/accountsButton';
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
-import { X } from 'lucide-react';
+import { Lock, Plus, Search, Settings, X } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
 import { getChatTitle, getOtherMember } from '../utils/chatDisplay';
+import AbstractIdentityTile from './AbstractIdentityTile';
 import ChatListItem from './ChatListItem';
 import NewChatDialog from './NewChatDialog';
 
@@ -78,27 +79,32 @@ const ChatSidebar = ({
 
   return (
     <aside
-      className={`chat-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] max-w-[320px] flex-col border-r border-[#2E363C] bg-[#181C20] transition-transform duration-200 ease-out md:static md:z-auto md:w-[320px] md:min-w-[280px] md:max-w-none md:translate-x-0 2xl:w-[360px] 2xl:min-w-[360px] ${
+      data-testid="chat-sidebar"
+      className={`chat-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] max-w-[320px] flex-col border-r border-[var(--chat-border)] bg-[var(--chat-panel)] text-[var(--chat-text)] transition-transform duration-200 ease-out md:static md:z-auto md:w-[320px] md:min-w-[280px] md:max-w-none md:translate-x-0 xl:w-[344px] xl:min-w-[344px] ${
         isOpen ? 'open translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}
     >
-      <div className="flex min-h-16 items-center gap-3 border-b border-[#2E363C] p-4">
-        {user?.profilePic ? (
-          <img src={user.profilePic} alt="Profile" className="profile-pic h-10 w-10 md:h-11 md:w-11 rounded-full object-cover" />
-        ) : (
-          <div className="profile-pic h-10 w-10 md:h-11 md:w-11 rounded-full bg-[#14B8A6] flex items-center justify-center text-base font-semibold text-[#101113]">
-            {user?.firstName?.charAt(0)}
-          </div>
-        )}
+      <div className="flex min-h-16 items-center gap-3 border-b border-[var(--chat-border)] p-4">
+        <AbstractIdentityTile
+          id={user?._id}
+          label={user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}
+          variant="account"
+          className="h-11 w-11"
+          aria-label="Current account abstract identity"
+        />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-[#6F7B77]">Logged in as</p>
-          <p className="truncate text-sm font-semibold text-[#F4F7F6]">{user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}</p>
+          <p className="text-xs font-medium text-[var(--chat-text-soft)]">Chatify</p>
+          <p className="truncate text-sm font-semibold text-[var(--chat-text)]">{user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}</p>
+          <p className="inline-flex items-center gap-1.5 text-xs text-[var(--chat-success)]">
+            <span className="h-2 w-2 rounded-full bg-[var(--chat-success)]" aria-hidden="true" />
+            Connected
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onCloseSidebar}
-            className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] transition-colors hover:bg-[#20262B] hover:text-[#14B8A6] md:hidden"
+            className="grid h-10 w-10 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] transition-colors hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:hidden"
             aria-label="Close conversations"
           >
             <X aria-hidden="true" className="h-4 w-4" />
@@ -106,14 +112,11 @@ const ChatSidebar = ({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="grid h-10 w-10 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] transition-colors hover:bg-[#20262B] hover:text-[#14B8A6]"
+            className="grid h-10 w-10 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] transition-colors hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
             title="Settings"
             aria-label="Open settings"
           >
-            <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            <Settings aria-hidden="true" className="h-5 w-5" />
           </button>
           <div onClick={onLogout} className="cursor-pointer">
             <AccountsButton color="#dc2626" text="Logout" />
@@ -121,19 +124,22 @@ const ChatSidebar = ({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-b border-[#2E363C] px-4 py-3">
-        <h2 className="text-sm font-semibold text-[#A8B3AF]">Chats</h2>
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--chat-border)] px-4 py-3">
+        <h2 className="text-sm font-semibold text-[var(--chat-text-muted)]">Chats</h2>
         <button
           ref={newChatButtonRef}
           type="button"
           onClick={onToggleNewChat}
-          className="min-h-8 cursor-pointer rounded-lg bg-[#14B8A6]/10 px-3 py-1 text-xs font-semibold text-[#14B8A6] hover:bg-[#14B8A6]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+          className="inline-grid min-h-9 min-w-9 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] px-3 py-1 text-xs font-semibold text-[var(--chat-own-text)] hover:bg-[var(--chat-accent-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+          aria-label={isNewChatOpen ? 'Close new chat' : 'Start new chat'}
         >
-          {isNewChatOpen ? 'Close' : 'New chat'}
+          {isNewChatOpen ? 'Close' : <Plus aria-hidden="true" className="h-4 w-4" />}
         </button>
       </div>
 
-      <div className="border-b border-[#2E363C] px-4 py-2">
+      <div className="border-b border-[var(--chat-border)] px-4 py-3">
+        <div className="relative">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--chat-text-soft)]" />
         <input
           ref={searchInputRef}
           type="text"
@@ -144,8 +150,9 @@ const ChatSidebar = ({
           aria-label="Search conversations"
           autoComplete="off"
           spellCheck={false}
-          className="w-full rounded-lg border border-[#2E363C] bg-[#101113] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:border-[#14B8A6] focus:outline-none"
+            className="w-full rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] py-2 pl-9 pr-3 text-sm text-[var(--chat-text)] placeholder:text-[var(--chat-text-soft)] focus:border-[var(--chat-focus)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
         />
+        </div>
       </div>
 
       <NewChatDialog
@@ -163,12 +170,12 @@ const ChatSidebar = ({
         {isLoading ? (
           <ChatListSkeleton />
         ) : isError ? (
-          <div className="space-y-2 p-4 text-sm text-[#EF4444]">
+          <div className="space-y-2 p-4 text-sm text-[var(--chat-danger)]">
             <p>We could not load your chats.</p>
             <button
               type="button"
               onClick={onRefetchChats}
-              className="cursor-pointer rounded-lg bg-[#14B8A6]/10 px-3 py-1 text-[#14B8A6] hover:bg-[#14B8A6]/20"
+              className="cursor-pointer rounded-[var(--chat-radius-md)] bg-[var(--chat-accent-soft)] px-3 py-1 text-[var(--chat-accent)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
             >
               Try again
             </button>
@@ -193,11 +200,25 @@ const ChatSidebar = ({
             })}
           </ul>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[#A8B3AF]">
-            <p className="font-semibold text-[#F4F7F6]">{searchQuery.trim() ? 'No matching conversations' : 'No conversations yet'}</p>
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[var(--chat-text-muted)]">
+            <p className="font-semibold text-[var(--chat-text)]">{searchQuery.trim() ? 'No matching conversations' : 'No conversations yet'}</p>
             <p>{searchQuery.trim() ? 'Try a different name or latest message, or use New chat to start by email.' : 'Start a chat to begin messaging.'}</p>
           </div>
         )}
+      </div>
+      <div className="flex items-center justify-between border-t border-[var(--chat-border)] px-4 py-3 text-xs text-[var(--chat-text-muted)]">
+        <span className="inline-flex items-center gap-2">
+          <Lock aria-hidden="true" className="h-4 w-4" />
+          End-to-end encrypted
+        </span>
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="grid h-8 w-8 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+          aria-label="Open settings"
+        >
+          <Settings aria-hidden="true" className="h-4 w-4" />
+        </button>
       </div>
     </aside>
   );
@@ -206,13 +227,13 @@ const ChatSidebar = ({
 const ChatListSkeleton = () => (
   <div className="space-y-1 p-2" aria-label="Loading chats">
     {[0, 1, 2, 3, 4, 5].map((item) => (
-      <div key={item} className="flex min-h-[72px] items-center gap-3 rounded-lg px-3 py-2">
-        <div className="h-10 w-10 shrink-0 motion-safe:animate-pulse rounded-full bg-[#20262B]" />
+      <div key={item} className="flex min-h-[72px] items-center gap-3 rounded-[var(--chat-radius-md)] px-3 py-2">
+        <div className="h-10 w-10 shrink-0 motion-safe:animate-pulse rounded-[var(--chat-radius-md)] bg-[var(--chat-panel-subtle)]" />
         <div className="min-w-0 flex-1 space-y-2">
-          <div className={`h-3 motion-safe:animate-pulse rounded bg-[#20262B] ${item % 2 === 0 ? 'w-32' : 'w-24'}`} />
-          <div className="h-3 w-full max-w-[180px] motion-safe:animate-pulse rounded bg-[#20262B]" />
+          <div className={`h-3 motion-safe:animate-pulse rounded bg-[var(--chat-panel-subtle)] ${item % 2 === 0 ? 'w-32' : 'w-24'}`} />
+          <div className="h-3 w-full max-w-[180px] motion-safe:animate-pulse rounded bg-[var(--chat-panel-subtle)]" />
         </div>
-        <div className="h-3 w-10 motion-safe:animate-pulse rounded bg-[#20262B]" />
+        <div className="h-3 w-10 motion-safe:animate-pulse rounded bg-[var(--chat-panel-subtle)]" />
       </div>
     ))}
   </div>

@@ -1,4 +1,6 @@
 export { default as ChatListItem } from './ChatListItem';
+export { default as AbstractIdentityTile } from './AbstractIdentityTile';
+export { default as ChatContextRail } from './ChatContextRail';
 export { default as ChatShell } from './ChatShell';
 export { default as ChatSidebar } from './ChatSidebar';
 export { default as ChatStateView } from './ChatStateView';

@@ -5,12 +5,16 @@ interface ChatShellProps {
   onCloseSidebar: () => void;
   sidebar: ReactNode;
   conversation: ReactNode;
+  rightRail?: ReactNode;
   overlays?: ReactNode;
 }
 
-const ChatShell = ({ isSidebarOpen, onCloseSidebar, sidebar, conversation, overlays }: ChatShellProps) => {
+const ChatShell = ({ isSidebarOpen, onCloseSidebar, sidebar, conversation, rightRail, overlays }: ChatShellProps) => {
   return (
-    <div className="flex h-[100dvh] w-screen max-w-screen overflow-hidden bg-[#101113] text-[#F4F7F6]">
+    <div
+      data-testid="chat-shell"
+      className="chat-shell grid h-[100dvh] w-screen max-w-screen overflow-hidden bg-[var(--chat-bg)] text-[var(--chat-text)]"
+    >
       <button
         type="button"
         aria-label="Close chat list"
@@ -20,9 +24,13 @@ const ChatShell = ({ isSidebarOpen, onCloseSidebar, sidebar, conversation, overl
         onClick={onCloseSidebar}
       />
       {sidebar}
-      <section className="flex min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden bg-[#101113]">
+      <section
+        data-testid="conversation-pane"
+        className="flex min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden bg-[var(--chat-bg)]"
+      >
         {conversation}
       </section>
+      {rightRail}
       {overlays}
     </div>
   );
