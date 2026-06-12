@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import Attachment from '../../Models/attachmentModel.mjs';
 import Message from '../../Models/messageModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import { attachPdf, attachText, tinyTextBuffer } from '../fixtures/attachments.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
+import { getAttachmentBucket } from '../../Services/attachmentStorageService.mjs';
 
 const setupAttachmentScenario = async () => {
   await Message.init();
@@ -96,6 +97,33 @@ describe('message attachments', () => {
       clientMessageId: 'attachment-idempotency',
     })).resolves.toBe(1);
     await expect(Attachment.countDocuments({ chatId: chat._id })).resolves.toBe(1);
+  });
+
+  it('removes uploaded files when attachment metadata creation fails', async () => {
+    const { memberOne, chat } = await setupAttachmentScenario();
+    const createSpy = vi
+      .spyOn(Attachment, 'create')
+      .mockRejectedValueOnce(new Error('metadata write failed'));
+
+    try {
+      await attachText(
+        memberOne.agent
+          .post('/api/message/new-message')
+          .field('chatId', chat._id.toString())
+          .field('text', 'cleanup orphaned upload')
+          .field('clientMessageId', 'attachment-metadata-failure'),
+        'orphan-check.txt',
+        'cleanup body'
+      ).expect(500);
+    } finally {
+      createSpy.mockRestore();
+    }
+
+    const storedFiles = await getAttachmentBucket().find({ filename: 'orphan-check.txt' }).toArray();
+
+    expect(storedFiles).toHaveLength(0);
+    await expect(Attachment.countDocuments({ chatId: chat._id })).resolves.toBe(0);
+    await expect(Message.countDocuments({ chatId: chat._id })).resolves.toBe(0);
   });
 
   it('rejects over-count, unsupported, and empty attachment payloads with stable codes', async () => {

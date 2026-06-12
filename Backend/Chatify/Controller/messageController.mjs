@@ -92,6 +92,7 @@ export const parseMessageAttachments = (req, res, next) => {
 
 const loadChatForUser = async (chatId, userObjectId, res, options = {}) => {
   const privateResourceMessage = options.privateResourceMessage ?? null;
+  const privateResourceStatusCode = options.privateResourceStatusCode ?? null;
 
   if (!mongoose.Types.ObjectId.isValid(chatId)) {
     respondWithChatAccessError(res, 400, 'Invalid chat id');
@@ -101,14 +102,18 @@ const loadChatForUser = async (chatId, userObjectId, res, options = {}) => {
   const chat = await Chats.findById(chatId);
 
   if (!chat) {
-    respondWithChatAccessError(res, 404, privateResourceMessage ?? 'Chat not found');
+    respondWithChatAccessError(res, privateResourceStatusCode ?? 404, privateResourceMessage ?? 'Chat not found');
     return null;
   }
 
   const isMember = chat.members.some((memberId) => memberId.equals(userObjectId));
 
   if (!isMember) {
-    respondWithChatAccessError(res, 403, privateResourceMessage ?? 'You are not authorized to access this chat');
+    respondWithChatAccessError(
+      res,
+      privateResourceStatusCode ?? 403,
+      privateResourceMessage ?? 'You are not authorized to access this chat'
+    );
     return null;
   }
 
@@ -167,38 +172,43 @@ const storeMessageAttachments = async ({
 }) => {
   const storedAttachments = [];
 
-  for (const attachment of normalizedAttachments) {
-    const storageFileId = await uploadAttachmentBuffer({
-      buffer: attachment.buffer,
-      filename: attachment.displayName,
-      contentType: attachment.mimeType,
-      metadata: {
-        chatId: chat._id.toString(),
-        messageId: messageId.toString(),
-        uploader: uploader.toString(),
+  try {
+    for (const attachment of normalizedAttachments) {
+      const storageFileId = await uploadAttachmentBuffer({
+        buffer: attachment.buffer,
+        filename: attachment.displayName,
+        contentType: attachment.mimeType,
+        metadata: {
+          chatId: chat._id.toString(),
+          messageId: messageId.toString(),
+          uploader: uploader.toString(),
+          kind: attachment.kind,
+        },
+      });
+      const storedAttachment = { storageFileId };
+
+      storedAttachments.push(storedAttachment);
+
+      const createdAttachment = await Attachment.create({
+        chatId: chat._id,
+        messageId,
+        uploader,
+        storageFileId,
+        displayName: attachment.displayName,
+        originalExtension: attachment.originalExtension,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
         kind: attachment.kind,
-      },
-    });
+        hash: attachment.hash,
+        status: 'active',
+      });
 
-    const createdAttachment = await Attachment.create({
-      chatId: chat._id,
-      messageId,
-      uploader,
-      storageFileId,
-      displayName: attachment.displayName,
-      originalExtension: attachment.originalExtension,
-      mimeType: attachment.mimeType,
-      size: attachment.size,
-      kind: attachment.kind,
-      hash: attachment.hash,
-      status: 'active',
-    });
-
-    storedAttachments.push({
-      attachmentId: createdAttachment._id,
-      storageFileId,
-      summary: createAttachmentSummary(createdAttachment),
-    });
+      storedAttachment.attachmentId = createdAttachment._id;
+      storedAttachment.summary = createAttachmentSummary(createdAttachment);
+    }
+  } catch (error) {
+    await cleanupStoredAttachments(storedAttachments);
+    throw error;
   }
 
   return storedAttachments;
@@ -312,6 +322,7 @@ const loadVisibleAttachmentForUser = async ({ attachmentId, userObjectId, res })
 
   const chat = await loadChatForUser(attachment.chatId.toString(), userObjectId, res, {
     privateResourceMessage: PRIVATE_ATTACHMENT_ERROR,
+    privateResourceStatusCode: 404,
   });
 
   if (!chat) {

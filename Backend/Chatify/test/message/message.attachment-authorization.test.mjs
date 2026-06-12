@@ -42,10 +42,10 @@ describe('attachment authorization', () => {
 
     const preview = await outsider.agent
       .get(`/api/message/attachments/${attachmentId}/preview`)
-      .expect(403);
+      .expect(404);
     await outsider.agent
       .get(`/api/message/attachments/${attachmentId}/download`)
-      .expect(403);
+      .expect(404);
     await outsider.agent
       .get(`/api/message/${chat._id}/shared-assets?kind=file`)
       .expect(403);
