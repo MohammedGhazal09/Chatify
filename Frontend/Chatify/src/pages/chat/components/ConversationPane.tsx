@@ -1,5 +1,5 @@
 import type { ChangeEvent, KeyboardEventHandler, RefObject } from 'react';
-import type { Chat, Message, UserOnlineStatus } from '../../../types/chat';
+import type { Chat, ComposerSendPayload, Message, UserOnlineStatus } from '../../../types/chat';
 import type { User } from '../../../types/auth';
 import TypingIndicator from '../../../components/TypingIndicator';
 import { getChatTitle } from '../utils/chatDisplay';
@@ -40,6 +40,7 @@ interface ConversationPaneProps {
   showEmojiPicker: boolean;
   isSending: boolean;
   isSendError: boolean;
+  composerResetToken: number;
   isOffline: boolean;
   isSessionExpired: boolean;
   isReconnecting: boolean;
@@ -47,6 +48,7 @@ interface ConversationPaneProps {
   messagesEndRef: RefObject<HTMLDivElement | null>;
   emojiPickerRef: RefObject<HTMLDivElement | null>;
   onOpenSidebar: () => void;
+  onOpenDetails: () => void;
   onToggleMessageSearch: () => void;
   onMessageSearchChange: (value: string) => void;
   onClearMessageSearch: () => void;
@@ -64,8 +66,8 @@ interface ConversationPaneProps {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onComposerChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
-  onComposerKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
-  onSendMessage: () => void;
+  onComposerKeyDown: (event: Parameters<KeyboardEventHandler<HTMLTextAreaElement>>[0], payload: ComposerSendPayload) => void;
+  onSendMessage: (payload: ComposerSendPayload) => void;
   onToggleEmojiPicker: () => void;
   onAppendEmoji: (emoji: string) => void;
   onCancelReply: () => void;
@@ -104,6 +106,7 @@ const ConversationPane = ({
   showEmojiPicker,
   isSending,
   isSendError,
+  composerResetToken,
   isOffline,
   isSessionExpired,
   isReconnecting,
@@ -111,6 +114,7 @@ const ConversationPane = ({
   messagesEndRef,
   emojiPickerRef,
   onOpenSidebar,
+  onOpenDetails,
   onToggleMessageSearch,
   onMessageSearchChange,
   onClearMessageSearch,
@@ -173,6 +177,7 @@ const ConversationPane = ({
         showMessageSearch={showMessageSearch}
         searchButtonRef={messageSearchButtonRef}
         onOpenSidebar={onOpenSidebar}
+        onOpenDetails={onOpenDetails}
         onToggleMessageSearch={onToggleMessageSearch}
         onExportChat={onExportChat}
       />
@@ -259,6 +264,7 @@ const ConversationPane = ({
         showEmojiPicker={showEmojiPicker}
         isSending={isSending}
         isSendError={isSendError}
+        resetToken={composerResetToken}
         sendDisabledReason={
           isOffline
             ? 'You are offline. Reconnect to send new messages.'

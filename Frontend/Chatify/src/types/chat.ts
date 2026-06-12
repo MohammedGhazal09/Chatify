@@ -12,6 +12,37 @@ export interface Reaction {
   emoji: string;
 }
 
+export type AttachmentKind = 'media' | 'file';
+export type AttachmentStatus = 'active' | 'deleted';
+export type SharedAssetKind = AttachmentKind;
+
+export interface AttachmentSummary {
+  _id: string;
+  attachmentId: string;
+  displayName: string;
+  mimeType: string;
+  size: number;
+  kind: AttachmentKind;
+  status: AttachmentStatus;
+  createdAt?: string | null;
+  localPreviewUrl?: string;
+}
+
+export interface ComposerAttachmentDraft {
+  id: string;
+  file: File;
+  displayName: string;
+  mimeType: string;
+  size: number;
+  kind: AttachmentKind;
+  localPreviewUrl?: string;
+}
+
+export interface ComposerSendPayload {
+  text: string;
+  attachments: ComposerAttachmentDraft[];
+}
+
 export interface Message {
   _id: string;
   clientMessageId?: string | null;
@@ -24,12 +55,17 @@ export interface Message {
   readAt?: string | null;
   readBy?: ReadByEntry[];
   reactions?: Reaction[];
+  attachments?: AttachmentSummary[];
+  localFiles?: File[];
   isEdited?: boolean;
   editedAt?: string | null;
   deletedFor?: string[];
   deletedForEveryone?: boolean;
   deletedBy?: string | null;
   deletedAt?: string | null;
+  pinned?: boolean;
+  pinnedBy?: string | null;
+  pinnedAt?: string | null;
   optimisticState?: 'sending' | 'failed';
   errorMessage?: string;
   createdAt: string;
@@ -74,6 +110,42 @@ export interface NewMessagePayload {
   chatId: string;
   text: string;
   clientMessageId: string;
+  attachments?: File[];
+}
+
+export interface SharedAsset {
+  _id: string;
+  attachmentId: string;
+  messageId: string;
+  chatId: string;
+  uploader: string;
+  displayName: string;
+  mimeType: string;
+  size: number;
+  kind: SharedAssetKind;
+  status: AttachmentStatus;
+  createdAt?: string | null;
+}
+
+export interface PinnedMessage {
+  messageId: string;
+  chatId: string;
+  sender: string;
+  text: string;
+  attachments: AttachmentSummary[];
+  pinned: boolean;
+  pinnedBy?: string | null;
+  pinnedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  message?: Message;
+}
+
+export interface MessagePinEvent {
+  chatId: string;
+  messageId: string;
+  message: Message;
+  pinnedMessage: PinnedMessage;
 }
 
 // Online/Offline status types

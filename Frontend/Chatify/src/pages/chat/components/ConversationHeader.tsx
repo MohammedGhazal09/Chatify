@@ -13,6 +13,7 @@ interface ConversationHeaderProps {
   showMessageSearch: boolean;
   searchButtonRef: RefObject<HTMLButtonElement | null>;
   onOpenSidebar: () => void;
+  onOpenDetails: () => void;
   onToggleMessageSearch: () => void;
   onExportChat: () => void;
 }
@@ -25,6 +26,7 @@ const ConversationHeader = ({
   showMessageSearch,
   searchButtonRef,
   onOpenSidebar,
+  onOpenDetails,
   onToggleMessageSearch,
 }: ConversationHeaderProps) => {
   return (
@@ -100,10 +102,10 @@ const ConversationHeader = ({
 
       <button
         type="button"
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-        aria-label="More conversation actions"
-        title="More conversation actions unavailable in this phase"
-        disabled
+        onClick={onOpenDetails}
+        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        aria-label="Open conversation details"
+        title="Open conversation details"
       >
         <MoreVertical aria-hidden="true" className="h-5 w-5" />
       </button>

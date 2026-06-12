@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '../api/chatApi';
 import { messageApi } from '../api/messageApi';
 import { useAuthStore } from '../store/authstore';
-import type { Chat, Message, MessageStatus } from '../types/chat';
+import type { AttachmentSummary, Chat, Message, MessageStatus, SharedAssetKind } from '../types/chat';
 import {
   applyBatchReadInCache,
   applyReceiptPatchInCache,
@@ -22,11 +22,15 @@ import {
 export const chatsQueryKey = ['chats'] as const;
 export const messagesQueryKey = (chatId: string) => ['messages', chatId] as const;
 export const messageSearchQueryKey = (chatId: string, query: string) => ['messageSearch', chatId, query] as const;
+export const sharedAssetsQueryKey = (chatId: string, kind?: SharedAssetKind) => ['sharedAssets', chatId, kind ?? 'all'] as const;
+export const pinnedMessagesQueryKey = (chatId: string) => ['pinnedMessages', chatId] as const;
 
 type SendMessageVariables = {
   chatId: string;
   text: string;
   clientMessageId?: string;
+  attachments?: File[];
+  optimisticAttachments?: AttachmentSummary[];
 };
 
 type SendMessageContext = {
@@ -52,6 +56,13 @@ const MESSAGE_SEARCH_DEBOUNCE_MS = 300;
 const MIN_MESSAGE_SEARCH_LENGTH = 2;
 
 const normalizeSearchText = (query: string) => query.trim();
+
+const hasAttachmentFiles = (attachments?: File[]) => Boolean(attachments?.length);
+
+const invalidateDetailQueries = (queryClient: ReturnType<typeof useQueryClient>, chatId: string) => {
+  queryClient.invalidateQueries({ queryKey: ['sharedAssets', chatId] });
+  queryClient.invalidateQueries({ queryKey: pinnedMessagesQueryKey(chatId) });
+};
 
 export const useChats = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -295,7 +306,9 @@ export const useSendMessage = () => {
       }
 
       const clientMessageId = ensureSendClientMessageId(variables);
-      const normalizedText = normalizeOutgoingMessageText(variables.text);
+      const normalizedText = normalizeOutgoingMessageText(variables.text, {
+        allowEmpty: hasAttachmentFiles(variables.attachments),
+      });
 
       if (!normalizedText.ok) {
         throw new Error(normalizedText.message);
@@ -305,6 +318,7 @@ export const useSendMessage = () => {
         chatId: variables.chatId,
         text: normalizedText.text,
         clientMessageId,
+        attachments: variables.attachments,
       });
       return response.data.data.message;
     },
@@ -314,7 +328,9 @@ export const useSendMessage = () => {
       }
 
       const clientMessageId = ensureSendClientMessageId(variables);
-      const normalizedText = normalizeOutgoingMessageText(variables.text);
+      const normalizedText = normalizeOutgoingMessageText(variables.text, {
+        allowEmpty: hasAttachmentFiles(variables.attachments),
+      });
 
       if (!normalizedText.ok) {
         throw new Error(normalizedText.message);
@@ -330,6 +346,8 @@ export const useSendMessage = () => {
         senderId: user._id,
         text: normalizedText.text,
         clientMessageId,
+        attachments: variables.optimisticAttachments,
+        localFiles: variables.attachments,
       });
 
       queryClient.setQueryData<MessagesQueryData>(
@@ -370,7 +388,44 @@ export const useSendMessage = () => {
         (old) => upsertMessageInCache(old, message)
       );
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+      if (hasAttachmentFiles(variables.attachments)) {
+        queryClient.invalidateQueries({ queryKey: ['sharedAssets', variables.chatId] });
+      }
     },
+  });
+};
+
+export const useSharedAssets = (chatId: string | null, kind?: SharedAssetKind) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useQuery({
+    queryKey: sharedAssetsQueryKey(chatId ?? '', kind),
+    queryFn: async () => {
+      if (!chatId) {
+        return [];
+      }
+
+      const response = await messageApi.getSharedAssets(chatId, { kind, limit: 12 });
+      return response.data.data.assets ?? response.data.data.sharedAssets ?? [];
+    },
+    enabled: Boolean(chatId && isAuthenticated),
+  });
+};
+
+export const usePinnedMessages = (chatId: string | null) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useQuery({
+    queryKey: pinnedMessagesQueryKey(chatId ?? ''),
+    queryFn: async () => {
+      if (!chatId) {
+        return [];
+      }
+
+      const response = await messageApi.getPinnedMessages(chatId);
+      return response.data.data.pinnedMessages;
+    },
+    enabled: Boolean(chatId && isAuthenticated),
   });
 };
 
@@ -482,6 +537,7 @@ export const useDeleteMessage = () => {
         };
       });
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+      invalidateDetailQueries(queryClient, variables.chatId);
     },
   });
 };
@@ -506,6 +562,42 @@ export const useEditMessage = () => {
         messagesQueryKey(message.chatId),
         (old) => upsertMessageInCache(old, message)
       );
+    },
+  });
+};
+
+export const usePinMessage = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId }: { messageId: string; chatId: string }) => {
+      const response = await messageApi.pinMessage(messageId);
+      return response.data.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<MessagesQueryData>(
+        messagesQueryKey(variables.chatId),
+        (old) => upsertMessageInCache(old, data.message)
+      );
+      queryClient.invalidateQueries({ queryKey: pinnedMessagesQueryKey(variables.chatId) });
+    },
+  });
+};
+
+export const useUnpinMessage = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId }: { messageId: string; chatId: string }) => {
+      const response = await messageApi.unpinMessage(messageId);
+      return response.data.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<MessagesQueryData>(
+        messagesQueryKey(variables.chatId),
+        (old) => upsertMessageInCache(old, data.message)
+      );
+      queryClient.invalidateQueries({ queryKey: pinnedMessagesQueryKey(variables.chatId) });
     },
   });
 };

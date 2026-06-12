@@ -25,8 +25,12 @@ const makeMessage = (overrides: Partial<Message> = {}): Message => ({
   status: 'sent',
   readBy: [],
   reactions: [],
+  attachments: [],
   deletedFor: [],
   deletedForEveryone: false,
+  pinned: false,
+  pinnedBy: null,
+  pinnedAt: null,
   createdAt: '2026-06-08T10:00:00.000Z',
   updatedAt: '2026-06-08T10:00:00.000Z',
   ...overrides,
@@ -70,6 +74,62 @@ describe('message cache helpers', () => {
       _id: 'server-1',
       clientMessageId: 'client-1',
       optimisticState: undefined,
+    });
+  });
+
+  it('allows attachment-only optimistic messages and preserves summaries after server reconciliation', () => {
+    const optimistic = createOptimisticMessage({
+      chatId: 'chat-1',
+      senderId: 'user-1',
+      text: '',
+      clientMessageId: 'client-file',
+      attachments: [
+        {
+          _id: 'optimistic-file',
+          attachmentId: 'optimistic-file',
+          displayName: 'message-states-spec.pdf',
+          mimeType: 'application/pdf',
+          size: 2048,
+          kind: 'file',
+          status: 'active',
+          localPreviewUrl: 'blob:preview',
+        },
+      ],
+    });
+    const serverMessage = makeMessage({
+      _id: 'server-file',
+      clientMessageId: 'client-file',
+      text: '',
+      attachments: [
+        {
+          _id: 'attachment-server',
+          attachmentId: 'attachment-server',
+          displayName: 'message-states-spec.pdf',
+          mimeType: 'application/pdf',
+          size: 2048,
+          kind: 'file',
+          status: 'active',
+          createdAt: '2026-06-08T10:00:01.000Z',
+        },
+      ],
+      createdAt: '2026-06-08T10:00:01.000Z',
+      updatedAt: '2026-06-08T10:00:01.000Z',
+    });
+
+    expect(normalizeOutgoingMessageText('   ', { allowEmpty: true })).toEqual({ ok: true, text: '' });
+
+    const cache = upsertMessageInCache(upsertMessageInCache(undefined, optimistic), serverMessage);
+
+    expect(cache.messages).toHaveLength(1);
+    expect(cache.messages[0]).toMatchObject({
+      _id: 'server-file',
+      clientMessageId: 'client-file',
+      attachments: [
+        expect.objectContaining({
+          attachmentId: 'attachment-server',
+          displayName: 'message-states-spec.pdf',
+        }),
+      ],
     });
   });
 
@@ -391,6 +451,38 @@ describe('message cache helpers', () => {
       text: '',
       deletedForEveryone: true,
       deletedBy: 'user-1',
+      attachments: [],
     });
+  });
+
+  it('marks existing attachment summaries as deleted when a tombstone does not carry them back', () => {
+    const existing = makeMessage({
+      _id: 'message-delete-attachment',
+      attachments: [
+        {
+          _id: 'attachment-1',
+          attachmentId: 'attachment-1',
+          displayName: 'diagram.png',
+          mimeType: 'image/png',
+          size: 1024,
+          kind: 'media',
+          status: 'active',
+        },
+      ],
+    });
+    const tombstone = makeMessage({
+      _id: 'message-delete-attachment',
+      text: '',
+      deletedForEveryone: true,
+      deletedBy: 'user-1',
+      deletedAt: '2026-06-08T10:00:05.000Z',
+      updatedAt: '2026-06-08T10:00:05.000Z',
+    });
+
+    const cache = upsertMessageInCache({ messages: [existing] }, tombstone);
+
+    expect(cache.messages[0].attachments).toEqual([
+      expect.objectContaining({ attachmentId: 'attachment-1', status: 'deleted' }),
+    ]);
   });
 });

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { makeChat, makeMessage } from '../../../test/chatFixtures';
+import { makeAttachment, makeChat, makeMessage } from '../../../test/chatFixtures';
 import MessageBubble from './MessageBubble';
 
 describe('MessageBubble', () => {
@@ -103,5 +103,74 @@ describe('MessageBubble', () => {
 
     expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
     expect(screen.queryByText('PDF - 280 KB')).not.toBeInTheDocument();
+  });
+
+  it('renders file attachments with protected open and download actions', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          text: '',
+          attachments: [makeAttachment({ attachmentId: 'attachment-file', displayName: 'message-states-spec.pdf' })],
+        })}
+        isOwnMessage
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
+    expect(screen.getByText('PDF - 280 KB')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open message-states-spec.pdf' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/api/message/attachments/attachment-file/preview')
+    );
+    expect(screen.getByRole('link', { name: 'Download message-states-spec.pdf' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/api/message/attachments/attachment-file/download')
+    );
+  });
+
+  it('renders media attachments from message data', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          attachments: [
+            makeAttachment({
+              attachmentId: 'attachment-media',
+              displayName: 'diagram.png',
+              mimeType: 'image/png',
+              kind: 'media',
+              size: 1024,
+            }),
+          ],
+        })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    expect(screen.getByRole('img', { name: 'diagram.png' })).toHaveAttribute(
+      'src',
+      expect.stringContaining('/api/message/attachments/attachment-media/preview')
+    );
+  });
+
+  it('does not render attachment previews on deleted-for-everyone tombstones', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          text: 'Sensitive',
+          deletedForEveryone: true,
+          attachments: [makeAttachment({ displayName: 'hidden.pdf' })],
+        })}
+        isOwnMessage
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    expect(screen.getByText('This message was deleted')).toBeInTheDocument();
+    expect(screen.queryByText('hidden.pdf')).not.toBeInTheDocument();
   });
 });

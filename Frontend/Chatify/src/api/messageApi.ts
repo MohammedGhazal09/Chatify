@@ -6,7 +6,10 @@ import type {
   MessageReceiptPatch,
   NewMessagePayload,
   PaginationInfo,
+  PinnedMessage,
   Reaction,
+  SharedAsset,
+  SharedAssetKind,
 } from '../types/chat';
 
 interface MessageResponse {
@@ -82,6 +85,35 @@ interface ReactionResponse {
   };
 }
 
+interface SharedAssetsResponse {
+  status: string;
+  data: {
+    assets: SharedAsset[];
+    sharedAssets?: SharedAsset[];
+    kind: SharedAssetKind | null;
+    cursor: CursorPaginationInfo;
+    nextCursor?: string | null;
+    hasMore?: boolean;
+  };
+}
+
+interface PinnedMessagesResponse {
+  status: string;
+  data: {
+    pinnedMessages: PinnedMessage[];
+    messages?: Message[];
+    limit: number;
+  };
+}
+
+interface PinMessageResponse {
+  status: string;
+  data: {
+    message: Message;
+    pinnedMessage: PinnedMessage;
+  };
+}
+
 type GetMessagesOptions = {
   before?: string | null;
   limit?: number;
@@ -92,9 +124,39 @@ type SearchMessagesOptions = {
   limit?: number;
 };
 
+type SharedAssetsOptions = {
+  kind?: SharedAssetKind;
+  cursor?: string | null;
+  limit?: number;
+};
+
+const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+const hasAttachments = (payload: NewMessagePayload) => Boolean(payload.attachments?.length);
+
+const buildCreateMessageBody = (payload: NewMessagePayload) => {
+  if (!hasAttachments(payload)) {
+    return payload;
+  }
+
+  const formData = new FormData();
+  formData.append('chatId', payload.chatId);
+  formData.append('text', payload.text);
+  formData.append('clientMessageId', payload.clientMessageId);
+  payload.attachments?.forEach((file) => {
+    formData.append('attachments', file);
+  });
+
+  return formData;
+};
+
+const buildProtectedAssetUrl = (attachmentId: string, action: 'preview' | 'download') => {
+  return `${API_BASE_URL}/api/message/attachments/${encodeURIComponent(attachmentId)}/${action}`;
+};
+
 export const messageApi = {
   createMessage: (payload: NewMessagePayload): Promise<AxiosResponse<MessageResponse>> =>
-    axiosInstance.post('/api/message/new-message', payload),
+    axiosInstance.post('/api/message/new-message', buildCreateMessageBody(payload)),
 
   getAllMessages: (chatId: string, options: GetMessagesOptions = {}): Promise<AxiosResponse<MessagesResponse>> => {
     const params = new URLSearchParams();
@@ -135,4 +197,32 @@ export const messageApi = {
 
   toggleReaction: (messageId: string, emoji: string): Promise<AxiosResponse<ReactionResponse>> =>
     axiosInstance.post(`/api/message/${messageId}/reaction`, { emoji }),
+
+  getSharedAssets: (chatId: string, options: SharedAssetsOptions = {}): Promise<AxiosResponse<SharedAssetsResponse>> => {
+    const params = new URLSearchParams();
+    params.set('limit', String(options.limit ?? 12));
+
+    if (options.kind) {
+      params.set('kind', options.kind);
+    }
+
+    if (options.cursor) {
+      params.set('cursor', options.cursor);
+    }
+
+    return axiosInstance.get(`/api/message/${chatId}/shared-assets?${params.toString()}`);
+  },
+
+  getPinnedMessages: (chatId: string): Promise<AxiosResponse<PinnedMessagesResponse>> =>
+    axiosInstance.get(`/api/message/${chatId}/pinned`),
+
+  pinMessage: (messageId: string): Promise<AxiosResponse<PinMessageResponse>> =>
+    axiosInstance.post(`/api/message/${messageId}/pin`),
+
+  unpinMessage: (messageId: string): Promise<AxiosResponse<PinMessageResponse>> =>
+    axiosInstance.delete(`/api/message/${messageId}/pin`),
+
+  getAttachmentPreviewUrl: (attachmentId: string) => buildProtectedAssetUrl(attachmentId, 'preview'),
+
+  getAttachmentDownloadUrl: (attachmentId: string) => buildProtectedAssetUrl(attachmentId, 'download'),
 };

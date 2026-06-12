@@ -16,6 +16,7 @@ interface MessageActionMenuProps {
   onStartEdit: (messageId: string, currentText: string) => void;
   onDelete: (deleteForEveryone: boolean) => void;
   onCopy: (message: Message) => void;
+  onTogglePin: (message: Message) => void;
   onClose: () => void;
 }
 
@@ -32,6 +33,7 @@ const MessageActionMenu = ({
   onStartEdit,
   onDelete,
   onCopy,
+  onTogglePin,
   onClose,
 }: MessageActionMenuProps) => {
   useEffect(() => {
@@ -123,6 +125,15 @@ const MessageActionMenu = ({
       >
         Copy
       </button>
+      {message && !message.deletedForEveryone && (
+        <button
+          type="button"
+          onClick={() => onTogglePin(message)}
+          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
+        >
+          {message.pinned ? 'Unpin message' : 'Pin message'}
+        </button>
+      )}
       {contextMenu.isOwn && (
         <button
           type="button"

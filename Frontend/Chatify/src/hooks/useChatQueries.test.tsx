@@ -8,12 +8,18 @@ import { makeMessage, makeUser } from '../test/chatFixtures';
 import {
   messageSearchQueryKey,
   messagesQueryKey,
+  pinnedMessagesQueryKey,
+  sharedAssetsQueryKey,
   useMessageSearch,
+  usePinnedMessages,
+  useSharedAssets,
 } from './useChatQueries';
 
 vi.mock('../api/messageApi', () => ({
   messageApi: {
     searchMessages: vi.fn(),
+    getSharedAssets: vi.fn(),
+    getPinnedMessages: vi.fn(),
   },
 }));
 
@@ -49,6 +55,52 @@ describe('useMessageSearch', () => {
         },
       },
     } as Awaited<ReturnType<typeof messageApi.searchMessages>>);
+    vi.mocked(messageApi.getSharedAssets).mockResolvedValue({
+      data: {
+        status: 'shared assets fetched successfully',
+        data: {
+          assets: [
+            {
+              _id: 'attachment-1',
+              attachmentId: 'attachment-1',
+              messageId: 'message-1',
+              chatId: 'chat-1',
+              uploader: 'user-1',
+              displayName: 'diagram.png',
+              mimeType: 'image/png',
+              size: 1024,
+              kind: 'media',
+              status: 'active',
+              createdAt: '2026-06-08T10:00:00.000Z',
+            },
+          ],
+          kind: 'media',
+          cursor: { hasMore: false, nextCursor: null, limit: 12 },
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof messageApi.getSharedAssets>>);
+    vi.mocked(messageApi.getPinnedMessages).mockResolvedValue({
+      data: {
+        status: 'pinned messages fetched successfully',
+        data: {
+          pinnedMessages: [
+            {
+              messageId: 'message-1',
+              chatId: 'chat-1',
+              sender: 'user-1',
+              text: 'Pinned retry note',
+              attachments: [],
+              pinned: true,
+              pinnedBy: 'user-1',
+              pinnedAt: '2026-06-08T10:05:00.000Z',
+              createdAt: '2026-06-08T10:00:00.000Z',
+              updatedAt: '2026-06-08T10:05:00.000Z',
+            },
+          ],
+          limit: 20,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof messageApi.getPinnedMessages>>);
   });
 
   afterEach(() => {
@@ -93,5 +145,30 @@ describe('useMessageSearch', () => {
       expect.objectContaining({ _id: 'message-search' }),
     ]);
     expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toBeUndefined();
+  });
+
+  it('scopes shared asset and pinned-message queries by chat id and kind', async () => {
+    const sharedAssets = renderHook(() => useSharedAssets('chat-1', 'media'), {
+      wrapper: createWrapper(queryClient),
+    });
+    const pinnedMessages = renderHook(() => usePinnedMessages('chat-1'), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(sharedAssets.result.current.data?.[0]?.displayName).toBe('diagram.png');
+    });
+    await waitFor(() => {
+      expect(pinnedMessages.result.current.data?.[0]?.text).toBe('Pinned retry note');
+    });
+
+    expect(messageApi.getSharedAssets).toHaveBeenCalledWith('chat-1', { kind: 'media', limit: 12 });
+    expect(messageApi.getPinnedMessages).toHaveBeenCalledWith('chat-1');
+    expect(queryClient.getQueryData(sharedAssetsQueryKey('chat-1', 'media'))).toEqual([
+      expect.objectContaining({ attachmentId: 'attachment-1' }),
+    ]);
+    expect(queryClient.getQueryData(pinnedMessagesQueryKey('chat-1'))).toEqual([
+      expect.objectContaining({ messageId: 'message-1' }),
+    ]);
   });
 });

@@ -12,6 +12,7 @@ interface MenuHarnessProps {
   onStartEdit?: (messageId: string, currentText: string) => void;
   onDelete?: (deleteForEveryone: boolean) => void;
   onCopy?: (message: ReturnType<typeof makeMessage>) => void;
+  onTogglePin?: (message: ReturnType<typeof makeMessage>) => void;
   onToggleReactionPicker?: () => void;
 }
 
@@ -21,6 +22,7 @@ const MenuHarness = ({
   onStartEdit = vi.fn(),
   onDelete = vi.fn(),
   onCopy = vi.fn(),
+  onTogglePin = vi.fn(),
   onToggleReactionPicker = vi.fn(),
 }: MenuHarnessProps) => {
   const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null);
@@ -53,6 +55,7 @@ const MenuHarness = ({
         onStartEdit={onStartEdit}
         onDelete={onDelete}
         onCopy={onCopy}
+        onTogglePin={onTogglePin}
         onClose={closeMenu}
       />
     </>
@@ -89,6 +92,7 @@ describe('MessageActionMenu', () => {
     const onStartEdit = vi.fn();
     const onDelete = vi.fn();
     const onCopy = vi.fn();
+    const onTogglePin = vi.fn();
     const onToggleReactionPicker = vi.fn();
 
     render(
@@ -98,6 +102,7 @@ describe('MessageActionMenu', () => {
         onStartEdit={onStartEdit}
         onDelete={onDelete}
         onCopy={onCopy}
+        onTogglePin={onTogglePin}
         onToggleReactionPicker={onToggleReactionPicker}
       />
     );
@@ -106,6 +111,7 @@ describe('MessageActionMenu', () => {
     await user.click(screen.getByRole('button', { name: 'Reply' }));
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Pin message' }));
     await user.click(screen.getByRole('button', { name: 'Delete for me' }));
     await user.click(screen.getByRole('button', { name: 'Delete for everyone' }));
     await user.click(screen.getByRole('button', { name: 'More reactions' }));
@@ -113,6 +119,7 @@ describe('MessageActionMenu', () => {
     expect(onReply).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1', text: 'Copy me' }));
     expect(onStartEdit).toHaveBeenCalledWith('message-1', 'Copy me');
     expect(onCopy).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
+    expect(onTogglePin).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
     expect(onDelete).toHaveBeenNthCalledWith(1, false);
     expect(onDelete).toHaveBeenNthCalledWith(2, true);
     expect(onToggleReactionPicker).toHaveBeenCalledTimes(1);

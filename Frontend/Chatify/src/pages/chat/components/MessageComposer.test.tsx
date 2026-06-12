@@ -2,11 +2,12 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEventHandler } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ComposerSendPayload } from '../../../types/chat';
 import MessageComposer from './MessageComposer';
 
 interface ComposerHarnessProps {
-  onSend: () => void;
+  onSend: (payload: ComposerSendPayload) => void;
   sendDisabledReason?: string | null;
   isSendError?: boolean;
 }
@@ -19,10 +20,10 @@ const ComposerHarness = ({ onSend, sendDisabledReason = null, isSendError = fals
     setValue(event.target.value);
   };
 
-  const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
+  const handleKeyDown = (event: Parameters<KeyboardEventHandler<HTMLTextAreaElement>>[0], payload: ComposerSendPayload) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      onSend();
+      onSend(payload);
     }
   };
 
@@ -46,6 +47,17 @@ const ComposerHarness = ({ onSend, sendDisabledReason = null, isSendError = fals
 };
 
 describe('MessageComposer', () => {
+  beforeEach(() => {
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:attachment-preview'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    });
+  });
+
   it('sends on Enter when text is present', async () => {
     const user = userEvent.setup();
     const onSend = vi.fn();
@@ -75,7 +87,7 @@ describe('MessageComposer', () => {
   it('renders the secure private-message dock without keyboard helper copy', () => {
     render(<ComposerHarness onSend={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: 'Attach file unavailable in this phase' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Attach file' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Voice message unavailable in this phase' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
     expect(screen.getByText('Authenticated private session')).toBeInTheDocument();
@@ -120,5 +132,59 @@ describe('MessageComposer', () => {
     );
 
     expect(screen.getByText('Your session expired. Sign in again to continue.')).toBeInTheDocument();
+  });
+
+  it('selects, removes, and sends attachment-only payloads', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn();
+    render(<ComposerHarness onSend={onSend} />);
+
+    const file = new File(['hello'], 'message-states-spec.pdf', { type: 'application/pdf' });
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, file);
+
+    expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(onSend).toHaveBeenCalledWith({
+      text: '',
+      attachments: [
+        expect.objectContaining({
+          displayName: 'message-states-spec.pdf',
+          file,
+          kind: 'file',
+        }),
+      ],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Remove message-states-spec.pdf' }));
+
+    expect(screen.queryByText('message-states-spec.pdf')).not.toBeInTheDocument();
+  });
+
+  it('blocks invalid attachment types until the selection changes', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    render(<ComposerHarness onSend={vi.fn()} />);
+
+    const file = new File(['bad'], 'script.exe', { type: 'application/octet-stream' });
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, file);
+
+    expect(screen.getByText('script.exe has an unsupported file type.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  });
+
+  it('creates and revokes local object URLs for selected media previews', async () => {
+    const user = userEvent.setup();
+    render(<ComposerHarness onSend={vi.fn()} />);
+
+    const file = new File(['image'], 'diagram.png', { type: 'image/png' });
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, file);
+
+    expect(URL.createObjectURL).toHaveBeenCalledWith(file);
+
+    await user.click(screen.getByRole('button', { name: 'Remove diagram.png' }));
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:attachment-preview');
   });
 });

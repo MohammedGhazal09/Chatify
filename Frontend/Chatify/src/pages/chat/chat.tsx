@@ -21,10 +21,16 @@ import {
   useUnreadCounts,
   useToggleReaction,
   useMessageSearch,
+  useSharedAssets,
+  usePinnedMessages,
+  usePinMessage,
+  useUnpinMessage,
 } from '../../hooks/useChatQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import type {
   BatchReadEvent,
+  AttachmentSummary,
+  ComposerSendPayload,
   Message,
   MessageDeletedEvent,
   MessageEditedEvent,
@@ -35,10 +41,11 @@ import {
   ChatContextRail,
   ChatShell,
   ChatSidebar,
+  ConversationDetailDrawer,
   ConversationPane,
   MessageActionMenu,
 } from './components';
-import { MAX_MESSAGE_TEXT_LENGTH } from '../../hooks/messageCache';
+import { createClientMessageId, MAX_MESSAGE_TEXT_LENGTH } from '../../hooks/messageCache';
 import { useChatTheme } from './hooks/useChatTheme';
 import { useChatViewState } from './hooks/useChatViewState';
 import {
@@ -134,6 +141,8 @@ const ChatPage = () => {
   const shouldAutoScrollRef = useRef(true);
   const previousLastMessageKeyRef = useRef<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [composerResetToken, setComposerResetToken] = useState(0);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
@@ -160,6 +169,8 @@ const ChatPage = () => {
   const deleteMessageMutation = useDeleteMessage();
   const editMessageMutation = useEditMessage();
   const toggleReactionMutation = useToggleReaction();
+  const pinMessageMutation = usePinMessage();
+  const unpinMessageMutation = useUnpinMessage();
 
   const chatIds = useMemo(() => chats?.map((chat) => chat._id) ?? [], [chats]);
   const { data: unreadCounts } = useUnreadCounts(chatIds);
@@ -184,6 +195,9 @@ const ChatPage = () => {
   const allMessages = useMemo(() => messages ?? [], [messages]);
   const messageSearchQuery = showMessageSearch ? messageSearch : '';
   const messageSearchResult = useMessageSearch(selectedChatId, messageSearchQuery);
+  const sharedFilesQuery = useSharedAssets(selectedChatId, 'file');
+  const sharedMediaQuery = useSharedAssets(selectedChatId, 'media');
+  const pinnedMessagesQuery = usePinnedMessages(selectedChatId);
   const loadedMessageIds = useMemo(() => new Set(allMessages.map((message) => message._id)), [allMessages]);
 
   const clearHighlightedMessage = useCallback(() => {
@@ -192,6 +206,33 @@ const ChatPage = () => {
       messageHighlightTimeoutRef.current = null;
     }
     setHighlightedMessageId(null);
+  }, []);
+
+  const buildOptimisticAttachments = useCallback((
+    payload: ComposerSendPayload,
+    clientMessageId: string
+  ): AttachmentSummary[] => payload.attachments.map((attachment, index) => {
+    const optimisticAttachmentId = `optimistic-${clientMessageId}-${index}`;
+
+    return {
+      _id: optimisticAttachmentId,
+      attachmentId: optimisticAttachmentId,
+      displayName: attachment.displayName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      kind: attachment.kind,
+      status: 'active',
+      localPreviewUrl: attachment.localPreviewUrl,
+      createdAt: new Date().toISOString(),
+    };
+  }), []);
+
+  const revokeMessageLocalPreviewUrls = useCallback((message: Message) => {
+    message.attachments?.forEach((attachment) => {
+      if (attachment.localPreviewUrl) {
+        URL.revokeObjectURL(attachment.localPreviewUrl);
+      }
+    });
   }, []);
 
   const handleMessageStatusUpdate = useCallback(
@@ -579,10 +620,16 @@ const ChatPage = () => {
     }
   };
 
-  const handleSendMessage = () => {
-    const normalizedMessageInput = messageInput.trim();
+  const handleSendMessage = (payload?: ComposerSendPayload) => {
+    const sourceText = payload?.text ?? messageInput;
+    const normalizedMessageInput = sourceText.trim();
+    const attachmentDrafts = payload?.attachments ?? [];
 
-    if (!selectedChatId || !normalizedMessageInput || normalizedMessageInput.length > MAX_MESSAGE_TEXT_LENGTH) {
+    if (
+      !selectedChatId ||
+      (!normalizedMessageInput && attachmentDrafts.length === 0) ||
+      normalizedMessageInput.length > MAX_MESSAGE_TEXT_LENGTH
+    ) {
       return;
     }
 
@@ -592,14 +639,21 @@ const ChatPage = () => {
       emitTypingStop();
     }
 
+    const clientMessageId = createClientMessageId();
+    const optimisticAttachments = payload ? buildOptimisticAttachments(payload, clientMessageId) : [];
+
     sendMessage.mutate(
       {
         chatId: selectedChatId,
-        text: messageInput.trim(),
+        text: sourceText,
+        clientMessageId,
+        attachments: attachmentDrafts.map((attachment) => attachment.file),
+        optimisticAttachments,
       },
       {
         onSuccess: () => {
           setMessageInput('');
+          setComposerResetToken((currentToken) => currentToken + 1);
         },
       }
     );
@@ -799,10 +853,10 @@ const ChatPage = () => {
 
   const [enterToSend] = useLocalStorage('chatify_enter_to_send', true);
 
-  const handleComposerKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
+  const handleComposerKeyDown = (event: Parameters<KeyboardEventHandler<HTMLTextAreaElement>>[0], payload: ComposerSendPayload) => {
     if (event.key === 'Enter' && !event.shiftKey && enterToSend) {
       event.preventDefault();
-      handleSendMessage();
+      handleSendMessage(payload);
     }
   };
 
@@ -845,24 +899,29 @@ const ChatPage = () => {
     });
   };
 
-  const handleSelectMessageSearchResult = (message: Message) => {
-    if (!loadedMessageIds.has(message._id)) {
+  const handleJumpToMessage = useCallback((messageId: string) => {
+    if (!loadedMessageIds.has(messageId)) {
+      showToast('That message is not loaded yet.', 'info');
       return;
     }
 
     setShowMessageSearch(false);
     setMessageSearch('');
     clearHighlightedMessage();
-    setHighlightedMessageId(message._id);
+    setHighlightedMessageId(messageId);
     messageHighlightTimeoutRef.current = setTimeout(() => {
-      setHighlightedMessageId((currentMessageId) => currentMessageId === message._id ? null : currentMessageId);
+      setHighlightedMessageId((currentMessageId) => currentMessageId === messageId ? null : currentMessageId);
       messageHighlightTimeoutRef.current = null;
     }, 1200);
 
     window.requestAnimationFrame(() => {
-      const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${message._id}"]`);
+      const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${messageId}"]`);
       messageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
+  }, [clearHighlightedMessage, loadedMessageIds, setMessageSearch, setShowMessageSearch, showToast]);
+
+  const handleSelectMessageSearchResult = (message: Message) => {
+    handleJumpToMessage(message._id);
   };
 
   const handleAppendEmoji = (emoji: string) => {
@@ -880,10 +939,17 @@ const ChatPage = () => {
       return;
     }
 
+    if ((message.attachments?.length ?? 0) > 0 && !message.localFiles?.length) {
+      showToast('Reattach files to retry this message.', 'error');
+      return;
+    }
+
     sendMessage.mutate({
       chatId: message.chatId,
       text: message.text,
       clientMessageId: message.clientMessageId,
+      attachments: message.localFiles,
+      optimisticAttachments: message.attachments,
     });
   };
 
@@ -892,7 +958,41 @@ const ChatPage = () => {
       return;
     }
 
+    revokeMessageLocalPreviewUrls(message);
     dismissFailedMessage(message.clientMessageId);
+  };
+
+  const handleTogglePinMessage = (message: Message) => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    const mutation = message.pinned ? unpinMessageMutation : pinMessageMutation;
+
+    mutation.mutate(
+      { messageId: message._id, chatId: selectedChatId },
+      {
+        onError: () => {
+          showToast('Could not update pinned message.', 'error');
+        },
+      }
+    );
+    closeContextMenu();
+  };
+
+  const handleUnpinMessage = (messageId: string) => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    unpinMessageMutation.mutate(
+      { messageId, chatId: selectedChatId },
+      {
+        onError: () => {
+          showToast('Could not unpin that message.', 'error');
+        },
+      }
+    );
   };
 
   const isOffline = !isBrowserOnline;
@@ -971,6 +1071,7 @@ const ChatPage = () => {
           showEmojiPicker={showEmojiPicker}
           isSending={sendMessage.isPending}
           isSendError={sendMessage.isError}
+          composerResetToken={composerResetToken}
           isOffline={isOffline}
           isSessionExpired={isSessionExpired}
           isReconnecting={isReconnecting}
@@ -978,6 +1079,7 @@ const ChatPage = () => {
           messagesEndRef={messagesEndRef}
           emojiPickerRef={emojiPickerRef}
           onOpenSidebar={() => setIsSidebarOpen(true)}
+          onOpenDetails={() => setIsDetailDrawerOpen(true)}
           onToggleMessageSearch={handleToggleMessageSearch}
           onMessageSearchChange={setMessageSearch}
           onClearMessageSearch={handleClearMessageSearch}
@@ -1008,16 +1110,58 @@ const ChatPage = () => {
           currentUserId={user?._id}
           otherMember={otherMember}
           otherMemberStatus={otherMemberStatus}
-          messages={allMessages}
+          pinnedMessages={pinnedMessagesQuery.data ?? []}
+          sharedFiles={sharedFilesQuery.data ?? []}
+          sharedMedia={sharedMediaQuery.data ?? []}
+          isPinnedLoading={pinnedMessagesQuery.isLoading}
+          isSharedFilesLoading={sharedFilesQuery.isLoading}
+          isSharedMediaLoading={sharedMediaQuery.isLoading}
+          isPinnedError={pinnedMessagesQuery.isError}
+          isSharedFilesError={sharedFilesQuery.isError}
+          isSharedMediaError={sharedMediaQuery.isError}
           isAuthenticated={isAuthenticated}
           isSocketConnected={Boolean(socket?.connected)}
           isReconnecting={isReconnecting}
           isOffline={isOffline}
           onSearchMessages={handleToggleMessageSearch}
+          onJumpToMessage={handleJumpToMessage}
+          onUnpinMessage={handleUnpinMessage}
         />
       ) : null}
       overlays={(
         <>
+          {selectedChat && (
+            <ConversationDetailDrawer
+              isOpen={isDetailDrawerOpen}
+              selectedChat={selectedChat}
+              currentUserId={user?._id}
+              otherMember={otherMember}
+              otherMemberStatus={otherMemberStatus}
+              pinnedMessages={pinnedMessagesQuery.data ?? []}
+              sharedFiles={sharedFilesQuery.data ?? []}
+              sharedMedia={sharedMediaQuery.data ?? []}
+              isPinnedLoading={pinnedMessagesQuery.isLoading}
+              isSharedFilesLoading={sharedFilesQuery.isLoading}
+              isSharedMediaLoading={sharedMediaQuery.isLoading}
+              isPinnedError={pinnedMessagesQuery.isError}
+              isSharedFilesError={sharedFilesQuery.isError}
+              isSharedMediaError={sharedMediaQuery.isError}
+              isAuthenticated={isAuthenticated}
+              isSocketConnected={Boolean(socket?.connected)}
+              isReconnecting={isReconnecting}
+              isOffline={isOffline}
+              onClose={() => setIsDetailDrawerOpen(false)}
+              onSearchMessages={() => {
+                setIsDetailDrawerOpen(false);
+                handleToggleMessageSearch();
+              }}
+              onJumpToMessage={(messageId) => {
+                setIsDetailDrawerOpen(false);
+                handleJumpToMessage(messageId);
+              }}
+              onUnpinMessage={handleUnpinMessage}
+            />
+          )}
           <MessageActionMenu
             contextMenu={contextMenu}
             messages={allMessages}
@@ -1029,6 +1173,7 @@ const ChatPage = () => {
             onStartEdit={handleStartEdit}
             onDelete={handleDeleteMessage}
             onCopy={handleCopyMessage}
+            onTogglePin={handleTogglePinMessage}
             onClose={closeContextMenu}
           />
           <SettingsModal

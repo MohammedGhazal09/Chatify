@@ -24,6 +24,8 @@ export type CreateOptimisticMessageInput = {
   senderId: string;
   text: string;
   clientMessageId: string;
+  attachments?: Message['attachments'];
+  localFiles?: File[];
   createdAt?: string;
 };
 
@@ -132,6 +134,16 @@ export const mergeCanonicalMessage = (existing: Message | undefined, incoming: M
   const mergedReadBy = mergeReadByEntries(existing?.readBy ?? [], incoming.readBy ?? []);
   const mergedDeletedFor = mergeUniqueStrings(existing?.deletedFor ?? [], incoming.deletedFor ?? []);
   const deletedForEveryone = Boolean(existing?.deletedForEveryone || incoming.deletedForEveryone);
+  const shouldPreserveExistingDeletedAttachments = Boolean(
+    deletedForEveryone &&
+    existing?.attachments?.length &&
+    (!incoming.attachments || incoming.attachments.length === 0)
+  );
+  const attachments = shouldPreserveExistingDeletedAttachments
+    ? [...(existing?.attachments ?? [])]
+    : preferIncomingContent
+      ? [...(incoming.attachments ?? existing?.attachments ?? [])]
+      : [...(existing?.attachments ?? incoming.attachments ?? [])];
   const status = statusRank[incoming.status] >= statusRank[existing?.status ?? 'sent']
     ? incoming.status
     : existing?.status ?? incoming.status;
@@ -150,6 +162,10 @@ export const mergeCanonicalMessage = (existing: Message | undefined, incoming: M
     readAt: existing?.readAt ?? incoming.readAt ?? null,
     readBy: mergedReadBy,
     reactions: preferIncomingContent ? [...(incoming.reactions ?? [])] : [...(existing?.reactions ?? incoming.reactions ?? [])],
+    attachments: deletedForEveryone
+      ? attachments.map((attachment) => ({ ...attachment, status: 'deleted' as const }))
+      : attachments,
+    localFiles: existing?.localFiles ?? incoming.localFiles,
     isEdited: Boolean(existing?.isEdited || incoming.isEdited),
     editedAt: existing?.editedAt ?? incoming.editedAt ?? null,
     deletedFor: mergedDeletedFor,
@@ -202,10 +218,14 @@ export const reconcileFetchedMessagesInCache = (
   };
 };
 
-export const normalizeOutgoingMessageText = (value: string) => {
+export const normalizeOutgoingMessageText = (value: string, options: { allowEmpty?: boolean } = {}) => {
   const text = value.trim();
 
   if (!text) {
+    if (options.allowEmpty) {
+      return { ok: true, text: '' } as const;
+    }
+
     return {
       ok: false,
       message: 'Message text is required',
@@ -235,6 +255,8 @@ export const createOptimisticMessage = ({
   senderId,
   text,
   clientMessageId,
+  attachments = [],
+  localFiles = [],
   createdAt = new Date().toISOString(),
 }: CreateOptimisticMessageInput): Message => ({
   _id: `optimistic-${clientMessageId}`,
@@ -246,8 +268,13 @@ export const createOptimisticMessage = ({
   status: 'sent',
   readBy: [],
   reactions: [],
+  attachments,
+  localFiles,
   deletedFor: [],
   deletedForEveryone: false,
+  pinned: false,
+  pinnedBy: null,
+  pinnedAt: null,
   optimisticState: 'sending',
   createdAt,
   updatedAt: createdAt,

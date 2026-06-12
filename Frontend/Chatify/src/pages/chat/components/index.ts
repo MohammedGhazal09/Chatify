@@ -1,9 +1,12 @@
 export { default as ChatListItem } from './ChatListItem';
 export { default as AbstractIdentityTile } from './AbstractIdentityTile';
+export { default as AttachmentPreview } from './AttachmentPreview';
+export { default as AttachmentTray } from './AttachmentTray';
 export { default as ChatContextRail } from './ChatContextRail';
 export { default as ChatShell } from './ChatShell';
 export { default as ChatSidebar } from './ChatSidebar';
 export { default as ChatStateView } from './ChatStateView';
+export { default as ConversationDetailDrawer } from './ConversationDetailDrawer';
 export { default as ConversationHeader } from './ConversationHeader';
 export { default as ConversationPane } from './ConversationPane';
 export { default as MessageActionMenu } from './MessageActionMenu';

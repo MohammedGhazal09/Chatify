@@ -10,6 +10,7 @@ describe('ConversationHeader', () => {
     const user = userEvent.setup();
     const onOpenSidebar = vi.fn();
     const onToggleMessageSearch = vi.fn();
+    const onOpenDetails = vi.fn();
     const chat = makeChat({
       members: [
         makeUser({ _id: 'user-1', firstName: 'AX', lastName: '7F3C' }),
@@ -26,6 +27,7 @@ describe('ConversationHeader', () => {
         showMessageSearch={false}
         searchButtonRef={createRef<HTMLButtonElement>()}
         onOpenSidebar={onOpenSidebar}
+        onOpenDetails={onOpenDetails}
         onToggleMessageSearch={onToggleMessageSearch}
         onExportChat={vi.fn()}
       />
@@ -36,11 +38,13 @@ describe('ConversationHeader', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open conversations' }));
     await user.click(screen.getByRole('button', { name: 'Search messages' }));
+    await user.click(screen.getByRole('button', { name: 'Open conversation details' }));
 
     expect(onOpenSidebar).toHaveBeenCalledTimes(1);
     expect(onToggleMessageSearch).toHaveBeenCalledTimes(1);
+    expect(onOpenDetails).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: 'Call' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Video call' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'More conversation actions' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Open conversation details' })).toBeEnabled();
   });
 });

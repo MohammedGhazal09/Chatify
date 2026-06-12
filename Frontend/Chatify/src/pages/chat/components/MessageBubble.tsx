@@ -4,6 +4,7 @@ import { MoreHorizontal, RefreshCw } from 'lucide-react';
 import MessageStatus from '../../../components/MessageStatus';
 import type { Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
+import AttachmentPreview from './AttachmentPreview';
 
 interface MessageBubbleProps {
   message: Message;
@@ -56,6 +57,8 @@ const MessageBubble = memo(({
 
   const isFailed = message.optimisticState === 'failed';
   const isSending = message.optimisticState === 'sending';
+  const visibleAttachments = message.deletedForEveryone ? [] : message.attachments ?? [];
+  const requiresReattachForRetry = isFailed && visibleAttachments.length > 0 && !message.localFiles?.length;
   const bubbleTone = isFailed
     ? 'border-[color-mix(in_srgb,var(--chat-danger)_58%,var(--chat-border))] bg-[color-mix(in_srgb,var(--chat-danger)_8%,var(--chat-panel-elevated))] text-[var(--chat-text)]'
     : isSending
@@ -86,7 +89,12 @@ const MessageBubble = memo(({
           {message.deletedForEveryone ? (
             <p className="italic text-[#A8B3AF]">This message was deleted</p>
           ) : (
-            <p className="whitespace-pre-wrap break-words">{message.text}</p>
+            <>
+              {message.text.trim() && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+              {visibleAttachments.map((attachment) => (
+                <AttachmentPreview key={attachment.attachmentId} attachment={attachment} />
+              ))}
+            </>
           )}
           <div className={`mt-1 flex items-end justify-start gap-1 text-xs ${isOwnMessage ? 'text-white/78' : 'text-[var(--chat-text-soft)]'}`}>
             <span className="text-nowrap">{formatTimestamp(message.updatedAt)}</span>
@@ -103,6 +111,9 @@ const MessageBubble = memo(({
           {isFailed && (
             <div className="mt-2 border-t border-[color-mix(in_srgb,var(--chat-danger)_30%,transparent)] pt-2" aria-live="polite">
               <p className="text-xs text-[var(--chat-danger)]">Message failed to send. Retry or dismiss it.</p>
+              {requiresReattachForRetry && (
+                <p className="mt-1 text-xs text-[var(--chat-danger)]">Reattach files before retrying this message.</p>
+              )}
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"

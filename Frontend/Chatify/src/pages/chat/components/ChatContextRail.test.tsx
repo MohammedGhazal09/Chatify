@@ -1,13 +1,15 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { makeChat, makeMessage, makeUser } from '../../../test/chatFixtures';
+import { makeChat, makePinnedMessage, makeSharedAsset, makeUser } from '../../../test/chatFixtures';
 import ChatContextRail from './ChatContextRail';
 
 describe('ChatContextRail', () => {
-  it('renders presentational sections and wires search to existing message search', async () => {
+  it('renders server-backed sections and wires actions', async () => {
     const user = userEvent.setup();
     const onSearchMessages = vi.fn();
+    const onJumpToMessage = vi.fn();
+    const onUnpinMessage = vi.fn();
     const chat = makeChat({
       members: [
         makeUser({ _id: 'user-1', firstName: 'AX', lastName: '7F3C' }),
@@ -21,12 +23,22 @@ describe('ChatContextRail', () => {
         currentUserId="user-1"
         otherMember={chat.members[1]}
         otherMemberStatus={{ userId: 'user-2', isOnline: true }}
-        messages={[makeMessage({ _id: 'message-1', text: 'Retry logic note' })]}
+        pinnedMessages={[makePinnedMessage({ messageId: 'message-pin', text: 'Retry logic note' })]}
+        sharedFiles={[makeSharedAsset({ attachmentId: 'file-1', messageId: 'message-file', displayName: 'message-states-spec.pdf' })]}
+        sharedMedia={[makeSharedAsset({ attachmentId: 'media-1', messageId: 'message-media', displayName: 'diagram.png', mimeType: 'image/png', kind: 'media' })]}
+        isPinnedLoading={false}
+        isSharedFilesLoading={false}
+        isSharedMediaLoading={false}
+        isPinnedError={false}
+        isSharedFilesError={false}
+        isSharedMediaError={false}
         isAuthenticated
         isSocketConnected
         isReconnecting={false}
         isOffline={false}
         onSearchMessages={onSearchMessages}
+        onJumpToMessage={onJumpToMessage}
+        onUnpinMessage={onUnpinMessage}
       />
     );
 
@@ -39,23 +51,28 @@ describe('ChatContextRail', () => {
     expect(screen.getByText('Shared files')).toBeInTheDocument();
     expect(screen.getByText('Shared media')).toBeInTheDocument();
     expect(screen.getByText('Conversation security')).toBeInTheDocument();
-    expect(screen.getByText('Pinning is not available in this phase.')).toBeInTheDocument();
-    expect(screen.getByText('File sharing is planned for Phase 08.')).toBeInTheDocument();
-    expect(screen.getByText('Media sharing is planned for Phase 08.')).toBeInTheDocument();
-    expect(screen.queryByText('Retry logic note')).not.toBeInTheDocument();
-    expect(screen.queryByText('message-states-spec.pdf')).not.toBeInTheDocument();
+    expect(screen.getByText('Retry logic note')).toBeInTheDocument();
+    expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'diagram.png' })).toBeInTheDocument();
+    expect(screen.queryByText('Pinning is not available in this phase.')).not.toBeInTheDocument();
+    expect(screen.queryByText('File sharing is planned for Phase 08.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Media sharing is planned for Phase 08.')).not.toBeInTheDocument();
     expect(screen.queryByText('delivery-metrics.xlsx')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Abstract shared media')).not.toBeInTheDocument();
     expect(screen.getByText('Authenticated session')).toBeInTheDocument();
-    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getAllByText('Active')).toHaveLength(2);
     expect(screen.getByText('Member-only room')).toBeInTheDocument();
     expect(screen.getByText('Confirmed')).toBeInTheDocument();
     expect(screen.getByText('Realtime connection')).toBeInTheDocument();
     expect(screen.getByText('Connected')).toBeInTheDocument();
-    expect(document.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('Protected file access')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Search messages' }));
+    await user.click(screen.getByRole('button', { name: 'Retry logic note' }));
+    await user.click(screen.getByRole('button', { name: 'Unpin Retry logic note' }));
     expect(onSearchMessages).toHaveBeenCalledTimes(1);
+    expect(onJumpToMessage).toHaveBeenCalledWith('message-pin');
+    expect(onUnpinMessage).toHaveBeenCalledWith('message-pin');
   });
 
   it('downgrades security rows when auth, membership, or socket state is unavailable', () => {
@@ -71,16 +88,29 @@ describe('ChatContextRail', () => {
         currentUserId="user-1"
         otherMember={chat.members[0]}
         otherMemberStatus={null}
-        messages={[]}
+        pinnedMessages={[]}
+        sharedFiles={[]}
+        sharedMedia={[]}
+        isPinnedLoading={false}
+        isSharedFilesLoading={false}
+        isSharedMediaLoading={false}
+        isPinnedError={false}
+        isSharedFilesError={false}
+        isSharedMediaError={false}
         isAuthenticated={false}
         isSocketConnected={false}
         isReconnecting={false}
         isOffline
         onSearchMessages={vi.fn()}
+        onJumpToMessage={vi.fn()}
+        onUnpinMessage={vi.fn()}
       />
     );
 
-    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.getByText('No pinned messages')).toBeInTheDocument();
+    expect(screen.getByText('No shared files')).toBeInTheDocument();
+    expect(screen.getByText('No shared media')).toBeInTheDocument();
+    expect(screen.getAllByText('Unavailable')).toHaveLength(3);
     expect(screen.getAllByText('Offline').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Verified')).not.toBeInTheDocument();
     expect(screen.queryByText('Secure')).not.toBeInTheDocument();
