@@ -182,7 +182,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 06-01: Lock the shared messenger theme tokens and desktop three-column shell against the light and dark references
+- [x] 06-01: Lock the shared messenger theme tokens and desktop three-column shell against the light and dark references
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -204,4 +204,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Canonical Message State | 3/3 | Complete | 2026-06-08 |
 | 4. Messenger UI Reconstruction | 3/3 | Complete | 2026-06-09 |
 | 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
-| 6. Messenger Visual Parity | 0/3 | Not started | - |
+| 6. Messenger Visual Parity | 1/3 | In Progress|  |

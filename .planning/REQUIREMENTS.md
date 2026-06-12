@@ -35,12 +35,12 @@
 
 ### Chat User Experience
 
-- [ ] **UI-01**: User sees a responsive messenger layout with conversation sidebar, selected conversation, message list, composer, and header actions.
-- [ ] **UI-02**: User can understand loading, empty, offline, error, sending, failed-send, deleted, edited, delivered, read, and typing states.
+- [x] **UI-01**: User sees a responsive messenger layout with conversation sidebar, selected conversation, message list, composer, and header actions.
+- [x] **UI-02**: User can understand loading, empty, offline, error, sending, failed-send, deleted, edited, delivered, read, and typing states.
 - [ ] **UI-03**: User can recover from failed sends or network errors without losing message context.
-- [ ] **UI-04**: User can use message actions without layout shifts, overlapping controls, or hidden state changes.
-- [ ] **UI-05**: User can use the chat experience comfortably on desktop and mobile viewports.
-- [ ] **UI-06**: Chat UI code is split into focused components and hooks so future changes are testable and reviewable.
+- [x] **UI-04**: User can use message actions without layout shifts, overlapping controls, or hidden state changes.
+- [x] **UI-05**: User can use the chat experience comfortably on desktop and mobile viewports.
+- [x] **UI-06**: Chat UI code is split into focused components and hooks so future changes are testable and reviewable.
 
 ### Messenger Baseline Features
 
@@ -104,12 +104,12 @@
 | MSG-05 | Phase 3 | Pending |
 | MSG-06 | Phase 3 | Pending |
 | MSG-07 | Phase 3 | Pending |
-| UI-01 | Phase 6 | Pending |
-| UI-02 | Phase 6 | Pending |
+| UI-01 | Phase 6 | Complete |
+| UI-02 | Phase 6 | Complete |
 | UI-03 | Phase 6 | Pending |
-| UI-04 | Phase 6 | Pending |
-| UI-05 | Phase 6 | Pending |
-| UI-06 | Phase 6 | Pending |
+| UI-04 | Phase 6 | Complete |
+| UI-05 | Phase 6 | Complete |
+| UI-06 | Phase 6 | Complete |
 | TEST-03 | Phase 4 | Complete |
 | BASE-01 | Phase 5 | Complete |
 | BASE-02 | Phase 5 | Complete |
