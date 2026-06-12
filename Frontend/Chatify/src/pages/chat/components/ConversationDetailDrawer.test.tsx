@@ -64,4 +64,16 @@ describe('ConversationDetailDrawer', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Conversation details' })).not.toBeInTheDocument();
   });
+
+  it('closes from the close button and backdrop', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(<ConversationDetailDrawer {...baseProps} isOpen onClose={onClose} />);
+
+    await user.click(screen.getByRole('button', { name: 'Close conversation details' }));
+    await user.click(screen.getByRole('button', { name: 'Close details backdrop' }));
+
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
 });

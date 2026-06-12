@@ -237,3 +237,61 @@ test.describe('Phase 09 messenger interaction quality gate', () => {
     await page.screenshot({ path: phase09ArtifactPath('09-ui-mobile-dark-quality.png') });
   });
 });
+
+test.describe('Phase 10 production messenger reality', () => {
+  test('desktop detail rail closes, returns focus, reopens, and keeps search active', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPhase09Chat(page, { theme: 'dark', chatId: PHASE09_PRIMARY_CHAT_ID });
+
+    const detailsButton = page.getByRole('button', { name: 'Open conversation details' });
+    const rail = page.getByTestId('chat-context-rail');
+    await expect(rail).toBeVisible();
+    await expect(rail.getByRole('heading', { name: 'Pinned messages' })).toBeVisible();
+    await expect(rail.getByRole('heading', { name: 'Shared files' })).toBeVisible();
+    await expect(rail.getByRole('heading', { name: 'Shared media' })).toBeVisible();
+
+    await rail.getByRole('button', { name: 'Close conversation details' }).click();
+    await expect(rail).toBeHidden();
+    await expect(detailsButton).toBeFocused();
+
+    await detailsButton.click();
+    await expect(rail).toBeVisible();
+    await rail.getByRole('button', { name: 'Search messages' }).click();
+    await expect(page.getByRole('textbox', { name: 'Search this conversation' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('textbox', { name: 'Search this conversation' })).toBeHidden();
+
+    await detailsButton.click();
+    await expect(rail).toBeVisible();
+    await rail.getByRole('button', { name: 'Search messages' }).focus();
+    await page.keyboard.press('Escape');
+    await expect(rail).toBeHidden();
+    await expect(detailsButton).toBeFocused();
+  });
+
+  test('mobile detail drawer keeps close paths and search behavior', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openPhase09Chat(page, { theme: 'light', chatId: PHASE09_PRIMARY_CHAT_ID });
+
+    const detailsButton = page.getByRole('button', { name: 'Open conversation details' });
+    await detailsButton.click();
+    const detailsDialog = page.getByRole('dialog', { name: 'Conversation details' });
+    await expect(detailsDialog).toBeVisible();
+    await expect(detailsDialog.getByRole('heading', { name: 'Pinned messages' })).toBeVisible();
+    await detailsDialog.getByRole('button', { name: 'Search messages' }).click();
+    await expect(page.getByRole('textbox', { name: 'Search this conversation' })).toBeFocused();
+
+    await detailsButton.click();
+    await expect(detailsDialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(detailsDialog).toBeHidden();
+    await expect(detailsButton).toBeFocused();
+
+    await page.setViewportSize({ width: 800, height: 844 });
+    await detailsButton.click();
+    await expect(detailsDialog).toBeVisible();
+    await page.mouse.click(8, 8);
+    await expect(detailsDialog).toBeHidden();
+    await expect(detailsButton).toBeFocused();
+  });
+});

@@ -144,6 +144,7 @@ const ChatPage = () => {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [composerResetToken, setComposerResetToken] = useState(0);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
+  const [isDetailRailOpen, setIsDetailRailOpen] = useState(true);
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
@@ -336,6 +337,8 @@ const ChatPage = () => {
     setIsTyping(false);
     setIsSidebarOpen(false);
     setIsNewChatOpen(false);
+    setIsDetailDrawerOpen(false);
+    setIsDetailRailOpen(true);
     setNewChatEmail('');
     setCreateChatError(null);
     clearPresenceState();
@@ -370,6 +373,8 @@ const ChatPage = () => {
 
   useEffect(() => {
     clearHighlightedMessage();
+    setIsDetailDrawerOpen(false);
+    setIsDetailRailOpen(true);
   }, [clearHighlightedMessage, selectedChatId]);
 
   useEffect(() => {
@@ -981,11 +986,32 @@ const ChatPage = () => {
     closeContextMenu();
   };
 
-  const closeDetailDrawer = useCallback(() => {
-    setIsDetailDrawerOpen(false);
+  const focusDetailButton = useCallback(() => {
     window.requestAnimationFrame(() => {
       detailButtonRef.current?.focus();
     });
+  }, []);
+
+  const closeDetailDrawer = useCallback(() => {
+    setIsDetailDrawerOpen(false);
+    focusDetailButton();
+  }, [focusDetailButton]);
+
+  const closeDetailRail = useCallback(() => {
+    setIsDetailRailOpen(false);
+    focusDetailButton();
+  }, [focusDetailButton]);
+
+  const handleOpenDetails = useCallback(() => {
+    const isDesktopViewport = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
+
+    if (isDesktopViewport) {
+      setIsDetailDrawerOpen(false);
+      setIsDetailRailOpen(true);
+      return;
+    }
+
+    setIsDetailDrawerOpen(true);
   }, []);
 
   const handleUnpinMessage = (messageId: string) => {
@@ -1088,7 +1114,7 @@ const ChatPage = () => {
           messagesEndRef={messagesEndRef}
           emojiPickerRef={emojiPickerRef}
           onOpenSidebar={() => setIsSidebarOpen(true)}
-          onOpenDetails={() => setIsDetailDrawerOpen(true)}
+          onOpenDetails={handleOpenDetails}
           onToggleMessageSearch={handleToggleMessageSearch}
           onMessageSearchChange={setMessageSearch}
           onClearMessageSearch={handleClearMessageSearch}
@@ -1115,6 +1141,7 @@ const ChatPage = () => {
       )}
       rightRail={selectedChat ? (
         <ChatContextRail
+          isOpen={isDetailRailOpen}
           selectedChat={selectedChat}
           currentUserId={user?._id}
           otherMember={otherMember}
@@ -1132,6 +1159,7 @@ const ChatPage = () => {
           isSocketConnected={Boolean(socket?.connected)}
           isReconnecting={isReconnecting}
           isOffline={isOffline}
+          onClose={closeDetailRail}
           onSearchMessages={handleToggleMessageSearch}
           onJumpToMessage={handleJumpToMessage}
           onUnpinMessage={handleUnpinMessage}

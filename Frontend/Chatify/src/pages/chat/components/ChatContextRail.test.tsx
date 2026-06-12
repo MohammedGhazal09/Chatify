@@ -5,11 +5,7 @@ import { makeChat, makePinnedMessage, makeSharedAsset, makeUser } from '../../..
 import ChatContextRail from './ChatContextRail';
 
 describe('ChatContextRail', () => {
-  it('renders server-backed sections and wires actions', async () => {
-    const user = userEvent.setup();
-    const onSearchMessages = vi.fn();
-    const onJumpToMessage = vi.fn();
-    const onUnpinMessage = vi.fn();
+  const renderRail = (overrides = {}) => {
     const chat = makeChat({
       members: [
         makeUser({ _id: 'user-1', firstName: 'AX', lastName: '7F3C' }),
@@ -17,32 +13,46 @@ describe('ChatContextRail', () => {
       ],
     });
 
-    render(
-      <ChatContextRail
-        selectedChat={chat}
-        currentUserId="user-1"
-        otherMember={chat.members[1]}
-        otherMemberStatus={{ userId: 'user-2', isOnline: true }}
-        pinnedMessages={[makePinnedMessage({ messageId: 'message-pin', text: 'Retry logic note' })]}
-        sharedFiles={[makeSharedAsset({ attachmentId: 'file-1', messageId: 'message-file', displayName: 'message-states-spec.pdf' })]}
-        sharedMedia={[makeSharedAsset({ attachmentId: 'media-1', messageId: 'message-media', displayName: 'diagram.png', mimeType: 'image/png', kind: 'media' })]}
-        isPinnedLoading={false}
-        isSharedFilesLoading={false}
-        isSharedMediaLoading={false}
-        isPinnedError={false}
-        isSharedFilesError={false}
-        isSharedMediaError={false}
-        isAuthenticated
-        isSocketConnected
-        isReconnecting={false}
-        isOffline={false}
-        onSearchMessages={onSearchMessages}
-        onJumpToMessage={onJumpToMessage}
-        onUnpinMessage={onUnpinMessage}
-      />
-    );
+    const props = {
+      isOpen: true,
+      onClose: vi.fn(),
+      selectedChat: chat,
+      currentUserId: 'user-1',
+      otherMember: chat.members[1],
+      otherMemberStatus: { userId: 'user-2', isOnline: true },
+      pinnedMessages: [makePinnedMessage({ messageId: 'message-pin', text: 'Retry logic note' })],
+      sharedFiles: [makeSharedAsset({ attachmentId: 'file-1', messageId: 'message-file', displayName: 'message-states-spec.pdf' })],
+      sharedMedia: [makeSharedAsset({ attachmentId: 'media-1', messageId: 'message-media', displayName: 'diagram.png', mimeType: 'image/png', kind: 'media' })],
+      isPinnedLoading: false,
+      isSharedFilesLoading: false,
+      isSharedMediaLoading: false,
+      isPinnedError: false,
+      isSharedFilesError: false,
+      isSharedMediaError: false,
+      isAuthenticated: true,
+      isSocketConnected: true,
+      isReconnecting: false,
+      isOffline: false,
+      onSearchMessages: vi.fn(),
+      onJumpToMessage: vi.fn(),
+      onUnpinMessage: vi.fn(),
+      ...overrides,
+    };
+
+    render(<ChatContextRail {...props} />);
+
+    return props;
+  };
+
+  it('renders server-backed sections and wires actions', async () => {
+    const user = userEvent.setup();
+    const onSearchMessages = vi.fn();
+    const onJumpToMessage = vi.fn();
+    const onUnpinMessage = vi.fn();
+    renderRail({ onSearchMessages, onJumpToMessage, onUnpinMessage });
 
     expect(screen.getByRole('complementary', { name: 'Conversation details' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close conversation details' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Call' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Video call' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'More conversation actions' })).toBeDisabled();
@@ -75,6 +85,25 @@ describe('ChatContextRail', () => {
     expect(onUnpinMessage).toHaveBeenCalledWith('message-pin');
   });
 
+  it('does not render when the rail is closed', () => {
+    renderRail({ isOpen: false });
+
+    expect(screen.queryByRole('complementary', { name: 'Conversation details' })).not.toBeInTheDocument();
+  });
+
+  it('closes from the close button and Escape key', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderRail({ onClose });
+
+    await user.click(screen.getByRole('button', { name: 'Close conversation details' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    screen.getByRole('button', { name: 'Search messages' }).focus();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
   it('downgrades security rows when auth, membership, or socket state is unavailable', () => {
     const chat = makeChat({
       members: [
@@ -84,6 +113,8 @@ describe('ChatContextRail', () => {
 
     render(
       <ChatContextRail
+        isOpen
+        onClose={vi.fn()}
         selectedChat={chat}
         currentUserId="user-1"
         otherMember={chat.members[0]}
