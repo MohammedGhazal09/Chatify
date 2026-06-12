@@ -1,6 +1,7 @@
 ---
 phase: 08-media-files-and-conversation-detail-implementation
 researched: 2026-06-12T17:55:32+03:00
+research_refreshed: 2026-06-12T18:33:45+03:00
 status: complete
 sources:
   - https://www.mongodb.com/docs/drivers/node/current/crud/gridfs/
@@ -10,6 +11,8 @@ sources:
   - https://tanstack.com/query/latest/docs/framework/react/guides/query-invalidation
   - https://socket.io/docs/v4/server-api/
   - https://socket.io/docs/v4/rooms/
+  - https://playwright.dev/docs/input
+  - https://playwright.dev/docs/screenshots
 skills_used:
   - api-and-interface-design
   - express-rest-api
@@ -28,6 +31,12 @@ Phase 08 should be planned as a secure extension of the existing canonical messa
 MongoDB GridFS is the best storage fit for the approved MVP boundary because the phase explicitly rejects external object storage and public URLs. MongoDB's Node.js driver documents GridFS buckets with `files` metadata and `chunks` collections, upload streams with metadata, and download streams for retrieving protected bytes. Even though the approved max file size is 10 MB, which is below MongoDB's 16 MB BSON document limit, GridFS is still the better long-term internal abstraction because it streams retrieval, separates file chunks from message documents, and avoids inflating message rows with binary data.
 
 The frontend should keep TanStack Query as the source of durable server state. Current `useSendMessage`, `messageCache`, `useChatSocket`, and `messageApi` already own optimistic send, cache merge, retry, search, and socket reconciliation. Phase 08 should extend these contracts for attachment summaries, local object URL previews, shared asset query keys, pinned message query keys, and room-scoped invalidations instead of moving upload state directly into presentational components.
+
+## Research Refresh: 2026-06-12
+
+Current primary docs still support the existing Phase 08 plan split. MongoDB's current Node.js driver docs present GridFS as a bucket abstraction with `files` metadata and `chunks`, plus upload streams that accept metadata, so the plan should keep GridFS behind `attachmentStorageService` and keep authorization metadata in a first-class `Attachment` model. Express' Multer docs confirm it is route-scoped middleware for `multipart/form-data`, with memory storage, limits, and file filters available; the plan should explicitly avoid global Multer middleware and mount `.array('attachments', 5)` only on the canonical send route. The `file-type` README confirms ESM usage and best-effort binary signature detection, so the validator must combine signatures, allowlists, size limits, and explicit text/Office handling instead of claiming content safety. TanStack Query v5 still supports `onMutate` optimistic cache writes and targeted invalidation, so attachment sends, pin/unpin, and shared asset refreshes belong in query hooks/cache helpers. Socket.IO v4 rooms remain server-only and room-scoped emits use `to(room).emit(...)`, so pin/detail realtime events must be emitted only after HTTP membership checks pass. Playwright supports `locator.setInputFiles()` and file screenshots, so Phase 08 behavior evidence should upload abstract test media, assert behavior, then capture desktop/mobile light/dark screenshots.
+
+Recommendation: keep the current three-wave plan, but strengthen plan artifacts with explicit produced files, threat models, and evidence requirements so execution cannot drift into static UI or unprotected file URLs.
 
 ## External Research Findings
 
