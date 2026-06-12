@@ -20,7 +20,7 @@
 - [ ] **RT-01**: Socket.IO connections derive user identity from verified session data, not client-supplied user ids.
 - [ ] **RT-02**: Server checks chat membership before joining rooms or processing chat-scoped socket events.
 - [ ] **RT-03**: Typing, delivery, read, edit, delete, reaction, and notification events are rejected for unauthorized chats.
-- [ ] **RT-04**: Socket reconnect reconciles selected chat messages, conversation list state, unread counts, and presence from server truth.
+- [x] **RT-04**: Socket reconnect reconciles selected chat messages, conversation list state, unread counts, and presence from server truth.
 - [ ] **RT-05**: Presence state handles reconnects and disconnects without trusting stale client claims.
 
 ### Message Reliability
@@ -52,9 +52,9 @@
 
 ### Functional Product Parity
 
-- [ ] **PARITY-01**: The messenger reference UI renders production chat, message, presence, status, search, and session state instead of static demo fixtures.
+- [x] **PARITY-01**: The messenger reference UI renders production chat, message, presence, status, search, and session state instead of static demo fixtures.
 - [ ] **PARITY-02**: Every visible messenger control performs a supported action or is intentionally hidden/disabled with an honest state.
-- [ ] **PARITY-03**: Desktop, mobile, light theme, and dark theme variants preserve the same working workflows and do not fork into layout-only implementations.
+- [x] **PARITY-03**: Desktop, mobile, light theme, and dark theme variants preserve the same working workflows and do not fork into layout-only implementations.
 
 ### Media And Detail Surfaces
 
@@ -68,7 +68,7 @@
 - [ ] **TEST-02**: Socket integration tests cover authenticated handshake, unauthorized event rejection, room membership, typing, delivery, read, edit, delete, reaction, and reconnect behavior.
 - [x] **TEST-03**: Frontend tests cover optimistic send, rollback, duplicate merge, unread updates, session-expired state, and core chat UI states.
 - [ ] **TEST-04**: Each auth, socket, and message phase has blocking security acceptance criteria and verification evidence.
-- [ ] **TEST-05**: End-to-end UI quality gates cover real messenger workflows across desktop, mobile, light theme, and dark theme after behavior interactions.
+- [x] **TEST-05**: End-to-end UI quality gates cover real messenger workflows across desktop, mobile, light theme, and dark theme after behavior interactions.
 
 ## v2 Requirements
 
@@ -106,7 +106,7 @@
 | RT-01 | Phase 2 | Pending |
 | RT-02 | Phase 2 | Pending |
 | RT-03 | Phase 2 | Pending |
-| RT-04 | Phase 2 | Pending |
+| RT-04 | Phase 2 | Complete |
 | RT-05 | Phase 2 | Pending |
 | TEST-02 | Phase 2 | Pending |
 | MSG-01 | Phase 3 | Pending |
@@ -128,13 +128,13 @@
 | BASE-03 | Phase 5 | Complete |
 | BASE-04 | Phase 5 | Complete |
 | BASE-05 | Phase 5 | Complete |
-| PARITY-01 | Phase 7 | Pending |
+| PARITY-01 | Phase 7 | Complete |
 | PARITY-02 | Phase 7 | Pending |
-| PARITY-03 | Phase 7 | Pending |
+| PARITY-03 | Phase 7 | Complete |
 | MEDIA-01 | Phase 8 | Pending |
 | MEDIA-02 | Phase 8 | Pending |
 | MEDIA-03 | Phase 8 | Pending |
-| TEST-05 | Phase 9 | Pending |
+| TEST-05 | Phase 9 | Complete |
 
 **Coverage:**
 
