@@ -58,9 +58,9 @@
 
 ### Media And Detail Surfaces
 
-- [ ] **MEDIA-01**: User can attach and send supported images or files with validation, recoverable failures, and persisted message metadata.
-- [ ] **MEDIA-02**: User can preview, open, and download shared media/files only when authorized for the conversation.
-- [ ] **MEDIA-03**: Conversation detail surfaces for shared media, shared files, pinned messages, and security status use real data or are intentionally hidden until supported.
+- [x] **MEDIA-01**: User can attach and send supported images or files with validation, recoverable failures, and persisted message metadata.
+- [x] **MEDIA-02**: User can preview, open, and download shared media/files only when authorized for the conversation.
+- [x] **MEDIA-03**: Conversation detail surfaces for shared media, shared files, pinned messages, and security status use real data or are intentionally hidden until supported.
 
 ### Tests And Verification
 
@@ -131,9 +131,9 @@
 | PARITY-01 | Phase 7 | Complete |
 | PARITY-02 | Phase 7 | Complete |
 | PARITY-03 | Phase 7 | Complete |
-| MEDIA-01 | Phase 8 | Pending |
-| MEDIA-02 | Phase 8 | Pending |
-| MEDIA-03 | Phase 8 | Pending |
+| MEDIA-01 | Phase 8 | Complete |
+| MEDIA-02 | Phase 8 | Complete |
+| MEDIA-03 | Phase 8 | Complete |
 | TEST-05 | Phase 9 | Complete |
 
 **Coverage:**
@@ -144,4 +144,4 @@
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-12 after Phase 07-09 correction planning*
+*Last updated: 2026-06-12 after Phase 09 execution*

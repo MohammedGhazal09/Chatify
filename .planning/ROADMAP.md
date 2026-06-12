@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Messenger Visual Parity** - Match the supplied desktop and mobile light/dark messenger references as closely as possible. (completed 2026-06-12)
 - [x] **Phase 7: Messenger Functional Parity Restoration** - Rewire the reference UI to real chat state, actions, navigation, search, status, and session behavior so no production surface is static-only. (completed 2026-06-12)
 - [x] **Phase 8: Media Files And Conversation Detail Implementation** - Implement real attachments, previews, downloads, shared media/files, pinned items, and conversation detail/security panels. (completed 2026-06-12)
-- [ ] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence.
+- [x] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence. (completed 2026-06-12)
 
 ## Phase Details
 
@@ -277,15 +277,15 @@ Plans:
 
 **Wave 1**
 
-- [ ] 09-01: Build the dedicated behavior-first Phase 09 Playwright gate and fixture guardrails
+- [x] 09-01: Build the dedicated behavior-first Phase 09 Playwright gate and fixture guardrails
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09-02: Add accessibility, keyboard, responsive layout, and privacy guardrails
+- [x] 09-02: Add accessibility, keyboard, responsive layout, and privacy guardrails
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 09-03: Run the full quality gate, capture evidence, and reconcile readiness records
+- [x] 09-03: Run the full quality gate, capture evidence, and reconcile readiness records
 
 Cross-cutting constraints:
 
@@ -307,4 +307,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 6. Messenger Visual Parity | 3/3 | Complete   | 2026-06-12 |
 | 7. Messenger Functional Parity Restoration | 3/3 | Complete   | 2026-06-12 |
 | 8. Media Files And Conversation Detail Implementation | 3/3 | Complete | 2026-06-12 |
-| 9. Messenger Interaction Quality Gate | 0/3 | Planned | - |
+| 9. Messenger Interaction Quality Gate | 3/3 | Complete | 2026-06-12 |
