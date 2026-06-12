@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Canonical Message State** - Make send, receive, status, delete, edit, reaction, unread, and pagination behavior deterministic. (completed 2026-06-08)
 - [x] **Phase 4: Messenger UI Reconstruction** - Rebuild the chat page into a polished responsive messenger interface. (completed 2026-06-09)
 - [x] **Phase 5: Messenger Baseline Completion** - Add search, conversation continuity, and final account/session polish for v1. (completed 2026-06-09)
-- [ ] **Phase 6: Messenger Visual Parity** - Match the supplied desktop and mobile light/dark messenger references as closely as possible.
+- [x] **Phase 6: Messenger Visual Parity** - Match the supplied desktop and mobile light/dark messenger references as closely as possible. (completed 2026-06-12)
 
 ## Phase Details
 
@@ -190,7 +190,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06-03: Add light/dark desktop/mobile screenshot checks and close remaining visual drift
+- [x] 06-03: Add light/dark desktop/mobile screenshot checks and close remaining visual drift
 
 ## Progress
 
@@ -204,4 +204,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 | 3. Canonical Message State | 3/3 | Complete | 2026-06-08 |
 | 4. Messenger UI Reconstruction | 3/3 | Complete | 2026-06-09 |
 | 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
-| 6. Messenger Visual Parity | 2/3 | In Progress|  |
+| 6. Messenger Visual Parity | 3/3 | Complete   | 2026-06-12 |
