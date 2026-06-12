@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed Phase 06 messenger-visual-parity
-last_updated: "2026-06-12T11:40:36.017Z"
-last_activity: 2026-06-12 -- Phase 06 execution started
+status: Correction phase added to restore working product behavior behind the Phase 06 visual shell
+stopped_at: Phase 07 context gathered
+last_updated: "2026-06-12T13:23:09.044Z"
+last_activity: 2026-06-12 -- Phase 07-09 correction phases added after static UI gap
 progress:
-  total_phases: 6
+  total_phases: 9
   completed_phases: 5
   total_plans: 17
   completed_plans: 14
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 06 — messenger-visual-parity
+**Current focus:** Phase 07 — messenger-functional-parity-restoration
 
 ## Current Position
 
-Phase: 06 (messenger-visual-parity) — VERIFYING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-06-12 -- Phase 06 execution started
+Phase: 07 (messenger-functional-parity-restoration) — NOT PLANNED
+Plan: not planned yet
+Status: Correction phase added to restore working product behavior behind the Phase 06 visual shell
+Last activity: 2026-06-12 -- Phase 07-09 correction phases added after static UI gap
 
 Progress: 82%
 
@@ -89,24 +89,30 @@ Recent decisions affecting current work:
 - Phase 4 plan 04-03 completed with React 19 DOM regression tests, jsdom setup, and smoke evidence.
 - Phase 4 completed; Phase 5 can build on the tested messenger baseline.
 - Phase 6 planned with 3 waves for theme/desktop shell, mobile conversation parity, and four-variant visual smoke evidence.
+- Phase 6 completed visual parity, but it did not sufficiently prove that every reference UI surface was wired to real product behavior.
+- Phase 7 added: Messenger Functional Parity Restoration.
+- Phase 8 added: Media Files And Conversation Detail Implementation.
+- Phase 9 added: Messenger Interaction Quality Gate.
 
 ### Pending Todos
 
-- Phase 06 execution complete; ready for validation or review workflow.
+- Run `$gsd-spec-phase 7` or `$gsd-discuss-phase 7` to lock functional parity scope before implementation.
+- Phase 07 must restore real behavior behind the reference UI before Phase 08 media/detail work starts.
 
 ### Blockers/Concerns
 
-- No active blockers.
+- Open concern: Phase 06 screenshot parity is not enough acceptance evidence for a working messenger UI.
+- Phase 07 must remove static-only/demo-only surfaces or convert unsupported controls into honest disabled/hidden states.
 - Repository hygiene note: `Frontend/Chatify/src/pages/chat/chat.tsx` has no pending diff after committed Phase 04 execution.
 
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Platform | Group chats, attachments, notifications, moderation, admin tooling, end-to-end encryption | Deferred to v2 | Initialization |
+| Platform | Group chats, notifications, moderation, admin tooling, end-to-end encryption | Deferred to v2 | Initialization |
 
 ## Session Continuity
 
-Last session: 2026-06-12T11:40:36.005Z
-Stopped at: Completed Phase 06 messenger-visual-parity
-Resume file: .planning/ROADMAP.md
+Last session: 2026-06-12T13:23:09.032Z
+Stopped at: Phase 07 context gathered
+Resume file: .planning/phases/07-messenger-functional-parity-restoration/07-CONTEXT.md
