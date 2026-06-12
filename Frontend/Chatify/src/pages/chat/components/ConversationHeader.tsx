@@ -12,6 +12,7 @@ interface ConversationHeaderProps {
   otherMemberStatus: UserOnlineStatus | null;
   showMessageSearch: boolean;
   searchButtonRef: RefObject<HTMLButtonElement | null>;
+  detailButtonRef?: RefObject<HTMLButtonElement | null>;
   onOpenSidebar: () => void;
   onOpenDetails: () => void;
   onToggleMessageSearch: () => void;
@@ -25,6 +26,7 @@ const ConversationHeader = ({
   otherMemberStatus,
   showMessageSearch,
   searchButtonRef,
+  detailButtonRef,
   onOpenSidebar,
   onOpenDetails,
   onToggleMessageSearch,
@@ -101,6 +103,7 @@ const ConversationHeader = ({
       </button>
 
       <button
+        ref={detailButtonRef}
         type="button"
         onClick={onOpenDetails}
         className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"

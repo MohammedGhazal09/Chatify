@@ -1,14 +1,33 @@
 import { describe, expect, it } from 'vitest';
 
 const blockedPatterns = [
-  /Phase06VisualFixture/,
-  /PHASE06_/,
-  /phase06/,
-  /chatVisualSmoke/,
-  /message-states-spec/i,
-  /delivery-metrics/i,
-  /retry-logic-notes/i,
-  /e2e\/fixtures/i,
+  { label: 'Phase 06 fixture module', pattern: /Phase06VisualFixture/ },
+  { label: 'Phase 06 constants', pattern: /PHASE06_/ },
+  { label: 'Phase 06 identifiers', pattern: /phase06/ },
+  { label: 'Phase 07 constants', pattern: /PHASE07_/ },
+  { label: 'Phase 07 identifiers', pattern: /phase07/ },
+  { label: 'Phase 09 constants', pattern: /PHASE09_/ },
+  { label: 'Phase 09 identifiers', pattern: /phase09/ },
+  { label: 'visual smoke fixture names', pattern: /chatVisualSmoke/ },
+  { label: 'e2e fixture imports', pattern: /e2e\/fixtures/i },
+  { label: 'reference file name', pattern: /message-states-spec/i },
+  { label: 'reference file name', pattern: /delivery-metrics/i },
+  { label: 'reference file name', pattern: /retry-logic-notes/i },
+  { label: 'Phase 07 fixture title', pattern: /Relay Node/i },
+  { label: 'Phase 07 fixture title', pattern: /Matrix Sync/i },
+  { label: 'Phase 09 fixture title', pattern: /Relay Grid/i },
+  { label: 'Phase 09 fixture title', pattern: /Vector Archive/i },
+  { label: 'Phase 09 fixture title', pattern: /Cipher Vault/i },
+  { label: 'private storage leak', pattern: /gridfs/i },
+  { label: 'private storage leak', pattern: /(attachment|asset|object)[-_ ]?storage[-_ ]?key/i },
+  { label: 'private storage leak', pattern: /storage[-_ ]?bucket/i },
+  { label: 'private storage leak', pattern: /object[-_ ]?key/i },
+  { label: 'private storage leak', pattern: /raw[-_ ]?hash/i },
+  { label: 'private storage leak', pattern: /file[-_ ]?hash/i },
+  { label: 'private storage leak', pattern: /sha256/i },
+  { label: 'living visual fixture term', pattern: /profile photo/i },
+  { label: 'living visual fixture term', pattern: /realistic avatar/i },
+  { label: 'living visual fixture term', pattern: /\b(human|animal|pet|bird|insect|plant|flower|tree|mascot|portrait|silhouette)\b/i },
 ];
 
 const runtimeSource = import.meta.glob('./**/*.{ts,tsx}', {
@@ -23,12 +42,19 @@ const runtimeEntries = Object.entries(runtimeSource).filter(([filePath]) => (
 ));
 
 describe('chat runtime fixture leak guard', () => {
-  it('keeps Phase 06 visual fixture identifiers out of production chat runtime files', () => {
-    const leakedFiles = runtimeEntries.filter(([, source]) => (
-      typeof source === 'string' &&
-      blockedPatterns.some((pattern) => pattern.test(source))
-    ));
+  it('keeps test fixtures, private asset internals, and living visual fixture data out of production chat runtime files', () => {
+    const leakedFiles = runtimeEntries.flatMap(([filePath, source]) => {
+      if (typeof source !== 'string') {
+        return [];
+      }
 
-    expect(leakedFiles.map(([filePath]) => filePath)).toEqual([]);
+      const matches = blockedPatterns
+        .filter(({ pattern }) => pattern.test(source))
+        .map(({ label }) => `${filePath}: ${label}`);
+
+      return matches;
+    });
+
+    expect(leakedFiles).toEqual([]);
   });
 });

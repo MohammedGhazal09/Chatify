@@ -136,6 +136,7 @@ const ChatPage = () => {
   const newChatButtonRef = useRef<HTMLButtonElement>(null);
   const messageSearchInputRef = useRef<HTMLInputElement>(null);
   const messageSearchButtonRef = useRef<HTMLButtonElement>(null);
+  const detailButtonRef = useRef<HTMLButtonElement>(null);
   const messageActionTriggerRef = useRef<HTMLButtonElement | null>(null);
   const messageHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -980,6 +981,13 @@ const ChatPage = () => {
     closeContextMenu();
   };
 
+  const closeDetailDrawer = useCallback(() => {
+    setIsDetailDrawerOpen(false);
+    window.requestAnimationFrame(() => {
+      detailButtonRef.current?.focus();
+    });
+  }, []);
+
   const handleUnpinMessage = (messageId: string) => {
     if (!selectedChatId) {
       return;
@@ -1056,6 +1064,7 @@ const ChatPage = () => {
           messageSearch={messageSearch}
           messageSearchInputRef={messageSearchInputRef}
           messageSearchButtonRef={messageSearchButtonRef}
+          detailButtonRef={detailButtonRef}
           messageSearchResults={messageSearchResult.messages}
           messageSearchNormalizedQuery={messageSearchResult.normalizedQuery}
           isMessageSearchLoading={messageSearchResult.isLoading || messageSearchResult.isFetching}
@@ -1150,7 +1159,7 @@ const ChatPage = () => {
               isSocketConnected={Boolean(socket?.connected)}
               isReconnecting={isReconnecting}
               isOffline={isOffline}
-              onClose={() => setIsDetailDrawerOpen(false)}
+              onClose={closeDetailDrawer}
               onSearchMessages={() => {
                 setIsDetailDrawerOpen(false);
                 handleToggleMessageSearch();

@@ -26,6 +26,7 @@ interface ConversationPaneProps {
   messageSearch: string;
   messageSearchInputRef: RefObject<HTMLInputElement | null>;
   messageSearchButtonRef: RefObject<HTMLButtonElement | null>;
+  detailButtonRef?: RefObject<HTMLButtonElement | null>;
   messageSearchResults: Message[];
   messageSearchNormalizedQuery: string;
   isMessageSearchLoading: boolean;
@@ -92,6 +93,7 @@ const ConversationPane = ({
   messageSearch,
   messageSearchInputRef,
   messageSearchButtonRef,
+  detailButtonRef,
   messageSearchResults,
   messageSearchNormalizedQuery,
   isMessageSearchLoading,
@@ -176,6 +178,7 @@ const ConversationPane = ({
         otherMemberStatus={otherMemberStatus}
         showMessageSearch={showMessageSearch}
         searchButtonRef={messageSearchButtonRef}
+        detailButtonRef={detailButtonRef}
         onOpenSidebar={onOpenSidebar}
         onOpenDetails={onOpenDetails}
         onToggleMessageSearch={onToggleMessageSearch}

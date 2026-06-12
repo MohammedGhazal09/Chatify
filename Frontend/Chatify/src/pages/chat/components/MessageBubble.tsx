@@ -66,6 +66,11 @@ const MessageBubble = memo(({
       : isOwnMessage
         ? 'border-transparent bg-[var(--chat-own-bubble)] text-[var(--chat-own-text)]'
         : 'border-[var(--chat-border)] bg-[var(--chat-received-bubble)] text-[var(--chat-received-text)]';
+  const metadataTone = isFailed
+    ? 'text-[var(--chat-text-muted)]'
+    : isOwnMessage
+      ? 'text-white/90'
+      : 'text-[var(--chat-text-soft)]';
 
   return (
     <div
@@ -96,7 +101,7 @@ const MessageBubble = memo(({
               ))}
             </>
           )}
-          <div className={`mt-1 flex items-end justify-start gap-1 text-xs ${isOwnMessage ? 'text-white/78' : 'text-[var(--chat-text-soft)]'}`}>
+          <div className={`mt-1 flex items-end justify-start gap-1 text-xs ${metadataTone}`}>
             <span className="text-nowrap">{formatTimestamp(message.updatedAt)}</span>
             {message.isEdited && <span className="italic">edited</span>}
             {isSending && (
