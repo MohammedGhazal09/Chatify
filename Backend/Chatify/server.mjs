@@ -4,7 +4,7 @@ import DBConfig from './Config/DBConfig.mjs'
 import {createServer} from 'http'
 import { initSocket } from './Config/socket.mjs'
 
-const PORT = process.env.PORT_NUMBER || 5000;
+const PORT = process.env.PORT || process.env.PORT_NUMBER || 5000;
   const httpServer = createServer(app)
   const io = initSocket(httpServer)
 

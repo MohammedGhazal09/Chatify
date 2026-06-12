@@ -12,9 +12,6 @@ const FRONTEND_URL = isProd
   ? process.env.FRONTEND_ORIGIN || 'https://chatify-ten-rho.vercel.app'
   : 'http://localhost:5173';
 
-console.log('🌍 Environment:', isProd ? 'PRODUCTION' : 'DEVELOPMENT');
-console.log('🔗 Frontend URL:', FRONTEND_URL);
-
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
 
@@ -49,8 +46,14 @@ export const login = asyncErrHandler(async (req, res, next) => {
   if (!email || !password) {
     return next(new CustomError('Please provide email and password', 400));
   }
-  const user = await User.findOne({email:email}).select("+password")
+  const user = await User.findOne({email:email}).select("+password +authProvider")
   if (!user) return next(new CustomError("User doesn't exist",401))
+  
+  // Check if user signed up via OAuth (no password set)
+  if (user.authProvider && user.authProvider !== 'local') {
+    return next(new CustomError(`This account uses ${user.authProvider} login. Please sign in with ${user.authProvider}.`, 400));
+  }
+  
   const credentials = await user.checkPassword(password)
   if (!credentials) {
     return next(new CustomError("Password or email are wrong", 400))
@@ -197,7 +200,10 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
     try {
       await sendPasswordResetEmail(user.email, resetCode);
     } catch (err) {
-      console.log(err);
+      console.error('Auth notification delivery failed:', {
+        code: err?.code,
+        status: err?.response?.status,
+      });
       
       return next(new CustomError('Failed to send reset email. Please try again.', 500));
     }

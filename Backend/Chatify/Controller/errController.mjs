@@ -57,17 +57,12 @@ const handleValidationError = (error) => {
 const errHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
 
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
     return developmentErrors(err, req, res);
-  } else if (process.env.NODE_ENV === 'production') {
-    if (err.code === 11000) err = handleDuplicateKeyError(err);
-    if (err.name === 'ValidationError') err = handleValidationError(err);
-    return productionErrors(err, req, res);
-  } else {
-    return res.status(500).json({
-      status: "error",
-      message: "Server configuration error"
-    });
   }
+
+  if (err.code === 11000) err = handleDuplicateKeyError(err);
+  if (err.name === 'ValidationError') err = handleValidationError(err);
+  return productionErrors(err, req, res);
 };
 export default errHandler

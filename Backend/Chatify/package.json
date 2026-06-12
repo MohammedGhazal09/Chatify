@@ -4,7 +4,8 @@
   "description": "chat app",
   "main": "server.mjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run --config vitest.config.mjs",
+    "test:watch": "vitest --config vitest.config.mjs",
     "start": "node server.mjs"
   },
   "author": "Mohammed Ghazal",
@@ -14,15 +15,14 @@
     "axios": "^1.13.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "csurf": "^1.11.0",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "hpp": "^0.2.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.4",
-    "nodemailer": "^7.0.9",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
     "passport-github2": "^0.1.12",
@@ -32,7 +32,10 @@
     "xss": "^1.0.15"
   },
   "devDependencies": {
-    "@types/nodemailer": "^7.0.2",
-    "nodemon": "^3.1.10"
+    "mongodb-memory-server": "^11.2.0",
+    "nodemon": "^3.1.10",
+    "socket.io-client": "^4.8.3",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.8"
   }
 }

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '../api/authApi'
 import { useAuthStore } from '../store/authstore'
+import { usePresenceStore } from '../store/presenceStore'
 import type { LoginData, SignupData } from '../types/auth'
 import { useEffect } from 'react'
 
@@ -72,16 +73,19 @@ export const useLogin = () => {
 export const useLogout = () => {
   const logout = useAuthStore((state) => state.logout)
   const queryClient = useQueryClient()
+  const clearPresenceState = () => usePresenceStore.getState().clearPresenceState()
 
   return useMutation({
     mutationFn: () => authApi.logout(),
     onSuccess: () => {
+      clearPresenceState()
       logout()
       queryClient.clear() // Clear all cached queries
       queryClient.invalidateQueries({ queryKey: ['auth'] })
     },
     onError: (error) => {
       console.error('Logout failed:', error)
+      clearPresenceState()
       logout()
       queryClient.clear()
     }

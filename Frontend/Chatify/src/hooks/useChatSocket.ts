@@ -1,14 +1,48 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authstore';
-import type { Message } from '../types/chat';
+import { usePresenceStore } from '../store/presenceStore';
+import { chatsQueryKey, messagesQueryKey } from './useChatQueries';
+import {
+  applyBatchReadInCache,
+  applyDeletedMessageInCache,
+  applyEditedMessageInCache,
+  applyReactionInCache,
+  applyReceiptPatchInCache,
+  applyUnreadUpdate,
+  mergeCanonicalMessage,
+  upsertMessageInCache,
+  type MessagesCacheData,
+} from './messageCache';
+import { playNotificationSound, isSoundEnabled } from '../utils/sounds';
+import type {
+  Chat,
+  Message,
+  MessageStatusUpdateEvent,
+  MessageReadEvent,
+  BatchReadEvent,
+  UserStatusChangeEvent,
+  TypingUser,
+  MessageDeletedEvent,
+  MessageEditedEvent,
+  MessageReactionEvent,
+  UnreadUpdateEvent,
+  SocketErrorEvent,
+  SocketReadyEvent,
+} from '../types/chat';
 
 type UseChatSocketOptions = {
   chatId: string | null;
   enabled?: boolean;
   onMessage?: (message: Message) => void;
+  onMessageStatusUpdate?: (event: MessageStatusUpdateEvent) => void;
+  onMessageRead?: (event: MessageReadEvent) => void;
+  onBatchRead?: (event: BatchReadEvent) => void;
+  onMessageDeleted?: (event: MessageDeletedEvent) => void;
+  onMessageEdited?: (event: MessageEditedEvent) => void;
+  onMessageReaction?: (event: MessageReactionEvent) => void;
 };
-
 
 const resolveSocketUrl = () => {
   const envUrl = import.meta.env.VITE_SOCKET_URL ?? import.meta.env.VITE_BACKEND_URL;
@@ -19,15 +53,112 @@ const resolveSocketUrl = () => {
   if (typeof window === 'undefined') {
     return undefined;
   }
+
+  // Fallback to localhost for development
+  return 'http://localhost:3000';
 };
 
-export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSocketOptions) => {
-  const { isAuthenticated } = useAuthStore();
+// Typing timeout duration (3 seconds)
+const TYPING_TIMEOUT = 3000;
+
+const clearTypingTimeoutsForChat = (
+  timeouts: Record<string, ReturnType<typeof setTimeout>>,
+  chatId: string
+) => {
+  const timeoutPrefix = `${chatId}-`;
+
+  Object.entries(timeouts).forEach(([timeoutKey, timeoutId]) => {
+    if (timeoutKey.startsWith(timeoutPrefix)) {
+      clearTimeout(timeoutId);
+      delete timeouts[timeoutKey];
+    }
+  });
+};
+
+export const useChatSocket = ({
+  chatId,
+  enabled = true,
+  onMessage,
+  onMessageStatusUpdate,
+  onMessageRead,
+  onBatchRead,
+  onMessageDeleted,
+  onMessageEdited,
+  onMessageReaction,
+}: UseChatSocketOptions) => {
+  const { isAuthenticated, user } = useAuthStore();
+  const presenceStore = usePresenceStore();
+  const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [socketError, setSocketError] = useState<SocketErrorEvent | null>(null);
   const activeRoomRef = useRef<string | null>(null);
+  const typingTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  
+  // Use ref to avoid stale closure issues with store methods
+  const presenceStoreRef = useRef(presenceStore);
+  presenceStoreRef.current = presenceStore;
+  
+  // Use ref for queryClient to avoid stale closures
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
 
   const socketUrl = useMemo(() => resolveSocketUrl(), []);
 
+  const reconcileRealtimeState = useCallback((ready?: SocketReadyEvent) => {
+    queryClientRef.current.invalidateQueries({ queryKey: chatsQueryKey });
+    queryClientRef.current.invalidateQueries({ queryKey: ['unreadCounts'] });
+
+    if (activeRoomRef.current) {
+      queryClientRef.current.invalidateQueries({
+        queryKey: messagesQueryKey(activeRoomRef.current),
+      });
+    }
+
+    if (ready?.presence) {
+      presenceStoreRef.current.replaceOnlineUsers(ready.presence);
+    }
+  }, []);
+
+  const updateChatsLatestMessage = useCallback((incoming: Message) => {
+    queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+      if (!old) {
+        return old;
+      }
+
+      let touched = false;
+
+      const nextChats = old.map((chat) => {
+        if (chat._id !== incoming.chatId) {
+          return chat;
+        }
+
+        touched = true;
+        const latestMessage = chat.latestMessage &&
+          (chat.latestMessage._id === incoming._id ||
+            (chat.latestMessage.clientMessageId &&
+              incoming.clientMessageId &&
+              chat.latestMessage.clientMessageId === incoming.clientMessageId))
+          ? mergeCanonicalMessage(chat.latestMessage, incoming)
+          : incoming;
+
+        return {
+          ...chat,
+          latestMessage,
+          updatedAt: incoming.createdAt,
+        };
+      });
+
+      if (!touched) {
+        return old;
+      }
+
+      return [...nextChats].sort((left, right) => (
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+      ));
+    });
+  }, []);
+
+  // Connect socket and set up user connection
   useEffect(() => {
     if (!enabled || !isAuthenticated || !socketUrl) {
       return;
@@ -40,38 +171,289 @@ export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSock
 
     setSocket(socketInstance);
 
+    const handleReconnect = () => {
+      setSocketError(null);
+      reconcileRealtimeState();
+    };
+
+    socketInstance.on('connect', () => {
+      setSocketError(null);
+      reconcileRealtimeState();
+    });
+
+    socketInstance.on('socket:ready', (data: SocketReadyEvent) => {
+      setSocketError(null);
+      reconcileRealtimeState(data);
+    });
+
+    socketInstance.io.on('reconnect', handleReconnect);
+
+    socketInstance.on('connect_error', (error: Error & { data?: Partial<SocketErrorEvent> }) => {
+      setSocketError({
+        code: error.data?.code ?? 'socket_connect_error',
+        message: error.data?.message ?? error.message,
+      });
+    });
+
+    socketInstance.on('socket:error', (data: SocketErrorEvent) => {
+      setSocketError(data);
+    });
+
+    // Listen for user status changes
+    socketInstance.on('user:status-change', (data: UserStatusChangeEvent) => {
+      if (data.isOnline) {
+        presenceStoreRef.current.setUserOnline(data.userId, {
+          userId: data.userId,
+          userName: data.userName,
+          isOnline: true,
+        });
+      } else {
+        presenceStoreRef.current.setUserOffline(data.userId, data.lastSeen);
+      }
+    });
+
+    // Listen for new chat creation (when someone creates a chat with this user)
+    socketInstance.on('chat:new', (newChat: Chat) => {
+      // Add the new chat to the query cache
+      queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+        if (!old) {
+          return [newChat];
+        }
+        // Check if chat already exists
+        const existingIndex = old.findIndex((chat) => chat._id === newChat._id);
+        if (existingIndex !== -1) {
+          return old;
+        }
+        // Add to the beginning of the list
+        return [newChat, ...old];
+      });
+      
+      // Note: Backend now auto-joins users to chat rooms, no need to manually join
+    });
+
+    // Listen for chat deletion
+    socketInstance.on('chat:deleted', (data: { chatId: string }) => {
+      // Remove the deleted chat from the query cache
+      queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+        if (!old) return old;
+        return old.filter((chat) => chat._id !== data.chatId);
+      });
+      
+      // Clear any unread counts for this chat
+      queryClientRef.current.setQueriesData<Map<string, number>>(
+        { queryKey: ['unreadCounts'] },
+        (old) => {
+          if (!old) return old;
+          const newMap = new Map(old);
+          newMap.delete(data.chatId);
+          return newMap;
+        }
+      );
+    });
+
+    // Listen for typing events
+    socketInstance.on('user:typing', (data: TypingUser) => {
+      // Don't show typing indicator for own typing
+      if (data.userId === user?._id) return;
+
+      if (data.isTyping) {
+        presenceStoreRef.current.setUserTyping(data.chatId, data);
+
+        // Clear any existing timeout for this user
+        const timeoutKey = `${data.chatId}-${data.userId}`;
+        if (typingTimeoutRef.current[timeoutKey]) {
+          clearTimeout(typingTimeoutRef.current[timeoutKey]);
+        }
+
+        // Auto-clear typing after timeout
+        typingTimeoutRef.current[timeoutKey] = setTimeout(() => {
+          presenceStoreRef.current.clearUserTyping(data.chatId, data.userId);
+          delete typingTimeoutRef.current[timeoutKey];
+        }, TYPING_TIMEOUT);
+      } else {
+        presenceStoreRef.current.clearUserTyping(data.chatId, data.userId);
+        const timeoutKey = `${data.chatId}-${data.userId}`;
+        if (typingTimeoutRef.current[timeoutKey]) {
+          clearTimeout(typingTimeoutRef.current[timeoutKey]);
+          delete typingTimeoutRef.current[timeoutKey];
+        }
+      }
+    });
+
+    // Listen for unread count updates
+    socketInstance.on('unread:update', (data: UnreadUpdateEvent) => {
+      // Only update for current user
+      if (data.userId !== user?._id) return;
+
+      // Update the cached unread counts directly
+      queryClientRef.current.setQueriesData<Map<string, number>>(
+        { queryKey: ['unreadCounts'] },
+        (old) => applyUnreadUpdate(old, data)
+      );
+    });
+
     return () => {
+      // Clear all typing timeouts
+      Object.values(typingTimeoutRef.current).forEach(clearTimeout);
+      typingTimeoutRef.current = {};
+      presenceStoreRef.current.clearPresenceState();
+
       if (activeRoomRef.current) {
         socketInstance.emit('chat:leave', activeRoomRef.current);
         activeRoomRef.current = null;
       }
+      socketInstance.io.off('reconnect', handleReconnect);
       socketInstance.disconnect();
       setSocket(null);
+      setSocketError(null);
     };
-  }, [enabled, isAuthenticated, socketUrl]);
+  }, [enabled, isAuthenticated, socketUrl, user?._id, reconcileRealtimeState]);
 
+  // Handle incoming messages
   const handleIncomingMessage = useCallback(
     (message: Message) => {
-      if (!message || (chatId && message.chatId !== chatId)) {
+      if (!message) {
         return;
       }
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(message.chatId),
+        (old) => upsertMessageInCache(old, message)
+      );
+      updateChatsLatestMessage(message);
+
+      if (chatId && message.chatId !== chatId) {
+        return;
+      }
+
+      // Play notification sound for messages from others
+      if (message.sender !== user?._id && isSoundEnabled()) {
+        playNotificationSound();
+      }
+
       onMessage?.(message);
     },
-    [chatId, onMessage]
+    [chatId, onMessage, updateChatsLatestMessage, user?._id]
   );
 
+  // Handle message status updates
+  const handleMessageStatusUpdate = useCallback(
+    (event: MessageStatusUpdateEvent) => {
+      const targetChatId = event.chatId ?? activeRoomRef.current;
+
+      if (targetChatId) {
+        queryClientRef.current.setQueryData<MessagesCacheData>(
+          messagesQueryKey(targetChatId),
+          (old) => applyReceiptPatchInCache(old, event)
+        );
+      }
+
+      onMessageStatusUpdate?.(event);
+    },
+    [onMessageStatusUpdate]
+  );
+
+  // Handle message read events
+  const handleMessageRead = useCallback(
+    (event: MessageReadEvent) => {
+      const targetChatId = event.chatId ?? activeRoomRef.current;
+
+      if (targetChatId) {
+        queryClientRef.current.setQueryData<MessagesCacheData>(
+          messagesQueryKey(targetChatId),
+          (old) => applyReceiptPatchInCache(old, event)
+        );
+      }
+
+      onMessageRead?.(event);
+    },
+    [onMessageRead]
+  );
+
+  // Handle batch read events
+  const handleBatchRead = useCallback(
+    (event: BatchReadEvent) => {
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(event.chatId),
+        (old) => applyBatchReadInCache(old, event)
+      );
+
+      onBatchRead?.(event);
+    },
+    [onBatchRead]
+  );
+
+  // Handle message deleted events
+  const handleMessageDeleted = useCallback(
+    (event: MessageDeletedEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyDeletedMessageInCache(old, event)
+      );
+
+      onMessageDeleted?.(event);
+    },
+    [onMessageDeleted]
+  );
+
+  // Handle message edited events
+  const handleMessageEdited = useCallback(
+    (event: MessageEditedEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyEditedMessageInCache(old, event)
+      );
+
+      onMessageEdited?.(event);
+    },
+    [onMessageEdited]
+  );
+
+  // Handle message reaction events
+  const handleMessageReaction = useCallback(
+    (event: MessageReactionEvent) => {
+      const targetChatId = event.message?.chatId ?? event.chatId;
+
+      queryClientRef.current.setQueryData<MessagesCacheData>(
+        messagesQueryKey(targetChatId),
+        (old) => applyReactionInCache(old, event)
+      );
+
+      onMessageReaction?.(event);
+    },
+    [onMessageReaction]
+  );
+
+  // Set up message and status listeners
   useEffect(() => {
     if (!socket) {
       return;
     }
 
     socket.on('message:new', handleIncomingMessage);
+    socket.on('message:status-update', handleMessageStatusUpdate);
+    socket.on('message:read', handleMessageRead);
+    socket.on('messages:read-batch', handleBatchRead);
+    socket.on('message:deleted', handleMessageDeleted);
+    socket.on('message:edited', handleMessageEdited);
+    socket.on('message:reaction', handleMessageReaction);
 
     return () => {
       socket.off('message:new', handleIncomingMessage);
+      socket.off('message:status-update', handleMessageStatusUpdate);
+      socket.off('message:read', handleMessageRead);
+      socket.off('messages:read-batch', handleBatchRead);
+      socket.off('message:deleted', handleMessageDeleted);
+      socket.off('message:edited', handleMessageEdited);
+      socket.off('message:reaction', handleMessageReaction);
     };
-  }, [socket, handleIncomingMessage]);
+  }, [socket, handleIncomingMessage, handleMessageStatusUpdate, handleMessageRead, handleBatchRead, handleMessageDeleted, handleMessageEdited, handleMessageReaction]);
 
+  // Handle chat room joining/leaving
   useEffect(() => {
     if (!socket || !enabled || !isAuthenticated) {
       return;
@@ -82,6 +464,8 @@ export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSock
 
     if (previousRoom && previousRoom !== nextRoom) {
       socket.emit('chat:leave', previousRoom);
+      presenceStoreRef.current.clearAllTypingForChat(previousRoom);
+      clearTypingTimeoutsForChat(typingTimeoutRef.current, previousRoom);
     }
 
     if (nextRoom && nextRoom !== previousRoom) {
@@ -96,12 +480,41 @@ export const useChatSocket = ({ chatId, enabled = true, onMessage }: UseChatSock
     return () => {
       if (nextRoom && activeRoomRef.current === nextRoom) {
         socket.emit('chat:leave', nextRoom);
+        presenceStoreRef.current.clearAllTypingForChat(nextRoom);
+        clearTypingTimeoutsForChat(typingTimeoutRef.current, nextRoom);
         activeRoomRef.current = null;
       }
     };
   }, [socket, chatId, enabled, isAuthenticated]);
 
-  return socket;
+  // Emit typing start
+  const emitTypingStart = useCallback(() => {
+    if (!socket || !chatId) return;
+    socket.emit('typing:start', { chatId });
+  }, [socket, chatId]);
+
+  // Emit typing stop
+  const emitTypingStop = useCallback(() => {
+    if (!socket || !chatId) return;
+    socket.emit('typing:stop', { chatId });
+  }, [socket, chatId]);
+
+  // Emit message delivered
+  const emitMessageDelivered = useCallback(
+    (messageId: string) => {
+      if (!socket || !chatId) return;
+      socket.emit('message:delivered', { messageId, chatId });
+    },
+    [socket, chatId]
+  );
+
+  return {
+    socket,
+    socketError,
+    emitTypingStart,
+    emitTypingStop,
+    emitMessageDelivered,
+  };
 };
 
 export default useChatSocket;

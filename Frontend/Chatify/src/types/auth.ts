@@ -6,6 +6,11 @@ export interface User {
   profilePic?: string;
   authProvider: 'local' | 'google' | 'github' | 'discord';
   isVerified: boolean;
+  // Online status fields
+  isOnline?: boolean;
+  lastSeen?: string;
+  showOnlineStatus?: boolean;
+  showLastSeen?: boolean;
 }
 
 export interface LoginData {

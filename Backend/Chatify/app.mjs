@@ -3,7 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import cookieParser from 'cookie-parser';
-import csurf from 'csurf';
+import rateLimit from 'express-rate-limit';
+import { randomBytes } from 'crypto';
 import authRouter from './Routes/authRouter.mjs';
 import userRouter from './Routes/userRouter.mjs'
 import chatRouter from './Routes/chatRouter.mjs';
@@ -12,6 +13,8 @@ import errHandler from './Controller/errController.mjs';
 import protect from './Middlewares/protectRoutes.mjs';
 import { CustomError } from './Utils/customError.mjs';
 import sanitization from './Middlewares/sanitization.mjs';
+import { requestLogger, errorRequestLogger } from './Middlewares/requestLogger.mjs';
+import { queueStatus, queueHeavyRequests, addQueueHeaders } from './Middlewares/queueMiddleware.mjs';
 import passport from 'passport';
 import './Config/passport.mjs'; // Import passport configuration
 import {googleAuth,
@@ -23,9 +26,41 @@ import {googleAuth,
 } from "./Controller/authController.mjs";
 const app = express();
 
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+// Request logging (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use(requestLogger);
+}
+
 app.use(helmet());
 
 app.disable('x-powered-by');
+
+// Rate limiting for security
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // Limit each IP to 500 requests per window
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { status: 'error', message: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+
+
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 messages per minute
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { status: 'error', message: 'Sending messages too fast, slow down!' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use(globalLimiter);
 
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
@@ -34,7 +69,7 @@ const isProd = process.env.NODE_ENV === 'production';
 
 const FRONTEND_ORIGIN = isProd
   ? process.env.FRONTEND_ORIGIN
-  : 'http://localhost:5173';
+  : process.env.FRONTEND_ORIGIN_DEV || 'http://localhost:5173';
 
 app.use(
   cors({
@@ -52,6 +87,13 @@ app.use(sanitization);
 
 app.use(passport.initialize());
 
+// Queue status endpoint (for monitoring)
+app.get('/api/queue-status', queueStatus);
+
+// Apply queue middleware for heavy requests
+app.use(queueHeavyRequests);
+app.use(addQueueHeaders);
+
 // Google  routes
 app.get("/api/auth/google", googleAuth);
 app.get("/api/auth/google/callback", googleCallback);
@@ -64,57 +106,32 @@ app.get("/api/auth/github/callback", githubCallback);
 app.get("/api/auth/discord", discordAuth);
 app.get("/api/auth/discord/callback", discordCallback);
 
-// CSRF disabled for cross-domain cookies
-export const csrfProtection = csurf({
-  cookie: {
-    httpOnly: false,
-    sameSite: 'none',
-    secure: isProd,
-  },
-});
+const createCsrfToken = () => randomBytes(32).toString('base64url');
 
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  const token = req.csrfToken();
+app.get('/api/csrf-token', (req, res) => {
+  const token = createCsrfToken();
   res.cookie('XSRF-TOKEN', token, {
     httpOnly: false,
-    sameSite: 'none',
+    sameSite: isProd ? 'none' : 'lax',
     secure: isProd,
   });
   res.status(204).end();
 });
 
-// app.use((req, res, next) => {
-//   console.log('📍 Request path:', req.path);
-//   console.log('📍 Request method:', req.method);
-  
-//   const exemptRoutes = [
-//     '/api/auth/logout', 
-//     '/api/auth/refresh-token',
-//     '/api/auth/forgot-password',
-//     '/api/auth/verify-reset-code',
-//     '/api/auth/reset-password'
-//   ];
-  
-//   if (exemptRoutes.includes(req.path)) {
-//     console.log('✅ Route exempt from CSRF');
-//     return next();
-//   }
-  
-//   console.log('🔒 Applying CSRF protection');
-//   console.log('📨 CSRF Token from header:', req.headers['x-xsrf-token']);
-  
-//   csrfProtection(req, res, next);
-// });
-
 app.use('/api/auth', authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, chatRouter);
-app.use('/api/message', protect, messageRouter);
+app.use('/api/message', protect, messageLimiter, messageRouter);
 
 app.use((req, res, next) => {
   const error = new CustomError(`Can't find ${req.originalUrl} on this server`, 404);
   next(error);
 });
+
+// Error request logging (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use(errorRequestLogger);
+}
 
 app.use(errHandler);
 export default app;
