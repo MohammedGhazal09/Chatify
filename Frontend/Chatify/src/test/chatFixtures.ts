@@ -11,6 +11,19 @@ export const makeUser = (overrides: Partial<User> = {}): User => ({
   ...overrides,
 });
 
+export const makeCodedUser = (label: string, overrides: Partial<User> = {}): User => {
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'coded-node';
+
+  return makeUser({
+    _id: `fixture-${slug}`,
+    firstName: label,
+    lastName: '',
+    email: `${slug}@chatify.invalid`,
+    profilePic: `https://fixtures.invalid/chatify/${slug}.png`,
+    ...overrides,
+  });
+};
+
 export const makeMessage = (overrides: Partial<Message> = {}): Message => ({
   _id: 'message-1',
   clientMessageId: null,

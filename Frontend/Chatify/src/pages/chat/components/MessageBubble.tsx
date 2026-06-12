@@ -58,7 +58,7 @@ const MessageBubble = memo(({
   const isSending = message.optimisticState === 'sending';
   const fileChip = (message as Message & { fileChip?: { name: string; meta?: string } }).fileChip;
   const bubbleTone = isFailed
-    ? 'border-[var(--chat-danger)] bg-[color-mix(in_srgb,var(--chat-danger)_10%,var(--chat-panel-elevated))] text-[var(--chat-text)]'
+    ? 'border-[color-mix(in_srgb,var(--chat-danger)_58%,var(--chat-border))] bg-[color-mix(in_srgb,var(--chat-danger)_8%,var(--chat-panel-elevated))] text-[var(--chat-text)]'
     : isSending
       ? 'border-[var(--chat-warning)] bg-[var(--chat-own-bubble)] text-[var(--chat-own-text)]'
       : isOwnMessage

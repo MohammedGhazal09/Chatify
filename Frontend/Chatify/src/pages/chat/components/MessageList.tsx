@@ -66,7 +66,7 @@ const MessageList = ({
   return (
     <div
       ref={messagesContainerRef}
-      className="relative flex-1 w-full max-w-full overflow-x-hidden overflow-y-auto bg-[var(--chat-bg)] px-5 py-5 space-y-4 chat-messages-scroll md:px-8 md:py-6"
+      className="relative min-h-0 flex-1 w-full max-w-full overflow-x-hidden overflow-y-auto bg-[var(--chat-bg)] px-5 pb-32 pt-5 space-y-4 chat-messages-scroll md:px-8 md:pb-36 md:pt-6"
     >
       {isLoading ? (
         <MessageListSkeleton />

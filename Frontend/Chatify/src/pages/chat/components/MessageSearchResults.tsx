@@ -42,7 +42,7 @@ const MessageSearchResults = ({
   };
 
   return (
-    <section className="flex-1 overflow-y-auto bg-[var(--chat-bg)] px-4 py-4 md:px-8" aria-label="Message search results">
+    <section className="min-h-0 flex-1 overflow-y-auto bg-[var(--chat-bg)] px-4 py-4 md:px-8" aria-label="Message search results">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-normal text-[var(--chat-text-soft)]" aria-live="polite">
           {statusText}
