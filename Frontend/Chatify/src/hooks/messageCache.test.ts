@@ -35,6 +35,7 @@ const makeMessage = (overrides: Partial<Message> = {}): Message => ({
 describe('message cache helpers', () => {
   it('normalizes outgoing message text to backend validation boundaries', () => {
     expect(normalizeOutgoingMessageText('  hello  ')).toEqual({ ok: true, text: 'hello' });
+    expect(normalizeOutgoingMessageText('x'.repeat(1000))).toEqual({ ok: true, text: 'x'.repeat(1000) });
     expect(normalizeOutgoingMessageText('   ')).toEqual({
       ok: false,
       message: 'Message text is required',

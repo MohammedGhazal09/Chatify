@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import type { MouseEvent } from 'react';
-import { FileText, MoreHorizontal, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, RefreshCw } from 'lucide-react';
 import MessageStatus from '../../../components/MessageStatus';
 import type { Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
@@ -56,7 +56,6 @@ const MessageBubble = memo(({
 
   const isFailed = message.optimisticState === 'failed';
   const isSending = message.optimisticState === 'sending';
-  const fileChip = (message as Message & { fileChip?: { name: string; meta?: string } }).fileChip;
   const bubbleTone = isFailed
     ? 'border-[color-mix(in_srgb,var(--chat-danger)_58%,var(--chat-border))] bg-[color-mix(in_srgb,var(--chat-danger)_8%,var(--chat-panel-elevated))] text-[var(--chat-text)]'
     : isSending
@@ -87,21 +86,7 @@ const MessageBubble = memo(({
           {message.deletedForEveryone ? (
             <p className="italic text-[#A8B3AF]">This message was deleted</p>
           ) : (
-            <>
-              {fileChip ? (
-                <div className="flex min-w-0 items-center gap-3 rounded-[var(--chat-radius-md)] border border-current/20 bg-black/5 p-2">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-sm)] bg-black/10">
-                    <FileText aria-hidden="true" className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">{fileChip.name}</span>
-                    {fileChip.meta && <span className="text-xs opacity-75">{fileChip.meta}</span>}
-                  </span>
-                </div>
-              ) : (
-                <p className="whitespace-pre-wrap break-words">{message.text}</p>
-              )}
-            </>
+            <p className="whitespace-pre-wrap break-words">{message.text}</p>
           )}
           <div className={`mt-1 flex items-end justify-start gap-1 text-xs ${isOwnMessage ? 'text-white/78' : 'text-[var(--chat-text-soft)]'}`}>
             <span className="text-nowrap">{formatTimestamp(message.updatedAt)}</span>

@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { makeChat, makeMessage } from '../../../test/chatFixtures';
-import type { Message } from '../../../types/chat';
 import MessageBubble from './MessageBubble';
 
 describe('MessageBubble', () => {
@@ -92,15 +91,10 @@ describe('MessageBubble', () => {
     expect(container.querySelector('[data-message-id="message-highlighted"]')).toHaveClass('message-search-highlight');
   });
 
-  it('renders a quiet file chip when a message carries attachment metadata', () => {
-    const attachmentMessage = {
-      ...makeMessage({ text: 'message-states-spec.pdf' }),
-      fileChip: { name: 'message-states-spec.pdf', meta: 'PDF - 280 KB' },
-    } as Message & { fileChip: { name: string; meta: string } };
-
+  it('renders file-like text as ordinary text until real attachments exist', () => {
     render(
       <MessageBubble
-        message={attachmentMessage}
+        message={makeMessage({ text: 'message-states-spec.pdf' })}
         isOwnMessage={false}
         isGroupChat={false}
         members={makeChat().members}
@@ -108,6 +102,6 @@ describe('MessageBubble', () => {
     );
 
     expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
-    expect(screen.getByText('PDF - 280 KB')).toBeInTheDocument();
+    expect(screen.queryByText('PDF - 280 KB')).not.toBeInTheDocument();
   });
 });

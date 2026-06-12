@@ -8,12 +8,25 @@ import MessageActionMenu from './MessageActionMenu';
 
 interface MenuHarnessProps {
   onReaction: (messageId: string, emoji: string) => void;
+  onReply?: (message: ReturnType<typeof makeMessage>) => void;
+  onStartEdit?: (messageId: string, currentText: string) => void;
+  onDelete?: (deleteForEveryone: boolean) => void;
+  onCopy?: (message: ReturnType<typeof makeMessage>) => void;
+  onToggleReactionPicker?: () => void;
 }
 
-const MenuHarness = ({ onReaction }: MenuHarnessProps) => {
+const MenuHarness = ({
+  onReaction,
+  onReply = vi.fn(),
+  onStartEdit = vi.fn(),
+  onDelete = vi.fn(),
+  onCopy = vi.fn(),
+  onToggleReactionPicker = vi.fn(),
+}: MenuHarnessProps) => {
   const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const message = makeMessage({ _id: 'message-1', text: 'Copy me' });
 
   const closeMenu = () => {
     setContextMenu(null);
@@ -31,15 +44,15 @@ const MenuHarness = ({ onReaction }: MenuHarnessProps) => {
       </button>
       <MessageActionMenu
         contextMenu={contextMenu}
-        messages={[makeMessage({ _id: 'message-1', text: 'Copy me' })]}
+        messages={[message]}
         showReactionPicker={false}
         contextMenuRef={contextMenuRef}
         onReaction={onReaction}
-        onToggleReactionPicker={vi.fn()}
-        onReply={vi.fn()}
-        onStartEdit={vi.fn()}
-        onDelete={vi.fn()}
-        onCopy={vi.fn()}
+        onToggleReactionPicker={onToggleReactionPicker}
+        onReply={onReply}
+        onStartEdit={onStartEdit}
+        onDelete={onDelete}
+        onCopy={onCopy}
         onClose={closeMenu}
       />
     </>
@@ -67,5 +80,41 @@ describe('MessageActionMenu', () => {
 
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Message actions' })).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
+  });
+
+  it('routes supported actions to their handlers with the selected message payload', async () => {
+    const user = userEvent.setup();
+    const onReaction = vi.fn();
+    const onReply = vi.fn();
+    const onStartEdit = vi.fn();
+    const onDelete = vi.fn();
+    const onCopy = vi.fn();
+    const onToggleReactionPicker = vi.fn();
+
+    render(
+      <MenuHarness
+        onReaction={onReaction}
+        onReply={onReply}
+        onStartEdit={onStartEdit}
+        onDelete={onDelete}
+        onCopy={onCopy}
+        onToggleReactionPicker={onToggleReactionPicker}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Open message actions' }));
+    await user.click(screen.getByRole('button', { name: 'Reply' }));
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Delete for me' }));
+    await user.click(screen.getByRole('button', { name: 'Delete for everyone' }));
+    await user.click(screen.getByRole('button', { name: 'More reactions' }));
+
+    expect(onReply).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1', text: 'Copy me' }));
+    expect(onStartEdit).toHaveBeenCalledWith('message-1', 'Copy me');
+    expect(onCopy).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
+    expect(onDelete).toHaveBeenNthCalledWith(1, false);
+    expect(onDelete).toHaveBeenNthCalledWith(2, true);
+    expect(onToggleReactionPicker).toHaveBeenCalledTimes(1);
   });
 });

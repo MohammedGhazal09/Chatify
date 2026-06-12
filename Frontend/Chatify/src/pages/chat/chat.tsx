@@ -38,6 +38,7 @@ import {
   ConversationPane,
   MessageActionMenu,
 } from './components';
+import { MAX_MESSAGE_TEXT_LENGTH } from '../../hooks/messageCache';
 import { useChatTheme } from './hooks/useChatTheme';
 import { useChatViewState } from './hooks/useChatViewState';
 import {
@@ -579,7 +580,9 @@ const ChatPage = () => {
   };
 
   const handleSendMessage = () => {
-    if (!selectedChatId || !messageInput.trim()) {
+    const normalizedMessageInput = messageInput.trim();
+
+    if (!selectedChatId || !normalizedMessageInput || normalizedMessageInput.length > MAX_MESSAGE_TEXT_LENGTH) {
       return;
     }
 
@@ -1006,6 +1009,10 @@ const ChatPage = () => {
           otherMember={otherMember}
           otherMemberStatus={otherMemberStatus}
           messages={allMessages}
+          isAuthenticated={isAuthenticated}
+          isSocketConnected={Boolean(socket?.connected)}
+          isReconnecting={isReconnecting}
+          isOffline={isOffline}
           onSearchMessages={handleToggleMessageSearch}
         />
       ) : null}

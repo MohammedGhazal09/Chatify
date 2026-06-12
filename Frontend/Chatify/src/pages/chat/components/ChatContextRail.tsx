@@ -1,8 +1,6 @@
 import {
-  FileText,
   MoreHorizontal,
   Phone,
-  Pin,
   Search,
   ShieldCheck,
   Star,
@@ -14,7 +12,7 @@ import type { ReactNode } from 'react';
 import OnlineStatus from '../../../components/OnlineStatus';
 import type { User } from '../../../types/auth';
 import type { Chat, Message, UserOnlineStatus } from '../../../types/chat';
-import { formatTimestamp, getChatTitle } from '../utils/chatDisplay';
+import { getChatTitle } from '../utils/chatDisplay';
 import AbstractIdentityTile from './AbstractIdentityTile';
 
 interface ChatContextRailProps {
@@ -23,27 +21,33 @@ interface ChatContextRailProps {
   otherMember: User | null;
   otherMemberStatus: UserOnlineStatus | null;
   messages: Message[];
+  isAuthenticated: boolean;
+  isSocketConnected: boolean;
+  isReconnecting: boolean;
+  isOffline: boolean;
   onSearchMessages: () => void;
 }
-
-const sharedFiles = [
-  { name: 'message-states-spec.pdf', meta: 'PDF - 280 KB', date: 'May 12' },
-  { name: 'delivery-metrics.xlsx', meta: 'XLSX - 48 KB', date: 'May 9' },
-  { name: 'retry-logic-notes.txt', meta: 'TXT - 3 KB', date: 'May 7' },
-];
-
-const mediaTiles = ['media-a', 'media-b', 'media-c', 'media-d'];
 
 const ChatContextRail = ({
   selectedChat,
   currentUserId,
   otherMember,
   otherMemberStatus,
-  messages,
+  isAuthenticated,
+  isSocketConnected,
+  isReconnecting,
+  isOffline,
   onSearchMessages,
 }: ChatContextRailProps) => {
   const title = getChatTitle(selectedChat, currentUserId);
-  const pinnedMessages = messages.slice(-2).reverse();
+  const isMember = Boolean(currentUserId && selectedChat.members.some((member) => member._id === currentUserId));
+  const socketStatus = isOffline
+    ? { value: 'Offline', tone: 'warning' as const }
+    : isReconnecting
+      ? { value: 'Reconnecting', tone: 'warning' as const }
+      : isSocketConnected
+        ? { value: 'Connected', tone: 'success' as const }
+        : { value: 'Unavailable', tone: 'neutral' as const };
 
   return (
     <aside
@@ -77,9 +81,9 @@ const ChatContextRail = ({
             </div>
             <button
               type="button"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
               aria-label="Favorite conversation unavailable in this phase"
-              aria-disabled="true"
+              disabled
             >
               <Star aria-hidden="true" className="h-5 w-5" />
             </button>
@@ -94,56 +98,37 @@ const ChatContextRail = ({
         <ContextAction label="More conversation actions" title="More conversation actions unavailable in this phase" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} />
       </div>
 
-      <RailSection title="Pinned messages" count={pinnedMessages.length || 2}>
-        {(pinnedMessages.length ? pinnedMessages : messages.slice(0, 2)).map((message, index) => (
-          <div key={message?._id ?? index} className="flex min-h-10 items-center gap-3 text-sm">
-            <Pin aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--chat-accent)]" />
-            <p className="min-w-0 flex-1 truncate text-[var(--chat-text)]">
-              {message?.text ?? 'Message state reference note'}
-            </p>
-            {message && (
-              <time className="shrink-0 text-xs text-[var(--chat-text-soft)]" dateTime={message.createdAt}>
-                {formatTimestamp(message.createdAt)}
-              </time>
-            )}
-          </div>
-        ))}
+      <RailSection title="Pinned messages" count={0}>
+        <UnavailableRailState>Pinning is not available in this phase.</UnavailableRailState>
       </RailSection>
 
-      <RailSection title="Shared files" count={sharedFiles.length}>
-        {sharedFiles.map((file) => (
-          <div key={file.name} className="flex min-h-12 items-center gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-sm)] border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] text-[var(--chat-accent)]">
-              <FileText aria-hidden="true" className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-[var(--chat-text)]">{file.name}</p>
-              <p className="text-xs text-[var(--chat-text-muted)]">{file.meta}</p>
-            </div>
-            <span className="text-xs text-[var(--chat-text-soft)]">{file.date}</span>
-          </div>
-        ))}
+      <RailSection title="Shared files" count={0}>
+        <UnavailableRailState>File sharing is planned for Phase 08.</UnavailableRailState>
       </RailSection>
 
-      <RailSection title="Shared media" count={mediaTiles.length}>
-        <div className="grid grid-cols-4 gap-2">
-          {mediaTiles.map((tile) => (
-            <AbstractIdentityTile
-              key={tile}
-              id={tile}
-              label="Shared media"
-              variant="media"
-              className="aspect-square w-full"
-              aria-label="Abstract shared media"
-            />
-          ))}
-        </div>
+      <RailSection title="Shared media" count={0}>
+        <UnavailableRailState>Media sharing is planned for Phase 08.</UnavailableRailState>
       </RailSection>
 
       <RailSection title="Conversation security">
-        <SecurityRow icon={<ShieldCheck aria-hidden="true" className="h-4 w-4" />} label="Authenticated session" value="Verified" />
-        <SecurityRow icon={<Users aria-hidden="true" className="h-4 w-4" />} label="Member-only room" value="Active" />
-        <SecurityRow icon={<Wifi aria-hidden="true" className="h-4 w-4" />} label="Socket connected" value="Secure" />
+        <SecurityRow
+          icon={<ShieldCheck aria-hidden="true" className="h-4 w-4" />}
+          label="Authenticated session"
+          value={isAuthenticated ? 'Active' : 'Unavailable'}
+          tone={isAuthenticated ? 'success' : 'neutral'}
+        />
+        <SecurityRow
+          icon={<Users aria-hidden="true" className="h-4 w-4" />}
+          label="Member-only room"
+          value={isMember ? 'Confirmed' : 'Unavailable'}
+          tone={isMember ? 'success' : 'neutral'}
+        />
+        <SecurityRow
+          icon={<Wifi aria-hidden="true" className="h-4 w-4" />}
+          label="Realtime connection"
+          value={socketStatus.value}
+          tone={socketStatus.tone}
+        />
       </RailSection>
     </aside>
   );
@@ -165,12 +150,18 @@ const ContextAction = ({
     onClick={onClick}
     aria-label={label}
     title={title}
-    aria-disabled={onClick ? undefined : 'true'}
-    className="flex min-h-20 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-xs font-medium text-[var(--chat-text-muted)] transition hover:border-[var(--chat-border-strong)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+    disabled={!onClick}
+    className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-xs font-medium text-[var(--chat-text-muted)] transition enabled:cursor-pointer enabled:hover:border-[var(--chat-border-strong)] enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
   >
     {icon}
     <span>{label.replace(' conversation actions', '')}</span>
   </button>
+);
+
+const UnavailableRailState = ({ children }: { children: ReactNode }) => (
+  <p className="rounded-[var(--chat-radius-md)] border border-dashed border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] px-3 py-3 text-sm text-[var(--chat-text-muted)]">
+    {children}
+  </p>
 );
 
 const RailSection = ({
@@ -197,17 +188,36 @@ const SecurityRow = ({
   icon,
   label,
   value,
+  tone = 'neutral',
 }: {
   icon: ReactNode;
   label: string;
   value: string;
+  tone?: 'success' | 'warning' | 'neutral';
 }) => (
   <div className="flex min-h-9 items-center gap-3 text-sm">
     <span className="text-[var(--chat-text-muted)]">{icon}</span>
     <span className="min-w-0 flex-1 text-[var(--chat-text)]">{label}</span>
-    <span className="inline-flex items-center gap-2 text-[var(--chat-success)]">
+    <span
+      className={`inline-flex items-center gap-2 ${
+        tone === 'success'
+          ? 'text-[var(--chat-success)]'
+          : tone === 'warning'
+            ? 'text-[var(--chat-warning)]'
+            : 'text-[var(--chat-text-muted)]'
+      }`}
+    >
       {value}
-      <span className="h-2 w-2 rounded-full bg-[var(--chat-success)]" aria-hidden="true" />
+      <span
+        className={`h-2 w-2 rounded-full ${
+          tone === 'success'
+            ? 'bg-[var(--chat-success)]'
+            : tone === 'warning'
+              ? 'bg-[var(--chat-warning)]'
+              : 'bg-[var(--chat-text-soft)]'
+        }`}
+        aria-hidden="true"
+      />
     </span>
   </div>
 );

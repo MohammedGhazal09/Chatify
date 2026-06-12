@@ -68,20 +68,20 @@ const ConversationHeader = ({
 
       <button
         type="button"
-        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
         aria-label="Call"
         title="Call unavailable in this phase"
-        aria-disabled="true"
+        disabled
       >
         <Phone aria-hidden="true" className="h-5 w-5" />
       </button>
 
       <button
         type="button"
-        className="hidden h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
+        className="hidden h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
         aria-label="Video call"
         title="Video call unavailable in this phase"
-        aria-disabled="true"
+        disabled
       >
         <Video aria-hidden="true" className="h-5 w-5" />
       </button>
@@ -100,10 +100,10 @@ const ConversationHeader = ({
 
       <button
         type="button"
-        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
         aria-label="More conversation actions"
         title="More conversation actions unavailable in this phase"
-        aria-disabled="true"
+        disabled
       >
         <MoreVertical aria-hidden="true" className="h-5 w-5" />
       </button>
