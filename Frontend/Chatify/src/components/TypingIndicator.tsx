@@ -38,19 +38,18 @@ export const TypingIndicator = ({ chatId }: TypingIndicatorProps) => {
   };
 
   return (
-    <div
-      className="typing-indicator flex items-center gap-2 px-4 py-2 text-sm text-[#A8B3AF] italic animate-fade-in"
-      aria-live="polite"
-    >
-      <span>{getTypingText()}</span>
-      <span className="typing-dots flex gap-1">
+    <div className="typing-indicator flex items-center px-5 py-2 animate-fade-in md:px-8" aria-live="polite">
+      <span className="inline-flex min-h-10 items-center gap-2 rounded-[var(--chat-radius-lg)] border border-[var(--chat-border)] bg-[var(--chat-received-bubble)] px-4 text-sm text-[var(--chat-text-muted)] shadow-sm">
+        <span>{getTypingText()}</span>
+        <span className="typing-dots flex gap-1">
         {TYPING_DOT_DELAYS.map((delay, index) => (
           <span
             key={index}
-            className="typing-dot w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
+              className="typing-dot h-1.5 w-1.5 rounded-full bg-[var(--chat-accent)]"
             style={{ animationDelay: `${delay}ms` }}
           />
         ))}
+        </span>
       </span>
     </div>
   );
@@ -75,12 +74,12 @@ export const TypingIndicatorCompact = ({ chatId }: TypingIndicatorProps) => {
   }
 
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-[#A8B3AF] italic" aria-live="polite">
+    <span className="inline-flex items-center gap-1 text-xs text-[var(--chat-text-muted)] italic" aria-live="polite">
       <span className="typing-dots flex gap-0.5">
         {TYPING_DOT_DELAYS.map((delay, index) => (
           <span
             key={index}
-            className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"
+            className="w-1 h-1 bg-[var(--chat-accent)] rounded-full animate-bounce"
             style={{ animationDelay: `${delay}ms` }}
           />
         ))}

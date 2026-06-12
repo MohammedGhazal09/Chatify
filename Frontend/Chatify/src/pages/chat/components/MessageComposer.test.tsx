@@ -49,7 +49,7 @@ describe('MessageComposer', () => {
 
     render(<ComposerHarness onSend={onSend} />);
 
-    await user.type(screen.getByRole('textbox', { name: 'Write a message' }), 'Hello');
+    await user.type(screen.getByRole('textbox', { name: 'Write a private message' }), 'Hello');
     await user.keyboard('{Enter}');
 
     expect(onSend).toHaveBeenCalledTimes(1);
@@ -61,11 +61,21 @@ describe('MessageComposer', () => {
 
     render(<ComposerHarness onSend={onSend} />);
 
-    const textbox = screen.getByRole('textbox', { name: 'Write a message' });
+    const textbox = screen.getByRole('textbox', { name: 'Write a private message' });
     await user.type(textbox, 'Hello');
     await user.keyboard('{Shift>}{Enter}{/Shift}there');
 
     expect(onSend).not.toHaveBeenCalled();
     expect(textbox).toHaveValue('Hello\nthere');
+  });
+
+  it('renders the secure private-message dock without keyboard helper copy', () => {
+    render(<ComposerHarness onSend={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Attach file unavailable in this phase' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Voice message unavailable in this phase' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    expect(screen.getByText('Secure session active')).toBeInTheDocument();
+    expect(screen.queryByText('Press Enter to send')).not.toBeInTheDocument();
   });
 });

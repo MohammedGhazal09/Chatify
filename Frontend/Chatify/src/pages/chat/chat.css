@@ -298,6 +298,54 @@
   animation: message-search-highlight 1.2s ease-out;
 }
 
+.message-bubble-wrap--own {
+  max-width: min(74%, 620px);
+}
+
+.message-bubble-wrap--received {
+  max-width: min(68%, 560px);
+}
+
+.message-bubble::after {
+  position: absolute;
+  bottom: -1px;
+  width: 12px;
+  height: 12px;
+  content: "";
+  background: inherit;
+  border-bottom: inherit;
+}
+
+.justify-end .message-bubble::after {
+  right: -5px;
+  border-right: inherit;
+  border-bottom-right-radius: 3px;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+.justify-start .message-bubble::after {
+  left: -5px;
+  border-left: inherit;
+  border-bottom-left-radius: 3px;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+@media (min-width: 768px) {
+  .message-bubble-wrap--own {
+    max-width: min(48%, 580px);
+  }
+
+  .message-bubble-wrap--received {
+    max-width: min(52%, 620px);
+  }
+}
+
+@media (max-width: 767px) {
+  .composer-dock {
+    min-height: calc(126px + env(safe-area-inset-bottom));
+  }
+}
+
 /* Connection status fade animation */
 @keyframes slide-down {
   from {
@@ -332,7 +380,7 @@
 @media (max-width: 768px) {
   /* Adjust message bubbles for mobile */
   .message-bubble {
-    max-width: 85%;
+    max-width: 100%;
   }
 
   /* Adjust profile pic size */

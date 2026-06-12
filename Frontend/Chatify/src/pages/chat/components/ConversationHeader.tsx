@@ -69,7 +69,8 @@ const ConversationHeader = ({
       <button
         type="button"
         className="hidden h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
-        aria-label="Call unavailable in this phase"
+        aria-label="Call"
+        title="Call unavailable in this phase"
         aria-disabled="true"
       >
         <Phone aria-hidden="true" className="h-5 w-5" />
@@ -78,7 +79,8 @@ const ConversationHeader = ({
       <button
         type="button"
         className="hidden h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
-        aria-label="Video call unavailable in this phase"
+        aria-label="Video call"
+        title="Video call unavailable in this phase"
         aria-disabled="true"
       >
         <Video aria-hidden="true" className="h-5 w-5" />
@@ -99,7 +101,8 @@ const ConversationHeader = ({
       <button
         type="button"
         className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-        aria-label="More conversation actions unavailable in this phase"
+        aria-label="More conversation actions"
+        title="More conversation actions unavailable in this phase"
         aria-disabled="true"
       >
         <MoreVertical aria-hidden="true" className="h-5 w-5" />

@@ -106,7 +106,7 @@ describe('ConversationPane', () => {
 
     expect(screen.getByRole('heading', { name: 'Your session expired' })).toBeInTheDocument();
     expect(screen.queryByText('Private message content')).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'Write a message' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Write a private message' })).not.toBeInTheDocument();
   });
 
   it('labels the conversation search input', () => {

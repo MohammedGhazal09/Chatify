@@ -88,10 +88,10 @@ const ChatContextRail = ({
       </div>
 
       <div className="grid grid-cols-4 gap-2 border-b border-[var(--chat-border)] pb-5">
-        <ContextAction label="Call unavailable in this phase" icon={<Phone aria-hidden="true" className="h-5 w-5" />} />
-        <ContextAction label="Video call unavailable in this phase" icon={<Video aria-hidden="true" className="h-5 w-5" />} />
+        <ContextAction label="Call" title="Call unavailable in this phase" icon={<Phone aria-hidden="true" className="h-5 w-5" />} />
+        <ContextAction label="Video call" title="Video call unavailable in this phase" icon={<Video aria-hidden="true" className="h-5 w-5" />} />
         <ContextAction label="Search messages" icon={<Search aria-hidden="true" className="h-5 w-5" />} onClick={onSearchMessages} />
-        <ContextAction label="More conversation actions unavailable in this phase" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} />
+        <ContextAction label="More conversation actions" title="More conversation actions unavailable in this phase" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} />
       </div>
 
       <RailSection title="Pinned messages" count={pinnedMessages.length || 2}>
@@ -151,10 +151,12 @@ const ChatContextRail = ({
 
 const ContextAction = ({
   label,
+  title,
   icon,
   onClick,
 }: {
   label: string;
+  title?: string;
   icon: ReactNode;
   onClick?: () => void;
 }) => (
@@ -162,11 +164,12 @@ const ContextAction = ({
     type="button"
     onClick={onClick}
     aria-label={label}
+    title={title}
     aria-disabled={onClick ? undefined : 'true'}
     className="flex min-h-20 cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-xs font-medium text-[var(--chat-text-muted)] transition hover:border-[var(--chat-border-strong)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
   >
     {icon}
-    <span>{label.replace(' unavailable in this phase', '').replace(' conversation actions', '')}</span>
+    <span>{label.replace(' conversation actions', '')}</span>
   </button>
 );
 

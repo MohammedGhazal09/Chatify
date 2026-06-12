@@ -27,6 +27,7 @@ describe('ChatContextRail', () => {
     );
 
     expect(screen.getByRole('complementary', { name: 'Conversation details' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Call' })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByText('Pinned messages')).toBeInTheDocument();
     expect(screen.getByText('Shared files')).toBeInTheDocument();
     expect(screen.getByText('Shared media')).toBeInTheDocument();

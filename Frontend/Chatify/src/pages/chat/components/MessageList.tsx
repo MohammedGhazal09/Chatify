@@ -66,7 +66,7 @@ const MessageList = ({
   return (
     <div
       ref={messagesContainerRef}
-      className="relative flex-1 w-full max-w-full overflow-x-hidden overflow-y-auto bg-[#101113] px-4 py-4 space-y-3 chat-messages-scroll md:px-6"
+      className="relative flex-1 w-full max-w-full overflow-x-hidden overflow-y-auto bg-[var(--chat-bg)] px-5 py-5 space-y-4 chat-messages-scroll md:px-8 md:py-6"
     >
       {isLoading ? (
         <MessageListSkeleton />
@@ -85,7 +85,7 @@ const MessageList = ({
                 type="button"
                 onClick={onLoadMore}
                 disabled={isLoadingMore}
-                className="min-h-8 cursor-pointer rounded-lg border border-[#2E363C] bg-[#20262B] px-3 py-1 text-xs font-semibold text-[#14B8A6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-8 cursor-pointer rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-1 text-xs font-semibold text-[var(--chat-accent)] hover:bg-[var(--chat-panel-subtle)] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
               >
                 {isLoadingMore ? (
                   <span className="inline-flex items-center gap-2">
@@ -107,27 +107,29 @@ const MessageList = ({
             return (
               <div key={message._id}>
                 {showDateSeparator && (
-                  <div className="my-4 flex items-center justify-center">
-                    <div className="rounded-full border border-[#2E363C] bg-[#20262B] px-3 py-1 text-xs text-[#A8B3AF]">
+                  <div className="mx-auto my-5 flex w-full max-w-[760px] items-center gap-4">
+                    <div className="h-px flex-1 bg-[var(--chat-border)]" />
+                    <div className="rounded-full border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] px-4 py-1 text-xs font-medium text-[var(--chat-text-muted)]">
                       {formatMessageDate(message.createdAt)}
                     </div>
+                    <div className="h-px flex-1 bg-[var(--chat-border)]" />
                   </div>
                 )}
                 {isEditing ? (
                   <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-                    <div className="max-w-[85%] space-y-2 md:max-w-[75%] xl:max-w-[68%]">
+                    <div className="max-w-[85%] space-y-2 md:max-w-[75%] xl:max-w-[52%]">
                       <textarea
                         value={editText}
                         onChange={(event) => onEditTextChange(event.target.value)}
                         aria-label="Edit message"
-                        className="w-full rounded-lg border border-[#14B8A6] bg-[#20262B] p-2 text-sm text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+                        className="w-full rounded-[var(--chat-radius-md)] border border-[var(--chat-focus)] bg-[var(--chat-input-bg)] p-2 text-sm text-[var(--chat-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
                         rows={3}
                       />
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
                           onClick={onCancelEdit}
-                          className="min-h-8 cursor-pointer rounded-lg px-3 py-1 text-xs font-semibold text-[#A8B3AF] hover:bg-[#20262B] hover:text-[#F4F7F6]"
+                          className="min-h-8 cursor-pointer rounded-[var(--chat-radius-md)] px-3 py-1 text-xs font-semibold text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-text)]"
                         >
                           Cancel
                         </button>
@@ -135,7 +137,7 @@ const MessageList = ({
                           type="button"
                           onClick={onSaveEdit}
                           disabled={isSavingEdit}
-                          className="min-h-8 cursor-pointer rounded-lg bg-[#14B8A6] px-3 py-1 text-xs font-semibold text-[#101113] hover:bg-[#22C55E] disabled:cursor-not-allowed"
+                          className="min-h-8 cursor-pointer rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] px-3 py-1 text-xs font-semibold text-[var(--chat-own-text)] hover:bg-[var(--chat-accent-strong)] disabled:cursor-not-allowed"
                         >
                           {isSavingEdit ? (
                             <span className="inline-flex items-center gap-2">
@@ -179,7 +181,7 @@ const MessageList = ({
         <button
           type="button"
           onClick={onScrollToBottom}
-          className="absolute bottom-6 right-6 z-40 min-h-10 min-w-10 rounded-full bg-[#14B8A6] p-3 text-[#101113] shadow-lg transition-colors hover:bg-[#22C55E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+          className="absolute bottom-6 right-6 z-40 min-h-10 min-w-10 rounded-full bg-[var(--chat-accent)] p-3 text-[var(--chat-own-text)] shadow-lg transition-colors hover:bg-[var(--chat-accent-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
           title="Scroll to bottom"
           aria-label="Scroll to bottom"
         >
@@ -192,12 +194,12 @@ const MessageList = ({
 
 const MessageListSkeleton = () => (
   <div className="space-y-3" aria-label="Loading messages">
-    <div className="mx-auto h-6 w-28 motion-safe:animate-pulse rounded-full border border-[#2E363C] bg-[#20262B]" />
+    <div className="mx-auto h-6 w-28 motion-safe:animate-pulse rounded-full border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)]" />
     {[0, 1, 2, 3, 4].map((item) => (
       <div key={item} className={`flex ${item % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
         <div
-          className={`h-16 motion-safe:animate-pulse rounded-2xl border border-[#2E363C] bg-[#20262B] ${
-            item % 2 === 0 ? 'w-[72%] md:w-[48%]' : 'w-[66%] bg-[#123C35] md:w-[42%]'
+          className={`h-16 motion-safe:animate-pulse rounded-2xl border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] ${
+            item % 2 === 0 ? 'w-[68%] md:w-[52%]' : 'w-[74%] bg-[var(--chat-own-bubble)] md:w-[48%]'
           }`}
         />
       </div>

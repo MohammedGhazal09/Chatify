@@ -141,7 +141,7 @@ const ConversationPane = ({
       <ChatStateView
         heading="Select a conversation"
         body="Choose a chat from the sidebar or start a new one."
-        className="bg-[#101113]"
+        className="bg-[var(--chat-bg)]"
       />
     );
   }
@@ -152,7 +152,7 @@ const ConversationPane = ({
         heading="Your session expired"
         body="Sign in again to continue."
         tone="danger"
-        className="bg-[#101113]"
+        className="bg-[var(--chat-bg)]"
         primaryAction={{
           label: 'Sign in',
           onClick: () => {
@@ -178,7 +178,7 @@ const ConversationPane = ({
       />
 
       {showMessageSearch && (
-        <div className="border-b border-[#2E363C] bg-[#181C20] px-4 py-2">
+        <div className="border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-2 md:px-8">
           <input
             ref={messageSearchInputRef}
             type="text"
@@ -189,15 +189,15 @@ const ConversationPane = ({
             aria-label="Search this conversation"
             autoComplete="off"
             spellCheck={false}
-            className="w-full rounded-lg border border-[#2E363C] bg-[#20262B] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
+            className="w-full rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-3 py-2 text-sm text-[var(--chat-text)] placeholder:text-[var(--chat-text-soft)] focus:border-[var(--chat-focus)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
           />
         </div>
       )}
 
       {(isOffline || isReconnecting) && (
         <div
-          className={`border-b border-[#2E363C] px-4 py-2 text-sm ${
-            isOffline ? 'bg-[#2B2020] text-[#EF4444]' : 'bg-[#2B281B] text-[#F59E0B]'
+          className={`border-b border-[var(--chat-border)] px-4 py-2 text-sm ${
+            isOffline ? 'bg-[color-mix(in_srgb,var(--chat-danger)_12%,var(--chat-panel))] text-[var(--chat-danger)]' : 'bg-[color-mix(in_srgb,var(--chat-warning)_14%,var(--chat-panel))] text-[var(--chat-warning)]'
           }`}
           aria-live="polite"
         >

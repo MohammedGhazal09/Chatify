@@ -39,8 +39,8 @@ describe('ConversationHeader', () => {
 
     expect(onOpenSidebar).toHaveBeenCalledTimes(1);
     expect(onToggleMessageSearch).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Call unavailable in this phase' })).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByRole('button', { name: 'Video call unavailable in this phase' })).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByRole('button', { name: 'More conversation actions unavailable in this phase' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Call' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Video call' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'More conversation actions' })).toHaveAttribute('aria-disabled', 'true');
   });
 });

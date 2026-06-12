@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import type { MouseEvent } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { FileText, MoreHorizontal, RefreshCw } from 'lucide-react';
 import MessageStatus from '../../../components/MessageStatus';
 import type { Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
@@ -56,13 +56,14 @@ const MessageBubble = memo(({
 
   const isFailed = message.optimisticState === 'failed';
   const isSending = message.optimisticState === 'sending';
+  const fileChip = (message as Message & { fileChip?: { name: string; meta?: string } }).fileChip;
   const bubbleTone = isFailed
-    ? 'border-[#EF4444] bg-[#2B2020] text-[#F4F7F6]'
+    ? 'border-[var(--chat-danger)] bg-[color-mix(in_srgb,var(--chat-danger)_10%,var(--chat-panel-elevated))] text-[var(--chat-text)]'
     : isSending
-      ? 'border-[#F59E0B] bg-[#123C35] text-[#F4F7F6]'
+      ? 'border-[var(--chat-warning)] bg-[var(--chat-own-bubble)] text-[var(--chat-own-text)]'
       : isOwnMessage
-        ? 'border-transparent bg-[#123C35] text-[#F4F7F6]'
-        : 'border-transparent bg-[#22282D] text-[#F4F7F6]';
+        ? 'border-transparent bg-[var(--chat-own-bubble)] text-[var(--chat-own-text)]'
+        : 'border-[var(--chat-border)] bg-[var(--chat-received-bubble)] text-[var(--chat-received-text)]';
 
   return (
     <div
@@ -71,14 +72,14 @@ const MessageBubble = memo(({
       onContextMenu={onContextMenu ? (event) => onContextMenu(event, message) : undefined}
       onDoubleClick={onDoubleClick && isOwnMessage ? () => onDoubleClick(message) : undefined}
     >
-      <div className="group flex max-w-[calc(100vw-32px)] flex-col sm:max-w-[85%] md:max-w-[75%] xl:max-w-[68%]">
+      <div className={`message-bubble-wrap group flex max-w-[calc(100vw-32px)] flex-col ${isOwnMessage ? 'message-bubble-wrap--own' : 'message-bubble-wrap--received'}`}>
         <div
-          className={`message-bubble relative rounded-2xl border py-2 pl-3 pr-10 text-sm leading-5 shadow cursor-pointer ${bubbleTone}`}
+          className={`message-bubble relative rounded-[var(--chat-radius-xl)] border px-4 py-3 pr-11 text-base leading-6 shadow-sm cursor-pointer md:rounded-[var(--chat-radius-lg)] md:text-sm md:leading-5 ${bubbleTone}`}
         >
           <button
             type="button"
             onClick={onOpenActions ? (event) => onOpenActions(event, message, isOwnMessage) : undefined}
-            className="absolute right-1.5 top-1.5 grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-[#A8B3AF] opacity-100 transition hover:bg-black/20 hover:text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+            className="absolute right-1.5 top-1.5 grid h-8 w-8 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-current opacity-70 transition hover:bg-black/10 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
             aria-label="Open message actions"
           >
             <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
@@ -87,31 +88,48 @@ const MessageBubble = memo(({
             <p className="italic text-[#A8B3AF]">This message was deleted</p>
           ) : (
             <>
-              <p className="whitespace-pre-wrap break-words">{message.text}</p>
+              {fileChip ? (
+                <div className="flex min-w-0 items-center gap-3 rounded-[var(--chat-radius-md)] border border-current/20 bg-black/5 p-2">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-sm)] bg-black/10">
+                    <FileText aria-hidden="true" className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">{fileChip.name}</span>
+                    {fileChip.meta && <span className="text-xs opacity-75">{fileChip.meta}</span>}
+                  </span>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap break-words">{message.text}</p>
+              )}
             </>
           )}
-          <div className={`mt-1 flex items-end-safe justify-start gap-1 text-xs ${isOwnMessage ? 'text-[#A8B3AF]' : 'text-[#6F7B77]'}`}>
+          <div className={`mt-1 flex items-end justify-start gap-1 text-xs ${isOwnMessage ? 'text-white/78' : 'text-[var(--chat-text-soft)]'}`}>
             <span className="text-nowrap">{formatTimestamp(message.updatedAt)}</span>
             {message.isEdited && <span className="italic">edited</span>}
-            {isSending && <span className="text-[#F59E0B]">sending</span>}
+            {isSending && (
+              <span className="inline-flex items-center gap-1 text-[var(--chat-warning)]">
+                <RefreshCw aria-hidden="true" className="h-3 w-3 motion-safe:animate-spin" />
+                sending
+              </span>
+            )}
             <MessageStatus status={message.status || 'sent'} isOwnMessage={isOwnMessage} />
           </div>
-          {seenByText && <p className="mt-0.5 text-right text-xs text-[#A8B3AF]">{seenByText}</p>}
+          {seenByText && <p className="mt-0.5 text-right text-xs text-[var(--chat-text-muted)]">{seenByText}</p>}
           {isFailed && (
-            <div className="mt-2 border-t border-[#EF4444]/30 pt-2" aria-live="polite">
-              <p className="text-xs text-[#EF4444]">Message failed to send. Retry or dismiss it.</p>
+            <div className="mt-2 border-t border-[color-mix(in_srgb,var(--chat-danger)_30%,transparent)] pt-2" aria-live="polite">
+              <p className="text-xs text-[var(--chat-danger)]">Message failed to send. Retry or dismiss it.</p>
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={() => onRetryFailed?.(message)}
-                  className="min-h-8 cursor-pointer rounded-lg bg-[#14B8A6] px-3 text-xs font-semibold text-[#101113] hover:bg-[#22C55E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+                  className="min-h-8 cursor-pointer rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] px-3 text-xs font-semibold text-[var(--chat-own-text)] hover:bg-[var(--chat-accent-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
                 >
                   Retry
                 </button>
                 <button
                   type="button"
                   onClick={() => onDismissFailed?.(message)}
-                  className="min-h-8 cursor-pointer rounded-lg border border-[#2E363C] px-3 text-xs font-semibold text-[#A8B3AF] hover:bg-[#20262B] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+                  className="min-h-8 cursor-pointer rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] px-3 text-xs font-semibold text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
                 >
                   Dismiss
                 </button>
@@ -124,10 +142,10 @@ const MessageBubble = memo(({
             {groupedReactions.map(({ emoji, count }) => (
               <span
                 key={emoji}
-                className="inline-flex pointer-events-none items-center gap-0.5 rounded-full border border-[#2E363C] bg-[#20262B] px-1.5 py-0.5 text-xs"
+                className="inline-flex pointer-events-none items-center gap-0.5 rounded-full border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-1.5 py-0.5 text-xs text-[var(--chat-text)]"
               >
                 <span>{emoji}</span>
-                {count > 1 && <span className="text-[#A8B3AF]">{count}</span>}
+                {count > 1 && <span className="text-[var(--chat-text-muted)]">{count}</span>}
               </span>
             ))}
           </div>
