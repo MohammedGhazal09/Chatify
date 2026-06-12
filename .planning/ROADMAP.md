@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Messenger Baseline Completion** - Add search, conversation continuity, and final account/session polish for v1. (completed 2026-06-09)
 - [x] **Phase 6: Messenger Visual Parity** - Match the supplied desktop and mobile light/dark messenger references as closely as possible. (completed 2026-06-12)
 - [x] **Phase 7: Messenger Functional Parity Restoration** - Rewire the reference UI to real chat state, actions, navigation, search, status, and session behavior so no production surface is static-only. (completed 2026-06-12)
-- [ ] **Phase 8: Media Files And Conversation Detail Implementation** - Implement real attachments, previews, downloads, shared media/files, pinned items, and conversation detail/security panels.
+- [x] **Phase 8: Media Files And Conversation Detail Implementation** - Implement real attachments, previews, downloads, shared media/files, pinned items, and conversation detail/security panels. (completed 2026-06-12)
 - [ ] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence.
 
 ## Phase Details
@@ -247,15 +247,15 @@ Cross-cutting constraints:
 
 **Wave 1**
 
-- [ ] 08-01: Build protected attachment storage, canonical send, preview/download, shared assets, and pin backend contracts.
+- [x] 08-01: Build protected attachment storage, canonical send, preview/download, shared assets, and pin backend contracts.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 08-02: Wire attachment composer, message bubbles, shared panels, and mobile detail UI to server state.
+- [x] 08-02: Wire attachment composer, message bubbles, shared panels, and mobile detail UI to server state.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 08-03: Add pin/detail realtime, filename search integration, fixture guardrails, and behavior evidence.
+- [x] 08-03: Add pin/detail realtime, filename search integration, fixture guardrails, and behavior evidence.
 
 ### Phase 9: Messenger Interaction Quality Gate
 
@@ -271,21 +271,26 @@ Cross-cutting constraints:
   4. Test fixtures are centralized, named, and separated from production UI paths so reference-demo data cannot accidentally ship as product behavior.
   5. The phase summary records exact lint, build, unit, integration, Playwright, and screenshot outcomes before the messenger can be considered v1-ready.
 
-**Plans**: 0 plans
+**Plans**: 3 plans
 
-Recommended planning focus:
+Plans:
 
 **Wave 1**
 
-- Build the behavior-first Playwright matrix and fixture guardrails.
+- [ ] 09-01: Build the dedicated behavior-first Phase 09 Playwright gate and fixture guardrails
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- Add accessibility, keyboard, and responsive interaction coverage for the rebuilt messenger.
+- [ ] 09-02: Add accessibility, keyboard, responsive layout, and privacy guardrails
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- Run the full quality gate, capture evidence, and close remaining interaction drift.
+- [ ] 09-03: Run the full quality gate, capture evidence, and reconcile readiness records
+
+Cross-cutting constraints:
+
+- Execution must be inline in the current Codex thread; do not use subagents.
+- Preserve unrelated local work and stage only Phase 09 planning/evidence artifacts plus normal state/roadmap updates.
 
 ## Progress
 
@@ -301,5 +306,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
 | 6. Messenger Visual Parity | 3/3 | Complete   | 2026-06-12 |
 | 7. Messenger Functional Parity Restoration | 3/3 | Complete   | 2026-06-12 |
-| 8. Media Files And Conversation Detail Implementation | 0/3 | Planned | - |
-| 9. Messenger Interaction Quality Gate | 0/0 | Not planned | - |
+| 8. Media Files And Conversation Detail Implementation | 3/3 | Complete | 2026-06-12 |
+| 9. Messenger Interaction Quality Gate | 0/3 | Planned | - |
