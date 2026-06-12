@@ -243,21 +243,19 @@ Cross-cutting constraints:
   4. File/media access is membership-checked on the backend and does not expose private assets, object keys, unauthorized previews, or stale conversation details.
   5. Desktop right panel and mobile detail surfaces work in both themes without overflow, dead controls, or decorative static content.
 
-**Plans**: 0 plans
-
-Recommended planning focus:
+**Plans**: 3 plans
 
 **Wave 1**
 
-- Define and implement secure attachment and conversation-detail data contracts.
+- [ ] 08-01: Build protected attachment storage, canonical send, preview/download, shared assets, and pin backend contracts.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- Build real composer upload, message attachment, preview, download, pinned, and shared-asset UI flows.
+- [ ] 08-02: Wire attachment composer, message bubbles, shared panels, and mobile detail UI to server state.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- Verify media/file authorization, responsive detail surfaces, and theme parity with tests and smoke evidence.
+- [ ] 08-03: Add pin/detail realtime, filename search integration, fixture guardrails, and behavior evidence.
 
 ### Phase 9: Messenger Interaction Quality Gate
 
@@ -303,5 +301,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
 | 6. Messenger Visual Parity | 3/3 | Complete   | 2026-06-12 |
 | 7. Messenger Functional Parity Restoration | 3/3 | Complete   | 2026-06-12 |
-| 8. Media Files And Conversation Detail Implementation | 0/0 | Not planned | - |
+| 8. Media Files And Conversation Detail Implementation | 0/3 | Planned | - |
 | 9. Messenger Interaction Quality Gate | 0/0 | Not planned | - |
