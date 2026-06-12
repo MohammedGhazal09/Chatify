@@ -25,12 +25,12 @@ const blockedPatterns = [
   { label: 'private storage leak', pattern: /raw[-_ ]?hash/i },
   { label: 'private storage leak', pattern: /file[-_ ]?hash/i },
   { label: 'private storage leak', pattern: /sha256/i },
-  { label: 'living visual fixture term', pattern: /profile photo/i },
+  { label: 'living visual fixture term', pattern: /profile[-_ ]?(pic|picture|photo)/i },
   { label: 'living visual fixture term', pattern: /realistic avatar/i },
   { label: 'living visual fixture term', pattern: /\b(human|animal|pet|bird|insect|plant|flower|tree|mascot|portrait|silhouette)\b/i },
 ];
 
-const runtimeSource = import.meta.glob('./**/*.{ts,tsx}', {
+const runtimeSource = import.meta.glob('./**/*.{ts,tsx,css}', {
   query: '?raw',
   import: 'default',
   eager: true,

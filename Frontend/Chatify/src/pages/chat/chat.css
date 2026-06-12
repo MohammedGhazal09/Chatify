@@ -383,12 +383,6 @@
     max-width: 100%;
   }
 
-  /* Adjust profile pic size */
-  .profile-pic {
-    width: 40px;
-    height: 40px;
-  }
-
   /* Smaller buttons */
   .logout-button,
   .new-chat-button {
