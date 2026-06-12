@@ -5,6 +5,7 @@ status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-12
+updated: 2026-06-12
 ---
 
 # Phase 08 UI Spec: Media Files And Conversation Detail Implementation
@@ -28,6 +29,8 @@ Primary user goals:
 - Preview or download attachments only through protected backend routes.
 - Inspect shared media, shared files, pinned messages, and factual conversation security/detail rows.
 - Use the same workflows on desktop and mobile in both light and dark themes.
+
+Trust rule: every visible media, file, pin, and security/detail surface must answer "what can I do right now?" without implying unsupported privacy, storage, scanning, or delivery guarantees.
 
 ## Required Design System
 
@@ -120,6 +123,36 @@ Mobile drawer contents:
 - Clear close control and accessible focus handling.
 
 The drawer must be scrollable independently without shifting the conversation beneath it.
+
+## User Flow And State Model
+
+### Attachment Send Flow
+
+1. User opens the composer attachment control.
+2. Native file picker returns one or more files.
+3. Composer tray validates count, type, size, and empty file cases locally for fast feedback.
+4. Valid files appear as compact chips/cards; invalid files appear with inline error copy and remove controls.
+5. User sends text, attachments, or both through the existing send action.
+6. Timeline shows an optimistic message with temporary attachment summaries and local object URL previews where available.
+7. Successful response replaces optimistic summaries with persisted server summaries and updates shared media/files query state.
+8. Failed upload leaves a visible failed message with retry only while the browser still has the original `File` objects.
+9. After reload, failed attachment retry must require reattachment rather than pretending local files still exist.
+
+### Conversation Detail Flow
+
+1. Desktop users inspect detail state in the right rail.
+2. Mobile users open the same detail state from the header More action.
+3. Pinned messages, shared files, and shared media load from chat-scoped query keys.
+4. Detail rows support jump, preview, download, and unpin only when the backend contract allows the action.
+5. Empty, loading, error, unauthorized, and offline states preserve layout size and never render static fake content.
+
+### Search And Recovery Flow
+
+1. Existing message search continues to search text.
+2. Phase 08 adds filename/metadata matches only; file contents, OCR, and document parsing are not searched.
+3. Search results that match attachments still jump to the owning message.
+4. Deleted, hidden, or unauthorized attachments must not appear as actionable results for that user.
+5. Realtime pin/unpin and attachment-bearing message events refresh detail state without duplicate messages.
 
 ## Surface Contracts
 
@@ -249,6 +282,33 @@ Unsupported actions:
 
 - Call, video, mute, profile, and favorite may remain only if disabled or hidden. They must not look clickable.
 
+## Component Handoff Matrix
+
+| Surface | Owner | Data source | Required states | Notes |
+|---------|-------|-------------|-----------------|-------|
+| Composer attachment tray | `MessageComposer` plus `AttachmentTray` if extracted | Local selected `File` objects plus `useSendMessage` mutation state | idle, selected, invalid, uploading, failed, reattach-required | Keep mutation ownership in hooks/chat orchestration, not inside tray-only UI. |
+| Message attachments | `MessageBubble` plus `AttachmentPreview` if extracted | Serialized message `attachments` summaries | loading preview, ready, unavailable, failed preview, downloading | Must preserve timestamp, status, failed retry, and action menu layout. |
+| Shared files | `ChatContextRail` and mobile drawer | `useSharedAssets(chatId, "file")` | loading, populated, empty, error, unauthorized/offline | No static filenames or fake counts. |
+| Shared media | `ChatContextRail` and mobile drawer | `useSharedAssets(chatId, "media")` | loading, populated, empty, error, preview unavailable | Test images must be abstract and non-living. |
+| Pinned messages | `ChatContextRail`, mobile drawer, message action menu | `usePinnedMessages`, `usePinMessage`, `useUnpinMessage` | loading, populated, empty, optimistic pin/unpin, error | Pinned rows must not reuse latest messages as fake pins. |
+| Conversation detail drawer | `ConversationHeader`, `ChatShell`, drawer component | Same query state as desktop rail | closed, opening, open, loading sections, error sections | Trap focus while open and return focus to More on close. |
+| Attachment search results | `MessageSearchResults` and search hook/API | Message search response with text and filename matches | text hit, filename hit, no results, inaccessible result hidden | Show attachment filename context without implying file-content search. |
+| Security rows | `ChatContextRail` and mobile drawer | auth state, membership state, socket state, protected route capability | verified/active only when factual, reconnecting, offline, unavailable | Do not claim E2EE, scanning, compliance, or permanent security. |
+
+## API To UI Binding
+
+The UI must bind to these contracts without inventing runtime fixtures:
+
+- `POST /api/message/new-message`: JSON for text-only sends, multipart for file sends. UI must not create a separate attachment message lifecycle.
+- `GET /api/message/attachments/:attachmentId/preview`: protected preview source for media thumbnails and preview actions.
+- `GET /api/message/attachments/:attachmentId/download`: protected file download/open action.
+- `GET /api/message/:chatId/shared-assets?kind=media|file&cursor=...&limit=...`: right rail and drawer shared sections.
+- `GET /api/message/:chatId/pinned`: pinned rows and counts.
+- `POST /api/message/:messageId/pin` and `DELETE /api/message/:messageId/pin`: message action menu and detail row pin controls.
+- `message:pinned` and `message:unpinned` socket events: invalidate or reconcile pinned/detail query state for the selected chat only.
+
+If a backend route is not implemented yet during an intermediate execution step, the matching UI action must remain hidden, disabled, or show a truthful unavailable state. Do not wire the UI to mocked production data just to fill the layout.
+
 ## Data And Loading States
 
 Every data-backed section needs these states:
@@ -259,6 +319,8 @@ Every data-backed section needs these states:
 - Unauthorized: neutral "Unavailable" wording without leaking whether another user owns the file.
 - Deleted/expired: "Attachment unavailable" or "File unavailable" with disabled actions.
 - Offline: preserve existing cached metadata where safe; disable network-only actions with clear state.
+
+State transitions must be visible but quiet. Avoid toast-only failure handling for upload validation, preview denial, or pin/unpin errors; the affected composer tray, message bubble, or detail row must show the local state directly.
 
 ## Accessibility Requirements
 
@@ -271,6 +333,10 @@ Every data-backed section needs these states:
 - Pure decorative abstract placeholders use empty alt text.
 - Validation errors are announced through existing alert/status patterns.
 - Keyboard users can reach all attachment actions, pinned actions, search, and drawer controls.
+- Focus order in the composer must be paperclip, selected attachment controls, text input, voice/unsupported control if rendered disabled, send.
+- Disabled unsupported controls must use native `disabled` where possible and must not rely only on muted color.
+- Attachment progress and upload failure states must expose status text through `aria-live="polite"` or an equivalent existing status pattern.
+- The mobile drawer must provide a clear heading, close button, Escape handling, focus trap, body scroll lock, and focus return to the More button.
 
 ## Copywriting
 
@@ -298,6 +364,14 @@ Use this copy unless a component already has equivalent concise wording:
 - Mobile 390x844 and 430x932: composer tray and safe-area footer do not cover the last message.
 - Light and dark themes: all attachment cards, validation states, drawer sections, and security rows meet readable contrast.
 
+Stable dimensions:
+
+- Attachment image previews must use `aspect-ratio` or fixed responsive bounds before image load.
+- File cards must reserve icon, filename, metadata, and action button columns so loading/downloading state does not resize the row.
+- Shared media tiles must use a fixed grid cell ratio in both rail and drawer.
+- Composer tray must cap height and scroll internally if selected attachments exceed the available mobile footer space.
+- Drawer sections must not push close/navigation controls off screen.
+
 ## Verification Requirements
 
 Phase 08 implementation must provide evidence for:
@@ -310,6 +384,23 @@ Phase 08 implementation must provide evidence for:
 - Playwright behavior smoke for desktop light, desktop dark, mobile light, and mobile dark.
 - Screenshot evidence after real interactions, not initial static render only.
 
+Source guard requirements:
+
+- Production runtime must not import e2e media fixtures, static attachment fixtures, static shared media arrays, static pinned rows, or old Phase 06/07 demo asset names.
+- Source search must find no unsupported claims such as "end-to-end encrypted", "virus scanned", "compliance certified", or generic "secure files" unless a tested backend capability exists.
+- E2E and component test media must be abstract/non-living and stored under test-only paths.
+
+## UI Checker Dimensions
+
+The Phase 08 UI spec is considered approved only if all dimensions pass:
+
+1. Product fit: the UI supports real private messaging workflows for attachments and conversation detail.
+2. State coverage: loading, empty, error, unauthorized, deleted, offline, retry, and reload states are specified.
+3. Design-system fit: spacing, typography, colors, tokens, density, and theme behavior align with the existing Chatify shell.
+4. Implementation fit: component ownership, API binding, query ownership, and socket/detail invalidation are explicit.
+5. Accessibility fit: keyboard, focus, names, live regions, alt text, disabled semantics, and drawer behavior are explicit.
+6. Safety fit: no static fake runtime data, no unsupported security claims, no public asset URLs, and no living-being imagery in new placeholders or fixtures.
+
 ## UI Checker Signoff
 
 - Spacing uses 4px-based values: PASS.
@@ -321,5 +412,7 @@ Phase 08 implementation must provide evidence for:
 - No living-being visuals allowed for new placeholders/test media: PASS.
 - Unsupported security claims are blocked: PASS.
 - Accessibility and keyboard requirements are defined: PASS.
+- Component ownership and API binding are explicit: PASS.
+- Source guardrails and behavior-first evidence are explicit: PASS.
 
 Recommendation accepted: implement Phase 08 using this spec as the required UI safety gate before plan execution.
