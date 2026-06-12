@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase_completed
-stopped_at: Phase 09 completed
-last_updated: "2026-06-12T19:37:40.566Z"
-last_activity: 2026-06-12 -- Phase 09 completed with behavior-first interaction gate evidence
+status: phase_added
+stopped_at: Phases 10-14 added for production-live messenger remediation
+last_updated: "2026-06-13T01:44:13.2057489+03:00"
+last_activity: 2026-06-13 -- Added production-live remediation phases after live Chatify screenshot exposed dead controls and static surfaces
 progress:
-  total_phases: 9
+  total_phases: 14
   completed_phases: 8
   total_plans: 26
   completed_plans: 23
-  percent: 88
+  percent: 57
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 09 completed; remaining milestone gap is the earlier Phase 01 security foundation.
+**Current focus:** Phase 10 production messenger reality audit; live production behavior must be repaired before Chatify can be called functionally ready.
 
 ## Current Position
 
-Phase: 09 (messenger-interaction-quality-gate) - COMPLETE
-Plan: 09-03
-Status: Phase 09 passed with backend/frontend/browser quality gates, four screenshots, accessibility scans, and behavior evidence
-Last activity: 2026-06-12 -- Phase 09 behavior gate passed and evidence was recorded
+Phase: 10 (production-messenger-reality-audit-and-fixture-removal) - NOT PLANNED
+Plan: pending
+Status: Phases 10-14 were added because the deployed Chatify UI still exposes dead controls, a non-closable detail rail, static shared content, and unimplemented call/video/media/voice/profile behavior.
+Last activity: 2026-06-13 -- Production-live screenshot invalidated the previous readiness claim and created a remediation sequence.
 
-Progress: 88%
+Progress: 57%
 
 ## Performance Metrics
 
@@ -103,17 +103,24 @@ Recent decisions affecting current work:
 - Phase 9 added: Messenger Interaction Quality Gate.
 - Phase 9 planned with 3 waves: behavior-first Playwright gate and fixtures, accessibility/keyboard/layout/privacy guardrails, and final quality-gate evidence.
 - Phase 9 completed with a dedicated behavior-first Playwright gate, axe scans, keyboard/focus checks, layout/touch target checks, fixture/privacy guardrails, four post-interaction screenshots, and backend/API media-detail proof.
+- Phase 10 added: Production Messenger Reality Audit And Fixture Removal.
+- Phase 11 added: Conversation Controls And User Safety Implementation.
+- Phase 12 added: Live Media Voice And Identity Implementation.
+- Phase 13 added: Realtime Call And Video Implementation.
+- Phase 14 added: Production Live Acceptance Gate.
+- Production-live correction: Phase 9 evidence was not sufficient to claim the deployed messenger is fully functional because the live UI still exposes a non-closable right rail, dead call/video/search/more controls, static shared files/media/pinned surfaces, and static voice/media interactions.
 
 ### Pending Todos
 
 - Address the earlier pending Phase 01 security foundation before claiming full v1 milestone readiness.
+- Plan and execute Phase 10 before continuing feature claims; it must reproduce the production failures and remove fixture/static fallbacks.
 
 ### Blockers/Concerns
 
 - Open concern: Phase 06 screenshot parity is not enough acceptance evidence for a working messenger UI.
-- Phase 09 resolved the broader interaction gate with exact evidence in `09-BEHAVIOR-GATE.md`.
+- Phase 09 local evidence did not catch the deployed static/dead-control failures; production-live acceptance is now deferred to Phase 14.
 - Remaining concern: Phase 01 security/test foundation requirements are still pending in the roadmap.
-- Repository hygiene note: `Frontend/Chatify/src/pages/chat/chat.tsx` has no pending diff after committed Phase 04 execution.
+- Repository hygiene note: unrelated local screenshot/config changes existed before these phase additions and should not be mixed into future focused commits unless intentionally refreshed.
 
 ## Deferred Items
 
@@ -123,6 +130,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-12T19:37:40.566Z
-Stopped at: Phase 09 completed
-Resume file: .planning/phases/09-messenger-interaction-quality-gate/09-BEHAVIOR-GATE.md
+Last session: 2026-06-13T01:44:13.2057489+03:00
+Stopped at: Phases 10-14 added
+Resume file: .planning/ROADMAP.md

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, and enforce an interaction quality gate.
+Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and now remediate production-live gaps that proved fixture-backed tests were not enough.
 
 ## Phases
 
@@ -22,6 +22,11 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Messenger Functional Parity Restoration** - Rewire the reference UI to real chat state, actions, navigation, search, status, and session behavior so no production surface is static-only. (completed 2026-06-12)
 - [x] **Phase 8: Media Files And Conversation Detail Implementation** - Implement real attachments, previews, downloads, shared media/files, pinned items, and conversation detail/security panels. (completed 2026-06-12)
 - [x] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence. (completed 2026-06-12)
+- [ ] **Phase 10: Production Messenger Reality Audit And Fixture Removal** - Reproduce the live product failures, remove fixture/static production fallbacks, and make panel/navigation behavior honestly testable.
+- [ ] **Phase 11: Conversation Controls And User Safety Implementation** - Make search, More, blocking, conversation actions, and static detail surfaces real backend-backed behavior.
+- [ ] **Phase 12: Live Media Voice And Identity Implementation** - Make user identity images/marks, attachments, shared media/files, and voice messages real persisted workflows.
+- [ ] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons.
+- [ ] **Phase 14: Production Live Acceptance Gate** - Prove the deployed Vercel/Render product works with real accounts and no fixture bypass.
 
 ## Phase Details
 
@@ -292,10 +297,110 @@ Cross-cutting constraints:
 - Execution must be inline in the current Codex thread; do not use subagents.
 - Preserve unrelated local work and stage only Phase 09 planning/evidence artifacts plus normal state/roadmap updates.
 
+### Phase 10: Production Messenger Reality Audit And Fixture Removal
+
+**Goal**: Users and reviewers get a production-truth baseline: the live deployed messenger failures are reproduced, static/demo fallbacks are removed from production runtime paths, and the right-side detail rail/drawer can be closed, reopened, and tested on desktop and mobile.
+**Mode:** mvp
+**Depends on**: Phase 9
+**Requirements**: PROD-01, PROD-02, PROD-03, PARITY-01, PARITY-02, TEST-05
+**Success Criteria** (what must be TRUE):
+
+  1. The Vercel frontend and Render backend are exercised with real authenticated accounts, not only local fixtures, and the current dead-control/static-content failures are documented as failing baseline evidence.
+  2. Production chat runtime code no longer imports or synthesizes placeholder pinned messages, shared files, shared media, message text, or detail-panel rows as if they were real data.
+  3. The desktop right rail and mobile detail drawer have explicit open, close, escape, overlay, route-state, and focus-return behavior.
+  4. Any visible control that is not implemented yet is hidden or rendered with an honest disabled state until the phase that implements it.
+  5. Unit, browser, and production-smoke checks fail when static fixture data or non-closable panels return.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run `$gsd-spec-phase 10`, `$gsd-discuss-phase 10`, then `$gsd-plan-phase 10`)
+
+### Phase 11: Conversation Controls And User Safety Implementation
+
+**Goal**: Users can operate the conversation header and detail controls for real: message search, More actions, blocking/unblocking, pinned state, and detail content all reflect server-backed conversation state and authorization.
+**Mode:** mvp
+**Depends on**: Phase 10
+**Requirements**: CTRL-01, CTRL-02, CTRL-03, BLOCK-01, BLOCK-02, BASE-02, MEDIA-03, TEST-05
+**Success Criteria** (what must be TRUE):
+
+  1. Header and rail search buttons open a working message-search experience backed by the existing API/query flow, with results that jump to loaded messages or fetch the needed range.
+  2. The More menu opens reliably on desktop and mobile and exposes only implemented actions with accessible labels, keyboard support, loading states, and error recovery.
+  3. Users can block and unblock a direct-message participant; blocked state prevents new messages, call attempts, and inappropriate realtime events while preserving prior authorized history.
+  4. Pinned messages, shared files, shared media, and security rows render from server-backed conversation data or disappear when no data exists.
+  5. Tests cover the controls against live-like API responses, authorization failures, blocked users, empty states, and mobile drawer behavior.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run `$gsd-spec-phase 11`, `$gsd-discuss-phase 11`, then `$gsd-plan-phase 11`)
+
+### Phase 12: Live Media Voice And Identity Implementation
+
+**Goal**: Users can change their conversation identity mark/image, attach real media/files, send and play voice messages, and see shared media/files update from persisted data instead of static cards.
+**Mode:** mvp
+**Depends on**: Phase 11
+**Requirements**: ID-01, ID-02, MEDIA-01, MEDIA-02, MEDIA-04, VOICE-01, VOICE-02, TEST-05
+**Success Criteria** (what must be TRUE):
+
+  1. User identity imagery is changeable through a validated settings/profile flow and renders consistently in the sidebar, header, message surfaces, and detail panel.
+  2. The attachment button opens a real picker/uploader with type and size validation, progress, cancellation, retry, persisted metadata, and membership-checked access.
+  3. Shared media and shared files are derived from persisted message attachments and update after send, reload, search, pagination, and realtime events.
+  4. Voice messages can be recorded, previewed, cancelled, sent, loaded, played, paused, and retried with clear permission and unsupported-browser states.
+  5. Backend and frontend tests prove privacy, authorization, persistence, playback states, and production-build behavior.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run `$gsd-spec-phase 12`, `$gsd-discuss-phase 12`, then `$gsd-plan-phase 12`)
+
+### Phase 13: Realtime Call And Video Implementation
+
+**Goal**: Users can start, receive, accept, reject, and end authenticated one-to-one audio and video calls from the messenger controls with reliable state, permission handling, and blocked-user safety.
+**Mode:** mvp
+**Depends on**: Phase 12
+**Requirements**: CALL-01, CALL-02, CALL-03, CALL-04, BLOCK-02, RT-01, RT-02, TEST-02, TEST-05
+**Success Criteria** (what must be TRUE):
+
+  1. Call and video buttons initiate real authenticated signaling flows instead of decorative UI actions.
+  2. Incoming, outgoing, ringing, connected, rejected, missed, busy, permission-denied, and ended states are visible and recoverable.
+  3. WebRTC signaling is scoped to authorized direct-message participants and rejects blocked, unauthorized, stale, or cross-chat attempts.
+  4. Audio/video permissions, device absence, network failure, reconnect, and tab lifecycle behavior are handled without leaving stuck call state.
+  5. Automated tests cover signaling contracts, state machines, blocked-user behavior, and browser call UI with mocked media streams.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run `$gsd-spec-phase 13`, `$gsd-discuss-phase 13`, then `$gsd-plan-phase 13`)
+
+### Phase 14: Production Live Acceptance Gate
+
+**Goal**: Chatify is called functionally ready only after the deployed product passes live end-to-end acceptance across real accounts, real backend data, desktop/mobile, light/dark themes, and every visible chat control.
+**Mode:** mvp
+**Depends on**: Phase 13
+**Requirements**: PROD-01, PROD-02, PROD-03, PROD-04, TEST-01, TEST-02, TEST-05
+**Success Criteria** (what must be TRUE):
+
+  1. A live Vercel/Render smoke suite signs in with real test accounts and verifies conversation selection, detail rail close/open, send/receive, search, More, block/unblock, attachments, voice, call, video, and logout/session recovery.
+  2. The live gate runs without importing local fixture data, route-only mocks, screenshot-only assertions, or static fallback detail content.
+  3. Production screenshots and traces are captured after successful behavior interactions for desktop/mobile and light/dark variants.
+  4. Deployment configuration, CORS, cookies, sockets, file access, and call signaling are verified against the actual deployed origins.
+  5. The final acceptance artifact records exact commands, URLs, commit hashes, test accounts used safely, evidence paths, and remaining risks before v1 readiness can be claimed.
+
+**Plans**: 0 plans
+
+Plans:
+
+- [ ] TBD (run `$gsd-spec-phase 14`, `$gsd-discuss-phase 14`, then `$gsd-plan-phase 14`)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13 -> 14
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -308,3 +413,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 | 7. Messenger Functional Parity Restoration | 3/3 | Complete   | 2026-06-12 |
 | 8. Media Files And Conversation Detail Implementation | 3/3 | Complete | 2026-06-12 |
 | 9. Messenger Interaction Quality Gate | 3/3 | Complete | 2026-06-12 |
+| 10. Production Messenger Reality Audit And Fixture Removal | 0/0 | Not planned | - |
+| 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
+| 12. Live Media Voice And Identity Implementation | 0/0 | Not planned | - |
+| 13. Realtime Call And Video Implementation | 0/0 | Not planned | - |
+| 14. Production Live Acceptance Gate | 0/0 | Not planned | - |

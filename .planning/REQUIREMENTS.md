@@ -61,6 +61,27 @@
 - [x] **MEDIA-01**: User can attach and send supported images or files with validation, recoverable failures, and persisted message metadata.
 - [x] **MEDIA-02**: User can preview, open, and download shared media/files only when authorized for the conversation.
 - [x] **MEDIA-03**: Conversation detail surfaces for shared media, shared files, pinned messages, and security status use real data or are intentionally hidden until supported.
+- [ ] **MEDIA-04**: Shared media and shared files are derived from persisted attachments in production and never from static placeholder cards.
+
+### Production Messenger Remediation
+
+- [ ] **PROD-01**: The deployed Vercel frontend and Render backend can be tested with real authenticated accounts and real persisted data.
+- [ ] **PROD-02**: Production chat runtime does not ship fixture, screenshot, or static demo content as if it were real conversation data.
+- [ ] **PROD-03**: Desktop rails, mobile drawers, overlays, and panels can be opened, closed, escaped, and restored without trapping the user.
+- [ ] **PROD-04**: Chatify is not called functionally ready until the live deployed product passes the full production acceptance gate.
+- [ ] **CTRL-01**: Header, rail, and mobile message-search controls open real searchable message workflows.
+- [ ] **CTRL-02**: More menus expose implemented conversation actions only, with accessible labels, loading states, and recoverable errors.
+- [ ] **CTRL-03**: Pinned messages, shared files, shared media, and security rows render from server-backed conversation state or disappear when empty.
+- [ ] **BLOCK-01**: User can block and unblock a direct-message participant from the conversation UI.
+- [ ] **BLOCK-02**: Blocked state prevents new messages, call attempts, and inappropriate realtime events across HTTP and Socket.IO paths.
+- [ ] **ID-01**: User identity imagery or abstract identity marks can be changed and persist across sidebar, header, message, and detail surfaces.
+- [ ] **ID-02**: Identity imagery upload or customization has validation, privacy controls, and fallback behavior.
+- [ ] **VOICE-01**: User can record, preview, cancel, send, reload, and play voice messages.
+- [ ] **VOICE-02**: Voice message permission denial, unsupported browsers, network failure, retry, and playback errors are recoverable.
+- [ ] **CALL-01**: Audio call controls initiate authenticated one-to-one realtime call sessions.
+- [ ] **CALL-02**: Video call controls initiate authenticated one-to-one realtime video sessions.
+- [ ] **CALL-03**: Call state covers incoming, outgoing, ringing, connected, rejected, missed, busy, permission-denied, and ended flows.
+- [ ] **CALL-04**: Call signaling is scoped to authorized direct-message participants and respects blocked-user state.
 
 ### Tests And Verification
 
@@ -76,7 +97,7 @@
 
 - **V2-GRP-01**: User can create and participate in group conversations.
 - **V2-NOTF-01**: User can receive push or email notifications for new messages.
-- **V2-MOD-01**: User can block or report another user.
+- **V2-MOD-01**: User can report another user and route reports into moderation tooling.
 - **V2-ADMIN-01**: Admin can review abuse reports and moderate accounts or content.
 - **V2-E2EE-01**: Users can opt into end-to-end encrypted conversations after storage and delivery tradeoffs are designed.
 
@@ -134,14 +155,32 @@
 | MEDIA-01 | Phase 8 | Complete |
 | MEDIA-02 | Phase 8 | Complete |
 | MEDIA-03 | Phase 8 | Complete |
+| MEDIA-04 | Phase 12 | Pending |
+| PROD-01 | Phase 10, Phase 14 | Pending |
+| PROD-02 | Phase 10, Phase 14 | Pending |
+| PROD-03 | Phase 10 | Pending |
+| PROD-04 | Phase 14 | Pending |
+| CTRL-01 | Phase 11 | Pending |
+| CTRL-02 | Phase 11 | Pending |
+| CTRL-03 | Phase 11 | Pending |
+| BLOCK-01 | Phase 11 | Pending |
+| BLOCK-02 | Phase 11, Phase 13 | Pending |
+| ID-01 | Phase 12 | Pending |
+| ID-02 | Phase 12 | Pending |
+| VOICE-01 | Phase 12 | Pending |
+| VOICE-02 | Phase 12 | Pending |
+| CALL-01 | Phase 13 | Pending |
+| CALL-02 | Phase 13 | Pending |
+| CALL-03 | Phase 13 | Pending |
+| CALL-04 | Phase 13 | Pending |
 | TEST-05 | Phase 9 | Complete |
 
 **Coverage:**
 
-- v1 requirements: 41 total
-- Mapped to phases: 41
+- v1 requirements: 59 total
+- Mapped to phases: 59
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-12 after Phase 09 execution*
+*Last updated: 2026-06-13 after Phase 10-14 production remediation additions*
