@@ -40,7 +40,7 @@ test.describe('Phase 07 functional parity', () => {
 
     await page.getByRole('textbox', { name: 'Write a private message' }).fill('Browser send proof from Phase 07.');
     await page.getByRole('button', { name: 'Send message' }).click();
-    await expect(page.getByText('Browser send proof from Phase 07.')).toBeVisible();
+    await expect(conversationPane.getByText('Browser send proof from Phase 07.')).toBeVisible();
 
     await conversationPane.locator('.chat-messages-scroll').evaluate((element) => {
       element.scrollTop = element.scrollHeight;
@@ -52,12 +52,12 @@ test.describe('Phase 07 functional parity', () => {
 
     await expect(page.getByRole('button', { name: 'Call' }).first()).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Video call' }).first()).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'More conversation actions' }).first()).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Attach file unavailable in this phase' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Open conversation details' })).toBeEnabled();
+    await expect(page.locator('button[aria-label="Attach file"]')).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Voice message unavailable in this phase' })).toBeDisabled();
-    await expect(page.getByText('File sharing is planned for Phase 08.')).toBeVisible();
-    await expect(page.getByText('Media sharing is planned for Phase 08.')).toBeVisible();
-    await expect(page.getByText('Pinning is not available in this phase.')).toBeVisible();
+    await expect(page.getByText('No shared files')).toBeVisible();
+    await expect(page.getByText('No shared media')).toBeVisible();
+    await expect(page.getByText('No pinned messages')).toBeVisible();
     await expect(page.getByText('Authenticated private session')).toBeVisible();
     await expect(page.getByText('Authenticated private chat')).toBeVisible();
     await expect(page.getByText('message-states-spec.pdf')).not.toBeVisible();

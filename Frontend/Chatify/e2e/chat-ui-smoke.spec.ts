@@ -1,13 +1,14 @@
 import path from 'node:path';
+import { Buffer } from 'node:buffer';
 import { expect, test, type Page, type Route } from '@playwright/test';
 import {
   PHASE06_SELECTED_CHAT_ID,
   phase06VisualFixture,
 } from './fixtures/phase06VisualFixture';
 
-const phase06ArtifactPath = (fileName: string) => path.resolve(
+const phase08ArtifactPath = (fileName: string) => path.resolve(
   process.cwd(),
-  '../../.planning/phases/06-messenger-visual-parity',
+  '../../.planning/phases/08-media-files-and-conversation-detail-implementation',
   fileName
 );
 
@@ -17,6 +18,11 @@ const fulfillJson = (route: Route, body: unknown) =>
     contentType: 'application/json',
     body: JSON.stringify(body),
   });
+
+const transparentPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'base64'
+);
 
 const getMessagesForChat = (chatId: string) => {
   const messagesByChatId = phase06VisualFixture.messagesByChatId as Record<string, unknown[]>;
@@ -47,6 +53,47 @@ const mockChatifyApi = async (page: Page) => {
         messages: getMessagesForChat(chatId),
         cursor: { nextCursor: null, hasMore: false, limit: 50 },
       },
+    });
+  });
+  await page.route('**/api/message/*/shared-assets**', (route) => {
+    const url = new URL(route.request().url());
+    const kind = url.searchParams.get('kind');
+    const assets = kind === 'media'
+      ? phase06VisualFixture.sharedMedia
+      : kind === 'file'
+        ? phase06VisualFixture.sharedFiles
+        : [...phase06VisualFixture.sharedFiles, ...phase06VisualFixture.sharedMedia];
+
+    fulfillJson(route, {
+      status: 'success',
+      data: {
+        assets,
+        sharedAssets: assets,
+        kind,
+        cursor: { nextCursor: null, hasMore: false, limit: 12 },
+      },
+    });
+  });
+  await page.route('**/api/message/*/pinned', (route) => fulfillJson(route, {
+    status: 'success',
+    data: {
+      pinnedMessages: phase06VisualFixture.pinnedMessages,
+      limit: 20,
+    },
+  }));
+  await page.route('**/api/message/attachments/*/preview', (route) => {
+    const isMedia = route.request().url().includes('abstract-grid');
+    route.fulfill({
+      status: 200,
+      contentType: isMedia ? 'image/png' : 'application/pdf',
+      body: isMedia ? transparentPng : 'abstract file preview',
+    });
+  });
+  await page.route('**/api/message/attachments/*/download', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/octet-stream',
+      body: 'abstract file download',
     });
   });
   await page.route(`**/api/message/search/${PHASE06_SELECTED_CHAT_ID}**`, (route) => fulfillJson(route, {
@@ -101,13 +148,13 @@ const expectNoHorizontalOverflow = async (page: Page) => {
 const assertConversationBasics = async (page: Page) => {
   await expect(page.getByRole('textbox', { name: 'Write a private message' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Attach file unavailable in this phase' })).toBeVisible();
+  await expect(page.locator('button[aria-label="Attach file"]')).toBeVisible();
   await expect(page.getByText('Authenticated private session')).toBeVisible();
   await expect(page.getByText('IN-8B21 is typing')).toBeVisible();
   await expect(page.getByTestId('conversation-pane').getByText('message-states-spec.pdf')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Download message-states-spec.pdf' }).first()).toBeVisible();
   await expect(page.getByTestId('conversation-pane').getByText('Message failed to send. Retry or dismiss it.')).toBeVisible();
   await expect(page.getByTestId('conversation-pane').getByRole('button', { name: 'Retry' })).toBeVisible();
-  await expect(page.getByTestId('chat-root').locator('img')).toHaveCount(0);
 };
 
 const assertHeaderSearchReuse = async (page: Page) => {
@@ -137,7 +184,7 @@ const assertRightRailSearchReuse = async (page: Page) => {
 const assertMobileLayout = async (page: Page) => {
   await expect(page.getByRole('button', { name: 'Open conversations' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Call' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'More conversation actions' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open conversation details' })).toBeVisible();
   await expect(page.getByTestId('chat-context-rail')).toBeHidden();
 
   const sidebarBox = await page.getByTestId('chat-sidebar').boundingBox();
@@ -164,7 +211,7 @@ const visualCases = [
     name: 'desktop light',
     theme: 'light' as const,
     viewport: { width: 1440, height: 900 },
-    screenshot: '06-ui-desktop-light.png',
+    screenshot: '08-ui-desktop-light.png',
     layout: assertDesktopLayout,
     hasRightRail: true,
   },
@@ -172,7 +219,7 @@ const visualCases = [
     name: 'desktop dark',
     theme: 'dark' as const,
     viewport: { width: 1440, height: 900 },
-    screenshot: '06-ui-desktop-dark.png',
+    screenshot: '08-ui-desktop-dark.png',
     layout: assertDesktopLayout,
     hasRightRail: true,
   },
@@ -180,7 +227,7 @@ const visualCases = [
     name: 'mobile light',
     theme: 'light' as const,
     viewport: { width: 390, height: 844 },
-    screenshot: '06-ui-mobile-light.png',
+    screenshot: '08-ui-mobile-light.png',
     layout: assertMobileLayout,
     hasRightRail: false,
   },
@@ -188,19 +235,19 @@ const visualCases = [
     name: 'mobile dark',
     theme: 'dark' as const,
     viewport: { width: 390, height: 844 },
-    screenshot: '06-ui-mobile-dark.png',
+    screenshot: '08-ui-mobile-dark.png',
     layout: assertMobileLayout,
     hasRightRail: false,
   },
 ];
 
 for (const visualCase of visualCases) {
-  test(`Phase 06 ${visualCase.name} visual parity smoke`, async ({ page }) => {
+  test(`Phase 08 ${visualCase.name} behavior-backed visual smoke`, async ({ page }) => {
     await page.setViewportSize(visualCase.viewport);
     await openPhase06Chat(page, visualCase.theme);
     await assertConversationBasics(page);
     await visualCase.layout(page);
-    await page.screenshot({ path: phase06ArtifactPath(visualCase.screenshot) });
+    await page.screenshot({ path: phase08ArtifactPath(visualCase.screenshot) });
     await assertHeaderSearchReuse(page);
     if (visualCase.hasRightRail) {
       await assertRightRailSearchReuse(page);

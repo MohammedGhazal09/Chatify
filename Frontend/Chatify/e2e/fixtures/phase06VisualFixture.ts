@@ -1,5 +1,5 @@
 import type { User } from '../../src/types/auth';
-import type { Chat, Message, TypingUser, UserOnlineStatus } from '../../src/types/chat';
+import type { Chat, Message, PinnedMessage, SharedAsset, TypingUser, UserOnlineStatus } from '../../src/types/chat';
 import { makeChat, makeCodedUser, makeMessage } from '../../src/test/chatFixtures';
 
 export interface Phase06FileChip {
@@ -113,9 +113,21 @@ export const phase06SelectedMessages: Phase06VisualMessage[] = [
     _id: 'phase06-message-file-chip',
     chatId: PHASE06_SELECTED_CHAT_ID,
     sender: phase06InNode._id,
-    text: 'message-states-spec.pdf',
+    text: '',
     read: false,
     status: 'delivered',
+    attachments: [
+      {
+        _id: 'phase06-attachment-message-states',
+        attachmentId: 'phase06-attachment-message-states',
+        displayName: 'message-states-spec.pdf',
+        mimeType: 'application/pdf',
+        size: 280 * 1024,
+        kind: 'file',
+        status: 'active',
+        createdAt: '2025-05-12T09:32:00.000Z',
+      },
+    ],
     fileChip: { name: 'message-states-spec.pdf', meta: 'PDF - 280 KB' },
     createdAt: '2025-05-12T09:32:00.000Z',
     updatedAt: '2025-05-12T09:32:00.000Z',
@@ -243,6 +255,53 @@ export const phase06TypingUsers: TypingUser[] = [
   },
 ];
 
+export const phase06SharedFiles: SharedAsset[] = [
+  {
+    _id: 'phase06-attachment-message-states',
+    attachmentId: 'phase06-attachment-message-states',
+    messageId: 'phase06-message-file-chip',
+    chatId: PHASE06_SELECTED_CHAT_ID,
+    uploader: phase06InNode._id,
+    displayName: 'message-states-spec.pdf',
+    mimeType: 'application/pdf',
+    size: 280 * 1024,
+    kind: 'file',
+    status: 'active',
+    createdAt: '2025-05-12T09:32:00.000Z',
+  },
+];
+
+export const phase06SharedMedia: SharedAsset[] = [
+  {
+    _id: 'phase06-attachment-abstract-grid',
+    attachmentId: 'phase06-attachment-abstract-grid',
+    messageId: 'phase06-message-file-chip',
+    chatId: PHASE06_SELECTED_CHAT_ID,
+    uploader: phase06InNode._id,
+    displayName: 'abstract-grid.png',
+    mimeType: 'image/png',
+    size: 512,
+    kind: 'media',
+    status: 'active',
+    createdAt: '2025-05-12T09:33:00.000Z',
+  },
+];
+
+export const phase06PinnedMessages: PinnedMessage[] = [
+  {
+    messageId: 'phase06-message-trust',
+    chatId: PHASE06_SELECTED_CHAT_ID,
+    sender: phase06CurrentUser._id,
+    text: 'Exactly. Clear status, fewer distractions, better trust.',
+    attachments: [],
+    pinned: true,
+    pinnedBy: phase06CurrentUser._id,
+    pinnedAt: '2025-05-12T09:35:00.000Z',
+    createdAt: '2025-05-12T09:31:00.000Z',
+    updatedAt: '2025-05-12T09:35:00.000Z',
+  },
+];
+
 export const phase06VisualFixture = {
   currentUser: phase06CurrentUser,
   users: phase06Users,
@@ -260,4 +319,7 @@ export const phase06VisualFixture = {
   unreadCounts: phase06UnreadCounts,
   presence: phase06Presence,
   typingUsers: phase06TypingUsers,
+  sharedFiles: phase06SharedFiles,
+  sharedMedia: phase06SharedMedia,
+  pinnedMessages: phase06PinnedMessages,
 } as const;

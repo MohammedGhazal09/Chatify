@@ -7,7 +7,7 @@ import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
 import { makeChat, makeMessage, makeUser } from '../test/chatFixtures';
 import type { Chat } from '../types/chat';
-import { chatsQueryKey, messagesQueryKey } from './useChatQueries';
+import { chatsQueryKey, messagesQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
 import type { MessagesCacheData } from './messageCache';
 import { useChatSocket } from './useChatSocket';
 
@@ -259,6 +259,120 @@ describe('useChatSocket', () => {
       text: 'Realtime message',
     });
     expect(queryClient.getQueryData<Map<string, number>>(['unreadCounts', 'chat-1'])?.get('chat-1')).toBe(0);
+  });
+
+  it('reconciles attachment messages and pin events while invalidating detail queries', async () => {
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    queryClient.setQueryData<MessagesCacheData>(messagesQueryKey('chat-1'), {
+      messages: [
+        makeMessage({
+          _id: 'optimistic-client-file',
+          clientMessageId: 'client-file',
+          chatId: 'chat-1',
+          sender: 'user-1',
+          text: '',
+          optimisticState: 'sending',
+          attachments: [
+            {
+              _id: 'optimistic-attachment',
+              attachmentId: 'optimistic-attachment',
+              displayName: 'diagram.png',
+              mimeType: 'image/png',
+              size: 1024,
+              kind: 'media',
+              status: 'active',
+              localPreviewUrl: 'blob:diagram',
+            },
+          ],
+        }),
+      ],
+    });
+
+    const onMessagePinned = vi.fn();
+    const onMessageUnpinned = vi.fn();
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1', onMessagePinned, onMessageUnpinned }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+    const serverAttachmentMessage = makeMessage({
+      _id: 'server-file',
+      clientMessageId: 'client-file',
+      chatId: 'chat-1',
+      sender: 'user-1',
+      text: '',
+      attachments: [
+        {
+          _id: 'attachment-server',
+          attachmentId: 'attachment-server',
+          displayName: 'diagram.png',
+          mimeType: 'image/png',
+          size: 1024,
+          kind: 'media',
+          status: 'active',
+        },
+      ],
+      createdAt: '2026-06-08T10:05:00.000Z',
+      updatedAt: '2026-06-08T10:05:00.000Z',
+    });
+
+    act(() => {
+      socket.trigger('message:new', serverAttachmentMessage);
+      socket.trigger('message:pinned', {
+        chatId: 'chat-1',
+        messageId: 'server-file',
+        message: { ...serverAttachmentMessage, pinned: true, pinnedBy: 'user-1', pinnedAt: '2026-06-08T10:06:00.000Z' },
+        pinnedMessage: {
+          messageId: 'server-file',
+          chatId: 'chat-1',
+          sender: 'user-1',
+          text: '',
+          attachments: serverAttachmentMessage.attachments ?? [],
+          pinned: true,
+          pinnedBy: 'user-1',
+          pinnedAt: '2026-06-08T10:06:00.000Z',
+          createdAt: serverAttachmentMessage.createdAt,
+          updatedAt: '2026-06-08T10:06:00.000Z',
+        },
+      });
+      socket.trigger('message:unpinned', {
+        chatId: 'chat-2',
+        messageId: 'unrelated-message',
+        message: makeMessage({ _id: 'unrelated-message', chatId: 'chat-2', pinned: false }),
+        pinnedMessage: {
+          messageId: 'unrelated-message',
+          chatId: 'chat-2',
+          sender: 'user-2',
+          text: 'Other chat',
+          attachments: [],
+          pinned: false,
+          createdAt: '2026-06-08T10:00:00.000Z',
+          updatedAt: '2026-06-08T10:00:00.000Z',
+        },
+      });
+    });
+
+    const selectedMessages = queryClient.getQueryData<MessagesCacheData>(messagesQueryKey('chat-1'));
+    const unrelatedMessages = queryClient.getQueryData<MessagesCacheData>(messagesQueryKey('chat-2'));
+
+    expect(selectedMessages?.messages).toHaveLength(1);
+    expect(selectedMessages?.messages[0]).toMatchObject({
+      _id: 'server-file',
+      clientMessageId: 'client-file',
+      pinned: true,
+      attachments: [expect.objectContaining({ attachmentId: 'attachment-server' })],
+    });
+    expect(unrelatedMessages?.messages[0]).toMatchObject({ _id: 'unrelated-message', chatId: 'chat-2' });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['sharedAssets', 'chat-1'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: pinnedMessagesQueryKey('chat-1') });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: pinnedMessagesQueryKey('chat-2') });
+    expect(onMessagePinned).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'chat-1', messageId: 'server-file' }));
+    expect(onMessageUnpinned).not.toHaveBeenCalled();
   });
 
   it('applies typing, presence, socket ready, and reconnect events', async () => {

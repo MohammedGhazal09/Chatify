@@ -67,6 +67,27 @@ export const installPhase07ApiMocks = async (page: Page) => {
       },
     });
   });
+  await page.route('**/api/message/*/shared-assets**', (route) => {
+    const url = new URL(route.request().url());
+    const kind = url.searchParams.get('kind');
+
+    fulfillJson(route, {
+      status: 'success',
+      data: {
+        assets: [],
+        sharedAssets: [],
+        kind,
+        cursor: { nextCursor: null, hasMore: false, limit: 12 },
+      },
+    });
+  });
+  await page.route('**/api/message/*/pinned', (route) => fulfillJson(route, {
+    status: 'success',
+    data: {
+      pinnedMessages: [],
+      limit: 20,
+    },
+  }));
   await page.route(`**/api/message/search/${PHASE07_PRIMARY_CHAT_ID}**`, (route) => {
     const url = new URL(route.request().url());
     const query = url.searchParams.get('q') ?? '';

@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { describe, expect, it } from 'vitest';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import { createMessage } from '../fixtures/messages.mjs';
+import { attachText } from '../fixtures/attachments.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 
 const setupSearchScenario = async () => {
@@ -36,6 +37,18 @@ const searchMessages = (agent, chatId, query, limit) => {
 
   return agent.get(`/api/message/search/${chatId}?${searchParams.toString()}`);
 };
+
+const createAttachmentMessage = (agent, chatId, clientMessageId, filename, textContent) => (
+  attachText(
+    agent
+      .post('/api/message/new-message')
+      .field('chatId', chatId)
+      .field('text', 'attachment metadata only')
+      .field('clientMessageId', clientMessageId),
+    filename,
+    textContent
+  )
+);
 
 describe('selected chat message search', () => {
   it('rejects invalid, short, and non-member searches safely', async () => {
@@ -165,5 +178,25 @@ describe('selected chat message search', () => {
     const response = await searchMessages(memberOne.agent, chat._id, 'scope').expect(200);
 
     expect(response.body.data.messages.map((message) => message.text)).toEqual(['scope visible here']);
+  });
+
+  it('searches attachment filenames as metadata without searching file contents', async () => {
+    const { memberOne, memberTwo, chat } = await setupSearchScenario();
+
+    const created = await createAttachmentMessage(
+      memberOne.agent,
+      chat._id.toString(),
+      'metadata-search-file',
+      'socket-plan-notes.txt',
+      'hidden body phrase'
+    ).expect(201);
+
+    const filenameResponse = await searchMessages(memberTwo.agent, chat._id, 'socket-plan').expect(200);
+    const contentResponse = await searchMessages(memberTwo.agent, chat._id, 'hidden body').expect(200);
+
+    expect(filenameResponse.body.data.messages.map((message) => message._id)).toEqual([
+      created.body.data.message._id,
+    ]);
+    expect(contentResponse.body.data.messages).toEqual([]);
   });
 });

@@ -5,6 +5,10 @@ const blockedPatterns = [
   /PHASE06_/,
   /phase06/,
   /chatVisualSmoke/,
+  /message-states-spec/i,
+  /delivery-metrics/i,
+  /retry-logic-notes/i,
+  /e2e\/fixtures/i,
 ];
 
 const runtimeSource = import.meta.glob('./**/*.{ts,tsx}', {

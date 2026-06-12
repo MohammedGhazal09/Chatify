@@ -3,7 +3,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { chatsQueryKey, messagesQueryKey } from './useChatQueries';
+import { chatsQueryKey, messagesQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
 import {
   applyBatchReadInCache,
   applyDeletedMessageInCache,
@@ -26,6 +26,7 @@ import type {
   TypingUser,
   MessageDeletedEvent,
   MessageEditedEvent,
+  MessagePinEvent,
   MessageReactionEvent,
   UnreadUpdateEvent,
   SocketErrorEvent,
@@ -42,6 +43,8 @@ type UseChatSocketOptions = {
   onMessageDeleted?: (event: MessageDeletedEvent) => void;
   onMessageEdited?: (event: MessageEditedEvent) => void;
   onMessageReaction?: (event: MessageReactionEvent) => void;
+  onMessagePinned?: (event: MessagePinEvent) => void;
+  onMessageUnpinned?: (event: MessagePinEvent) => void;
 };
 
 const resolveSocketUrl = () => {
@@ -85,6 +88,8 @@ export const useChatSocket = ({
   onMessageDeleted,
   onMessageEdited,
   onMessageReaction,
+  onMessagePinned,
+  onMessageUnpinned,
 }: UseChatSocketOptions) => {
   const { isAuthenticated, user } = useAuthStore();
   const presenceStore = usePresenceStore();
@@ -156,6 +161,11 @@ export const useChatSocket = ({
         new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
       ));
     });
+  }, []);
+
+  const invalidateMessageDetailQueries = useCallback((targetChatId: string) => {
+    queryClientRef.current.invalidateQueries({ queryKey: ['sharedAssets', targetChatId] });
+    queryClientRef.current.invalidateQueries({ queryKey: pinnedMessagesQueryKey(targetChatId) });
   }, []);
 
   // Connect socket and set up user connection
@@ -321,6 +331,9 @@ export const useChatSocket = ({
         (old) => upsertMessageInCache(old, message)
       );
       updateChatsLatestMessage(message);
+      if ((message.attachments?.length ?? 0) > 0) {
+        queryClientRef.current.invalidateQueries({ queryKey: ['sharedAssets', message.chatId] });
+      }
 
       if (chatId && message.chatId !== chatId) {
         return;
@@ -392,10 +405,11 @@ export const useChatSocket = ({
         messagesQueryKey(targetChatId),
         (old) => applyDeletedMessageInCache(old, event)
       );
+      invalidateMessageDetailQueries(targetChatId);
 
       onMessageDeleted?.(event);
     },
-    [onMessageDeleted]
+    [invalidateMessageDetailQueries, onMessageDeleted]
   );
 
   // Handle message edited events
@@ -428,6 +442,27 @@ export const useChatSocket = ({
     [onMessageReaction]
   );
 
+  const handleMessagePinEvent = useCallback(
+    (event: MessagePinEvent, callback?: (event: MessagePinEvent) => void) => {
+      if (!event?.chatId) {
+        return;
+      }
+
+      if (event.message) {
+        queryClientRef.current.setQueryData<MessagesCacheData>(
+          messagesQueryKey(event.chatId),
+          (old) => upsertMessageInCache(old, event.message)
+        );
+      }
+
+      queryClientRef.current.invalidateQueries({ queryKey: pinnedMessagesQueryKey(event.chatId) });
+      if (!chatId || event.chatId === chatId) {
+        callback?.(event);
+      }
+    },
+    [chatId]
+  );
+
   // Set up message and status listeners
   useEffect(() => {
     if (!socket) {
@@ -441,6 +476,8 @@ export const useChatSocket = ({
     socket.on('message:deleted', handleMessageDeleted);
     socket.on('message:edited', handleMessageEdited);
     socket.on('message:reaction', handleMessageReaction);
+    socket.on('message:pinned', (event: MessagePinEvent) => handleMessagePinEvent(event, onMessagePinned));
+    socket.on('message:unpinned', (event: MessagePinEvent) => handleMessagePinEvent(event, onMessageUnpinned));
 
     return () => {
       socket.off('message:new', handleIncomingMessage);
@@ -450,8 +487,10 @@ export const useChatSocket = ({
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('message:edited', handleMessageEdited);
       socket.off('message:reaction', handleMessageReaction);
+      socket.off('message:pinned');
+      socket.off('message:unpinned');
     };
-  }, [socket, handleIncomingMessage, handleMessageStatusUpdate, handleMessageRead, handleBatchRead, handleMessageDeleted, handleMessageEdited, handleMessageReaction]);
+  }, [socket, handleIncomingMessage, handleMessageStatusUpdate, handleMessageRead, handleBatchRead, handleMessageDeleted, handleMessageEdited, handleMessageReaction, handleMessagePinEvent, onMessagePinned, onMessageUnpinned]);
 
   // Handle chat room joining/leaving
   useEffect(() => {
