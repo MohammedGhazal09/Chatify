@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: blocked
-stopped_at: Completed 14-03-PLAN.md; Phase 14 live readiness blocked pending production smoke env
-last_updated: "2026-06-13T06:40:00.000Z"
+status: completed
+stopped_at: Phase 15 context gathered
+last_updated: "2026-06-13T21:40:20.387Z"
 last_activity: 2026-06-13 -- Phase 14 plan 14-03 completed with call/video/deployment evidence in the production gate and final readiness blocked because smoke env is missing
 progress:
-  total_phases: 15
-  completed_phases: 11
+  total_phases: 16
+  completed_phases: 12
   total_plans: 44
   completed_plans: 37
-  percent: 77
+  percent: 75
 ---
 
 # Project State
@@ -145,6 +145,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-13T06:40:00.000Z
-Stopped at: Completed 14-03-PLAN.md; live readiness blocked pending production smoke env
-Resume file: .planning/phases/14-production-live-acceptance-gate/14-LIVE-ACCEPTANCE.md
+Last session: 2026-06-13T21:40:20.380Z
+Stopped at: Phase 15 context gathered
+Resume file: .planning/phases/15-investigate-and-fix-audio-and-video-call-reliability/15-CONTEXT.md
