@@ -457,11 +457,26 @@ Plans:
   4. Deployment configuration, CORS, cookies, sockets, file access, and call signaling are verified against the actual deployed origins.
   5. The final acceptance artifact records exact commands, URLs, commit hashes, test accounts used safely, evidence paths, and remaining risks before v1 readiness can be claimed.
 
-**Plans**: 0 plans
+**Plans**: 3 plans
 
 Plans:
 
-- [ ] TBD (run `$gsd-spec-phase 14`, `$gsd-discuss-phase 14`, then `$gsd-plan-phase 14`)
+**Wave 1**
+
+- [ ] 14-01: Production Harness, Environment Contract, And Evidence Reporter
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 14-02: Live Messaging, Controls, Attachments, And Static-Content Acceptance
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 14-03: Call/Video, Deployment Evidence, And Final Readiness Gate
+
+**Cross-cutting constraints:**
+
+- Execution must be inline in the current Codex thread; do not use subagents.
+- The phase must fail closed when live credentials/origins are unavailable; no local fixture fallback can count as production readiness.
 
 ## Progress
 
@@ -484,4 +499,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
 | 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
-| 14. Production Live Acceptance Gate | 0/0 | Not planned | - |
+| 14. Production Live Acceptance Gate | 0/3 | Planned | - |
