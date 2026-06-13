@@ -424,11 +424,24 @@ Plans:
   4. Audio/video permissions, device absence, network failure, reconnect, and tab lifecycle behavior are handled without leaving stuck call state.
   5. Automated tests cover signaling contracts, state machines, blocked-user behavior, and browser call UI with mocked media streams.
 
-**Plans**: 0 plans
-
+**Plans**: 3 plans
 Plans:
 
-- [ ] TBD (run `$gsd-spec-phase 13`, `$gsd-discuss-phase 13`, then `$gsd-plan-phase 13`)
+**Wave 1**
+
+- [ ] 13-01 Backend Call Session And Signaling Authority
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 13-02 Frontend Call Controller, WebRTC Media, And Entry Points
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 13-03 Call Activity, Reconnect/Unload, Regression Gates, And Evidence
+
+**Cross-cutting constraints:**
+
+- Execution must be inline in the current Codex thread; do not use subagents.
 
 ### Phase 14: Production Live Acceptance Gate
 
