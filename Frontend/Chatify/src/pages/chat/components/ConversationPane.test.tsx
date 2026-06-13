@@ -132,6 +132,23 @@ describe('ConversationPane', () => {
     expect(screen.getByRole('textbox', { name: 'Search this conversation' })).toHaveValue('state');
   });
 
+  it('closes the active conversation search from the input row', async () => {
+    const user = userEvent.setup();
+    const onToggleMessageSearch = vi.fn();
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'state',
+      onToggleMessageSearch,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Close message search' }));
+
+    expect(onToggleMessageSearch).toHaveBeenCalledTimes(1);
+  });
+
   it('pins blocked-by-me status above the conversation and removes the old composer-only copy', async () => {
     const user = userEvent.setup();
     const onUnblockUser = vi.fn();

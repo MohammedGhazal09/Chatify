@@ -1,5 +1,5 @@
 import type { ChangeEvent, KeyboardEventHandler, RefObject } from 'react';
-import { Ban, ShieldCheck } from 'lucide-react';
+import { Ban, ShieldCheck, X } from 'lucide-react';
 import type { Chat, ComposerSendPayload, ConversationControls, Message, UserOnlineStatus } from '../../../types/chat';
 import type { User } from '../../../types/auth';
 import TypingIndicator from '../../../components/TypingIndicator';
@@ -215,18 +215,29 @@ const ConversationPane = ({
 
       {showMessageSearch && (
         <div className="border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-2 md:px-8">
-          <input
-            ref={messageSearchInputRef}
-            type="text"
-            name="message-search"
-            value={messageSearch}
-            onChange={(event) => onMessageSearchChange(event.target.value)}
-            placeholder="Search this conversation"
-            aria-label="Search this conversation"
-            autoComplete="off"
-            spellCheck={false}
-            className="w-full rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-3 py-2 text-sm text-[var(--chat-text)] placeholder:text-[var(--chat-text-soft)] focus:border-[var(--chat-focus)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-          />
+          <div className="relative">
+            <input
+              ref={messageSearchInputRef}
+              type="text"
+              name="message-search"
+              value={messageSearch}
+              onChange={(event) => onMessageSearchChange(event.target.value)}
+              placeholder="Search this conversation"
+              aria-label="Search this conversation"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] py-2 pl-3 pr-10 text-sm text-[var(--chat-text)] placeholder:text-[var(--chat-text-soft)] focus:border-[var(--chat-focus)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            />
+            <button
+              type="button"
+              aria-label="Close message search"
+              title="Close search"
+              onClick={onToggleMessageSearch}
+              className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[var(--chat-radius-sm)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
 

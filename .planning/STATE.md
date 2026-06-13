@@ -117,6 +117,7 @@ Recent decisions affecting current work:
 - Phase 14 plan 14-01 completed with a production-only Playwright config, strict Phase 14 env validator, sanitized acceptance artifact writer, no-env blocked report, and setup guide.
 - Phase 14 plan 14-02 completed with the main production live acceptance spec for two-account messaging, controls, generated attachments, shared surfaces, static-content denial, blocked no-env reporting, and behavior-backed screenshot capture when smoke env is configured.
 - Phase 14 plan 14-03 completed with call/video fake-media acceptance paths, deployment-origin/cookie/socket/file evidence, optional deployed commit metadata, final readiness decision reporting, and local quality gates passing.
+- Phase 15 added: Investigate and fix audio and video call reliability.
 
 ### Pending Todos
 

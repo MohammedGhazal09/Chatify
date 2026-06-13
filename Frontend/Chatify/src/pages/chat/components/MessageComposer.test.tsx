@@ -67,6 +67,12 @@ describe('MessageComposer', () => {
     });
   });
 
+  it('keeps the message text vertically centered in the composer input', () => {
+    render(<ComposerHarness onSend={vi.fn()} />);
+
+    expect(screen.getByRole('textbox', { name: 'Write a private message' })).toHaveClass('py-3.5', 'leading-5');
+  });
+
   it('sends on Enter when text is present', async () => {
     const user = userEvent.setup();
     const onSend = vi.fn();
