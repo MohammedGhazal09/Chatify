@@ -38,6 +38,7 @@ const AttachmentPreview = ({ attachment, compact = false }: AttachmentPreviewPro
   const isUnavailable = attachment.status !== 'active';
   const previewUrl = isUnavailable ? null : attachment.localPreviewUrl ?? messageApi.getAttachmentPreviewUrl(attachment.attachmentId);
   const downloadUrl = isUnavailable ? null : messageApi.getAttachmentDownloadUrl(attachment.attachmentId);
+  const isProtectedRemotePreview = Boolean(previewUrl && !attachment.localPreviewUrl);
   const fileTypeLabel = getFileTypeLabel(attachment.mimeType, attachment.displayName);
 
   if (attachment.kind === 'media') {
@@ -58,6 +59,7 @@ const AttachmentPreview = ({ attachment, compact = false }: AttachmentPreviewPro
             <img
               src={previewUrl}
               alt={attachment.displayName}
+              crossOrigin={isProtectedRemotePreview ? 'use-credentials' : undefined}
               onError={() => setHasPreviewError(true)}
               className={`${compact ? 'h-full w-full' : 'max-h-64 w-full'} object-cover`}
             />

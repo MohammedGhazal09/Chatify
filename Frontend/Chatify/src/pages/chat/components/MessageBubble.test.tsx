@@ -154,6 +154,34 @@ describe('MessageBubble', () => {
       'src',
       expect.stringContaining('/api/message/attachments/attachment-media/preview')
     );
+    expect(screen.getByRole('img', { name: 'diagram.png' })).toHaveAttribute('crossorigin', 'use-credentials');
+  });
+
+  it('keeps local sender-side media previews as same-document blob images', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          attachments: [
+            makeAttachment({
+              attachmentId: 'attachment-local-media',
+              displayName: 'local-diagram.png',
+              mimeType: 'image/png',
+              kind: 'media',
+              size: 1024,
+              localPreviewUrl: 'blob:chatify-local-preview',
+            }),
+          ],
+        })}
+        isOwnMessage
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    const image = screen.getByRole('img', { name: 'local-diagram.png' });
+
+    expect(image).toHaveAttribute('src', 'blob:chatify-local-preview');
+    expect(image).not.toHaveAttribute('crossorigin');
   });
 
   it('renders call activity as a centered system row without message actions', () => {
