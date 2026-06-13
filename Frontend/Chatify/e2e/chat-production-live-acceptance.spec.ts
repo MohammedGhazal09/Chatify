@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page, type TestInfo } from '@playwright/test';
 import {
   authenticateProductionSmokeContext,
   type ProductionSmokeAccount,
@@ -6,6 +6,7 @@ import {
 import {
   findPhase14StaticContentLeaks,
   getPhase14ProductionAcceptanceConfig,
+  phase14UrlMatchesBackendOrigin,
   writePhase14LiveAcceptanceReport,
   type Phase14CheckRow,
   type Phase14ProductionAcceptanceConfig,
@@ -70,19 +71,19 @@ const installNetworkObservations = (page: Page, label: string, config: EnabledPh
   page.on('response', (response) => {
     const url = new URL(response.url());
 
-    if (url.origin !== backendOrigin || (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/socket.io/'))) {
+    if (!phase14UrlMatchesBackendOrigin(response.url(), backendOrigin) || (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/socket.io/'))) {
       return;
     }
 
     const trafficKind = url.pathname.startsWith('/socket.io/') ? 'socket' : 'api';
-    appendObservation(observations, `${label}: ${trafficKind} ${response.request().method()} ${url.origin}${url.pathname} -> ${response.status()}`);
+    appendObservation(observations, `${label}: ${trafficKind} ${response.request().method()} ${backendOrigin}${url.pathname} -> ${response.status()}`);
   });
 
   page.on('websocket', (webSocket) => {
     const url = new URL(webSocket.url());
 
-    if (url.origin === backendOrigin) {
-      appendObservation(observations, `${label}: websocket ${url.origin}${url.pathname}`);
+    if (phase14UrlMatchesBackendOrigin(webSocket.url(), backendOrigin)) {
+      appendObservation(observations, `${label}: websocket ${backendOrigin}${url.pathname} via ${url.protocol}//${url.host}`);
     }
   });
 
@@ -227,13 +228,33 @@ const openDesktopDetailRail = async (page: Page) => {
   return rail;
 };
 
+const openMarkerMessageActions = async (page: Page, marker: string) => {
+  const row = markerRows(page, marker).first();
+
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await row.scrollIntoViewIfNeeded();
+  await row.hover();
+  await row.getByRole('button', { name: 'Open message actions' }).first().click();
+  const actions = page.getByRole('group', { name: 'Message actions' });
+  await expect(actions).toBeVisible({ timeout: 10000 });
+
+  return actions;
+};
+
+const expectSecurityRowsToUseLiveState = async (rail: Locator) => {
+  await expect.poll(async () => rail.innerText(), {
+    timeout: 20000,
+    message: 'Conversation security rows should reflect live auth, membership, socket, file, and control state.',
+  }).toMatch(/Authenticated session\s+Active[\s\S]*Member-only room\s+Confirmed[\s\S]*Realtime connection\s+Connected[\s\S]*Protected file access\s+Active[\s\S]*Conversation controls\s+Active/);
+};
+
 const exerciseDesktopDetails = async (page: Page) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const rail = await openDesktopDetailRail(page);
   await expect(rail.getByRole('heading', { name: 'Pinned messages' })).toBeVisible();
   await expect(rail.getByRole('heading', { name: 'Shared files' })).toBeVisible();
   await expect(rail.getByRole('heading', { name: 'Shared media' })).toBeVisible();
-  await expect(rail.getByText('Authenticated session')).toBeVisible();
+  await expectSecurityRowsToUseLiveState(rail);
 
   const moreButton = page.getByRole('button', { name: 'More conversation actions' }).first();
   await rail.getByRole('button', { name: 'Close conversation details' }).click();
@@ -246,6 +267,46 @@ const exerciseDesktopDetails = async (page: Page) => {
   await expect(rail).toBeVisible({ timeout: 10000 });
 
   return 'Desktop rail closes, returns focus, and reopens from More.';
+};
+
+const unpinMarkerFromRail = async (rail: Locator, marker: string) => {
+  const unpinButton = rail.getByRole('button', { name: `Unpin ${marker}` }).first();
+
+  if (await unpinButton.isVisible().catch(() => false)) {
+    await unpinButton.click();
+  }
+};
+
+const verifyPinnedMessageServerTruth = async (page: Page, marker: string) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  let markerPinned = false;
+
+  try {
+    const actions = await openMarkerMessageActions(page, marker);
+    await actions.getByRole('button', { name: 'Pin message' }).click();
+    markerPinned = true;
+
+    const rail = await openDesktopDetailRail(page);
+    await expectSecurityRowsToUseLiveState(rail);
+    const pinnedJump = rail.getByRole('button', { name: marker }).first();
+    await expect(pinnedJump).toBeVisible({ timeout: 20000 });
+    await pinnedJump.click();
+    await expect(markerRows(page, marker)).toHaveCount(1, { timeout: 10000 });
+
+    await unpinMarkerFromRail(rail, marker);
+    await expect(rail.getByRole('button', { name: marker })).toHaveCount(0, { timeout: 20000 });
+    markerPinned = false;
+
+    return 'Live marker pinned into the detail rail, jumped to the persisted message, and unpinned cleanly.';
+  } finally {
+    if (markerPinned) {
+      const rail = await openDesktopDetailRail(page).catch(() => null);
+
+      if (rail) {
+        await unpinMarkerFromRail(rail, marker).catch(() => undefined);
+      }
+    }
+  }
 };
 
 const exerciseMobileDetails = async (page: Page, config: EnabledPhase14Config, chatId: string | null) => {
@@ -331,6 +392,48 @@ const isAcceptableCallDisabledReason = (reason: string) => (
   /supported secure browser|camera access is not available/i.test(reason)
 );
 
+const dismissVisibleCallDialog = async (page: Page) => {
+  if (page.isClosed()) {
+    return;
+  }
+
+  const dialog = page.getByRole('dialog', { name: 'Call controls' });
+
+  if (!(await dialog.isVisible().catch(() => false))) {
+    return;
+  }
+
+  for (const buttonName of ['End call', 'Cancel call', 'Reject call']) {
+    const button = dialog.getByRole('button', { name: buttonName }).first();
+
+    if (await button.isVisible().catch(() => false)) {
+      await button.click().catch(() => undefined);
+      break;
+    }
+  }
+
+  await expect(dialog).toBeHidden({ timeout: 10000 }).catch(() => undefined);
+};
+
+const cleanupCallState = async (caller: Page, callee: Page) => {
+  await Promise.all([
+    dismissVisibleCallDialog(caller),
+    dismissVisibleCallDialog(callee),
+  ]);
+
+  await Promise.all([caller, callee].map(async (page) => {
+    if (!page.isClosed()) {
+      await page.reload({ waitUntil: 'networkidle' }).catch(() => undefined);
+    }
+  }));
+
+  await Promise.all([caller, callee].map(async (page) => {
+    if (!page.isClosed()) {
+      await expect(page.getByRole('dialog', { name: 'Call controls' })).toBeHidden({ timeout: 10000 }).catch(() => undefined);
+    }
+  }));
+};
+
 const exerciseCallMode = async ({
   callee,
   caller,
@@ -369,30 +472,40 @@ const exerciseCallMode = async ({
     throw new Error(`${buttonName} stayed disabled during two-account live acceptance: ${reason ?? 'no reason'}`);
   }
 
-  await callButton.click();
-  const callerDialog = caller.getByRole('dialog', { name: 'Call controls' });
-  const calleeDialog = callee.getByRole('dialog', { name: 'Call controls' });
+  let cleanupNeeded = false;
 
-  await expect(callerDialog.getByText(/Calling|Connecting/)).toBeVisible({ timeout: 15000 });
-  await expect(calleeDialog.getByText(new RegExp(`Incoming ${mode} call`, 'i'))).toBeVisible({ timeout: 20000 });
-  await calleeDialog.getByRole('button', { name: 'Accept call' }).click();
-  await expect(callerDialog.getByText(/Connected with/i)).toBeVisible({ timeout: 30000 });
-  await expect(calleeDialog.getByText(/Connected with/i)).toBeVisible({ timeout: 30000 });
+  try {
+    await callButton.click();
+    cleanupNeeded = true;
+    const callerDialog = caller.getByRole('dialog', { name: 'Call controls' });
+    const calleeDialog = callee.getByRole('dialog', { name: 'Call controls' });
 
-  if (mode === 'video') {
-    await expect(callerDialog.locator('video[aria-label="Local preview"]')).toBeVisible();
-    await expect(calleeDialog.locator('video[aria-label="Local preview"]')).toBeVisible();
+    await expect(callerDialog.getByText(/Calling|Connecting/)).toBeVisible({ timeout: 15000 });
+    await expect(calleeDialog.getByText(new RegExp(`Incoming ${mode} call`, 'i'))).toBeVisible({ timeout: 20000 });
+    await calleeDialog.getByRole('button', { name: 'Accept call' }).click();
+    await expect(callerDialog.getByText(/Connected with/i)).toBeVisible({ timeout: 30000 });
+    await expect(calleeDialog.getByText(/Connected with/i)).toBeVisible({ timeout: 30000 });
+
+    if (mode === 'video') {
+      await expect(callerDialog.locator('video[aria-label="Local preview"]')).toBeVisible();
+      await expect(calleeDialog.locator('video[aria-label="Local preview"]')).toBeVisible();
+    }
+
+    await callerDialog.getByRole('button', { name: 'End call' }).click();
+    await expect(callerDialog).toBeHidden({ timeout: 20000 });
+    await expect(calleeDialog).toBeHidden({ timeout: 20000 });
+    await caller.reload({ waitUntil: 'networkidle' });
+    await callee.reload({ waitUntil: 'networkidle' });
+    await expect(caller.getByRole('dialog', { name: 'Call controls' })).toBeHidden({ timeout: 10000 });
+    await expect(callee.getByRole('dialog', { name: 'Call controls' })).toBeHidden({ timeout: 10000 });
+    cleanupNeeded = false;
+
+    return `${buttonName} completed outgoing, incoming, accepted, connected, ended, and reload-cleanup states.`;
+  } finally {
+    if (cleanupNeeded) {
+      await cleanupCallState(caller, callee).catch(() => undefined);
+    }
   }
-
-  await callerDialog.getByRole('button', { name: 'End call' }).click();
-  await expect(callerDialog).toBeHidden({ timeout: 20000 });
-  await expect(calleeDialog).toBeHidden({ timeout: 20000 });
-  await caller.reload({ waitUntil: 'networkidle' });
-  await callee.reload({ waitUntil: 'networkidle' });
-  await expect(caller.getByRole('dialog', { name: 'Call controls' })).toBeHidden({ timeout: 10000 });
-  await expect(callee.getByRole('dialog', { name: 'Call controls' })).toBeHidden({ timeout: 10000 });
-
-  return `${buttonName} completed outgoing, incoming, accepted, connected, ended, and reload-cleanup states.`;
 };
 
 const exerciseBlockAndRestore = async (page: Page) => {
@@ -597,6 +710,40 @@ const captureVariantScreenshot = async ({
   return screenshotPath;
 };
 
+const exerciseLogoutAndSessionRecovery = async ({
+  account,
+  chatId,
+  config,
+  marker,
+  phasePage,
+}: {
+  account: ProductionSmokeAccount;
+  chatId: string | null;
+  config: EnabledPhase14Config;
+  marker: string;
+  phasePage: Phase14Page;
+}) => {
+  const { context, page } = phasePage;
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await gotoChatVariant(page, config, chatId, 'dark');
+  await expect(markerRows(page, marker)).toHaveCount(1, { timeout: 20000 });
+  await page.getByRole('button', { name: 'Logout' }).click();
+  await expect(page).toHaveURL(/\/login(?:[/?#].*)?$/, { timeout: 20000 });
+  await expect(page.getByText(marker)).toHaveCount(0, { timeout: 10000 });
+  await expect(page.getByTestId('chat-root')).toHaveCount(0, { timeout: 10000 });
+
+  await authenticateProductionSmokeContext({
+    account,
+    backendUrl: config.backendUrl,
+    context,
+  });
+  await gotoChatVariant(page, config, chatId, 'dark');
+  await expect(markerRows(page, marker)).toHaveCount(1, { timeout: 20000 });
+
+  return 'Logout removed private chat content; re-authenticated session recovered the live conversation marker.';
+};
+
 const writeReport = ({
   blockers,
   checks,
@@ -743,6 +890,16 @@ test.describe.serial('Phase 14 production live acceptance', () => {
           run: async () => {
             expect(sender).not.toBeNull();
             return exerciseMessageSearch(sender!.page, messageMarker);
+          },
+        });
+
+        await recordCheck({
+          blockers,
+          checks,
+          name: 'Pinned message server truth',
+          run: async () => {
+            expect(sender).not.toBeNull();
+            return verifyPinnedMessageServerTruth(sender!.page, messageMarker);
           },
         });
 
@@ -898,6 +1055,24 @@ test.describe.serial('Phase 14 production live acceptance', () => {
             }
 
             return `Captured ${variants.length} screenshots after live workflow behavior.`;
+          },
+        });
+      });
+
+      await test.step('exercise logout privacy and session recovery', async () => {
+        await recordCheck({
+          blockers,
+          checks,
+          name: 'Logout privacy and session recovery',
+          run: async () => {
+            expect(sender).not.toBeNull();
+            return exerciseLogoutAndSessionRecovery({
+              account: config.accounts.sender,
+              chatId: selectedChatId,
+              config,
+              marker: messageMarker,
+              phasePage: sender!,
+            });
           },
         });
       });

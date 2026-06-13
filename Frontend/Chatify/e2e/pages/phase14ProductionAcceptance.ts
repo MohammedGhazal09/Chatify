@@ -77,6 +77,7 @@ export interface Phase14LiveAcceptanceReportInput {
   checks?: Phase14CheckRow[];
   blockers?: string[];
   evidencePaths?: string[];
+  outputPath?: string;
   risks?: string[];
   generatedAt?: string;
   gitHead?: string;
@@ -275,6 +276,27 @@ export const sanitizePhase14ArtifactText = (value: string) => {
   return sanitized.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, (email) => redactEmail(email));
 };
 
+export const phase14UrlMatchesBackendOrigin = (urlValue: string, backendOrigin: string) => {
+  try {
+    const observed = new URL(urlValue);
+    const expected = new URL(backendOrigin);
+    const hostMatches = observed.hostname === expected.hostname && observed.port === expected.port;
+
+    if (!hostMatches) {
+      return false;
+    }
+
+    if (observed.protocol === expected.protocol) {
+      return true;
+    }
+
+    return (expected.protocol === 'https:' && observed.protocol === 'wss:') ||
+      (expected.protocol === 'http:' && observed.protocol === 'ws:');
+  } catch {
+    return false;
+  }
+};
+
 export const findPhase14StaticContentLeaks = (text: string, allowlist: readonly string[] = []) => (
   phase14StaticContentDenylist.filter((entry) => text.includes(entry) && !allowlist.some((allowed) => allowed.includes(entry)))
 );
@@ -287,6 +309,7 @@ export const writePhase14LiveAcceptanceReport = ({
   command,
   config,
   evidencePaths = [],
+  outputPath = phase14LiveAcceptancePath,
   generatedAt = new Date().toISOString(),
   gitHead = getLocalGitHead(),
   risks = [],
@@ -348,17 +371,18 @@ ${risks.length > 0 ? risks.map((risk) => `- ${risk}`).join('\n') : '- Full live 
 ${finalDecision}
 `;
 
-  fs.mkdirSync(path.dirname(phase14LiveAcceptancePath), { recursive: true });
-  fs.writeFileSync(phase14LiveAcceptancePath, `${sanitizePhase14ArtifactText(content.trim())}\n`, 'utf8');
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, `${sanitizePhase14ArtifactText(content.trim())}\n`, 'utf8');
 };
 
-export const writePhase14BlockedSetupReport = (command: string, generatedAt?: string) => {
+export const writePhase14BlockedSetupReport = (command: string, generatedAt?: string, outputPath?: string) => {
   const config = getPhase14ProductionAcceptanceConfig();
 
   writePhase14LiveAcceptanceReport({
     command,
     config,
     generatedAt,
+    outputPath,
     status: 'blocked',
     checks: [
       {

@@ -5,6 +5,7 @@ import {
   findPhase14StaticContentLeaks,
   getPhase14LiveAcceptancePath,
   getPhase14ProductionAcceptanceConfig,
+  phase14UrlMatchesBackendOrigin,
   writePhase14BlockedSetupReport,
 } from './pages/phase14ProductionAcceptance';
 
@@ -150,21 +151,50 @@ test.describe('Phase 14 production smoke config', () => {
     );
   });
 
-  test('creates a sanitized blocked setup artifact', async () => {
+  test('creates a sanitized blocked setup artifact without overwriting the live report', async ({ browserName }, testInfo) => {
+    void browserName;
+
     await withSmokeEnv(missingSmokeEnv, () => {
+      const canonicalPath = getPhase14LiveAcceptancePath();
+      const canonicalBefore = fs.existsSync(canonicalPath)
+        ? fs.readFileSync(canonicalPath, 'utf8')
+        : null;
+      const reportPath = testInfo.outputPath('phase14-blocked-setup.md');
+
       writePhase14BlockedSetupReport(
         'npm run test:e2e:prod -- --grep "production smoke config"',
-        '2026-06-13T00:00:00.000Z'
+        '2026-06-13T00:00:00.000Z',
+        reportPath
       );
 
-      const report = fs.readFileSync(getPhase14LiveAcceptancePath(), 'utf8');
+      const report = fs.readFileSync(reportPath, 'utf8');
+      const canonicalAfter = fs.existsSync(canonicalPath)
+        ? fs.readFileSync(canonicalPath, 'utf8')
+        : null;
 
-      expect(getPhase14LiveAcceptancePath()).toContain('14-LIVE-ACCEPTANCE.md');
+      expect(canonicalPath).toContain('14-LIVE-ACCEPTANCE.md');
+      expect(canonicalAfter).toBe(canonicalBefore);
+      expect(reportPath).toContain('phase14-blocked-setup.md');
       expect(report).toContain('Frontend origin | [missing]');
       expect(report).toContain('Missing env | CHATIFY_PRODUCTION_SMOKE');
       expect(report).not.toContain('example-secret');
       expect(report).not.toContain('sender@example.test');
     });
+  });
+
+  test('matches WebSocket transport URLs to the configured backend origin', () => {
+    expect(phase14UrlMatchesBackendOrigin(
+      'wss://chatify-ckmn.onrender.com/socket.io/?EIO=4&transport=websocket',
+      'https://chatify-ckmn.onrender.com'
+    )).toBe(true);
+    expect(phase14UrlMatchesBackendOrigin(
+      'ws://127.0.0.1:5000/socket.io/?EIO=4&transport=websocket',
+      'http://127.0.0.1:5000'
+    )).toBe(true);
+    expect(phase14UrlMatchesBackendOrigin(
+      'wss://other.example.com/socket.io/?EIO=4&transport=websocket',
+      'https://chatify-ckmn.onrender.com'
+    )).toBe(false);
   });
 
   test('finds static content leaks while allowing current-run markers', () => {
