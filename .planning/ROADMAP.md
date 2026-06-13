@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and now remediate production-live gaps that proved fixture-backed tests were not enough.
+Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and now remediate production-live gaps that proved fixture-backed tests were not enough, including duplicate sends and missing realtime delivery.
 
 ## Phases
 
@@ -23,6 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Media Files And Conversation Detail Implementation** - Implement real attachments, previews, downloads, shared media/files, pinned items, and conversation detail/security panels. (completed 2026-06-12)
 - [x] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence. (completed 2026-06-12)
 - [ ] **Phase 10: Production Messenger Reality Audit And Fixture Removal** - Reproduce the live product failures, remove fixture/static production fallbacks, and make panel/navigation behavior honestly testable.
+- [ ] **Phase 10.1: Production Message Delivery Reliability Repair (INSERTED)** - Fix duplicate sends, false delivered status, and missing realtime receive before new feature work continues.
 - [ ] **Phase 11: Conversation Controls And User Safety Implementation** - Make search, More, blocking, conversation actions, and static detail surfaces real backend-backed behavior.
 - [ ] **Phase 12: Live Media Voice And Identity Implementation** - Make user identity images/marks, attachments, shared media/files, and voice messages real persisted workflows.
 - [ ] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons.
@@ -317,11 +318,44 @@ Plans:
 
 - [ ] TBD (run `$gsd-spec-phase 10`, `$gsd-discuss-phase 10`, then `$gsd-plan-phase 10`)
 
+### Phase 10.1: Production Message Delivery Reliability Repair (INSERTED)
+
+**Goal**: Users can send one message and have exactly one message persist and render for both participants in realtime, with delivery indicators that reflect server truth instead of optimistic or stale assumptions.
+**Mode:** mvp
+**Depends on**: Phase 10
+**Requirements**: DELIV-01, DELIV-02, DELIV-03, DELIV-04, DELIV-05, MSG-01, MSG-02, RT-04, TEST-02, TEST-05
+**Success Criteria** (what must be TRUE):
+
+  1. A single send action creates exactly one persisted message and one rendered sender bubble across click, Enter, retry, websocket echo, mutation response, and refetch paths.
+  2. Frontend merge logic and backend idempotency use `clientMessageId` and durable message ids so optimistic, HTTP, socket, retry, and pagination updates cannot duplicate the same message.
+  3. The recipient receives the new message through Socket.IO without refreshing the page, and the sender/recipient conversation lists update from the same canonical event stream.
+  4. Delivered/read indicators are server-truth based and never show delivered merely because the sender request succeeded or an optimistic bubble rendered.
+  5. Two-account local and deployed smoke tests prove no duplicate send, instant realtime receive, correct delivery status, reconnect reconciliation, and refresh parity.
+
+**Plans**: 3 plans
+Plans:
+
+**Wave 1**
+
+- [ ] 10.1-01: Harden backend message identity, idempotency, receipt truth, and redacted diagnostics
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 10.1-02: Make frontend send, cache, retry, reconnect, and socket receive converge on one canonical message
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 10.1-03: Prove delivery reliability with local and production two-account smoke evidence
+
+**Cross-cutting constraints:**
+
+- Execution must be inline in the current Codex thread; do not use subagents.
+
 ### Phase 11: Conversation Controls And User Safety Implementation
 
 **Goal**: Users can operate the conversation header and detail controls for real: message search, More actions, blocking/unblocking, pinned state, and detail content all reflect server-backed conversation state and authorization.
 **Mode:** mvp
-**Depends on**: Phase 10
+**Depends on**: Phase 10.1
 **Requirements**: CTRL-01, CTRL-02, CTRL-03, BLOCK-01, BLOCK-02, BASE-02, MEDIA-03, TEST-05
 **Success Criteria** (what must be TRUE):
 
@@ -400,7 +434,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13 -> 14
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -414,6 +448,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 8. Media Files And Conversation Detail Implementation | 3/3 | Complete | 2026-06-12 |
 | 9. Messenger Interaction Quality Gate | 3/3 | Complete | 2026-06-12 |
 | 10. Production Messenger Reality Audit And Fixture Removal | 0/0 | Not planned | - |
+| 10.1. Production Message Delivery Reliability Repair | 0/3 | Planned | - |
 | 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
 | 12. Live Media Voice And Identity Implementation | 0/0 | Not planned | - |
 | 13. Realtime Call And Video Implementation | 0/0 | Not planned | - |

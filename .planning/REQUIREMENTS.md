@@ -32,6 +32,11 @@
 - [x] **MSG-05**: Unread counts are derived or synchronized per user and do not drift from read receipt state.
 - [ ] **MSG-06**: Message history loads with scalable pagination that avoids deep offset behavior for large chats.
 - [ ] **MSG-07**: Message validation boundaries are consistent between controller checks, model constraints, and frontend form rules.
+- [ ] **DELIV-01**: One user send action creates exactly one persisted message and one rendered sender bubble.
+- [ ] **DELIV-02**: Optimistic updates, HTTP mutation responses, socket echoes, retries, and refetches merge by `clientMessageId` and durable message id without duplicates.
+- [ ] **DELIV-03**: Recipient browsers receive new messages through Socket.IO without requiring page refresh.
+- [ ] **DELIV-04**: Delivered/read indicators reflect server-confirmed recipient delivery/read state, not only sender-side success.
+- [ ] **DELIV-05**: Two-account local and deployed smoke tests prove no duplicate sends, instant realtime receive, reconnect reconciliation, and refresh parity.
 
 ### Chat User Experience
 
@@ -137,6 +142,11 @@
 | MSG-05 | Phase 3 | Complete |
 | MSG-06 | Phase 3 | Pending |
 | MSG-07 | Phase 3 | Pending |
+| DELIV-01 | Phase 10.1 | Pending |
+| DELIV-02 | Phase 10.1 | Pending |
+| DELIV-03 | Phase 10.1 | Pending |
+| DELIV-04 | Phase 10.1 | Pending |
+| DELIV-05 | Phase 10.1 | Pending |
 | UI-01 | Phase 6 | Complete |
 | UI-02 | Phase 6 | Complete |
 | UI-03 | Phase 6 | Complete |
@@ -177,10 +187,10 @@
 
 **Coverage:**
 
-- v1 requirements: 59 total
-- Mapped to phases: 59
+- v1 requirements: 64 total
+- Mapped to phases: 64
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-13 after Phase 10-14 production remediation additions*
+*Last updated: 2026-06-13 after Phase 10.1 production delivery reliability insertion*
