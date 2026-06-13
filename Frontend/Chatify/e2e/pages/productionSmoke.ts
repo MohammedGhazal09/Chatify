@@ -64,7 +64,7 @@ export type ProductionSmokeConfig =
 
 const readEnv = (name: RequiredEnvVar) => process.env[name]?.trim() ?? '';
 
-const redactEmail = (email: string) => {
+export const redactEmail = (email: string) => {
   const [name = '', domain = ''] = email.split('@');
   const visiblePrefix = name.slice(0, 1) || '*';
   const [, ...domainTail] = domain.split('.');

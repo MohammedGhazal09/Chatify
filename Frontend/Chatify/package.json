@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:ui": "playwright test",
+    "test:e2e:prod": "playwright test --config playwright.production.config.ts",
     "preview": "vite preview"
   },
   "dependencies": {
