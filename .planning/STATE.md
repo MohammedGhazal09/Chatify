@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 10.1 plan 10.1-02 complete; ready for two-account reliability proof plan 10.1-03
-last_updated: "2026-06-13T00:50:11.400Z"
+stopped_at: Phase 10.1 plan 10.1-03 local evidence complete; production delivery smoke blocked pending live credentials and deploy identifiers
+last_updated: "2026-06-13T01:18:00.000Z"
 last_activity: 2026-06-13 -- Planned urgent Phase 10.1 for duplicate sends, false delivered state, and missing realtime receive.
 progress:
   total_phases: 15
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 10.1 message delivery reliability repair; backend delivery contract and frontend convergence are complete, and two-account smoke evidence is next.
+**Current focus:** Phase 10.1 message delivery reliability repair; backend delivery contract, frontend convergence, and local two-account smoke are complete, while production delivery smoke is blocked pending credentials.
 
 ## Current Position
 
 Phase: 10.1 (production-message-delivery-reliability-repair) - IN PROGRESS
-Plan: 10.1-03 pending
+Plan: 10.1-03 blocked on production smoke credentials
 Status: in_progress
-Last activity: 2026-06-13 -- Completed frontend send/cache/socket convergence; two-account smoke evidence is next.
+Last activity: 2026-06-13 -- Completed local no-mock delivery smoke; production delivery smoke is blocked until live credentials and deploy identifiers are available.
 
 Progress: 55%
 
@@ -116,13 +116,14 @@ Recent decisions affecting current work:
 
 - Address the earlier pending Phase 01 security foundation before claiming full v1 milestone readiness.
 - Plan and execute Phase 10 before continuing feature claims; it must reproduce the production failures and remove fixture/static fallbacks.
-- Plan and execute Phase 10.1 immediately after Phase 10; no later messenger feature phase should proceed while duplicate send or no-refresh receive is unresolved.
+- Provide production smoke credentials and run Phase 10.1 production delivery reliability before claiming deployed delivery reliability complete.
 
 ### Blockers/Concerns
 
 - Open concern: Phase 06 screenshot parity is not enough acceptance evidence for a working messenger UI.
 - Phase 09 local evidence did not catch the deployed static/dead-control failures; production-live acceptance is now deferred to Phase 14.
 - Critical blocker: message delivery is unreliable in production until Phase 10.1 proves single-send idempotency, recipient realtime receive, and honest delivered/read state with real two-account evidence.
+- Phase 10.1 local delivery reliability is proven, but production delivery reliability is still blocked pending live smoke credentials and deploy identifiers.
 - Remaining concern: Phase 01 security/test foundation requirements are still pending in the roadmap.
 - Repository hygiene note: unrelated local screenshot/config changes existed before these phase additions and should not be mixed into future focused commits unless intentionally refreshed.
 

@@ -5,6 +5,10 @@ const phaseAuditPath = path.resolve(
   process.cwd(),
   '../../.planning/phases/10-production-messenger-reality-audit-and-fixture-removal/10-PRODUCTION-AUDIT.md'
 );
+const phase101DeliveryReliabilityPath = path.resolve(
+  process.cwd(),
+  '../../.planning/phases/10.1-production-message-delivery-reliability-repair/10.1-DELIVERY-RELIABILITY.md'
+);
 
 const requiredEnvVars = [
   'CHATIFY_PRODUCTION_SMOKE',
@@ -160,10 +164,17 @@ export const requireProductionSmokeConfig = () => {
 };
 
 export const getProductionSmokeAuditPath = () => phaseAuditPath;
+export const getProductionDeliveryReliabilityPath = () => phase101DeliveryReliabilityPath;
 
 export const makeSmokeMessageText = () => `phase10 production smoke ${new Date().toISOString()}`;
+export const makeDeliverySmokeMessageText = () => `phase10.1 delivery smoke ${new Date().toISOString()}`;
 
 export const appendProductionSmokeAudit = (section: string) => {
   fs.mkdirSync(path.dirname(phaseAuditPath), { recursive: true });
   fs.appendFileSync(phaseAuditPath, `\n\n${section.trim()}\n`, 'utf8');
+};
+
+export const appendProductionDeliveryReliabilityAudit = (section: string) => {
+  fs.mkdirSync(path.dirname(phase101DeliveryReliabilityPath), { recursive: true });
+  fs.appendFileSync(phase101DeliveryReliabilityPath, `\n\n${section.trim()}\n`, 'utf8');
 };
