@@ -503,11 +503,27 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Users can trust Chatify audio and video calls to connect, fail honestly, clean up safely, and report local/production readiness with evidence instead of assumptions.
+**Requirements**: CALL-01, CALL-02, CALL-03, CALL-04, BLOCK-02, RT-01, RT-02, RT-04, RT-05, SEC-02, PROD-01, PROD-03, PROD-04, TEST-02, TEST-03, TEST-05, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, PARITY-02, PARITY-03
 **Depends on:** Phase 14
-**Plans:** 0 plans
-
+**Plans:** 4 plans
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 15 to break down)
+- [ ] 15-01: Investigation, failure report, and test harness
+- [ ] 15-02: Backend signaling, session authority, TURN, and privacy hardening
+- [ ] 15-03: Frontend WebRTC controller and call UI repair
+- [ ] 15-04: Acceptance, regression, evidence, and production decision
+
+**Cross-cutting constraints:**
+
+- D-02: Create 15-FAILURE-REPORT.md before claiming fixes.
+- D-06: Local two-account fake-media Playwright acceptance is mandatory and blocking.
+- D-11: Reuse the Phase 14 production smoke environment contract.
+- D-51: Create 15-FAILURE-REPORT.md for reproduction and layer classification.
+- D-57: Do not use subagents for this phase work.
+- D-17: Production readiness requires working TURN or an honest blocker.
+- D-19: Verify CALL_TURN_URLS, CALL_TURN_USERNAME, and CALL_TURN_CREDENTIAL.
+- D-22: Preserve server-authoritative call sequencing.
+- D-25: Keep the 15 second socket disconnect grace unless reproduction proves change is required.
+- D-26: Do not implement ICE renegotiation unless the failure report proves it is required.
+- D-28: Video camera failure must not silently become an audio call.
