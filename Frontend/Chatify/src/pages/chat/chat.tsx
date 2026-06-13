@@ -54,6 +54,7 @@ import {
   useSelectedChatPersistence,
 } from './hooks/useSelectedChatPersistence';
 import { getChatTitle, getOtherMember } from './utils/chatDisplay';
+import { buildSendDraftKey } from './sendDraftGuard';
 import './chat.css';
 
 const useDebounce = (callback: () => void, delay: number) => {
@@ -139,6 +140,7 @@ const ChatPage = () => {
   const detailButtonRef = useRef<HTMLButtonElement>(null);
   const messageActionTriggerRef = useRef<HTMLButtonElement | null>(null);
   const messageHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inFlightDraftKeysRef = useRef(new Set<string>());
   const shouldAutoScrollRef = useRef(true);
   const previousLastMessageKeyRef = useRef<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -290,16 +292,9 @@ const ChatPage = () => {
     socketError,
     emitTypingStart,
     emitTypingStop,
-    emitMessageDelivered,
   } = useChatSocket({
     chatId: selectedChatId,
     enabled: !!selectedChatId && isAuthenticated,
-    onMessage: (message) => {
-      upsertMessage(message);
-      if (message.sender !== user?._id) {
-        emitMessageDelivered(message._id);
-      }
-    },
     onMessageStatusUpdate: handleMessageStatusUpdate,
     onBatchRead: handleBatchRead,
     onMessageDeleted: handleMessageDeleted,
@@ -639,6 +634,13 @@ const ChatPage = () => {
       return;
     }
 
+    const draftKey = buildSendDraftKey(selectedChatId, normalizedMessageInput, attachmentDrafts);
+    if (inFlightDraftKeysRef.current.has(draftKey)) {
+      return;
+    }
+
+    inFlightDraftKeysRef.current.add(draftKey);
+
     cancelTypingStop();
     if (isTyping) {
       setIsTyping(false);
@@ -660,6 +662,9 @@ const ChatPage = () => {
         onSuccess: () => {
           setMessageInput('');
           setComposerResetToken((currentToken) => currentToken + 1);
+        },
+        onSettled: () => {
+          inFlightDraftKeysRef.current.delete(draftKey);
         },
       }
     );

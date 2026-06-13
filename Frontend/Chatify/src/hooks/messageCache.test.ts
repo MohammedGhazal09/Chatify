@@ -155,6 +155,89 @@ describe('message cache helpers', () => {
     expect(cache?.messages[0]._id).toBe('server-race');
   });
 
+  it('collapses optimistic, HTTP success, socket echo, and refetch into one canonical row', () => {
+    const optimistic = createOptimisticMessage({
+      chatId: 'chat-1',
+      senderId: 'user-1',
+      text: 'One message',
+      clientMessageId: 'client-chain',
+      createdAt: '2026-06-08T10:00:00.000Z',
+    });
+    const httpSuccess = makeMessage({
+      _id: 'server-chain',
+      clientMessageId: 'client-chain',
+      text: 'One message',
+      status: 'sent',
+      createdAt: '2026-06-08T10:00:01.000Z',
+      updatedAt: '2026-06-08T10:00:01.000Z',
+    });
+    const socketEcho = makeMessage({
+      _id: 'server-chain',
+      clientMessageId: 'client-chain',
+      text: 'One message',
+      status: 'delivered',
+      deliveredAt: '2026-06-08T10:00:02.000Z',
+      createdAt: '2026-06-08T10:00:01.000Z',
+      updatedAt: '2026-06-08T10:00:02.000Z',
+    });
+    const refetched = makeMessage({
+      _id: 'server-chain',
+      clientMessageId: 'client-chain',
+      text: 'One message',
+      status: 'sent',
+      deliveredAt: null,
+      createdAt: '2026-06-08T10:00:01.000Z',
+      updatedAt: '2026-06-08T10:00:01.000Z',
+    });
+
+    const cache = [optimistic, httpSuccess, socketEcho, socketEcho].reduce<MessagesCacheData | undefined>(
+      (nextCache, message) => upsertMessageInCache(nextCache, message),
+      undefined
+    );
+    const reconciled = reconcileFetchedMessagesInCache(cache, [refetched]);
+
+    expect(reconciled.messages).toHaveLength(1);
+    expect(reconciled.messages[0]).toMatchObject({
+      _id: 'server-chain',
+      clientMessageId: 'client-chain',
+      optimisticState: undefined,
+      status: 'delivered',
+      deliveredAt: '2026-06-08T10:00:02.000Z',
+    });
+  });
+
+  it('dedupes server-id aliases even when a later payload omits clientMessageId', () => {
+    const canonical = makeMessage({
+      _id: 'server-alias',
+      clientMessageId: 'client-alias',
+      text: 'Canonical',
+      status: 'delivered',
+      deliveredAt: '2026-06-08T10:00:02.000Z',
+      updatedAt: '2026-06-08T10:00:02.000Z',
+    });
+    const refetchedWithoutClientId = makeMessage({
+      _id: 'server-alias',
+      clientMessageId: null,
+      text: 'Canonical',
+      status: 'sent',
+      deliveredAt: null,
+      updatedAt: '2026-06-08T10:00:01.000Z',
+    });
+
+    const cache = reconcileFetchedMessagesInCache(
+      { messages: [canonical] },
+      [refetchedWithoutClientId]
+    );
+
+    expect(cache.messages).toHaveLength(1);
+    expect(cache.messages[0]).toMatchObject({
+      _id: 'server-alias',
+      clientMessageId: 'client-alias',
+      status: 'delivered',
+      deliveredAt: '2026-06-08T10:00:02.000Z',
+    });
+  });
+
   it('dedupes duplicate refetch/prepend payloads by _id', () => {
     const existing = makeMessage({ _id: 'message-1' });
     const older = makeMessage({

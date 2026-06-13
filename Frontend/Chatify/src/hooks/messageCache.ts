@@ -56,6 +56,20 @@ const messageIdentityKey = (message: Message) => {
   return message.clientMessageId ? `client:${message.clientMessageId}` : `id:${message._id}`;
 };
 
+const messageIdentityKeys = (message: Message) => {
+  const keys: string[] = [];
+
+  if (message.clientMessageId) {
+    keys.push(`client:${message.clientMessageId}`);
+  }
+
+  if (message._id) {
+    keys.push(`id:${message._id}`);
+  }
+
+  return keys.length > 0 ? keys : [messageIdentityKey(message)];
+};
+
 const mergeUniqueStrings = (left: string[] = [], right: string[] = []) => {
   return Array.from(new Set([...left, ...right].filter((value): value is string => Boolean(value))));
 };
@@ -187,7 +201,23 @@ export const reconcileFetchedMessagesInCache = (
 ): MessagesCacheData => {
   const existingMessages = cache?.messages ?? [];
   const fetchedBoundary = fetchedMessages[0] ?? null;
-  const existingByIdentity = new Map(existingMessages.map((message) => [messageIdentityKey(message), message]));
+  const existingByIdentity = new Map<string, Message>();
+  existingMessages.forEach((message) => {
+    messageIdentityKeys(message).forEach((key) => {
+      existingByIdentity.set(key, message);
+    });
+  });
+
+  const findExistingMessage = (incoming: Message) => {
+    for (const key of messageIdentityKeys(incoming)) {
+      const existing = existingByIdentity.get(key);
+      if (existing) {
+        return existing;
+      }
+    }
+
+    return undefined;
+  };
 
   const retainedOlderMessages = fetchedBoundary
     ? existingMessages.filter((message) => !message.optimisticState && compareMessageTimeline(message, fetchedBoundary) < 0)
@@ -198,13 +228,11 @@ export const reconcileFetchedMessagesInCache = (
       return false;
     }
 
-    return !fetchedMessages.some((incoming) => {
-      return messageIdentityKey(message) === messageIdentityKey(incoming);
-    });
+    return !fetchedMessages.some((incoming) => messagesMatch(message, incoming));
   });
 
   const mergedFetchedMessages = fetchedMessages.map((incoming) => (
-    mergeCanonicalMessage(existingByIdentity.get(messageIdentityKey(incoming)), incoming)
+    mergeCanonicalMessage(findExistingMessage(incoming), incoming)
   ));
 
   return {
@@ -295,7 +323,10 @@ export const sortMessages = (messages: Message[]) => {
 };
 
 const messagesMatch = (left: Message, right: Message) => {
-  return messageIdentityKey(left) === messageIdentityKey(right);
+  return Boolean(
+    (left.clientMessageId && right.clientMessageId && left.clientMessageId === right.clientMessageId) ||
+      (left._id && right._id && left._id === right._id)
+  );
 };
 
 export const upsertMessage = (messages: Message[], incoming: Message) => {

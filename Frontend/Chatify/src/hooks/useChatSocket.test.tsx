@@ -261,6 +261,75 @@ describe('useChatSocket', () => {
     expect(queryClient.getQueryData<Map<string, number>>(['unreadCounts', 'chat-1'])?.get('chat-1')).toBe(0);
   });
 
+  it('acknowledges incoming delivery only after the message is cached', async () => {
+    queryClient.setQueryData<MessagesCacheData>(messagesQueryKey('chat-1'), { messages: [] });
+    const setQueryDataSpy = vi.spyOn(queryClient, 'setQueryData');
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+    const incoming = makeMessage({
+      _id: 'message-delivery-ack',
+      chatId: 'chat-1',
+      sender: 'user-2',
+      text: 'Realtime delivery',
+    });
+
+    act(() => {
+      socket.trigger('message:new', incoming);
+    });
+
+    const messagesCache = queryClient.getQueryData<MessagesCacheData>(messagesQueryKey('chat-1'));
+    expect(messagesCache?.messages).toEqual([expect.objectContaining({ _id: 'message-delivery-ack' })]);
+    expect(socket.emit).toHaveBeenCalledWith('message:delivered', {
+      messageId: 'message-delivery-ack',
+      chatId: 'chat-1',
+    });
+
+    const messageCacheCallIndex = setQueryDataSpy.mock.calls.findIndex(([queryKey]) => (
+      Array.isArray(queryKey) && queryKey[0] === 'messages' && queryKey[1] === 'chat-1'
+    ));
+    const deliveryEmitCallIndex = socket.emit.mock.calls.findIndex(([eventName]) => eventName === 'message:delivered');
+
+    expect(messageCacheCallIndex).toBeGreaterThanOrEqual(0);
+    expect(deliveryEmitCallIndex).toBeGreaterThanOrEqual(0);
+    expect(setQueryDataSpy.mock.invocationCallOrder[messageCacheCallIndex]).toBeLessThan(
+      socket.emit.mock.invocationCallOrder[deliveryEmitCallIndex]
+    );
+  });
+
+  it('does not acknowledge delivery for the sender socket echo', async () => {
+    renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+
+    act(() => {
+      socket.trigger('message:new', makeMessage({
+        _id: 'message-self-echo',
+        chatId: 'chat-1',
+        sender: 'user-1',
+        text: 'Own echo',
+      }));
+    });
+
+    expect(socket.emit).not.toHaveBeenCalledWith('message:delivered', expect.anything());
+    expect(queryClient.getQueryData<MessagesCacheData>(messagesQueryKey('chat-1'))?.messages).toEqual([
+      expect.objectContaining({ _id: 'message-self-echo' }),
+    ]);
+  });
+
   it('reconciles attachment messages and pin events while invalidating detail queries', async () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
     queryClient.setQueryData<MessagesCacheData>(messagesQueryKey('chat-1'), {

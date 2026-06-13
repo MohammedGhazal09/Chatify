@@ -335,6 +335,10 @@ export const useChatSocket = ({
         queryClientRef.current.invalidateQueries({ queryKey: ['sharedAssets', message.chatId] });
       }
 
+      if (socket && message.sender !== user?._id) {
+        socket.emit('message:delivered', { messageId: message._id, chatId: message.chatId });
+      }
+
       if (chatId && message.chatId !== chatId) {
         return;
       }
@@ -346,7 +350,7 @@ export const useChatSocket = ({
 
       onMessage?.(message);
     },
-    [chatId, onMessage, updateChatsLatestMessage, user?._id]
+    [chatId, onMessage, socket, updateChatsLatestMessage, user?._id]
   );
 
   // Handle message status updates
