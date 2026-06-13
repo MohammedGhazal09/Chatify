@@ -14,11 +14,13 @@ import {
 import {
   CALL_ACTIVITY_RESULT,
   CALL_STATUS,
+  CallSessionError,
   acceptCallSession,
   assertCallCanSignal,
   createCallActivityForSession,
   endActiveCallForChat,
   endCallSession,
+  findActiveCallForUser,
   findActiveCallForUserInChat,
   getCallPeerForParticipant,
   getCallPeerId,
@@ -51,7 +53,12 @@ const userToSockets = new Map()
 // Single-process presence state. Use a Redis adapter/shared state before horizontal Socket.IO scaling.
 const offlineTimers = new Map()
 const callTimeoutTimers = new Map()
+const callDisconnectTimers = new Map()
 const OFFLINE_DEBOUNCE_MS = 4000
+const DEFAULT_CALL_DISCONNECT_GRACE_MS = 15_000
+const MAX_SIGNAL_SDP_LENGTH = 128_000
+const MAX_ICE_CANDIDATE_LENGTH = 8_000
+const MAX_ICE_TOKEN_LENGTH = 256
 
 // Debug logging helper - only logs in development
 const debugLog = (...args) => {
@@ -186,6 +193,24 @@ const clearCallTimeout = (callId) => {
   }
 }
 
+const getCallDisconnectGraceMs = () => {
+  const parsed = Number.parseInt(process.env.CHATIFY_CALL_DISCONNECT_GRACE_MS ?? '', 10)
+
+  return Number.isFinite(parsed) && parsed >= 0
+    ? parsed
+    : DEFAULT_CALL_DISCONNECT_GRACE_MS
+}
+
+const clearCallDisconnectTimer = (userId) => {
+  const normalizedUserId = userId.toString()
+  const timeout = callDisconnectTimers.get(normalizedUserId)
+
+  if (timeout) {
+    clearTimeout(timeout)
+    callDisconnectTimers.delete(normalizedUserId)
+  }
+}
+
 const emitCallActivity = async (session) => {
   const activity = await createCallActivityForSession(session)
 
@@ -226,6 +251,125 @@ const scheduleCallTimeout = (session) => {
   callTimeoutTimers.set(session.callId, timeout)
 }
 
+const scheduleCallDisconnectCleanup = (userId) => {
+  const normalizedUserId = userId.toString()
+  clearCallDisconnectTimer(normalizedUserId)
+
+  const timeout = setTimeout(async () => {
+    callDisconnectTimers.delete(normalizedUserId)
+
+    if (getUserSockets(normalizedUserId).size > 0) {
+      return
+    }
+
+    try {
+      const activeSession = await findActiveCallForUser(normalizedUserId)
+
+      if (!activeSession) {
+        return
+      }
+
+      const failedSession = await endCallSession({
+        callId: activeSession.callId,
+        chatId: activeSession.chatId,
+        actorId: normalizedUserId,
+        reason: CALL_ACTIVITY_RESULT.FAILED,
+      })
+
+      clearCallTimeout(failedSession.callId)
+      emitCallSyncToParticipants(failedSession)
+      await emitCallActivity(failedSession)
+    } catch (error) {
+      debugLog('Call disconnect cleanup failed', {
+        userId: normalizedUserId,
+        code: error?.code,
+      })
+    }
+  }, getCallDisconnectGraceMs())
+
+  callDisconnectTimers.set(normalizedUserId, timeout)
+}
+
+const isPlainObject = (value) => (
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+)
+
+const assertBoundedString = ({ value, maxLength, allowEmpty = false }) => {
+  if (typeof value !== 'string' || (!allowEmpty && value.length === 0) || value.length > maxLength) {
+    throw new CallSessionError('invalid_call_signal', 'Invalid call signal', 400)
+  }
+
+  return value
+}
+
+const validateSessionDescriptionSignal = ({ event, signal }) => {
+  if (!isPlainObject(signal)) {
+    throw new CallSessionError('invalid_call_signal', 'Invalid call signal', 400)
+  }
+
+  const expectedType = event === CALL_SOCKET_EVENTS.OFFER ? 'offer' : 'answer'
+
+  if (signal.type !== expectedType) {
+    throw new CallSessionError('invalid_call_signal', 'Invalid call signal', 400)
+  }
+
+  return {
+    type: expectedType,
+    sdp: assertBoundedString({ value: signal.sdp, maxLength: MAX_SIGNAL_SDP_LENGTH }),
+  }
+}
+
+const validateIceCandidateSignal = (signal) => {
+  if (!isPlainObject(signal)) {
+    throw new CallSessionError('invalid_call_signal', 'Invalid call signal', 400)
+  }
+
+  const candidate = assertBoundedString({
+    value: signal.candidate,
+    maxLength: MAX_ICE_CANDIDATE_LENGTH,
+    allowEmpty: true,
+  })
+  const normalizedSignal = { candidate }
+
+  if (signal.sdpMid !== undefined && signal.sdpMid !== null) {
+    normalizedSignal.sdpMid = assertBoundedString({
+      value: signal.sdpMid,
+      maxLength: MAX_ICE_TOKEN_LENGTH,
+      allowEmpty: true,
+    })
+  }
+
+  if (signal.sdpMLineIndex !== undefined && signal.sdpMLineIndex !== null) {
+    if (!Number.isInteger(signal.sdpMLineIndex) || signal.sdpMLineIndex < 0 || signal.sdpMLineIndex > 1024) {
+      throw new CallSessionError('invalid_call_signal', 'Invalid call signal', 400)
+    }
+
+    normalizedSignal.sdpMLineIndex = signal.sdpMLineIndex
+  }
+
+  if (signal.usernameFragment !== undefined && signal.usernameFragment !== null) {
+    normalizedSignal.usernameFragment = assertBoundedString({
+      value: signal.usernameFragment,
+      maxLength: MAX_ICE_TOKEN_LENGTH,
+      allowEmpty: true,
+    })
+  }
+
+  return normalizedSignal
+}
+
+const validateCallSignal = ({ event, signal }) => {
+  if (event === CALL_SOCKET_EVENTS.OFFER || event === CALL_SOCKET_EVENTS.ANSWER) {
+    return validateSessionDescriptionSignal({ event, signal })
+  }
+
+  if (event === CALL_SOCKET_EVENTS.ICE_CANDIDATE) {
+    return validateIceCandidateSignal(signal)
+  }
+
+  throw new CallSessionError('invalid_call_signal', 'Invalid call signal', 400)
+}
+
 const loadAuthorizedCall = async ({ callId, chatId, actorId }) => {
   const session = await loadCallSessionForAction({ callId, chatId, actorId })
   const chat = await assertChatMember({ chatId: session.chatId, userId: actorId })
@@ -240,7 +384,9 @@ const forwardCallSignalToPeer = async ({ socket, event, payload = {}, ack }) => 
   if (!guardSocketEventRateLimit(socket, event, ack)) return
 
   try {
-    const { callId, chatId } = payload
+    const safePayload = isPlainObject(payload) ? payload : {}
+    const { callId, chatId } = safePayload
+    const signal = validateCallSignal({ event, signal: safePayload.signal })
     const { session } = await loadAuthorizedCall({
       callId,
       chatId,
@@ -251,7 +397,7 @@ const forwardCallSignalToPeer = async ({ socket, event, payload = {}, ack }) => 
       callId: session.callId,
       chatId: session.chatId.toString(),
       fromUserId: socket.data.userId,
-      signal: payload.signal ?? null,
+      signal,
     }
 
     emitToUserSockets(peerId, event, forwardedPayload)
@@ -454,6 +600,7 @@ export const initSocket = (server) => {
     const userHadSockets = getUserSockets(userId).size > 0
     const reconnectingDuringDebounce = offlineTimers.has(userId)
     clearOfflineTimer(userId)
+    clearCallDisconnectTimer(userId)
 
     socketToUser.set(socket.id, userId)
 
@@ -856,6 +1003,7 @@ export const initSocket = (server) => {
           if (userSockets.size === 0) {
             userToSockets.delete(userId)
             scheduleOfflineTransition(userId)
+            scheduleCallDisconnectCleanup(userId)
           }
         }
         
@@ -1011,6 +1159,8 @@ export const closeSocketServer = async () => {
     offlineTimers.clear()
     callTimeoutTimers.forEach(timer => clearTimeout(timer))
     callTimeoutTimers.clear()
+    callDisconnectTimers.forEach(timer => clearTimeout(timer))
+    callDisconnectTimers.clear()
     socketToUser.clear()
     userToSockets.clear()
     socketEventWindows.clear()
@@ -1023,6 +1173,8 @@ export const closeSocketServer = async () => {
   offlineTimers.clear()
   callTimeoutTimers.forEach(timer => clearTimeout(timer))
   callTimeoutTimers.clear()
+  callDisconnectTimers.forEach(timer => clearTimeout(timer))
+  callDisconnectTimers.clear()
   socketToUser.clear()
   userToSockets.clear()
   socketEventWindows.clear()

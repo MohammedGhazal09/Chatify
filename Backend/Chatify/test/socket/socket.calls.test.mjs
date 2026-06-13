@@ -222,6 +222,62 @@ describe('Socket.IO call lifecycle', () => {
     expect(secondTabSync).toMatchObject({ callId: ack.callId, status: 'connected' });
   });
 
+  it('fails an accepted call after the disconnected participant grace period', async () => {
+    const previousGraceMs = process.env.CHATIFY_CALL_DISCONNECT_GRACE_MS;
+    process.env.CHATIFY_CALL_DISCONNECT_GRACE_MS = '25';
+
+    try {
+      const { caller, callee, chatId } = await setupCallScenario();
+      const { ack } = await startCall({ caller, callee, chatId });
+      const connectedSyncPromise = waitForSocketEvent(caller.socket, 'call:sync');
+
+      await emitWithAck(callee.socket, 'call:accept', {
+        chatId,
+        callId: ack.callId,
+      });
+      await expect(connectedSyncPromise).resolves.toMatchObject({
+        callId: ack.callId,
+        status: 'connected',
+      });
+
+      const failedSyncPromise = waitForSocketEvent(caller.socket, 'call:sync');
+      callee.socket.disconnect();
+      const failedSync = await failedSyncPromise;
+
+      expect(failedSync).toMatchObject({
+        callId: ack.callId,
+        status: 'failed',
+        endedReason: 'failed',
+      });
+
+      const storedSession = await CallSession.findOne({ callId: ack.callId }).lean();
+      expect(storedSession).toMatchObject({
+        status: 'failed',
+        endedReason: 'failed',
+      });
+      await expect(Message.findOne({
+        chatId,
+        messageType: 'call',
+        'callActivity.callId': ack.callId,
+      }).lean()).resolves.toMatchObject({
+        callActivity: expect.objectContaining({ result: 'failed' }),
+      });
+
+      const retryAck = await emitWithAck(caller.socket, 'call:start', { chatId, mode: 'audio' });
+      expect(retryAck).toMatchObject({
+        ok: false,
+        event: 'call:start',
+        code: 'callee_unavailable',
+      });
+    } finally {
+      if (previousGraceMs === undefined) {
+        delete process.env.CHATIFY_CALL_DISCONNECT_GRACE_MS;
+      } else {
+        process.env.CHATIFY_CALL_DISCONNECT_GRACE_MS = previousGraceMs;
+      }
+    }
+  });
+
   it('forwards offer answer and ice only to the authorized peer sockets', async () => {
     const { caller, callee, outsider, chatId } = await setupCallScenario();
     const { ack } = await startCall({ caller, callee, chatId });
@@ -245,5 +301,39 @@ describe('Socket.IO call lifecycle', () => {
       signal: { type: 'offer', sdp: 'redacted-test-sdp' },
     });
     expect(outsiderOffer).toBeUndefined();
+  });
+
+  it('rejects invalid and oversized signaling payloads before forwarding to the peer', async () => {
+    const { caller, callee, chatId } = await setupCallScenario();
+    const { ack } = await startCall({ caller, callee, chatId });
+    await emitWithAck(callee.socket, 'call:accept', { chatId, callId: ack.callId });
+
+    const invalidOfferPromise = waitForNoSocketEvent(callee.socket, 'call:offer');
+    const invalidOfferAck = await emitWithAck(caller.socket, 'call:offer', {
+      chatId,
+      callId: ack.callId,
+      signal: { type: 'answer', sdp: 'wrong-signal-type' },
+    });
+
+    expect(invalidOfferAck).toMatchObject({
+      ok: false,
+      event: 'call:offer',
+      code: 'invalid_call_signal',
+    });
+    await expect(invalidOfferPromise).resolves.toBeUndefined();
+
+    const invalidIcePromise = waitForNoSocketEvent(callee.socket, 'call:ice-candidate');
+    const invalidIceAck = await emitWithAck(caller.socket, 'call:ice-candidate', {
+      chatId,
+      callId: ack.callId,
+      signal: { candidate: 'x'.repeat(9000), sdpMid: '0', sdpMLineIndex: 0 },
+    });
+
+    expect(invalidIceAck).toMatchObject({
+      ok: false,
+      event: 'call:ice-candidate',
+      code: 'invalid_call_signal',
+    });
+    await expect(invalidIcePromise).resolves.toBeUndefined();
   });
 });

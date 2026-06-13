@@ -77,9 +77,21 @@ const socketMockState = vi.hoisted(() => {
     });
     socket.disconnect = vi.fn();
     socket.trigger = (event: string, ...args: unknown[]) => {
+      if (event === 'connect') {
+        socket.connected = true;
+      }
+
+      if (event === 'disconnect' || event === 'connect_error') {
+        socket.connected = false;
+      }
+
       handlers.get(event)?.forEach((handler) => handler(...args));
     };
     socket.triggerIo = (event: string, ...args: unknown[]) => {
+      if (event === 'reconnect') {
+        socket.connected = true;
+      }
+
       ioHandlers.get(event)?.forEach((handler) => handler(...args));
     };
     socket.io = {
@@ -490,6 +502,43 @@ describe('useChatSocket', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: chatsQueryKey });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['unreadCounts'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: messagesQueryKey('chat-1') });
+  });
+
+  it('publishes disconnect state and blocks call emits while disconnected', async () => {
+    const { result } = renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+    expect(result.current.isSocketConnected).toBe(true);
+
+    act(() => {
+      socket.trigger('disconnect', 'transport close');
+    });
+
+    expect(result.current.isSocketConnected).toBe(false);
+
+    let ack: unknown;
+    await act(async () => {
+      ack = await result.current.emitCallStart({ chatId: 'chat-1', mode: 'audio' });
+    });
+
+    expect(ack).toMatchObject({
+      ok: false,
+      event: 'call:start',
+      code: 'socket_unavailable',
+    });
+    expect(socket.emit.mock.calls.some(([eventName]) => eventName === 'call:start')).toBe(false);
+
+    act(() => {
+      socket.triggerIo('reconnect');
+    });
+
+    expect(result.current.isSocketConnected).toBe(true);
   });
 
   it('routes realtime call events and resolves call acknowledgements', async () => {

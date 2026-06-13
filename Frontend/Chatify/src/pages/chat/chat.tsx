@@ -326,7 +326,7 @@ const ChatPage = () => {
   );
 
   const {
-    socket,
+    isSocketConnected,
     socketError,
     callConfig,
     emitTypingStart,
@@ -405,7 +405,7 @@ const ChatPage = () => {
     otherMemberStatus,
     conversationControls,
     isAuthenticated,
-    isSocketConnected: Boolean(socket?.connected),
+    isSocketConnected,
     callConfig,
     socketActions: callSocketActions,
   });
@@ -1270,7 +1270,7 @@ const ChatPage = () => {
 
   const isOffline = !isBrowserOnline;
   const isSessionExpired = !isAuthenticated && !isChatsLoading;
-  const isReconnecting = Boolean(selectedChatId && isAuthenticated && !isOffline && (socketError || (socket && !socket.connected)));
+  const isReconnecting = Boolean(selectedChatId && isAuthenticated && !isOffline && (socketError || !isSocketConnected));
 
   if (!isAuthenticated && isChatsLoading) {
     return <LoadingSpinner />;
@@ -1403,7 +1403,7 @@ const ChatPage = () => {
           isSharedFilesError={sharedFilesQuery.isError}
           isSharedMediaError={sharedMediaQuery.isError}
           isAuthenticated={isAuthenticated}
-          isSocketConnected={Boolean(socket?.connected)}
+          isSocketConnected={isSocketConnected}
           isReconnecting={isReconnecting}
           isOffline={isOffline}
           conversationControls={conversationControls}
@@ -1437,7 +1437,7 @@ const ChatPage = () => {
               isSharedFilesError={sharedFilesQuery.isError}
               isSharedMediaError={sharedMediaQuery.isError}
               isAuthenticated={isAuthenticated}
-              isSocketConnected={Boolean(socket?.connected)}
+              isSocketConnected={isSocketConnected}
               isReconnecting={isReconnecting}
               isOffline={isOffline}
               conversationControls={conversationControls}

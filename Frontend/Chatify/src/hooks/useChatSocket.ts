@@ -117,6 +117,7 @@ export const useChatSocket = ({
   const presenceStore = usePresenceStore();
   const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [socketError, setSocketError] = useState<SocketErrorEvent | null>(null);
   const [callConfig, setCallConfig] = useState<CallIceConfig | null>(null);
   const activeRoomRef = useRef<string | null>(null);
@@ -219,36 +220,52 @@ export const useChatSocket = ({
       transports: ['websocket', 'polling'],
     });
 
+    setIsSocketConnected(Boolean(socketInstance.connected));
     setSocket(socketInstance);
 
     const handleReconnect = () => {
+      setIsSocketConnected(true);
       setSocketError(null);
       reconcileRealtimeState();
     };
 
-    socketInstance.on('connect', () => {
+    const handleConnect = () => {
+      setIsSocketConnected(true);
       setSocketError(null);
       reconcileRealtimeState();
-    });
+    };
 
-    socketInstance.on('socket:ready', (data: SocketReadyEvent) => {
+    const handleSocketReady = (data: SocketReadyEvent) => {
+      setIsSocketConnected(true);
       setSocketError(null);
       setCallConfig(data.callConfig ?? null);
       reconcileRealtimeState(data);
-    });
+    };
 
-    socketInstance.io.on('reconnect', handleReconnect);
+    const handleDisconnect = () => {
+      setIsSocketConnected(false);
+    };
 
-    socketInstance.on('connect_error', (error: Error & { data?: Partial<SocketErrorEvent> }) => {
+    const handleConnectError = (error: Error & { data?: Partial<SocketErrorEvent> }) => {
+      setIsSocketConnected(false);
       setSocketError({
         code: error.data?.code ?? 'socket_connect_error',
         message: error.data?.message ?? error.message,
       });
-    });
+    };
 
-    socketInstance.on('socket:error', (data: SocketErrorEvent) => {
+    const handleSocketError = (data: SocketErrorEvent) => {
       setSocketError(data);
-    });
+    };
+
+    socketInstance.on('connect', handleConnect);
+    socketInstance.on('socket:ready', handleSocketReady);
+    socketInstance.on('disconnect', handleDisconnect);
+
+    socketInstance.io.on('reconnect', handleReconnect);
+
+    socketInstance.on('connect_error', handleConnectError);
+    socketInstance.on('socket:error', handleSocketError);
 
     // Listen for user status changes
     socketInstance.on('user:status-change', (data: UserStatusChangeEvent) => {
@@ -356,9 +373,15 @@ export const useChatSocket = ({
         activeRoomRef.current = null;
       }
       socketInstance.off('conversation:controls-updated', handleConversationControlsUpdated);
+      socketInstance.off('connect', handleConnect);
+      socketInstance.off('socket:ready', handleSocketReady);
+      socketInstance.off('disconnect', handleDisconnect);
+      socketInstance.off('connect_error', handleConnectError);
+      socketInstance.off('socket:error', handleSocketError);
       socketInstance.io.off('reconnect', handleReconnect);
       socketInstance.disconnect();
       setSocket(null);
+      setIsSocketConnected(false);
       setSocketError(null);
       setCallConfig(null);
     };
@@ -644,7 +667,7 @@ export const useChatSocket = ({
   );
 
   const emitCallAction = useCallback((event: CallSocketEventName, payload: CallEmitPayload): Promise<CallActionAck> => {
-    if (!socket) {
+    if (!socket || !isSocketConnected) {
       return Promise.resolve({
         ok: false,
         event,
@@ -684,7 +707,7 @@ export const useChatSocket = ({
         });
       });
     });
-  }, [socket]);
+  }, [isSocketConnected, socket]);
 
   const emitCallStart = useCallback((payload: { chatId: string; mode: CallMode }) => {
     return emitCallAction('call:start', payload);
@@ -720,6 +743,7 @@ export const useChatSocket = ({
 
   return {
     socket,
+    isSocketConnected,
     socketError,
     callConfig,
     emitTypingStart,
