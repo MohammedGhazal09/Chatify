@@ -1,6 +1,7 @@
 export { default as ChatListItem } from './ChatListItem';
 export { default as AbstractIdentityTile } from './AbstractIdentityTile';
 export { default as AttachmentPreview } from './AttachmentPreview';
+export { default as AttachmentPreviewModal } from './AttachmentPreviewModal';
 export { default as AttachmentTray } from './AttachmentTray';
 export { default as ChatContextRail } from './ChatContextRail';
 export { default as CallOverlay } from './CallOverlay';

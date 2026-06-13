@@ -123,11 +123,13 @@ describe('useMessageSearch', () => {
       wrapper: createWrapper(queryClient),
     });
 
+    expect(result.current.isSearching).toBe(true);
     expect(messageApi.searchMessages).not.toHaveBeenCalled();
 
     await new Promise((resolve) => {
       window.setTimeout(resolve, 250);
     });
+    expect(result.current.isSearching).toBe(true);
     expect(messageApi.searchMessages).not.toHaveBeenCalled();
 
     await waitFor(() => {
@@ -139,6 +141,9 @@ describe('useMessageSearch', () => {
 
     await waitFor(() => {
       expect(result.current.data?.[0]?.text).toBe('Search hit');
+    });
+    await waitFor(() => {
+      expect(result.current.isSearching).toBe(false);
     });
 
     expect(queryClient.getQueryData(messageSearchQueryKey('chat-1', 'search'))).toEqual([

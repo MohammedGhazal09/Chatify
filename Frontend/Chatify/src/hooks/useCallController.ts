@@ -89,6 +89,7 @@ const terminalStatusMap: Partial<Record<string, CallUiStatus>> = {
 };
 
 const CALL_DISCONNECT_GRACE_MS = 15_000;
+const CALL_SETUP_TIMEOUT_MS = 20_000;
 const CALL_ONLINE_REQUIREMENT_REASON = 'Both users must be online to call.';
 
 const getAckErrorCopy = (ack: CallActionAck) => {
@@ -145,6 +146,7 @@ export const useCallController = ({
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const offerSentRef = useRef(false);
   const disconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   stateRef.current = state;
 
@@ -155,15 +157,23 @@ export const useCallController = ({
     }
   }, []);
 
+  const clearCallSetupTimeout = useCallback(() => {
+    if (setupTimeoutRef.current) {
+      clearTimeout(setupTimeoutRef.current);
+      setupTimeoutRef.current = null;
+    }
+  }, []);
+
   const resetPeer = useCallback(() => {
     clearDisconnectTimeout();
+    clearCallSetupTimeout();
     peerSessionRef.current?.close();
     peerSessionRef.current = null;
     stopMediaStream(localStreamRef.current);
     localStreamRef.current = null;
     remoteStreamRef.current = null;
     offerSentRef.current = false;
-  }, [clearDisconnectTimeout]);
+  }, [clearCallSetupTimeout, clearDisconnectTimeout]);
 
   const resetCallState = useCallback((nextState: Partial<CallControllerState> = {}) => {
     resetPeer();
@@ -225,6 +235,32 @@ export const useCallController = ({
     selectedChat,
   ]);
 
+  const scheduleCallSetupTimeout = useCallback((session: CallSessionPayload) => {
+    clearCallSetupTimeout();
+    setupTimeoutRef.current = setTimeout(() => {
+      const current = stateRef.current;
+
+      if (!current.session || current.session.callId !== session.callId || current.status === 'connected') {
+        return;
+      }
+
+      void socketActions.emitCallEnd({
+        chatId: session.chatId,
+        callId: session.callId,
+        reason: 'failed',
+      });
+      resetPeer();
+      setState((existing) => existing.session?.callId === session.callId
+        ? {
+            ...existing,
+            status: 'failed',
+            error: 'Call media could not connect. Check the network and browser media permissions, then try again.',
+          }
+        : existing
+      );
+    }, CALL_SETUP_TIMEOUT_MS);
+  }, [clearCallSetupTimeout, resetPeer, socketActions]);
+
   const createPeerSession = useCallback((session: CallSessionPayload, stream: MediaStream) => {
     if (peerSessionRef.current) {
       return peerSessionRef.current;
@@ -247,6 +283,7 @@ export const useCallController = ({
       onStateChange: (peerState: ChatifyPeerState) => {
         setState((current) => {
           if (peerState === 'connected') {
+            clearCallSetupTimeout();
             return {
               ...current,
               status: 'connected',
@@ -259,6 +296,7 @@ export const useCallController = ({
           }
 
           if (peerState === 'failed' || peerState === 'closed') {
+            clearCallSetupTimeout();
             return { ...current, status: peerState === 'failed' ? 'failed' : current.status };
           }
 
@@ -268,8 +306,9 @@ export const useCallController = ({
     });
 
     peerSessionRef.current = peerSession;
+    scheduleCallSetupTimeout(session);
     return peerSession;
-  }, [callConfig, socketActions]);
+  }, [callConfig, clearCallSetupTimeout, scheduleCallSetupTimeout, socketActions]);
 
   const requestMediaForCall = useCallback(async (mode: CallMode) => {
     const media = await requestCallMedia(mode);
@@ -342,7 +381,7 @@ export const useCallController = ({
   const acceptCall = useCallback(async () => {
     const session = stateRef.current.session;
 
-    if (!session || !selectedChat) {
+    if (!session) {
       return;
     }
 
@@ -350,7 +389,7 @@ export const useCallController = ({
       setState((current) => ({ ...current, status: 'connecting', error: null }));
       const media = await requestMediaForCall(session.mode);
       const ack = await socketActions.emitCallAccept({
-        chatId: selectedChat._id,
+        chatId: session.chatId,
         callId: session.callId,
       });
 
@@ -371,7 +410,7 @@ export const useCallController = ({
       resetPeer();
       setState((current) => ({ ...current, ...getMediaErrorStatus(error) }));
     }
-  }, [createPeerSession, requestMediaForCall, resetPeer, selectedChat, socketActions]);
+  }, [createPeerSession, requestMediaForCall, resetPeer, socketActions]);
 
   const rejectCall = useCallback(async () => {
     const session = stateRef.current.session;

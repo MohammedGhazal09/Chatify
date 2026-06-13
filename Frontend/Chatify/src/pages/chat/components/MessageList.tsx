@@ -3,6 +3,7 @@ import type { MouseEvent } from 'react';
 import { ArrowDown, LoaderCircle } from 'lucide-react';
 import type { Chat, Message } from '../../../types/chat';
 import { formatMessageDate, isDifferentDay } from '../utils/chatDisplay';
+import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
 import ChatStateView from './ChatStateView';
 import MessageBubble from './MessageBubble';
 
@@ -27,6 +28,7 @@ interface MessageListProps {
   onScrollToBottom: () => void;
   onMessageContextMenu: (event: MouseEvent, messageId: string, isOwnMessage: boolean) => void;
   onOpenMessageActions: (event: MouseEvent<HTMLButtonElement>, message: Message, isOwnMessage: boolean) => void;
+  onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
   onStartEdit: (messageId: string, currentText: string) => void;
   onRetryFailed: (message: Message) => void;
   onDismissFailed: (message: Message) => void;
@@ -56,6 +58,7 @@ const MessageList = ({
   onScrollToBottom,
   onMessageContextMenu,
   onOpenMessageActions,
+  onOpenAttachmentPreview,
   onStartEdit,
   onRetryFailed,
   onDismissFailed,
@@ -160,6 +163,7 @@ const MessageList = ({
                     isHighlighted={message._id === highlightedMessageId}
                     onContextMenu={(event) => onMessageContextMenu(event, message._id, isOwnMessage)}
                     onOpenActions={onOpenMessageActions}
+                    onOpenAttachmentPreview={onOpenAttachmentPreview}
                     onDoubleClick={(msg) => onStartEdit(msg._id, msg.text)}
                     onRetryFailed={onRetryFailed}
                     onDismissFailed={onDismissFailed}

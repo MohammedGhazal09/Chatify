@@ -5,6 +5,7 @@ import MessageStatus from '../../../components/MessageStatus';
 import type { CallActivity, Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
 import AttachmentPreview from './AttachmentPreview';
+import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
 
 interface MessageBubbleProps {
   message: Message;
@@ -15,6 +16,7 @@ interface MessageBubbleProps {
   onContextMenu?: (event: MouseEvent, message: Message) => void;
   onDoubleClick?: (message: Message) => void;
   onOpenActions?: (event: MouseEvent<HTMLButtonElement>, message: Message, isOwnMessage: boolean) => void;
+  onOpenAttachmentPreview?: (attachment: AttachmentPreviewTarget) => void;
   onRetryFailed?: (message: Message) => void;
   onDismissFailed?: (message: Message) => void;
 }
@@ -107,6 +109,7 @@ const MessageBubble = memo(({
   onContextMenu,
   onDoubleClick,
   onOpenActions,
+  onOpenAttachmentPreview,
   onRetryFailed,
   onDismissFailed,
 }: MessageBubbleProps) => {
@@ -180,7 +183,11 @@ const MessageBubble = memo(({
             <>
               {message.text.trim() && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
               {visibleAttachments.map((attachment) => (
-                <AttachmentPreview key={attachment.attachmentId} attachment={attachment} />
+                <AttachmentPreview
+                  key={attachment.attachmentId}
+                  attachment={attachment}
+                  onOpenPreview={onOpenAttachmentPreview}
+                />
               ))}
             </>
           )}

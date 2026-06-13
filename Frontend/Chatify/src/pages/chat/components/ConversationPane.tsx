@@ -4,6 +4,7 @@ import type { Chat, ComposerSendPayload, ConversationControls, Message, UserOnli
 import type { User } from '../../../types/auth';
 import TypingIndicator from '../../../components/TypingIndicator';
 import { getChatTitle } from '../utils/chatDisplay';
+import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
 import ChatStateView from './ChatStateView';
 import ConversationHeader from './ConversationHeader';
 import MessageComposer from './MessageComposer';
@@ -69,6 +70,7 @@ interface ConversationPaneProps {
   onScrollToBottom: () => void;
   onMessageContextMenu: MessageListProps['onMessageContextMenu'];
   onOpenMessageActions: MessageListProps['onOpenMessageActions'];
+  onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
   onStartEdit: (messageId: string, currentText: string) => void;
   onRetryFailed: (message: Message) => void;
   onDismissFailed: (message: Message) => void;
@@ -145,6 +147,7 @@ const ConversationPane = ({
   onScrollToBottom,
   onMessageContextMenu,
   onOpenMessageActions,
+  onOpenAttachmentPreview,
   onStartEdit,
   onRetryFailed,
   onDismissFailed,
@@ -284,6 +287,7 @@ const ConversationPane = ({
           onScrollToBottom={onScrollToBottom}
           onMessageContextMenu={onMessageContextMenu}
           onOpenMessageActions={onOpenMessageActions}
+          onOpenAttachmentPreview={onOpenAttachmentPreview}
           onStartEdit={onStartEdit}
           onRetryFailed={onRetryFailed}
           onDismissFailed={onDismissFailed}

@@ -24,6 +24,7 @@ import { formatFileSize } from '../utils/attachmentDisplay';
 import { getChatTitle } from '../utils/chatDisplay';
 import AbstractIdentityTile from './AbstractIdentityTile';
 import AttachmentPreview from './AttachmentPreview';
+import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
 
 export interface ConversationDetailContentProps {
   selectedChat: Chat;
@@ -45,12 +46,15 @@ export interface ConversationDetailContentProps {
   isOffline: boolean;
   conversationControls?: ConversationControls;
   isConversationControlPending: boolean;
+  isFavorite?: boolean;
   callDisabledReason?: string | null;
   videoCallDisabledReason?: string | null;
+  onToggleFavorite?: () => void;
   onStartAudioCall: () => void;
   onStartVideoCall: () => void;
   onSearchMessages: () => void;
   onOpenMoreMenu: () => void;
+  onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
   onUnblockUser: () => void;
   onJumpToMessage: (messageId: string) => void;
   onUnpinMessage: (messageId: string) => void;
@@ -76,12 +80,15 @@ const ConversationDetailContent = ({
   isOffline,
   conversationControls,
   isConversationControlPending,
+  isFavorite = false,
   callDisabledReason,
   videoCallDisabledReason,
+  onToggleFavorite,
   onStartAudioCall,
   onStartVideoCall,
   onSearchMessages,
   onOpenMoreMenu,
+  onOpenAttachmentPreview,
   onUnblockUser,
   onJumpToMessage,
   onUnpinMessage,
@@ -124,11 +131,17 @@ const ConversationDetailContent = ({
             </div>
             <button
               type="button"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-              aria-label="Favorite conversation unavailable in this phase"
-              disabled
+              onClick={onToggleFavorite}
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
+                isFavorite
+                  ? 'text-[var(--chat-warning)] hover:bg-[color-mix(in_srgb,var(--chat-warning)_14%,var(--chat-panel-subtle))]'
+                  : 'text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)]'
+              }`}
+              aria-label={isFavorite ? 'Unstar conversation' : 'Star conversation'}
+              aria-pressed={isFavorite}
+              title={isFavorite ? 'Unstar conversation' : 'Star conversation'}
             >
-              <Star aria-hidden="true" className="h-5 w-5" />
+              <Star aria-hidden="true" className="h-5 w-5" fill={isFavorite ? 'currentColor' : 'none'} />
             </button>
           </div>
         </div>
@@ -183,7 +196,12 @@ const ConversationDetailContent = ({
           emptyCopy="No shared files"
         >
           {sharedFiles.map((asset) => (
-            <SharedFileRow key={asset.attachmentId} asset={asset} onJumpToMessage={onJumpToMessage} />
+            <SharedFileRow
+              key={asset.attachmentId}
+              asset={asset}
+              onJumpToMessage={onJumpToMessage}
+              onOpenAttachmentPreview={onOpenAttachmentPreview}
+            />
           ))}
         </DetailState>
       </RailSection>
@@ -200,7 +218,11 @@ const ConversationDetailContent = ({
           <div className="grid grid-cols-3 gap-2">
             {sharedMedia.map((asset) => (
               <div key={asset.attachmentId} className="min-w-0">
-                <AttachmentPreview attachment={asset} compact />
+                <AttachmentPreview
+                  attachment={asset}
+                  compact
+                  onOpenPreview={onOpenAttachmentPreview}
+                />
                 <button
                   type="button"
                   onClick={() => onJumpToMessage(asset.messageId)}
@@ -423,8 +445,15 @@ const PinnedMessageRow = ({
   );
 };
 
-const SharedFileRow = ({ asset, onJumpToMessage }: { asset: SharedAsset; onJumpToMessage: (messageId: string) => void }) => {
-  const previewUrl = messageApi.getAttachmentPreviewUrl(asset.attachmentId);
+const SharedFileRow = ({
+  asset,
+  onJumpToMessage,
+  onOpenAttachmentPreview,
+}: {
+  asset: SharedAsset;
+  onJumpToMessage: (messageId: string) => void;
+  onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
+}) => {
   const downloadUrl = messageApi.getAttachmentDownloadUrl(asset.attachmentId);
 
   return (
@@ -440,15 +469,14 @@ const SharedFileRow = ({ asset, onJumpToMessage }: { asset: SharedAsset; onJumpT
         <span className="block truncate font-semibold text-[var(--chat-text)]">{asset.displayName}</span>
         <span className="block truncate text-xs text-[var(--chat-text-muted)]">{asset.mimeType} - {formatFileSize(asset.size)}</span>
       </button>
-      <a
-        href={previewUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+      <button
+        type="button"
+        onClick={() => onOpenAttachmentPreview(asset)}
+        className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
         aria-label={`Open ${asset.displayName}`}
       >
         <ExternalLink aria-hidden="true" className="h-4 w-4" />
-      </a>
+      </button>
       <a
         href={downloadUrl}
         className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"

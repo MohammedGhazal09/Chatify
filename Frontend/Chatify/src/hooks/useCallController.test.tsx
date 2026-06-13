@@ -162,6 +162,67 @@ describe('useCallController', () => {
     );
   });
 
+  it('accepts an incoming call by session chat id when no conversation is selected', async () => {
+    const session = makeCallSession({ callerId: 'user-2', calleeId: 'user-1', mode: 'audio' });
+    const { result, actions } = renderController({
+      selectedChat: null,
+      otherMember: null,
+      otherMemberStatus: null,
+    });
+
+    act(() => {
+      result.current.socketHandlers.handleIncomingCall(session);
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.status).toBe('incoming');
+    });
+
+    await act(async () => {
+      await result.current.acceptCall();
+    });
+
+    expect(actions.emitCallAccept).toHaveBeenCalledWith({ chatId: 'chat-1', callId: 'call-1' });
+  });
+
+  it('fails an accepted media setup instead of staying in connecting forever', async () => {
+    const { result, actions } = renderController();
+
+    await act(async () => {
+      await result.current.startCall('audio');
+    });
+
+    const activeStream = result.current.state.localStream;
+    const activeTrack = activeStream?.getTracks()[0] as (MediaStreamTrack & { stop: ReturnType<typeof vi.fn> }) | undefined;
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await result.current.socketHandlers.handleCallSync(makeCallSession({
+          status: 'connected',
+          answeredAt: '2026-06-13T10:00:05.000Z',
+        }));
+      });
+
+      expect(result.current.state.status).toBe('connecting');
+
+      act(() => {
+        vi.advanceTimersByTime(20_000);
+      });
+
+      expect(actions.emitCallEnd).toHaveBeenCalledWith({
+        chatId: 'chat-1',
+        callId: 'call-1',
+        reason: 'failed',
+      });
+      expect(activeTrack?.stop).toHaveBeenCalledTimes(1);
+      expect(result.current.state.status).toBe('failed');
+      expect(result.current.state.error).toMatch(/could not connect/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ends the active call through the socket authority', async () => {
     const { result, actions } = renderController();
 

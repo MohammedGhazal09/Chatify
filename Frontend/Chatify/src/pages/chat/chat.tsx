@@ -46,11 +46,13 @@ import {
   CallOverlay,
   ChatShell,
   ChatSidebar,
+  AttachmentPreviewModal,
   ConversationMoreMenu,
   ConversationDetailDrawer,
   ConversationPane,
   MessageActionMenu,
 } from './components';
+import type { AttachmentPreviewTarget } from './components/AttachmentPreviewModal';
 import { createClientMessageId, MAX_MESSAGE_TEXT_LENGTH } from '../../hooks/messageCache';
 import { useChatTheme } from './hooks/useChatTheme';
 import { useChatViewState } from './hooks/useChatViewState';
@@ -183,6 +185,9 @@ const ChatPage = () => {
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
+  const [favoriteChatIds, setFavoriteChatIds] = useState<string[]>([]);
+  const [attachmentPreview, setAttachmentPreview] = useState<AttachmentPreviewTarget | null>(null);
+  const favoriteStorageKey = user?._id ? `chatify_favorite_chats_${user._id}` : null;
   const chatTheme = useChatTheme(user?._id);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
@@ -229,6 +234,7 @@ const ChatPage = () => {
     () => chats?.find((chat) => chat._id === selectedChatId) ?? null,
     [chats, selectedChatId]
   );
+  const isSelectedChatFavorite = Boolean(selectedChatId && favoriteChatIds.includes(selectedChatId));
   const conversationControls = selectedChat?.conversationControls;
   const activeConversationDisabledReason = getConversationDisabledReason(conversationControls);
   const isConversationControlPending = blockChatPeerMutation.isPending || unblockChatPeerMutation.isPending;
@@ -249,6 +255,37 @@ const ChatPage = () => {
     }
     setHighlightedMessageId(null);
   }, []);
+
+  useEffect(() => {
+    if (!favoriteStorageKey) {
+      setFavoriteChatIds([]);
+      return;
+    }
+
+    try {
+      const storedFavorites = window.localStorage.getItem(favoriteStorageKey);
+      const parsedFavorites = storedFavorites ? JSON.parse(storedFavorites) : [];
+      setFavoriteChatIds(Array.isArray(parsedFavorites)
+        ? parsedFavorites.filter((chatId): chatId is string => typeof chatId === 'string')
+        : []
+      );
+    } catch (error) {
+      console.warn('Could not load favorite conversations:', error);
+      setFavoriteChatIds([]);
+    }
+  }, [favoriteStorageKey]);
+
+  const persistFavoriteChatIds = useCallback((updater: (current: string[]) => string[]) => {
+    setFavoriteChatIds((currentFavorites) => {
+      const nextFavorites = updater(currentFavorites);
+
+      if (favoriteStorageKey) {
+        window.localStorage.setItem(favoriteStorageKey, JSON.stringify(nextFavorites));
+      }
+
+      return nextFavorites;
+    });
+  }, [favoriteStorageKey]);
 
   const buildOptimisticAttachments = useCallback((
     payload: ComposerSendPayload,
@@ -341,7 +378,7 @@ const ChatPage = () => {
     emitCallIceCandidate,
   } = useChatSocket({
     chatId: selectedChatId,
-    enabled: !!selectedChatId && isAuthenticated,
+    enabled: isAuthenticated,
     onMessageStatusUpdate: handleMessageStatusUpdate,
     onBatchRead: handleBatchRead,
     onMessageDeleted: handleMessageDeleted,
@@ -453,6 +490,7 @@ const ChatPage = () => {
     setIsNewChatOpen(false);
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(true);
+    setAttachmentPreview(null);
     setNewChatEmail('');
     setCreateChatError(null);
     clearPresenceState();
@@ -487,6 +525,7 @@ const ChatPage = () => {
 
   useEffect(() => {
     clearHighlightedMessage();
+    setAttachmentPreview(null);
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(true);
     setIsConversationMoreOpen(false);
@@ -958,7 +997,6 @@ const ChatPage = () => {
         },
       }
     );
-    closeContextMenu();
   };
 
   const handleExportChat = () => {
@@ -1103,8 +1141,28 @@ const ChatPage = () => {
 
   const handleAppendEmoji = (emoji: string) => {
     setMessageInput((prev) => prev + emoji);
-    setShowEmojiPicker(false);
   };
+
+  const handleOpenAttachmentPreview = useCallback((attachment: AttachmentPreviewTarget) => {
+    if (attachment.status !== 'active') {
+      showToast('Attachment is unavailable.', 'error');
+      return;
+    }
+
+    setAttachmentPreview(attachment);
+  }, [showToast]);
+
+  const handleToggleFavorite = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    persistFavoriteChatIds((currentFavorites) => (
+      currentFavorites.includes(selectedChatId)
+        ? currentFavorites.filter((chatId) => chatId !== selectedChatId)
+        : [...currentFavorites, selectedChatId]
+    ));
+  }, [persistFavoriteChatIds, selectedChatId]);
 
   const handleCopyMessage = (message: Message) => {
     navigator.clipboard.writeText(message.text);
@@ -1203,7 +1261,7 @@ const ChatPage = () => {
 
   const handleOpenMoreMenuFromDetails = useCallback(() => {
     setIsDetailDrawerOpen(false);
-    setIsConversationMoreOpen(true);
+    setIsConversationMoreOpen((currentValue) => !currentValue);
   }, []);
 
   const handleBlockPeer = useCallback(() => {
@@ -1337,7 +1395,7 @@ const ChatPage = () => {
           moreButtonRef={moreButtonRef}
           messageSearchResults={messageSearchResult.messages}
           messageSearchNormalizedQuery={messageSearchResult.normalizedQuery}
-          isMessageSearchLoading={messageSearchResult.isLoading || messageSearchResult.isFetching}
+          isMessageSearchLoading={messageSearchResult.isSearching}
           isMessageSearchError={messageSearchResult.isError}
           isMessageSearchBelowMinimum={messageSearchResult.isBelowMinimum}
           loadedMessageIds={loadedMessageIds}
@@ -1373,6 +1431,7 @@ const ChatPage = () => {
           onScrollToBottom={scrollToBottom}
           onMessageContextMenu={handleMessageContextMenu}
           onOpenMessageActions={handleOpenMessageActions}
+          onOpenAttachmentPreview={handleOpenAttachmentPreview}
           onStartEdit={handleStartEdit}
           onRetryFailed={handleRetryFailedMessage}
           onDismissFailed={handleDismissFailedMessage}
@@ -1410,13 +1469,16 @@ const ChatPage = () => {
           isOffline={isOffline}
           conversationControls={conversationControls}
           isConversationControlPending={isConversationControlPending}
+          isFavorite={isSelectedChatFavorite}
           callDisabledReason={audioAvailability.reason}
           videoCallDisabledReason={videoAvailability.reason}
+          onToggleFavorite={handleToggleFavorite}
           onClose={closeDetailRail}
           onStartAudioCall={handleStartAudioCall}
           onStartVideoCall={handleStartVideoCall}
           onSearchMessages={handleToggleMessageSearch}
           onOpenMoreMenu={handleOpenMoreMenuFromDetails}
+          onOpenAttachmentPreview={handleOpenAttachmentPreview}
           onUnblockUser={handleUnblockPeer}
           onJumpToMessage={handleJumpToMessage}
           onUnpinMessage={handleUnpinMessage}
@@ -1446,8 +1508,10 @@ const ChatPage = () => {
               isOffline={isOffline}
               conversationControls={conversationControls}
               isConversationControlPending={isConversationControlPending}
+              isFavorite={isSelectedChatFavorite}
               callDisabledReason={audioAvailability.reason}
               videoCallDisabledReason={videoAvailability.reason}
+              onToggleFavorite={handleToggleFavorite}
               onClose={closeDetailDrawer}
               onStartAudioCall={handleStartAudioCall}
               onStartVideoCall={handleStartVideoCall}
@@ -1456,6 +1520,7 @@ const ChatPage = () => {
                 handleToggleMessageSearch();
               }}
               onOpenMoreMenu={handleOpenMoreMenuFromDetails}
+              onOpenAttachmentPreview={handleOpenAttachmentPreview}
               onUnblockUser={handleUnblockPeer}
               onJumpToMessage={(messageId) => {
                 setIsDetailDrawerOpen(false);
@@ -1514,6 +1579,10 @@ const ChatPage = () => {
             onEnd={handleEndCall}
             onToggleMute={toggleMute}
             onToggleCamera={toggleCamera}
+          />
+          <AttachmentPreviewModal
+            attachment={attachmentPreview}
+            onClose={() => setAttachmentPreview(null)}
           />
         </>
       )}

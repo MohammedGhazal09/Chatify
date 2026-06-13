@@ -105,25 +105,28 @@ describe('MessageBubble', () => {
     expect(screen.queryByText('PDF - 280 KB')).not.toBeInTheDocument();
   });
 
-  it('renders file attachments with protected open and download actions', () => {
+  it('renders file attachments with in-app open and protected download actions', async () => {
+    const user = userEvent.setup();
+    const onOpenAttachmentPreview = vi.fn();
+    const attachment = makeAttachment({ attachmentId: 'attachment-file', displayName: 'message-states-spec.pdf' });
+
     render(
       <MessageBubble
         message={makeMessage({
           text: '',
-          attachments: [makeAttachment({ attachmentId: 'attachment-file', displayName: 'message-states-spec.pdf' })],
+          attachments: [attachment],
         })}
         isOwnMessage
         isGroupChat={false}
         members={makeChat().members}
+        onOpenAttachmentPreview={onOpenAttachmentPreview}
       />
     );
 
     expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
     expect(screen.getByText('PDF - 280 KB')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open message-states-spec.pdf' })).toHaveAttribute(
-      'href',
-      expect.stringContaining('/api/message/attachments/attachment-file/preview')
-    );
+    await user.click(screen.getByRole('button', { name: 'Open message-states-spec.pdf' }));
+    expect(onOpenAttachmentPreview).toHaveBeenCalledWith(attachment);
     expect(screen.getByRole('link', { name: 'Download message-states-spec.pdf' })).toHaveAttribute(
       'href',
       expect.stringContaining('/api/message/attachments/attachment-file/download')

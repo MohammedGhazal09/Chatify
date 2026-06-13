@@ -287,6 +287,7 @@ export const useMessageSearch = (chatId: string | null, query: string) => {
   const trimmedQuery = normalizeSearchText(query);
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const isBelowMinimum = trimmedQuery.length > 0 && trimmedQuery.length < MIN_MESSAGE_SEARCH_LENGTH;
+  const isDebouncing = trimmedQuery.length >= MIN_MESSAGE_SEARCH_LENGTH && trimmedQuery !== debouncedQuery;
 
   useEffect(() => {
     if (trimmedQuery.length < MIN_MESSAGE_SEARCH_LENGTH) {
@@ -325,6 +326,8 @@ export const useMessageSearch = (chatId: string | null, query: string) => {
     messages: queryResult.data ?? [],
     normalizedQuery: debouncedQuery,
     isBelowMinimum,
+    isDebouncing,
+    isSearching: isDebouncing || queryResult.isLoading || queryResult.isFetching,
   };
 };
 

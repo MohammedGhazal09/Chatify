@@ -30,6 +30,7 @@ const renderMessageList = (overrides: Partial<MessageListProps> = {}) => {
     onScrollToBottom: vi.fn(),
     onMessageContextMenu: vi.fn(),
     onOpenMessageActions: vi.fn(),
+    onOpenAttachmentPreview: vi.fn(),
     onStartEdit: vi.fn(),
     onRetryFailed: vi.fn(),
     onDismissFailed: vi.fn(),

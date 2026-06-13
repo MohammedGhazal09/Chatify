@@ -45,10 +45,13 @@ describe('ChatContextRail', () => {
         messagingDisabledReason: null,
       } satisfies ConversationControls,
       isConversationControlPending: false,
+      isFavorite: false,
+      onToggleFavorite: vi.fn(),
       onStartAudioCall: vi.fn(),
       onStartVideoCall: vi.fn(),
       onSearchMessages: vi.fn(),
       onOpenMoreMenu: vi.fn(),
+      onOpenAttachmentPreview: vi.fn(),
       onUnblockUser: vi.fn(),
       onJumpToMessage: vi.fn(),
       onUnpinMessage: vi.fn(),
@@ -68,14 +71,26 @@ describe('ChatContextRail', () => {
     const onUnpinMessage = vi.fn();
     const onStartAudioCall = vi.fn();
     const onStartVideoCall = vi.fn();
-    renderRail({ onSearchMessages, onOpenMoreMenu, onJumpToMessage, onUnpinMessage, onStartAudioCall, onStartVideoCall });
+    const onToggleFavorite = vi.fn();
+    const onOpenAttachmentPreview = vi.fn();
+    renderRail({
+      onSearchMessages,
+      onOpenMoreMenu,
+      onJumpToMessage,
+      onUnpinMessage,
+      onStartAudioCall,
+      onStartVideoCall,
+      onToggleFavorite,
+      onOpenAttachmentPreview,
+    });
 
     expect(screen.getByRole('complementary', { name: 'Conversation details' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close conversation details' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Call' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Video call' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'More conversation actions' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Favorite conversation unavailable in this phase' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Star conversation' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Star conversation' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByText('Pinned messages')).toBeInTheDocument();
     expect(screen.getByText('Shared files')).toBeInTheDocument();
     expect(screen.getByText('Shared media')).toBeInTheDocument();
@@ -101,16 +116,23 @@ describe('ChatContextRail', () => {
 
     await user.click(screen.getByRole('button', { name: 'Call' }));
     await user.click(screen.getByRole('button', { name: 'Video call' }));
+    await user.click(screen.getByRole('button', { name: 'Star conversation' }));
     await user.click(screen.getByRole('button', { name: 'Search messages' }));
     await user.click(screen.getByRole('button', { name: 'More conversation actions' }));
     await user.click(screen.getByRole('button', { name: 'Retry logic note' }));
     await user.click(screen.getByRole('button', { name: 'Unpin Retry logic note' }));
+    await user.click(screen.getByRole('button', { name: 'Open message-states-spec.pdf' }));
+    await user.click(screen.getByRole('button', { name: 'Open diagram.png' }));
     expect(onStartAudioCall).toHaveBeenCalledTimes(1);
     expect(onStartVideoCall).toHaveBeenCalledTimes(1);
+    expect(onToggleFavorite).toHaveBeenCalledTimes(1);
     expect(onSearchMessages).toHaveBeenCalledTimes(1);
     expect(onOpenMoreMenu).toHaveBeenCalledTimes(1);
     expect(onJumpToMessage).toHaveBeenCalledWith('message-pin');
     expect(onUnpinMessage).toHaveBeenCalledWith('message-pin');
+    expect(onOpenAttachmentPreview).toHaveBeenCalledTimes(2);
+    expect(onOpenAttachmentPreview).toHaveBeenCalledWith(expect.objectContaining({ attachmentId: 'file-1' }));
+    expect(onOpenAttachmentPreview).toHaveBeenCalledWith(expect.objectContaining({ attachmentId: 'media-1' }));
   });
 
   it('lists blocked people and unblocks from conversation details', async () => {
@@ -188,12 +210,14 @@ describe('ChatContextRail', () => {
         isReconnecting={false}
         isOffline
         isConversationControlPending={false}
+        onToggleFavorite={vi.fn()}
         callDisabledReason="Realtime connection is unavailable."
         videoCallDisabledReason="Realtime connection is unavailable."
         onStartAudioCall={vi.fn()}
         onStartVideoCall={vi.fn()}
         onSearchMessages={vi.fn()}
         onOpenMoreMenu={vi.fn()}
+        onOpenAttachmentPreview={vi.fn()}
         onUnblockUser={vi.fn()}
         onJumpToMessage={vi.fn()}
         onUnpinMessage={vi.fn()}

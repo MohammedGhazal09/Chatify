@@ -3,6 +3,7 @@ import { Download, ExternalLink, FileText, Image as ImageIcon } from 'lucide-rea
 import { messageApi } from '../../../api/messageApi';
 import type { AttachmentStatus, SharedAssetKind } from '../../../types/chat';
 import { formatFileSize } from '../utils/attachmentDisplay';
+import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
 
 type AttachmentRenderable = {
   attachmentId: string;
@@ -17,6 +18,7 @@ type AttachmentRenderable = {
 interface AttachmentPreviewProps {
   attachment: AttachmentRenderable;
   compact?: boolean;
+  onOpenPreview?: (attachment: AttachmentPreviewTarget) => void;
 }
 
 const getFileTypeLabel = (mimeType: string, displayName: string) => {
@@ -33,7 +35,7 @@ const getFileTypeLabel = (mimeType: string, displayName: string) => {
   return 'File';
 };
 
-const AttachmentPreview = ({ attachment, compact = false }: AttachmentPreviewProps) => {
+const AttachmentPreview = ({ attachment, compact = false, onOpenPreview }: AttachmentPreviewProps) => {
   const [hasPreviewError, setHasPreviewError] = useState(false);
   const isUnavailable = attachment.status !== 'active';
   const previewUrl = isUnavailable ? null : attachment.localPreviewUrl ?? messageApi.getAttachmentPreviewUrl(attachment.attachmentId);
@@ -49,12 +51,11 @@ const AttachmentPreview = ({ attachment, compact = false }: AttachmentPreviewPro
         }`}
       >
         {previewUrl && !hasPreviewError ? (
-          <a
-            href={previewUrl}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            onClick={() => onOpenPreview?.(attachment)}
             aria-label={`Open ${attachment.displayName}`}
-            className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            className="block w-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
           >
             <img
               src={previewUrl}
@@ -63,7 +64,7 @@ const AttachmentPreview = ({ attachment, compact = false }: AttachmentPreviewPro
               onError={() => setHasPreviewError(true)}
               className={`${compact ? 'h-full w-full' : 'max-h-64 w-full'} object-cover`}
             />
-          </a>
+          </button>
         ) : (
           <div className="grid min-h-28 place-items-center gap-2 px-3 py-4 text-center text-xs text-[var(--chat-text-muted)]">
             <ImageIcon aria-hidden="true" className="h-6 w-6" />
@@ -95,15 +96,14 @@ const AttachmentPreview = ({ attachment, compact = false }: AttachmentPreviewPro
         <span className="shrink-0 text-xs text-[var(--chat-text-muted)]">Unavailable</span>
       ) : (
         <span className="flex shrink-0 items-center gap-1">
-          <a
-            href={previewUrl ?? undefined}
-            target="_blank"
-            rel="noreferrer"
-            className="grid h-9 w-9 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+          <button
+            type="button"
+            onClick={() => onOpenPreview?.(attachment)}
+            className="grid h-9 w-9 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
             aria-label={`Open ${attachment.displayName}`}
           >
             <ExternalLink aria-hidden="true" className="h-4 w-4" />
-          </a>
+          </button>
           <a
             href={downloadUrl ?? undefined}
             className="grid h-9 w-9 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
