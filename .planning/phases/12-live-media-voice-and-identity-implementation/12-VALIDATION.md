@@ -1,11 +1,13 @@
 ---
 phase: 12
 slug: live-media-voice-and-identity-implementation
-status: draft
-nyquist_compliant: false
+status: planned
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-13
-blocked_by_ui_spec: true
+blocked_by_ui_spec: false
+ui_spec_ready: true
+plans_ready: true
 ---
 
 # Phase 12 - Validation Strategy
@@ -14,9 +16,9 @@ blocked_by_ui_spec: true
 
 ## Gate Status
 
-Validation architecture is drafted from research, but it cannot be final until `12-UI-SPEC.md` and concrete `12-xx-PLAN.md` files exist.
+Validation architecture is now mapped to `12-UI-SPEC.md` and concrete `12-xx-PLAN.md` files.
 
-Recommendation: after `$gsd-ui-phase 12`, update this file with exact plan task IDs and mark `nyquist_compliant: true` only after every task has automated verification or an explicit Wave 0 dependency.
+Recommendation: execute the phase sequentially with `$gsd-execute-phase 12 --interactive` so the dependency gates, upload/voice browser mocks, and evidence recording stay visible in the current Codex thread without subagents.
 
 ## Test Infrastructure
 
@@ -48,25 +50,25 @@ Recommendation: after `$gsd-ui-phase 12`, update this file with exact plan task 
 
 | Slice | Requirement | Secure behavior | Test type | Automated command | Status |
 |-------|-------------|-----------------|-----------|-------------------|--------|
-| 12-01 identity | ID-01 | Identity mark persists and propagates to all chat surfaces without arbitrary URL input | backend + frontend component | targeted user controller/API/auth store/settings tests | pending |
-| 12-01 identity privacy | ID-02 | Invalid/living/default identity payloads are rejected or absent; deterministic abstract fallback exists | backend + fixture guard | backend identity validation + `npm run test -- fixtureLeakGuard` equivalent | pending |
-| 12-02 upload send state | MEDIA-01 | Progress, cancel, abort, failed, and retry states do not create duplicate persisted messages | frontend hook + backend idempotency | send hook tests + message idempotency tests | pending |
-| 12-02 protected media/file | MEDIA-02 | Protected preview/download remain membership-checked after contract changes | backend request | attachment authorization tests | pending |
-| 12-02 voice contract | VOICE-01 | Voice message persists as `kind: "voice"` with duration and protected asset metadata | backend + frontend types/API | voice create/history/realtime tests | pending |
-| 12-02 voice failures | VOICE-02 | Unsupported type, oversize, over-duration, permission, upload, retry, and playback errors recover safely | backend + frontend component | voice validation + recorder/player tests | pending |
-| 12-03 shared asset truth | MEDIA-04 | Shared media/files/voice are server-derived only and update after send/reload/search/pagination/realtime | backend + frontend + browser | shared asset tests + socket invalidation + Playwright smoke | pending |
-| 12-03 block/delete/privacy | Phase 11 dependency + MEDIA/VOICE | Blocked or unauthorized users cannot send/play/download; delete visibility is enforced | backend + socket + frontend | blocking, delete, protected asset, and UI disabled-state tests | pending |
-| 12-03 production boundary | TEST-05 | Desktop/mobile/light/dark behavior has evidence, but live production acceptance is not claimed | browser + docs | targeted Playwright + lint/build + summary evidence | pending |
+| 12-01 identity | ID-01 | Identity mark persists and propagates to all chat surfaces without arbitrary URL input | backend + frontend component | `npm test -- --run test/user/user.identity.test.mjs`; frontend identity/settings/query/socket tests | planned |
+| 12-01 identity privacy | ID-02 | Invalid/living/default identity payloads are rejected or absent; deterministic abstract fallback exists | backend + fixture guard | backend identity validation + fixture guard expansion in 12-03 | planned |
+| 12-02 upload send state | MEDIA-01 | Progress, cancel, abort, failed, and retry states do not create duplicate persisted messages | frontend hook + backend idempotency | `useChatQueries`, composer, attachment, and message idempotency tests | planned |
+| 12-02 protected media/file | MEDIA-02 | Protected preview/download remain membership-checked after contract changes | backend request | attachment authorization and voice protected-access tests | planned |
+| 12-02 voice contract | VOICE-01 | Voice message persists as `kind: "voice"` with duration and protected asset metadata | backend + frontend types/API | `message.voice.test.mjs`, recorder, API, and message rendering tests | planned |
+| 12-02 voice failures | VOICE-02 | Unsupported type, oversize, over-duration, permission, upload, retry, and playback errors recover safely | backend + frontend component | voice validation, `useVoiceRecorder`, composer, and player tests | planned |
+| 12-03 shared asset truth | MEDIA-04 | Shared media/files/voice are server-derived only and update after send/reload/search/pagination/realtime | backend + frontend + browser | shared asset tests + socket invalidation + Playwright smoke | planned |
+| 12-03 block/delete/privacy | Phase 11 dependency + MEDIA/VOICE | Blocked or unauthorized users cannot send/play/download; delete visibility is enforced | backend + socket + frontend | blocking, delete, protected asset, and UI disabled-state tests | planned |
+| 12-03 production boundary | TEST-05 | Desktop/mobile/light/dark behavior has evidence, but live production acceptance is not claimed | browser + docs | targeted Playwright + lint/build + `12-SUMMARY.md` evidence | planned |
 
 ## Wave 0 Requirements
 
-- [ ] Add exact plan task IDs after `12-xx-PLAN.md` files exist.
-- [ ] Replace the placeholder targeted backend/frontend quick commands with the exact Phase 12 test files after plan tasks exist.
+- [x] Add exact plan task IDs after `12-xx-PLAN.md` files exist.
+- [x] Replace the placeholder targeted backend/frontend quick commands with the exact Phase 12 test files after plan tasks exist.
 - [ ] Add or extend frontend test utilities for mocked `MediaRecorder`, mocked `navigator.mediaDevices.getUserMedia`, and synthetic `Blob`/`File` objects.
 - [ ] Add upload-progress and abort-controller mocks around `messageApi.createMessage` and `useSendMessage`.
 - [ ] Add fixture/static guard patterns for static voice assets, hardcoded shared cards, first-party living-being identity defaults, public storage keys, raw hashes, and protected URL leakage.
 - [ ] Verify Phase 11 completion evidence or require `11-SUMMARY.md` before block-dependent Phase 12 execution claims.
-- [ ] Run `$gsd-ui-phase 12` and attach UI acceptance expectations before implementation planning.
+- [x] Run `$gsd-ui-phase 12` equivalent inline and attach UI acceptance expectations before implementation planning.
 
 ## Manual-Only Verifications
 

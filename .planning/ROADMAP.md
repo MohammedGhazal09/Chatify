@@ -402,11 +402,13 @@ Plans:
   4. Voice messages can be recorded, previewed, cancelled, sent, loaded, played, paused, and retried with clear permission and unsupported-browser states.
   5. Backend and frontend tests prove privacy, authorization, persistence, playback states, and production-build behavior.
 
-**Plans**: 0 plans
+**Plans**: 3 plans
 
 Plans:
 
-- [ ] TBD (run `$gsd-spec-phase 12`, `$gsd-discuss-phase 12`, then `$gsd-plan-phase 12`)
+- [ ] 12-01 Identity Contract, Settings, And Propagation
+- [ ] 12-02 Attachment Progress, Abort, Retry, And Voice Contract
+- [ ] 12-03 Shared Asset Truth, Voice Playback, Realtime, Privacy, And Evidence
 
 ### Phase 13: Realtime Call And Video Implementation
 
@@ -467,6 +469,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 10. Production Messenger Reality Audit And Fixture Removal | 0/0 | Not planned | - |
 | 10.1. Production Message Delivery Reliability Repair | 2/3 | In Progress | 2026-06-13 |
 | 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
-| 12. Live Media Voice And Identity Implementation | 0/0 | Not planned | - |
+| 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
 | 13. Realtime Call And Video Implementation | 0/0 | Not planned | - |
 | 14. Production Live Acceptance Gate | 0/0 | Not planned | - |
