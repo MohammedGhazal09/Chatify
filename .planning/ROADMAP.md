@@ -26,7 +26,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 10.1: Production Message Delivery Reliability Repair (INSERTED)** - Fix duplicate sends, false delivered status, and missing realtime receive before new feature work continues.
 - [ ] **Phase 11: Conversation Controls And User Safety Implementation** - Make search, More, blocking, conversation actions, and static detail surfaces real backend-backed behavior.
 - [ ] **Phase 12: Live Media Voice And Identity Implementation** - Make user identity images/marks, attachments, shared media/files, and voice messages real persisted workflows.
-- [ ] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons.
+- [x] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons. (completed 2026-06-13)
 - [ ] **Phase 14: Production Live Acceptance Gate** - Prove the deployed Vercel/Render product works with real accounts and no fixture bypass.
 
 ## Phase Details
@@ -433,11 +433,11 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 13-02 Frontend Call Controller, WebRTC Media, And Entry Points
+- [x] 13-02 Frontend Call Controller, WebRTC Media, And Entry Points
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 13-03 Call Activity, Reconnect/Unload, Regression Gates, And Evidence
+- [x] 13-03 Call Activity, Reconnect/Unload, Regression Gates, And Evidence
 
 **Cross-cutting constraints:**
 
@@ -483,5 +483,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 10.1. Production Message Delivery Reliability Repair | 2/3 | In Progress | 2026-06-13 |
 | 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
 | 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
-| 13. Realtime Call And Video Implementation | 1/3 | In Progress|  |
+| 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
 | 14. Production Live Acceptance Gate | 0/0 | Not planned | - |
