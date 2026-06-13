@@ -1,10 +1,21 @@
+import mongoose from "mongoose";
 import validator from "validator";
 import Chats from "../Models/chatModel.mjs";
 import Message from "../Models/messageModel.mjs";
 import User from "../Models/userModel.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
 import { CustomError } from "../Utils/customError.mjs";
-import { emitToUserSockets, joinUserToChat, removeUserFromChat } from "../Config/socket.mjs";
+import {
+  emitToUserSockets,
+  endActiveCallForChatDueToBlock,
+  joinUserToChat,
+  removeUserFromChat,
+} from "../Config/socket.mjs";
+import {
+  blockDirectChatPeer,
+  buildConversationControls,
+  unblockDirectChatPeer,
+} from "../Utils/conversationControls.mjs";
 import {
   buildVisibleMessageFilter,
   MESSAGE_CURSOR_SORT_DESC,
@@ -37,18 +48,66 @@ const findDirectChat = (directKey, memberIds = []) => Chats.findOne({
   .populate("members", "-password")
   .populate("latestMessage");
 
+const serializeChatForRequester = async (chat, requesterId, latestMessage = undefined) => {
+  const chatObject = chat.toObject?.() ?? chat;
+  const projectedLatestMessage = latestMessage === undefined
+    ? await projectLatestVisibleMessage(chatObject._id, requesterId)
+    : latestMessage;
+
+  return {
+    ...chatObject,
+    latestMessage: projectedLatestMessage,
+    conversationControls: await buildConversationControls({ chat, userId: requesterId }),
+  };
+};
+
 const respondWithExistingDirectChat = async (res, chat, requesterId) => {
   const projectedLatestMessage = await projectLatestVisibleMessage(chat._id, requesterId);
 
   return res.status(200).json({
     status: "success",
     data: {
-      chat: {
-        ...chat.toObject(),
-        latestMessage: projectedLatestMessage,
-      },
+      chat: await serializeChatForRequester(chat, requesterId, projectedLatestMessage),
     },
   });
+};
+
+const emitConversationControlsUpdated = async (chat) => {
+  await Promise.all((chat.members ?? []).map(async (memberId) => {
+    const normalizedMemberId = memberId?._id ?? memberId;
+
+    emitToUserSockets(normalizedMemberId, 'conversation:controls-updated', {
+      chatId: chat._id.toString(),
+      conversationControls: await buildConversationControls({ chat, userId: normalizedMemberId }),
+    });
+  }));
+};
+
+const loadChatForRequester = async ({ chatId, requesterId, next }) => {
+  if (!mongoose.Types.ObjectId.isValid(chatId)) {
+    next(new CustomError("Chat not found", 404));
+    return null;
+  }
+
+  const chat = await Chats.findById(chatId)
+    .populate("members", "-password")
+    .populate("latestMessage");
+
+  if (!chat) {
+    next(new CustomError("Chat not found", 404));
+    return null;
+  }
+
+  const isMember = chat.members.some(
+    (member) => member._id?.toString?.() === requesterId || member.toString() === requesterId
+  );
+
+  if (!isMember) {
+    next(new CustomError("Chat not found", 404));
+    return null;
+  }
+
+  return chat;
 };
 
 
@@ -136,7 +195,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
   res.status(201).json({
     status: "chat created successfully",
     data: {
-      chat: newChat,
+      chat: await serializeChatForRequester(newChat, requesterId),
     },
   });
 });
@@ -146,16 +205,76 @@ export const getAllChats = asyncErrHandler(async (req, res, next) => {
     .populate("members", "-password")
     .sort({ updatedAt: -1 });
   const projectedChats = await Promise.all(chats.map(async (chat) => {
-    return {
-      ...chat.toObject(),
-      latestMessage: await projectLatestVisibleMessage(chat._id, req.userId),
-    };
+    return serializeChatForRequester(chat, req.userId);
   }));
 
   res.status(200).json({
     status: "success",
     data: {
       chats: projectedChats,
+    },
+  });
+});
+
+export const blockChatPeer = asyncErrHandler(async (req, res, next) => {
+  const { chatId } = req.params;
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const chat = await loadChatForRequester({ chatId, requesterId, next });
+
+  if (!chat) {
+    return;
+  }
+
+  try {
+    await blockDirectChatPeer({ chat, userId: requesterId });
+  } catch (error) {
+    return next(new CustomError(error.message, error.statusCode ?? 400));
+  }
+
+  await endActiveCallForChatDueToBlock(chat._id);
+  await emitConversationControlsUpdated(chat);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      chat: await serializeChatForRequester(chat, requesterId),
+      conversationControls: await buildConversationControls({ chat, userId: requesterId }),
+    },
+  });
+});
+
+export const unblockChatPeer = asyncErrHandler(async (req, res, next) => {
+  const { chatId } = req.params;
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const chat = await loadChatForRequester({ chatId, requesterId, next });
+
+  if (!chat) {
+    return;
+  }
+
+  try {
+    await unblockDirectChatPeer({ chat, userId: requesterId });
+  } catch (error) {
+    return next(new CustomError(error.message, error.statusCode ?? 400));
+  }
+
+  await emitConversationControlsUpdated(chat);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      chat: await serializeChatForRequester(chat, requesterId),
+      conversationControls: await buildConversationControls({ chat, userId: requesterId }),
     },
   });
 });

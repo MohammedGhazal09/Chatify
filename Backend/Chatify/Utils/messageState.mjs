@@ -13,6 +13,10 @@ export const MESSAGE_STATUS = Object.freeze({
   DELIVERED: 'delivered',
   READ: 'read',
 });
+export const MESSAGE_TYPE = Object.freeze({
+  TEXT: 'text',
+  CALL: 'call',
+});
 export const MESSAGE_STATUS_RANK = Object.freeze({
   [MESSAGE_STATUS.SENT]: 0,
   [MESSAGE_STATUS.DELIVERED]: 1,
@@ -123,6 +127,27 @@ export const serializeAttachmentSummary = (attachment = {}) => {
   };
 };
 
+export const serializeCallActivity = (callActivity = null) => {
+  if (!callActivity) {
+    return null;
+  }
+
+  return {
+    callId: callActivity.callId ?? null,
+    callerId: toIdString(callActivity.callerId),
+    calleeId: toIdString(callActivity.calleeId),
+    mode: callActivity.mode ?? null,
+    result: callActivity.result ?? null,
+    startedAt: serializeDate(callActivity.startedAt),
+    ringingAt: serializeDate(callActivity.ringingAt),
+    answeredAt: serializeDate(callActivity.answeredAt),
+    endedAt: serializeDate(callActivity.endedAt),
+    durationSeconds: Number.isFinite(Number(callActivity.durationSeconds))
+      ? Number(callActivity.durationSeconds)
+      : null,
+  };
+};
+
 export const serializeMessage = (message) => {
   const plainMessage = toPlainObject(message);
 
@@ -132,6 +157,8 @@ export const serializeMessage = (message) => {
     chatId: toIdString(plainMessage.chatId),
     sender: toIdString(plainMessage.sender),
     text: plainMessage.text ?? '',
+    messageType: plainMessage.messageType ?? MESSAGE_TYPE.TEXT,
+    callActivity: serializeCallActivity(plainMessage.callActivity),
     read: Boolean(plainMessage.read),
     status: plainMessage.status ?? MESSAGE_STATUS.SENT,
     deliveredAt: serializeDate(plainMessage.deliveredAt),
@@ -304,6 +331,7 @@ export const buildUnreadMessageFilter = ({ chatId, userId }) => {
 
   return {
     chatId: chatObjectId,
+    messageType: { $ne: MESSAGE_TYPE.CALL },
     sender: { $ne: userObjectId },
     'readBy.user': { $ne: userObjectId },
     deletedFor: { $ne: userObjectId },

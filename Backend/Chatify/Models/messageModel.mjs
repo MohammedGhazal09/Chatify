@@ -58,6 +58,45 @@ const attachmentSummarySchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+const callActivitySchema = new mongoose.Schema({
+  callId: {
+    type: String,
+    trim: true,
+  },
+  callerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+  },
+  calleeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+  },
+  mode: {
+    type: String,
+    enum: ["audio", "video"],
+  },
+  result: {
+    type: String,
+    enum: ["missed", "rejected", "ended", "failed", "canceled", "blocked"],
+  },
+  startedAt: {
+    type: Date,
+  },
+  ringingAt: {
+    type: Date,
+  },
+  answeredAt: {
+    type: Date,
+  },
+  endedAt: {
+    type: Date,
+  },
+  durationSeconds: {
+    type: Number,
+    min: 0,
+  },
+}, { _id: false });
+
 const messageSchema = new mongoose.Schema({
   chatId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -74,10 +113,20 @@ const messageSchema = new mongoose.Schema({
   text: {
     type: String,
     required() {
-      return !this.deletedForEveryone && (!this.attachments || this.attachments.length === 0);
+      return this.messageType !== "call"
+        && !this.deletedForEveryone
+        && (!this.attachments || this.attachments.length === 0);
     },
     maxlength: 1000,
     default: '',
+  },
+  messageType: {
+    type: String,
+    enum: ["text", "call"],
+    default: "text",
+  },
+  callActivity: {
+    type: callActivitySchema,
   },
   attachments: {
     type: [attachmentSummarySchema],
@@ -150,6 +199,16 @@ messageSchema.index({ chatId: 1, createdAt: 1 });
 messageSchema.index({ chatId: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ chatId: 1, sender: 1, status: 1 });
 messageSchema.index({ chatId: 1, pinned: 1, pinnedAt: -1 });
+messageSchema.index({ chatId: 1, messageType: 1, createdAt: -1 });
+messageSchema.index(
+  { chatId: 1, 'callActivity.callId': 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      'callActivity.callId': { $exists: true, $type: "string" },
+    },
+  }
+);
 // Compound index for unread messages query optimization
 messageSchema.index({ chatId: 1, sender: 1, 'readBy.user': 1 });
 messageSchema.index({ chatId: 1, deletedFor: 1, deletedForEveryone: 1, createdAt: -1, _id: -1 });

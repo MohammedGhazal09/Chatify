@@ -4,9 +4,41 @@ import Message from '../Models/messageModel.mjs'
 import Chats from '../Models/chatModel.mjs'
 import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
 import { assertChatMember, assertMessageChatMember, normalizeObjectId } from '../Utils/chatAccess.mjs'
+import { getCallIceConfig } from '../Utils/callIceConfig.mjs'
+import {
+  CALL_SOCKET_EVENTS,
+  buildCallSessionPayload,
+  emitCallAck,
+  emitCallError,
+} from '../Utils/callSocketContract.mjs'
+import {
+  CALL_ACTIVITY_RESULT,
+  CALL_STATUS,
+  acceptCallSession,
+  assertCallCanSignal,
+  createCallActivityForSession,
+  endActiveCallForChat,
+  endCallSession,
+  findActiveCallForUserInChat,
+  getCallPeerForParticipant,
+  getCallPeerId,
+  loadCallSessionForAction,
+  normalizeCallMode,
+  rejectCallSession,
+  startCallSession,
+  timeoutCallSession,
+  toCallSocketError,
+} from '../Utils/callSessionState.mjs'
+import {
+  assertConversationActivityAllowed,
+  filterUnblockedContactIds,
+  isConversationActivityAllowed,
+  toSocketAccessError,
+} from '../Utils/conversationControls.mjs'
 import {
   buildStatusPatch,
   MESSAGE_STATUS,
+  serializeMessage,
 } from '../Utils/messageState.mjs'
 
 let io
@@ -18,6 +50,7 @@ const socketToUser = new Map()
 const userToSockets = new Map()
 // Single-process presence state. Use a Redis adapter/shared state before horizontal Socket.IO scaling.
 const offlineTimers = new Map()
+const callTimeoutTimers = new Map()
 const OFFLINE_DEBOUNCE_MS = 4000
 
 // Debug logging helper - only logs in development
@@ -44,6 +77,7 @@ const createSocketAuthError = (code, message) => {
 const socketErrorMessages = {
   invalid_payload: 'Invalid socket payload',
   forbidden_or_not_found: 'Forbidden or not found',
+  conversation_blocked: 'Conversation activity is not available',
   deprecated_socket_message_send: 'Send messages through the HTTP message API',
   rate_limited: 'Too many socket events',
   server_error: 'Socket event failed',
@@ -55,6 +89,14 @@ const socketEventLimits = {
   'message:delivered': { max: 40, windowMs: 10_000 },
   'typing:start': { max: 30, windowMs: 10_000 },
   'typing:stop': { max: 30, windowMs: 10_000 },
+  'call:start': { max: 8, windowMs: 60_000 },
+  'call:accept': { max: 20, windowMs: 60_000 },
+  'call:reject': { max: 20, windowMs: 60_000 },
+  'call:end': { max: 30, windowMs: 60_000 },
+  'call:offer': { max: 60, windowMs: 60_000 },
+  'call:answer': { max: 60, windowMs: 60_000 },
+  'call:ice-candidate': { max: 240, windowMs: 60_000 },
+  'call:sync': { max: 30, windowMs: 60_000 },
 }
 
 const socketEventWindows = new Map()
@@ -133,6 +175,94 @@ const guardSocketEventRateLimit = (socket, event, ack) => {
 
   currentWindow.count += 1
   return true
+}
+
+const clearCallTimeout = (callId) => {
+  const timeout = callTimeoutTimers.get(callId)
+
+  if (timeout) {
+    clearTimeout(timeout)
+    callTimeoutTimers.delete(callId)
+  }
+}
+
+const emitCallActivity = async (session) => {
+  const activity = await createCallActivityForSession(session)
+
+  if (!activity) {
+    return null
+  }
+
+  io?.in(session.chatId.toString()).emit('message:new', serializeMessage(activity))
+  return activity
+}
+
+const emitCallSyncToParticipants = (session, extra = {}) => {
+  const payload = buildCallSessionPayload(session, extra)
+
+  emitToUserSockets(session.callerId, CALL_SOCKET_EVENTS.SYNC, payload)
+  emitToUserSockets(session.calleeId, CALL_SOCKET_EVENTS.SYNC, payload)
+  return payload
+}
+
+const scheduleCallTimeout = (session) => {
+  clearCallTimeout(session.callId)
+
+  const timeout = setTimeout(async () => {
+    callTimeoutTimers.delete(session.callId)
+
+    try {
+      const timedOutSession = await timeoutCallSession({ callId: session.callId })
+
+      if (timedOutSession) {
+        emitCallSyncToParticipants(timedOutSession)
+        await emitCallActivity(timedOutSession)
+      }
+    } catch (error) {
+      debugLog('Call timeout failed', { callId: session.callId, code: error?.code })
+    }
+  }, 30_000)
+
+  callTimeoutTimers.set(session.callId, timeout)
+}
+
+const loadAuthorizedCall = async ({ callId, chatId, actorId }) => {
+  const session = await loadCallSessionForAction({ callId, chatId, actorId })
+  const chat = await assertChatMember({ chatId: session.chatId, userId: actorId })
+
+  await assertConversationActivityAllowed({ chat, actorId })
+  assertCallCanSignal(session, actorId)
+
+  return { session, chat }
+}
+
+const forwardCallSignalToPeer = async ({ socket, event, payload = {}, ack }) => {
+  if (!guardSocketEventRateLimit(socket, event, ack)) return
+
+  try {
+    const { callId, chatId } = payload
+    const { session } = await loadAuthorizedCall({
+      callId,
+      chatId,
+      actorId: socket.data.userId,
+    })
+    const peerId = getCallPeerForParticipant(session, socket.data.userId)
+    const forwardedPayload = {
+      callId: session.callId,
+      chatId: session.chatId.toString(),
+      fromUserId: socket.data.userId,
+      signal: payload.signal ?? null,
+    }
+
+    emitToUserSockets(peerId, event, forwardedPayload)
+    emitCallAck(ack, event, {
+      callId: session.callId,
+      chatId: session.chatId.toString(),
+      status: session.status,
+    })
+  } catch (err) {
+    emitCallError(socket, event, toCallSocketError(err), ack)
+  }
 }
 
 export const respondSocketError = (socket, event, error, ack) => {
@@ -214,7 +344,10 @@ const getAuthorizedContactIds = async (userId) => {
     })
   })
 
-  return Array.from(contactIds)
+  return filterUnblockedContactIds({
+    userId,
+    contactIds: Array.from(contactIds),
+  })
 }
 
 const getAuthorizedPresenceSnapshot = async (userId) => {
@@ -345,6 +478,7 @@ export const initSocket = (server) => {
       socketId: socket.id,
       joinedChats: userChats.length,
       presence: await getAuthorizedPresenceSnapshot(userId),
+      callConfig: getCallIceConfig(),
     }
     socket.emit('socket:ready', readyPayload)
     socket.emit('user:connected', readyPayload)
@@ -412,6 +546,172 @@ export const initSocket = (server) => {
       )
     })
 
+    socket.on(CALL_SOCKET_EVENTS.START, async ({ chatId, mode } = {}, ack) => {
+      const event = CALL_SOCKET_EVENTS.START
+      if (!guardSocketEventRateLimit(socket, event, ack)) return
+
+      try {
+        const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        const normalizedMode = normalizeCallMode(mode)
+        const calleeId = getCallPeerId({ chat, userId: socket.data.userId })
+        const reachableCalleeSockets = getUserSockets(calleeId)
+
+        if (reachableCalleeSockets.size === 0) {
+          emitCallError(socket, event, { code: 'callee_unavailable' }, ack)
+          return
+        }
+
+        const session = await startCallSession({
+          chat,
+          callerId: socket.data.userId,
+          mode: normalizedMode,
+          deliveredTo: [calleeId],
+        })
+        const incomingPayload = buildCallSessionPayload(session, {
+          fromUserId: socket.data.userId,
+          callConfig: getCallIceConfig(),
+        })
+        const emittedCount = emitToUserSockets(calleeId, CALL_SOCKET_EVENTS.INCOMING, incomingPayload)
+
+        if (emittedCount === 0) {
+          const failedSession = await endCallSession({
+            callId: session.callId,
+            chatId: chat._id,
+            actorId: socket.data.userId,
+            reason: CALL_ACTIVITY_RESULT.FAILED,
+          })
+
+          clearCallTimeout(session.callId)
+          emitCallSyncToParticipants(failedSession)
+          emitCallError(socket, event, { code: 'callee_unavailable' }, ack)
+          return
+        }
+
+        scheduleCallTimeout(session)
+        emitCallSyncToParticipants(session)
+        emitCallAck(ack, event, {
+          ...buildCallSessionPayload(session),
+          callConfig: getCallIceConfig(),
+        })
+      } catch (err) {
+        emitCallError(socket, event, toCallSocketError(err), ack)
+      }
+    })
+
+    socket.on(CALL_SOCKET_EVENTS.ACCEPT, async ({ callId, chatId } = {}, ack) => {
+      const event = CALL_SOCKET_EVENTS.ACCEPT
+      if (!guardSocketEventRateLimit(socket, event, ack)) return
+
+      try {
+        const existingSession = await loadCallSessionForAction({
+          callId,
+          chatId,
+          actorId: socket.data.userId,
+        })
+        const chat = await assertChatMember({ chatId: existingSession.chatId, userId: socket.data.userId })
+        await assertConversationActivityAllowed({ chat, actorId: socket.data.userId })
+        const session = await acceptCallSession({
+          callId,
+          chatId: existingSession.chatId,
+          actorId: socket.data.userId,
+        })
+
+        clearCallTimeout(session.callId)
+        emitCallSyncToParticipants(session)
+        emitToUserSockets(session.callerId, CALL_SOCKET_EVENTS.ACCEPT, buildCallSessionPayload(session, {
+          fromUserId: socket.data.userId,
+        }))
+        emitCallAck(ack, event, buildCallSessionPayload(session))
+      } catch (err) {
+        emitCallError(socket, event, toCallSocketError(err), ack)
+      }
+    })
+
+    socket.on(CALL_SOCKET_EVENTS.REJECT, async ({ callId, chatId } = {}, ack) => {
+      const event = CALL_SOCKET_EVENTS.REJECT
+      if (!guardSocketEventRateLimit(socket, event, ack)) return
+
+      try {
+        const existingSession = await loadCallSessionForAction({
+          callId,
+          chatId,
+          actorId: socket.data.userId,
+        })
+        const chat = await assertChatMember({ chatId: existingSession.chatId, userId: socket.data.userId })
+        await assertConversationActivityAllowed({ chat, actorId: socket.data.userId })
+        const session = await rejectCallSession({
+          callId,
+          chatId: existingSession.chatId,
+          actorId: socket.data.userId,
+        })
+
+        clearCallTimeout(session.callId)
+        emitCallSyncToParticipants(session)
+        await emitCallActivity(session)
+        emitCallAck(ack, event, buildCallSessionPayload(session))
+      } catch (err) {
+        emitCallError(socket, event, toCallSocketError(err), ack)
+      }
+    })
+
+    socket.on(CALL_SOCKET_EVENTS.END, async ({ callId, chatId, reason } = {}, ack) => {
+      const event = CALL_SOCKET_EVENTS.END
+      if (!guardSocketEventRateLimit(socket, event, ack)) return
+
+      try {
+        const existingSession = await loadCallSessionForAction({
+          callId,
+          chatId,
+          actorId: socket.data.userId,
+        })
+        const session = await endCallSession({
+          callId,
+          chatId: existingSession.chatId,
+          actorId: socket.data.userId,
+          reason: reason === CALL_ACTIVITY_RESULT.FAILED
+            ? CALL_ACTIVITY_RESULT.FAILED
+            : CALL_ACTIVITY_RESULT.ENDED,
+        })
+
+        clearCallTimeout(session.callId)
+        emitCallSyncToParticipants(session)
+        await emitCallActivity(session)
+        emitCallAck(ack, event, buildCallSessionPayload(session))
+      } catch (err) {
+        emitCallError(socket, event, toCallSocketError(err), ack)
+      }
+    })
+
+    socket.on(CALL_SOCKET_EVENTS.SYNC, async ({ chatId } = {}, ack) => {
+      const event = CALL_SOCKET_EVENTS.SYNC
+      if (!guardSocketEventRateLimit(socket, event, ack)) return
+
+      try {
+        const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        const session = await findActiveCallForUserInChat(socket.data.userId, chat._id)
+
+        emitCallAck(ack, event, {
+          chatId: chat._id.toString(),
+          call: session ? buildCallSessionPayload(session) : null,
+          callConfig: getCallIceConfig(),
+        })
+      } catch (err) {
+        emitCallError(socket, event, toCallSocketError(err), ack)
+      }
+    })
+
+    socket.on(CALL_SOCKET_EVENTS.OFFER, (payload, ack) => {
+      forwardCallSignalToPeer({ socket, event: CALL_SOCKET_EVENTS.OFFER, payload, ack })
+    })
+
+    socket.on(CALL_SOCKET_EVENTS.ANSWER, (payload, ack) => {
+      forwardCallSignalToPeer({ socket, event: CALL_SOCKET_EVENTS.ANSWER, payload, ack })
+    })
+
+    socket.on(CALL_SOCKET_EVENTS.ICE_CANDIDATE, (payload, ack) => {
+      forwardCallSignalToPeer({ socket, event: CALL_SOCKET_EVENTS.ICE_CANDIDATE, payload, ack })
+    })
+
     // Handle message delivered event
     socket.on('message:delivered', async ({ messageId } = {}, ack) => {
       if (!guardSocketEventRateLimit(socket, 'message:delivered', ack)) return
@@ -436,6 +736,11 @@ export const initSocket = (server) => {
           }
           return
         }
+
+        await assertConversationActivityAllowed({
+          chat,
+          actorId: socket.data.userId,
+        })
 
         logDeliveryLifecycle('delivery.ack_received', {
           chatId: chat._id.toString(),
@@ -477,7 +782,7 @@ export const initSocket = (server) => {
           ack(respondSocketSuccess('message:delivered', { messageId: message._id.toString() }))
         }
       } catch (err) {
-        respondSocketError(socket, 'message:delivered', err, ack)
+        respondSocketError(socket, 'message:delivered', toSocketAccessError(err), ack)
       }
     })
 
@@ -487,6 +792,10 @@ export const initSocket = (server) => {
 
       try {
         const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        await assertConversationActivityAllowed({
+          chat,
+          actorId: socket.data.userId,
+        })
         const user = await User.findById(socket.data.userId).select('firstName lastName')
         if (!user) return
 
@@ -501,7 +810,7 @@ export const initSocket = (server) => {
           ack(respondSocketSuccess('typing:start', { chatId: chat._id.toString() }))
         }
       } catch (err) {
-        respondSocketError(socket, 'typing:start', err, ack)
+        respondSocketError(socket, 'typing:start', toSocketAccessError(err), ack)
       }
     })
 
@@ -510,6 +819,10 @@ export const initSocket = (server) => {
 
       try {
         const chat = await assertChatMember({ chatId, userId: socket.data.userId })
+        await assertConversationActivityAllowed({
+          chat,
+          actorId: socket.data.userId,
+        })
         const user = await User.findById(socket.data.userId).select('firstName lastName')
         if (!user) return
 
@@ -524,7 +837,7 @@ export const initSocket = (server) => {
           ack(respondSocketSuccess('typing:stop', { chatId: chat._id.toString() }))
         }
       } catch (err) {
-        respondSocketError(socket, 'typing:stop', err, ack)
+        respondSocketError(socket, 'typing:stop', toSocketAccessError(err), ack)
       }
     })
 
@@ -559,6 +872,12 @@ const markMessagesAsDelivered = async (chatId, userId) => {
   try {
     const chatObjectId = normalizeObjectId(chatId)
     const userObjectId = normalizeObjectId(userId)
+    const chat = await Chats.findById(chatObjectId)
+
+    if (!chat || !(await isConversationActivityAllowed({ chat, actorId: userObjectId }))) {
+      return
+    }
+
     const messages = await Message.find({
       chatId: chatObjectId,
       sender: { $ne: userObjectId },
@@ -637,6 +956,23 @@ export const emitToUserSockets = (userId, eventName, payload) => {
   return emittedCount
 }
 
+export const endActiveCallForChatDueToBlock = async (chatId) => {
+  const session = await endActiveCallForChat({
+    chatId,
+    reason: CALL_ACTIVITY_RESULT.BLOCKED,
+  })
+
+  if (!session) {
+    return null
+  }
+
+  clearCallTimeout(session.callId)
+  emitCallSyncToParticipants(session)
+  await emitCallActivity(session)
+
+  return buildCallSessionPayload(session)
+}
+
 // Join a user to a specific chat room (used when new chat is created)
 export const joinUserToChat = (userId, chatId) => {
   const userSockets = userToSockets.get(userId.toString())
@@ -673,6 +1009,8 @@ export const closeSocketServer = async () => {
   if (!io) {
     offlineTimers.forEach(timer => clearTimeout(timer))
     offlineTimers.clear()
+    callTimeoutTimers.forEach(timer => clearTimeout(timer))
+    callTimeoutTimers.clear()
     socketToUser.clear()
     userToSockets.clear()
     socketEventWindows.clear()
@@ -683,6 +1021,8 @@ export const closeSocketServer = async () => {
   io = undefined
   offlineTimers.forEach(timer => clearTimeout(timer))
   offlineTimers.clear()
+  callTimeoutTimers.forEach(timer => clearTimeout(timer))
+  callTimeoutTimers.clear()
   socketToUser.clear()
   userToSockets.clear()
   socketEventWindows.clear()
