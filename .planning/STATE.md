@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase_added
-stopped_at: Phases 10-14 added for production-live messenger remediation
-last_updated: "2026-06-13T01:44:13.2057489+03:00"
-last_activity: 2026-06-13 -- Added production-live remediation phases after live Chatify screenshot exposed dead controls and static surfaces
+status: context_gathered
+stopped_at: Phase 10.1 context gathered
+last_updated: "2026-06-13T00:14:36.043Z"
+last_activity: 2026-06-13 -- Inserted urgent Phase 10.1 for duplicate sends, false delivered state, and missing realtime receive.
 progress:
-  total_phases: 14
-  completed_phases: 8
-  total_plans: 26
-  completed_plans: 23
-  percent: 57
+  total_phases: 15
+  completed_phases: 9
+  total_plans: 29
+  completed_plans: 27
+  percent: 60
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 10 production messenger reality audit; live production behavior must be repaired before Chatify can be called functionally ready.
+**Current focus:** Phase 10 production messenger reality audit, followed immediately by Phase 10.1 message delivery reliability repair before new feature work.
 
 ## Current Position
 
 Phase: 10 (production-messenger-reality-audit-and-fixture-removal) - NOT PLANNED
 Plan: pending
-Status: Phases 10-14 were added because the deployed Chatify UI still exposes dead controls, a non-closable detail rail, static shared content, and unimplemented call/video/media/voice/profile behavior.
-Last activity: 2026-06-13 -- Production-live screenshot invalidated the previous readiness claim and created a remediation sequence.
+Status: context_gathered
+Last activity: 2026-06-13 -- Inserted urgent Phase 10.1 for duplicate sends, false delivered state, and missing realtime receive.
 
-Progress: 57%
+Progress: 53%
 
 ## Performance Metrics
 
@@ -109,16 +109,20 @@ Recent decisions affecting current work:
 - Phase 13 added: Realtime Call And Video Implementation.
 - Phase 14 added: Production Live Acceptance Gate.
 - Production-live correction: Phase 9 evidence was not sufficient to claim the deployed messenger is fully functional because the live UI still exposes a non-closable right rail, dead call/video/search/more controls, static shared files/media/pinned surfaces, and static voice/media interactions.
+- Phase 10.1 inserted after Phase 10: Production Message Delivery Reliability Repair (URGENT).
+- Production delivery correction: live two-account behavior shows one send can render duplicate sender messages, delivered state can be false, and recipients may need refresh to see messages; this must be fixed before conversation controls, media, voice, or call features.
 
 ### Pending Todos
 
 - Address the earlier pending Phase 01 security foundation before claiming full v1 milestone readiness.
 - Plan and execute Phase 10 before continuing feature claims; it must reproduce the production failures and remove fixture/static fallbacks.
+- Plan and execute Phase 10.1 immediately after Phase 10; no later messenger feature phase should proceed while duplicate send or no-refresh receive is unresolved.
 
 ### Blockers/Concerns
 
 - Open concern: Phase 06 screenshot parity is not enough acceptance evidence for a working messenger UI.
 - Phase 09 local evidence did not catch the deployed static/dead-control failures; production-live acceptance is now deferred to Phase 14.
+- Critical blocker: message delivery is unreliable in production until Phase 10.1 proves single-send idempotency, recipient realtime receive, and honest delivered/read state with real two-account evidence.
 - Remaining concern: Phase 01 security/test foundation requirements are still pending in the roadmap.
 - Repository hygiene note: unrelated local screenshot/config changes existed before these phase additions and should not be mixed into future focused commits unless intentionally refreshed.
 
@@ -130,6 +134,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-13T01:44:13.2057489+03:00
-Stopped at: Phases 10-14 added
-Resume file: .planning/ROADMAP.md
+Last session: 2026-06-13T00:13:31.623Z
+Stopped at: Phase 10.1 context gathered
+Resume file: .planning/phases/10.1-production-message-delivery-reliability-repair/10.1-CONTEXT.md
