@@ -467,7 +467,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 14-02: Live Messaging, Controls, Attachments, And Static-Content Acceptance
+- [x] 14-02: Live Messaging, Controls, Attachments, And Static-Content Acceptance
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -499,4 +499,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
 | 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
-| 14. Production Live Acceptance Gate | 1/3 | In Progress | - |
+| 14. Production Live Acceptance Gate | 2/3 | In Progress | - |

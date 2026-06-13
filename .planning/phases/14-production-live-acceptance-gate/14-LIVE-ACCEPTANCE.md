@@ -1,10 +1,10 @@
 # Phase 14 Live Acceptance
 
-**Generated:** 2026-06-13T00:00:00.000Z
+**Generated:** 2026-06-13T06:28:18.098Z
 **Status:** blocked
 **Readiness:** Blocked
-**Command:** npm run test:e2e:prod -- --grep "production smoke config"
-**Local git head:** 7d01a41
+**Command:** npm run test:e2e:prod -- --grep "Phase 14 production live acceptance"
+**Local git head:** 6111148
 
 ## Production Target
 
@@ -22,6 +22,7 @@
 | Check | Status | Detail |
 |-------|--------|--------|
 | Phase 14 production environment contract | blocked | CHATIFY_PRODUCTION_SMOKE=1 is required for Phase 14 live acceptance. Missing Phase 14 production acceptance environment: CHATIFY_PRODUCTION_SMOKE, CHATIFY_PROD_FRONTEND_URL, CHATIFY_PROD_BACKEND_URL, CHATIFY_SMOKE_USER_A_EMAIL, CHATIFY_SMOKE_USER_A_PASSWORD, CHATIFY_SMOKE_USER_B_EMAIL, CHATIFY_SMOKE_USER_B_PASSWORD. Invalid Phase 14 production URL environment: CHATIFY_PROD_FRONTEND_URL, CHATIFY_PROD_BACKEND_URL. |
+| Filtered production observations | skipped | No API or console observations were captured before the gate stopped. |
 
 ## Blockers
 
@@ -35,4 +36,4 @@
 
 ## Remaining Risks
 
-- No live product readiness claim is allowed until the full Phase 14 gate passes with zero blockers.
+- No live product readiness claim is allowed until the full Phase 14 gate runs with configured production smoke accounts.
