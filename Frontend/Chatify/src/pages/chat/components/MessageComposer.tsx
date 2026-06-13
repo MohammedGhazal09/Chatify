@@ -13,6 +13,7 @@ interface MessageComposerProps {
   isSending: boolean;
   isSendError: boolean;
   sendDisabledReason?: string | null;
+  showDisabledReason?: boolean;
   resetToken?: number;
   emojiPickerRef: RefObject<HTMLDivElement | null>;
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
@@ -72,6 +73,7 @@ const MessageComposer = ({
   isSending,
   isSendError,
   sendDisabledReason,
+  showDisabledReason = true,
   resetToken = 0,
   emojiPickerRef,
   onChange,
@@ -266,7 +268,7 @@ const MessageComposer = ({
             placeholder="Write a private message"
             aria-label="Write a private message"
             disabled={Boolean(sendDisabledReason)}
-            aria-describedby={currentDisabledReason ? composerStatusId : undefined}
+            aria-describedby={currentDisabledReason && showDisabledReason ? composerStatusId : undefined}
             className="chat-input-area max-h-24 min-h-12 w-full resize-none rounded-[var(--chat-radius-pill)] bg-transparent px-5 py-3 text-base leading-6 text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] md:text-sm"
           />
         </div>
@@ -310,7 +312,7 @@ const MessageComposer = ({
           disabled={!canSend}
           className="grid h-14 w-14 shrink-0 cursor-pointer place-items-center rounded-full bg-[var(--chat-accent)] text-[var(--chat-own-text)] shadow-[var(--chat-shadow)] transition hover:bg-[var(--chat-accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--chat-panel-subtle)] disabled:text-[var(--chat-text-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:h-12 md:w-12"
           aria-label="Send message"
-          aria-describedby={currentDisabledReason ? composerStatusId : undefined}
+          aria-describedby={currentDisabledReason && showDisabledReason ? composerStatusId : undefined}
         >
           {isSending ? (
             <LoaderCircle aria-hidden="true" className="h-5 w-5 motion-safe:animate-spin" />
@@ -323,7 +325,7 @@ const MessageComposer = ({
         <Lock aria-hidden="true" className="h-4 w-4 text-[var(--chat-accent)]" />
         <span>Authenticated private session</span>
       </div>
-      {currentDisabledReason && (
+      {currentDisabledReason && showDisabledReason && (
         <p id={composerStatusId} className="mx-auto mt-2 max-w-[880px] text-sm text-[var(--chat-warning)]" aria-live="polite">
           {currentDisabledReason}
         </p>

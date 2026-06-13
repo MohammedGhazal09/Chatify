@@ -22,10 +22,12 @@ const baseProps = {
   isSocketConnected: true,
   isReconnecting: false,
   isOffline: false,
+  isConversationControlPending: false,
   onStartAudioCall: vi.fn(),
   onStartVideoCall: vi.fn(),
   onSearchMessages: vi.fn(),
   onOpenMoreMenu: vi.fn(),
+  onUnblockUser: vi.fn(),
   onJumpToMessage: vi.fn(),
   onUnpinMessage: vi.fn(),
 };

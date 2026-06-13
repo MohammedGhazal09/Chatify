@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import type { ConversationControls } from '../../../types/chat';
 import { makeChat, makePinnedMessage, makeSharedAsset, makeUser } from '../../../test/chatFixtures';
 import ChatContextRail from './ChatContextRail';
 
@@ -33,10 +34,22 @@ describe('ChatContextRail', () => {
       isSocketConnected: true,
       isReconnecting: false,
       isOffline: false,
+      conversationControls: {
+        isDirectChat: true,
+        peerId: 'user-2',
+        canSendMessage: true,
+        canBlockUser: true,
+        canUnblockUser: false,
+        blockedByMe: false,
+        blockedMe: false,
+        messagingDisabledReason: null,
+      } satisfies ConversationControls,
+      isConversationControlPending: false,
       onStartAudioCall: vi.fn(),
       onStartVideoCall: vi.fn(),
       onSearchMessages: vi.fn(),
       onOpenMoreMenu: vi.fn(),
+      onUnblockUser: vi.fn(),
       onJumpToMessage: vi.fn(),
       onUnpinMessage: vi.fn(),
       ...overrides,
@@ -66,6 +79,8 @@ describe('ChatContextRail', () => {
     expect(screen.getByText('Pinned messages')).toBeInTheDocument();
     expect(screen.getByText('Shared files')).toBeInTheDocument();
     expect(screen.getByText('Shared media')).toBeInTheDocument();
+    expect(screen.getByText('Blocked people')).toBeInTheDocument();
+    expect(screen.getByText('No blocked people in this conversation.')).toBeInTheDocument();
     expect(screen.getByText('Conversation security')).toBeInTheDocument();
     expect(screen.getByText('Retry logic note')).toBeInTheDocument();
     expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
@@ -96,6 +111,33 @@ describe('ChatContextRail', () => {
     expect(onOpenMoreMenu).toHaveBeenCalledTimes(1);
     expect(onJumpToMessage).toHaveBeenCalledWith('message-pin');
     expect(onUnpinMessage).toHaveBeenCalledWith('message-pin');
+  });
+
+  it('lists blocked people and unblocks from conversation details', async () => {
+    const user = userEvent.setup();
+    const onUnblockUser = vi.fn();
+    const blockedControls: ConversationControls = {
+      isDirectChat: true,
+      peerId: 'user-2',
+      canSendMessage: false,
+      canBlockUser: false,
+      canUnblockUser: true,
+      blockedByMe: true,
+      blockedMe: false,
+      messagingDisabledReason: 'blocked_by_me',
+    };
+
+    renderRail({
+      conversationControls: blockedControls,
+      onUnblockUser,
+    });
+
+    expect(screen.getByText('Blocked people')).toBeInTheDocument();
+    expect(screen.getByText('Blocked by you')).toBeInTheDocument();
+    expect(screen.getByText('New activity is paused until you unblock them.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Unblock user' }));
+    expect(onUnblockUser).toHaveBeenCalledTimes(1);
   });
 
   it('does not render when the rail is closed', () => {
@@ -145,12 +187,14 @@ describe('ChatContextRail', () => {
         isSocketConnected={false}
         isReconnecting={false}
         isOffline
+        isConversationControlPending={false}
         callDisabledReason="Realtime connection is unavailable."
         videoCallDisabledReason="Realtime connection is unavailable."
         onStartAudioCall={vi.fn()}
         onStartVideoCall={vi.fn()}
         onSearchMessages={vi.fn()}
         onOpenMoreMenu={vi.fn()}
+        onUnblockUser={vi.fn()}
         onJumpToMessage={vi.fn()}
         onUnpinMessage={vi.fn()}
       />

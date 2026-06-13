@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import type { ConversationControls } from '../../../types/chat';
 import { makeChat, makeMessage } from '../../../test/chatFixtures';
 import ConversationPane from './ConversationPane';
 
@@ -44,6 +45,7 @@ const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) 
     isSending: false,
     isSendError: false,
     sendDisabledReason: null,
+    isConversationControlPending: false,
     composerResetToken: 0,
     isOffline: false,
     isSessionExpired: false,
@@ -76,6 +78,7 @@ const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) 
     onSendMessage: vi.fn(),
     onToggleEmojiPicker: vi.fn(),
     onAppendEmoji: vi.fn(),
+    onUnblockUser: vi.fn(),
     onCancelReply: vi.fn(),
     ...overrides,
   };
@@ -126,6 +129,39 @@ describe('ConversationPane', () => {
     });
 
     expect(screen.getByRole('textbox', { name: 'Search this conversation' })).toHaveValue('state');
+  });
+
+  it('pins blocked-by-me status above the conversation and removes the old composer-only copy', async () => {
+    const user = userEvent.setup();
+    const onUnblockUser = vi.fn();
+    const chat = makeChat();
+    const blockedControls: ConversationControls = {
+      isDirectChat: true,
+      peerId: 'user-2',
+      canSendMessage: false,
+      canBlockUser: false,
+      canUnblockUser: true,
+      blockedByMe: true,
+      blockedMe: false,
+      messagingDisabledReason: 'blocked_by_me',
+    };
+
+    renderConversationPane({
+      selectedChat: chat,
+      selectedChatId: chat._id,
+      otherMember: chat.members[1] ?? null,
+      conversationControls: blockedControls,
+      sendDisabledReason: 'You blocked this user. Unblock them to send new activity.',
+      onUnblockUser,
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('You blocked Grace Hopper');
+    expect(screen.getByRole('alert')).toHaveTextContent('New messages, calls, reactions, pins, and edits stay paused until you unblock them.');
+    expect(screen.getByRole('textbox', { name: 'Write a private message' })).toBeDisabled();
+    expect(screen.queryByText('You blocked this user. Unblock them to send new activity.')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Unblock user' }));
+    expect(onUnblockUser).toHaveBeenCalledTimes(1);
   });
 
   it('renders below-minimum search guidance outside the durable message list', () => {

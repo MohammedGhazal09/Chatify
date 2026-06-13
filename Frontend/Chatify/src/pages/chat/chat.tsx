@@ -1351,6 +1351,7 @@ const ChatPage = () => {
           isSending={sendMessage.isPending}
           isSendError={sendMessage.isError}
           sendDisabledReason={activeConversationDisabledReason}
+          isConversationControlPending={isConversationControlPending}
           composerResetToken={composerResetToken}
           isOffline={isOffline}
           isSessionExpired={isSessionExpired}
@@ -1383,6 +1384,7 @@ const ChatPage = () => {
           onSendMessage={handleSendMessage}
           onToggleEmojiPicker={() => setShowEmojiPicker((prev) => !prev)}
           onAppendEmoji={handleAppendEmoji}
+          onUnblockUser={handleUnblockPeer}
           onCancelReply={() => setReplyingTo(null)}
         />
       )}
@@ -1407,6 +1409,7 @@ const ChatPage = () => {
           isReconnecting={isReconnecting}
           isOffline={isOffline}
           conversationControls={conversationControls}
+          isConversationControlPending={isConversationControlPending}
           callDisabledReason={audioAvailability.reason}
           videoCallDisabledReason={videoAvailability.reason}
           onClose={closeDetailRail}
@@ -1414,6 +1417,7 @@ const ChatPage = () => {
           onStartVideoCall={handleStartVideoCall}
           onSearchMessages={handleToggleMessageSearch}
           onOpenMoreMenu={handleOpenMoreMenuFromDetails}
+          onUnblockUser={handleUnblockPeer}
           onJumpToMessage={handleJumpToMessage}
           onUnpinMessage={handleUnpinMessage}
         />
@@ -1441,6 +1445,7 @@ const ChatPage = () => {
               isReconnecting={isReconnecting}
               isOffline={isOffline}
               conversationControls={conversationControls}
+              isConversationControlPending={isConversationControlPending}
               callDisabledReason={audioAvailability.reason}
               videoCallDisabledReason={videoAvailability.reason}
               onClose={closeDetailDrawer}
@@ -1451,6 +1456,7 @@ const ChatPage = () => {
                 handleToggleMessageSearch();
               }}
               onOpenMoreMenu={handleOpenMoreMenuFromDetails}
+              onUnblockUser={handleUnblockPeer}
               onJumpToMessage={(messageId) => {
                 setIsDetailDrawerOpen(false);
                 handleJumpToMessage(messageId);

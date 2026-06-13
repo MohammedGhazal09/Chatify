@@ -1,4 +1,5 @@
 import type { ChangeEvent, KeyboardEventHandler, RefObject } from 'react';
+import { Ban, ShieldCheck } from 'lucide-react';
 import type { Chat, ComposerSendPayload, ConversationControls, Message, UserOnlineStatus } from '../../../types/chat';
 import type { User } from '../../../types/auth';
 import TypingIndicator from '../../../components/TypingIndicator';
@@ -46,6 +47,7 @@ interface ConversationPaneProps {
   isSending: boolean;
   isSendError: boolean;
   sendDisabledReason?: string | null;
+  isConversationControlPending: boolean;
   composerResetToken: number;
   isOffline: boolean;
   isSessionExpired: boolean;
@@ -78,6 +80,7 @@ interface ConversationPaneProps {
   onSendMessage: (payload: ComposerSendPayload) => void;
   onToggleEmojiPicker: () => void;
   onAppendEmoji: (emoji: string) => void;
+  onUnblockUser: () => void;
   onCancelReply: () => void;
 }
 
@@ -120,6 +123,7 @@ const ConversationPane = ({
   isSending,
   isSendError,
   sendDisabledReason,
+  isConversationControlPending,
   composerResetToken,
   isOffline,
   isSessionExpired,
@@ -152,9 +156,11 @@ const ConversationPane = ({
   onSendMessage,
   onToggleEmojiPicker,
   onAppendEmoji,
+  onUnblockUser,
   onCancelReply,
 }: ConversationPaneProps) => {
   const isMessageSearchActive = showMessageSearch && Boolean(messageSearch.trim());
+  const isConversationBlocked = conversationControls?.canSendMessage === false;
 
   if (!selectedChat) {
     return (
@@ -234,6 +240,13 @@ const ConversationPane = ({
         </div>
       )}
 
+      <ConversationBlockNotice
+        conversationControls={conversationControls}
+        otherMember={otherMember}
+        isActionPending={isConversationControlPending}
+        onUnblockUser={onUnblockUser}
+      />
+
       {selectedChatId && <TypingIndicator chatId={selectedChatId} />}
 
       {isMessageSearchActive ? (
@@ -297,6 +310,7 @@ const ConversationPane = ({
                 : sendDisabledReason ?? null
         }
         emojiPickerRef={emojiPickerRef}
+        showDisabledReason={!isConversationBlocked}
         onChange={onComposerChange}
         onKeyDown={onComposerKeyDown}
         onSend={onSendMessage}
@@ -305,6 +319,69 @@ const ConversationPane = ({
         onCancelReply={onCancelReply}
       />
     </>
+  );
+};
+
+const getMemberDisplayName = (member: User | null) => {
+  if (!member) {
+    return 'this user';
+  }
+
+  return `${member.firstName} ${member.lastName ?? ''}`.trim() || member.email || 'this user';
+};
+
+const ConversationBlockNotice = ({
+  conversationControls,
+  otherMember,
+  isActionPending,
+  onUnblockUser,
+}: {
+  conversationControls?: ConversationControls;
+  otherMember: User | null;
+  isActionPending: boolean;
+  onUnblockUser: () => void;
+}) => {
+  if (!conversationControls || conversationControls.canSendMessage) {
+    return null;
+  }
+
+  const participantName = getMemberDisplayName(otherMember);
+  const blockedByMe = conversationControls.blockedByMe || conversationControls.messagingDisabledReason === 'blocked_by_me';
+  const title = blockedByMe
+    ? `You blocked ${participantName}`
+    : `${participantName} is unavailable`;
+  const body = blockedByMe
+    ? 'New messages, calls, reactions, pins, and edits stay paused until you unblock them.'
+    : 'This conversation is paused because the other person has blocked new activity.';
+
+  return (
+    <div className="px-4 pt-3 md:px-8">
+      <div
+        role="alert"
+        aria-live="polite"
+        className="mx-auto flex max-w-[880px] flex-col gap-3 rounded-[var(--chat-radius-lg)] border border-[color-mix(in_srgb,var(--chat-warning)_42%,var(--chat-border))] bg-[color-mix(in_srgb,var(--chat-warning)_14%,var(--chat-panel))] p-4 text-[var(--chat-text)] shadow-[0_18px_48px_rgba(0,0,0,0.18)] sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] bg-[color-mix(in_srgb,var(--chat-warning)_22%,var(--chat-panel))] text-[var(--chat-warning)]">
+            {blockedByMe ? <Ban aria-hidden="true" className="h-5 w-5" /> : <ShieldCheck aria-hidden="true" className="h-5 w-5" />}
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[var(--chat-text)]">{title}</p>
+            <p className="mt-1 text-sm leading-5 text-[var(--chat-text-muted)]">{body}</p>
+          </div>
+        </div>
+        {blockedByMe && (
+          <button
+            type="button"
+            onClick={onUnblockUser}
+            disabled={isActionPending}
+            className="min-h-10 shrink-0 cursor-pointer rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] px-4 py-2 text-sm font-semibold text-[var(--chat-own-text)] hover:bg-[var(--chat-accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--chat-panel-subtle)] disabled:text-[var(--chat-text-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+          >
+            {isActionPending ? 'Unblocking...' : 'Unblock user'}
+          </button>
+        )}
+      </div>
+    </div>
   );
 };
 
