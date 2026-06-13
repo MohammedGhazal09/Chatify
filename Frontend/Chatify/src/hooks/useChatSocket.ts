@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
+import { resolveSocketUrl } from '../api/apiOrigin';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
 import { chatsQueryKey, messagesQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
@@ -58,20 +59,6 @@ type UseChatSocketOptions = {
   onCallAnswer?: (event: CallSignalEvent) => void;
   onCallIceCandidate?: (event: CallSignalEvent) => void;
   onCallError?: (event: SocketErrorEvent) => void;
-};
-
-const resolveSocketUrl = () => {
-  const envUrl = import.meta.env.VITE_SOCKET_URL ?? import.meta.env.VITE_BACKEND_URL;
-  if (envUrl) {
-    return envUrl;
-  }
-
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  // Fallback to localhost for development
-  return 'http://localhost:3000';
 };
 
 // Typing timeout duration (3 seconds)
@@ -221,7 +208,7 @@ export const useChatSocket = ({
 
     const socketInstance: Socket = io(socketUrl, {
       withCredentials: true,
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
     });
 
     setIsSocketConnected(Boolean(socketInstance.connected));

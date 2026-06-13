@@ -5,6 +5,7 @@ import {
   findPhase14StaticContentLeaks,
   getPhase14LiveAcceptancePath,
   getPhase14ProductionAcceptanceConfig,
+  phase14UrlMatchesAcceptedOrigin,
   phase14UrlMatchesBackendOrigin,
   writePhase14BlockedSetupReport,
 } from './pages/phase14ProductionAcceptance';
@@ -194,6 +195,21 @@ test.describe('Phase 14 production smoke config', () => {
     expect(phase14UrlMatchesBackendOrigin(
       'wss://other.example.com/socket.io/?EIO=4&transport=websocket',
       'https://chatify-ckmn.onrender.com'
+    )).toBe(false);
+  });
+
+  test('matches production traffic through either backend or same-origin proxy', () => {
+    expect(phase14UrlMatchesAcceptedOrigin(
+      'https://chatify-ten-rho.vercel.app/api/auth/check',
+      ['https://chatify-ckmn.onrender.com', 'https://chatify-ten-rho.vercel.app']
+    )).toBe(true);
+    expect(phase14UrlMatchesAcceptedOrigin(
+      'wss://chatify-ten-rho.vercel.app/socket.io/?EIO=4&transport=websocket',
+      ['https://chatify-ckmn.onrender.com', 'https://chatify-ten-rho.vercel.app']
+    )).toBe(true);
+    expect(phase14UrlMatchesAcceptedOrigin(
+      'https://unexpected.example.com/api/auth/check',
+      ['https://chatify-ckmn.onrender.com', 'https://chatify-ten-rho.vercel.app']
     )).toBe(false);
   });
 

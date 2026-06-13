@@ -6,6 +6,7 @@ import {
 import {
   findPhase14StaticContentLeaks,
   getPhase14ProductionAcceptanceConfig,
+  phase14UrlMatchesAcceptedOrigin,
   phase14UrlMatchesBackendOrigin,
   writePhase14LiveAcceptanceReport,
   type Phase14CheckRow,
@@ -67,23 +68,26 @@ const appendObservation = (observations: string[], value: string) => {
 
 const installNetworkObservations = (page: Page, label: string, config: EnabledPhase14Config, observations: string[]) => {
   const backendOrigin = new URL(config.backendUrl).origin;
+  const frontendOrigin = new URL(config.frontendUrl).origin;
+  const acceptedOrigins = [backendOrigin, frontendOrigin];
 
   page.on('response', (response) => {
     const url = new URL(response.url());
 
-    if (!phase14UrlMatchesBackendOrigin(response.url(), backendOrigin) || (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/socket.io/'))) {
+    if (!phase14UrlMatchesAcceptedOrigin(response.url(), acceptedOrigins) || (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/socket.io/'))) {
       return;
     }
 
     const trafficKind = url.pathname.startsWith('/socket.io/') ? 'socket' : 'api';
-    appendObservation(observations, `${label}: ${trafficKind} ${response.request().method()} ${backendOrigin}${url.pathname} -> ${response.status()}`);
+    appendObservation(observations, `${label}: ${trafficKind} ${response.request().method()} ${url.origin}${url.pathname} -> ${response.status()}`);
   });
 
   page.on('websocket', (webSocket) => {
     const url = new URL(webSocket.url());
 
-    if (phase14UrlMatchesBackendOrigin(webSocket.url(), backendOrigin)) {
-      appendObservation(observations, `${label}: websocket ${backendOrigin}${url.pathname} via ${url.protocol}//${url.host}`);
+    if (phase14UrlMatchesAcceptedOrigin(webSocket.url(), acceptedOrigins)) {
+      const matchedOrigin = acceptedOrigins.find((origin) => phase14UrlMatchesBackendOrigin(webSocket.url(), origin)) ?? url.origin;
+      appendObservation(observations, `${label}: websocket ${matchedOrigin}${url.pathname} via ${url.protocol}//${url.host}`);
     }
   });
 
@@ -643,10 +647,13 @@ const assertNoStaticContentLeaks = async (page: Page, allowlist: readonly string
 
 const verifyDeploymentEvidence = (config: EnabledPhase14Config, observations: readonly string[]) => {
   const backendOrigin = config.metadata.backendOrigin;
-  const apiObservations = observations.filter((observation) => observation.includes(': api ') && observation.includes(backendOrigin));
+  const frontendOrigin = config.metadata.frontendOrigin;
+  const acceptedOrigins = [backendOrigin, frontendOrigin];
+  const includesAcceptedOrigin = (observation: string) => acceptedOrigins.some((origin) => observation.includes(origin));
+  const apiObservations = observations.filter((observation) => observation.includes(': api ') && includesAcceptedOrigin(observation));
   const socketObservations = observations.filter((observation) => (
     (observation.includes(': socket ') || observation.includes(': websocket ')) &&
-    observation.includes(backendOrigin)
+    includesAcceptedOrigin(observation)
   ));
   const cookieObservations = observations.filter((observation) => (
     observation.includes('auth cookie metadata') &&
@@ -656,12 +663,12 @@ const verifyDeploymentEvidence = (config: EnabledPhase14Config, observations: re
     /console (error|warning).*(cors|access-control|credential|blocked by)/i.test(observation)
   ));
 
-  expect(apiObservations.length, 'API traffic should target the configured deployed backend origin').toBeGreaterThan(0);
-  expect(socketObservations.length, 'Socket.IO traffic should target the configured deployed backend origin').toBeGreaterThan(0);
+  expect(apiObservations.length, 'API traffic should target the configured backend or same-origin proxy').toBeGreaterThan(0);
+  expect(socketObservations.length, 'Socket.IO traffic should target the configured backend or same-origin proxy').toBeGreaterThan(0);
   expect(cookieObservations.length, 'Auth cookie metadata should be recorded for both smoke accounts').toBeGreaterThanOrEqual(2);
   expect(corsOrCredentialErrors, 'No CORS or credential console errors should be observed').toEqual([]);
 
-  return `Observed ${apiObservations.length} API responses, ${socketObservations.length} socket observations, and ${cookieObservations.length} auth cookie metadata rows against ${backendOrigin}.`;
+  return `Observed ${apiObservations.length} API responses, ${socketObservations.length} socket observations, and ${cookieObservations.length} auth cookie metadata rows against accepted production origins.`;
 };
 
 const gotoChatVariant = async (

@@ -10,6 +10,7 @@ import axios, { AxiosError } from "axios";
 import { useAuthStore } from "../../store/authstore";
 import { useLogin } from "../../hooks/useAuthQuery";
 import { useAuthRedirect } from "../../hooks/useAuthRedirect";
+import { resolveOAuthUrl } from "../../api/apiOrigin";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -101,20 +102,17 @@ const Login = () => {
 
   const handleGoogleLogin = () => {
     clearErrors("root");
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-    window.location.href = `${backendUrl}/api/auth/google`;
+    window.location.href = resolveOAuthUrl('google');
   };
 
   const handleGitHubLogin = () => {
     clearErrors("root");
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-    window.location.href = `${backendUrl}/api/auth/github`;
+    window.location.href = resolveOAuthUrl('github');
   };
 
   const handleDiscordLogin = () => {
     clearErrors("root");
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
-    window.location.href = `${backendUrl}/api/auth/discord`;
+    window.location.href = resolveOAuthUrl('discord');
   };
 
   const socialButtons = [

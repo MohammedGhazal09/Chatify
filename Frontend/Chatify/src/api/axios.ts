@@ -1,5 +1,6 @@
 import axios from "axios";
 import { requestQueue, authQueue } from "../utils/requestQueue";
+import { resolveApiBaseUrl } from "./apiOrigin";
 
 export const AUTH_EXPIRED_EVENT = 'chatify:auth-expired';
 
@@ -10,7 +11,7 @@ export const dispatchAuthExpired = () => {
 };
 
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000',
+  baseURL: resolveApiBaseUrl(),
   withCredentials: true,
 });
 

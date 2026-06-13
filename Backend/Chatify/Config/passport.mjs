@@ -3,6 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as GitHubStrategy } from 'passport-github2';
 import {Strategy as DiscordStrategy} from 'passport-discord'
 import User from '../Models/userModel.mjs';
+import { resolveOAuthCallbackBaseURL } from '../Utils/oauthConfig.mjs';
 
 // Helper function to create or find OAuth user
 const handleOAuthUser = async (profile, provider) => {
@@ -88,10 +89,7 @@ const handleOAuthUser = async (profile, provider) => {
 };
 
 // Google OAuth Strategy
-const isProd = process.env.NODE_ENV === 'production';
-const baseURL = isProd 
-  ? 'https://chatify-ckmn.onrender.com' 
-  : 'http://localhost:3000';
+const baseURL = resolveOAuthCallbackBaseURL();
 
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,

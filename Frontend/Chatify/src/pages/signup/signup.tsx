@@ -10,6 +10,7 @@ import { useSignup } from '../../hooks/useAuthQuery';
 import { signupSchema, type SignupFormData } from '../../utils/validationSchemas';
 import ChatifyIcon from '../../components/chatifyIcon';
 import axios, { AxiosError } from 'axios';
+import { resolveOAuthUrl } from '../../api/apiOrigin';
 
 const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -76,17 +77,17 @@ const onSubmit = async (data: SignupFormData) => {
 
   const handleGoogleSignup = () => {
     clearErrors('root');
-    window.location.href = '/api/auth/google';
+    window.location.href = resolveOAuthUrl('google');
   };
 
   const handleGitHubSignup = () => {
     clearErrors('root');
-    window.location.href = '/api/auth/github';
+    window.location.href = resolveOAuthUrl('github');
   };
 
   const handleDiscordSignup = () => {
     clearErrors('root');
-    window.location.href = '/api/auth/discord';
+    window.location.href = resolveOAuthUrl('discord');
   };
 
   const socialButtons = [

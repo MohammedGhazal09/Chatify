@@ -171,6 +171,11 @@ describe('useChatSocket', () => {
       expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
     });
 
+    expect(io).toHaveBeenCalledWith('http://localhost:3000', expect.objectContaining({
+      transports: ['polling', 'websocket'],
+      withCredentials: true,
+    }));
+
     act(() => {
       usePresenceStore.getState().setUserTyping('chat-1', {
         chatId: 'chat-1',

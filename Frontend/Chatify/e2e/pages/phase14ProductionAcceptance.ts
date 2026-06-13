@@ -297,6 +297,10 @@ export const phase14UrlMatchesBackendOrigin = (urlValue: string, backendOrigin: 
   }
 };
 
+export const phase14UrlMatchesAcceptedOrigin = (urlValue: string, origins: readonly string[]) => (
+  origins.some((origin) => phase14UrlMatchesBackendOrigin(urlValue, origin))
+);
+
 export const findPhase14StaticContentLeaks = (text: string, allowlist: readonly string[] = []) => (
   phase14StaticContentDenylist.filter((entry) => text.includes(entry) && !allowlist.some((allowed) => allowed.includes(entry)))
 );
