@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Phase 11 context gathered
-last_updated: "2026-06-13T02:00:14.117Z"
-last_activity: 2026-06-13 -- Completed local no-mock delivery smoke; production delivery smoke is blocked until live credentials and deploy identifiers are available.
+stopped_at: Phase 11 planned
+last_updated: "2026-06-13T05:06:50.5185226+03:00"
+last_activity: 2026-06-13 -- Planned Phase 11 conversation controls and user safety implementation in three waves; execution remains dependent on Phase 10.1 production delivery evidence for production-ready claims.
 progress:
   total_phases: 15
   completed_phases: 10
-  total_plans: 32
+  total_plans: 35
   completed_plans: 30
   percent: 67
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 10.1 message delivery reliability repair; backend delivery contract, frontend convergence, and local two-account smoke are complete, while production delivery smoke is blocked pending credentials.
+**Current focus:** Phase 10.1 message delivery reliability repair remains the production-readiness blocker; Phase 11 conversation controls and user safety implementation is planned and ready for execution after that dependency.
 
 ## Current Position
 
 Phase: 10.1 (production-message-delivery-reliability-repair) - IN PROGRESS
 Plan: 10.1-03 blocked on production smoke credentials
 Status: in_progress
-Last activity: 2026-06-13 -- Completed local no-mock delivery smoke; production delivery smoke is blocked until live credentials and deploy identifiers are available.
+Last activity: 2026-06-13 -- Planned Phase 11 conversation controls and user safety implementation in three waves; execution remains dependent on Phase 10.1 production delivery evidence for production-ready claims.
 
 Progress: 55%
 
@@ -111,6 +111,7 @@ Recent decisions affecting current work:
 - Production-live correction: Phase 9 evidence was not sufficient to claim the deployed messenger is fully functional because the live UI still exposes a non-closable right rail, dead call/video/search/more controls, static shared files/media/pinned surfaces, and static voice/media interactions.
 - Phase 10.1 inserted after Phase 10: Production Message Delivery Reliability Repair (URGENT).
 - Production delivery correction: live two-account behavior shows one send can render duplicate sender messages, delivered state can be false, and recipients may need refresh to see messages; this must be fixed before conversation controls, media, voice, or call features.
+- Phase 11 planned with 3 waves: backend conversation controls and block enforcement, frontend controls/search/detail data/accessibility, and integrated verification with static-fixture guard evidence.
 
 ### Pending Todos
 
@@ -136,5 +137,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-06-13T02:00:14.109Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-conversation-controls-and-user-safety-implementation/11-CONTEXT.md
+Stopped at: Phase 11 planned
+Resume file: .planning/phases/11-conversation-controls-and-user-safety-implementation/11-01-PLAN.md

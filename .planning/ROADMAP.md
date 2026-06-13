@@ -365,11 +365,28 @@ Plans:
   4. Pinned messages, shared files, shared media, and security rows render from server-backed conversation data or disappear when no data exists.
   5. Tests cover the controls against live-like API responses, authorization failures, blocked users, empty states, and mobile drawer behavior.
 
-**Plans**: 0 plans
+**Plans**: 3 plans
 
 Plans:
 
-- [ ] TBD (run `$gsd-spec-phase 11`, `$gsd-discuss-phase 11`, then `$gsd-plan-phase 11`)
+**Wave 1**
+
+- [ ] 11-01: Backend Conversation Controls and Block Enforcement
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 11-02: Frontend Controls, Search, Detail Data, and Accessibility
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 11-03: Integrated Verification and Static Fixture Guard
+
+**Cross-cutting constraints:**
+
+- Phase 11 depends on Phase 10.1 production delivery reliability evidence before any production-ready claim.
+- Every visible conversation control must either perform a real action or render an honest disabled/unavailable state.
+- Pinned messages, shared files, shared media, and security rows must be server-backed or absent; no production fixture leakage.
+- Execution must be inline in the current Codex thread; do not use subagents.
 
 ### Phase 12: Live Media Voice And Identity Implementation
 
