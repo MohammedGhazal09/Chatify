@@ -17,8 +17,8 @@
 
 ### Realtime Authorization
 
-- [ ] **RT-01**: Socket.IO connections derive user identity from verified session data, not client-supplied user ids.
-- [ ] **RT-02**: Server checks chat membership before joining rooms or processing chat-scoped socket events.
+- [x] **RT-01**: Socket.IO connections derive user identity from verified session data, not client-supplied user ids.
+- [x] **RT-02**: Server checks chat membership before joining rooms or processing chat-scoped socket events.
 - [ ] **RT-03**: Typing, delivery, read, edit, delete, reaction, and notification events are rejected for unauthorized chats.
 - [x] **RT-04**: Socket reconnect reconciles selected chat messages, conversation list state, unread counts, and presence from server truth.
 - [ ] **RT-05**: Presence state handles reconnects and disconnects without trusting stale client claims.
@@ -78,20 +78,20 @@
 - [ ] **CTRL-02**: More menus expose implemented conversation actions only, with accessible labels, loading states, and recoverable errors.
 - [ ] **CTRL-03**: Pinned messages, shared files, shared media, and security rows render from server-backed conversation state or disappear when empty.
 - [ ] **BLOCK-01**: User can block and unblock a direct-message participant from the conversation UI.
-- [ ] **BLOCK-02**: Blocked state prevents new messages, call attempts, and inappropriate realtime events across HTTP and Socket.IO paths.
+- [x] **BLOCK-02**: Blocked state prevents new messages, call attempts, and inappropriate realtime events across HTTP and Socket.IO paths.
 - [ ] **ID-01**: User identity imagery or abstract identity marks can be changed and persist across sidebar, header, message, and detail surfaces.
 - [ ] **ID-02**: Identity imagery upload or customization has validation, privacy controls, and fallback behavior.
 - [ ] **VOICE-01**: User can record, preview, cancel, send, reload, and play voice messages.
 - [ ] **VOICE-02**: Voice message permission denial, unsupported browsers, network failure, retry, and playback errors are recoverable.
-- [ ] **CALL-01**: Audio call controls initiate authenticated one-to-one realtime call sessions.
-- [ ] **CALL-02**: Video call controls initiate authenticated one-to-one realtime video sessions.
-- [ ] **CALL-03**: Call state covers incoming, outgoing, ringing, connected, rejected, missed, busy, permission-denied, and ended flows.
-- [ ] **CALL-04**: Call signaling is scoped to authorized direct-message participants and respects blocked-user state.
+- [x] **CALL-01**: Audio call controls initiate authenticated one-to-one realtime call sessions.
+- [x] **CALL-02**: Video call controls initiate authenticated one-to-one realtime video sessions.
+- [x] **CALL-03**: Call state covers incoming, outgoing, ringing, connected, rejected, missed, busy, permission-denied, and ended flows.
+- [x] **CALL-04**: Call signaling is scoped to authorized direct-message participants and respects blocked-user state.
 
 ### Tests And Verification
 
 - [ ] **TEST-01**: Backend request tests cover auth lifecycle, CSRF enforcement, message authorization, validation boundaries, and password reset behavior.
-- [ ] **TEST-02**: Socket integration tests cover authenticated handshake, unauthorized event rejection, room membership, typing, delivery, read, edit, delete, reaction, and reconnect behavior.
+- [x] **TEST-02**: Socket integration tests cover authenticated handshake, unauthorized event rejection, room membership, typing, delivery, read, edit, delete, reaction, and reconnect behavior.
 - [x] **TEST-03**: Frontend tests cover optimistic send, rollback, duplicate merge, unread updates, session-expired state, and core chat UI states.
 - [ ] **TEST-04**: Each auth, socket, and message phase has blocking security acceptance criteria and verification evidence.
 - [x] **TEST-05**: End-to-end UI quality gates cover real messenger workflows across desktop, mobile, light theme, and dark theme after behavior interactions.
@@ -129,12 +129,12 @@
 | AUTH-03 | Phase 1 | Pending |
 | TEST-01 | Phase 1 | Pending |
 | TEST-04 | Phase 1 | Pending |
-| RT-01 | Phase 2 | Pending |
-| RT-02 | Phase 2 | Pending |
+| RT-01 | Phase 2 | Complete |
+| RT-02 | Phase 2 | Complete |
 | RT-03 | Phase 2 | Pending |
 | RT-04 | Phase 2 | Complete |
 | RT-05 | Phase 2 | Pending |
-| TEST-02 | Phase 2 | Pending |
+| TEST-02 | Phase 2 | Complete |
 | MSG-01 | Phase 3 | Complete |
 | MSG-02 | Phase 3 | Complete |
 | MSG-03 | Phase 3 | Pending |
@@ -174,15 +174,15 @@
 | CTRL-02 | Phase 11 | Pending |
 | CTRL-03 | Phase 11 | Pending |
 | BLOCK-01 | Phase 11 | Pending |
-| BLOCK-02 | Phase 11, Phase 13 | Pending |
+| BLOCK-02 | Phase 11, Phase 13 | Complete |
 | ID-01 | Phase 12 | Pending |
 | ID-02 | Phase 12 | Pending |
 | VOICE-01 | Phase 12 | Pending |
 | VOICE-02 | Phase 12 | Pending |
-| CALL-01 | Phase 13 | Pending |
-| CALL-02 | Phase 13 | Pending |
-| CALL-03 | Phase 13 | Pending |
-| CALL-04 | Phase 13 | Pending |
+| CALL-01 | Phase 13 | Complete |
+| CALL-02 | Phase 13 | Complete |
+| CALL-03 | Phase 13 | Complete |
+| CALL-04 | Phase 13 | Complete |
 | TEST-05 | Phase 9 | Complete |
 
 **Coverage:**
