@@ -74,6 +74,36 @@ describe('useCallController', () => {
     vi.mocked(navigator.mediaDevices.getUserMedia).mockClear();
   });
 
+  it('uses the same online requirement reason for unavailable audio and video calls', () => {
+    const { result } = renderController({
+      otherMemberStatus: { userId: 'user-2', isOnline: false },
+    });
+
+    expect(result.current.audioAvailability).toEqual({
+      available: false,
+      reason: 'Both users must be online to call.',
+    });
+    expect(result.current.videoAvailability).toEqual({
+      available: false,
+      reason: 'Both users must be online to call.',
+    });
+  });
+
+  it('uses the online requirement reason when the realtime session is disconnected', () => {
+    const { result } = renderController({
+      isSocketConnected: false,
+    });
+
+    expect(result.current.audioAvailability).toEqual({
+      available: false,
+      reason: 'Both users must be online to call.',
+    });
+    expect(result.current.videoAvailability).toEqual({
+      available: false,
+      reason: 'Both users must be online to call.',
+    });
+  });
+
   it('requests microphone access before starting an audio call', async () => {
     const getUserMedia = vi.mocked(navigator.mediaDevices.getUserMedia);
     const { result, actions } = renderController();

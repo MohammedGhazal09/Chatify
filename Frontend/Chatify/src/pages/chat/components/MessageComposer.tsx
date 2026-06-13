@@ -211,7 +211,7 @@ const MessageComposer = ({
   };
 
   return (
-    <div className="composer-dock w-full max-w-full overflow-hidden border-t border-[var(--chat-border)] bg-[var(--chat-panel)] px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 md:px-8">
+    <div className="composer-dock relative z-20 w-full max-w-full overflow-visible border-t border-[var(--chat-border)] bg-[var(--chat-panel)] px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 md:px-8">
       {replyingTo && (
         <div className="mx-auto mb-2 flex max-w-[880px] items-center justify-between rounded-[var(--chat-radius-md)] border-l-4 border-[var(--chat-accent)] bg-[var(--chat-panel-subtle)] px-3 py-2">
           <div className="min-w-0 flex-1">
@@ -282,7 +282,7 @@ const MessageComposer = ({
             <SmilePlus aria-hidden="true" className="h-5 w-5" />
           </button>
           {showEmojiPicker && (
-            <div className="absolute bottom-10 left-0 z-50">
+            <div data-testid="composer-emoji-picker-layer" className="absolute bottom-full right-0 z-[70] mb-3">
               <LazyEmojiPicker
                 onEmojiClick={(emoji) => {
                   onAppendEmoji(emoji.emoji);

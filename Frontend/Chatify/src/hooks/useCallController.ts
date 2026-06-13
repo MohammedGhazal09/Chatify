@@ -89,6 +89,7 @@ const terminalStatusMap: Partial<Record<string, CallUiStatus>> = {
 };
 
 const CALL_DISCONNECT_GRACE_MS = 15_000;
+const CALL_ONLINE_REQUIREMENT_REASON = 'Both users must be online to call.';
 
 const getAckErrorCopy = (ack: CallActionAck) => {
   if (ack.code === 'call_busy') {
@@ -190,7 +191,7 @@ export const useCallController = ({
     }
 
     if (!isSocketConnected) {
-      return { available: false, reason: 'Realtime connection is unavailable.' };
+      return { available: false, reason: CALL_ONLINE_REQUIREMENT_REASON };
     }
 
     if (!otherMember) {
@@ -198,7 +199,7 @@ export const useCallController = ({
     }
 
     if (!otherMemberStatus?.isOnline) {
-      return { available: false, reason: 'This person is offline.' };
+      return { available: false, reason: CALL_ONLINE_REQUIREMENT_REASON };
     }
 
     if (!isWebRTCSupported()) {

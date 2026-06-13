@@ -15,7 +15,7 @@ import {
   upsertMessageInCache,
   type MessagesCacheData,
 } from './messageCache';
-import { playNotificationSound, isSoundEnabled } from '../utils/sounds';
+import { playNotificationSound, playCallEndedSound, isSoundEnabled } from '../utils/sounds';
 import type {
   Chat,
   Message,
@@ -79,6 +79,10 @@ const TYPING_TIMEOUT = 3000;
 const CALL_ACK_TIMEOUT_MS = 8000;
 
 type CallEmitPayload = Record<string, unknown>;
+
+const isCallEndedActivity = (message: Message) => (
+  message.messageType === 'call' && message.callActivity?.result === 'ended'
+);
 
 const clearTypingTimeoutsForChat = (
   timeouts: Record<string, ReturnType<typeof setTimeout>>,
@@ -460,7 +464,11 @@ export const useChatSocket = ({
 
       // Play notification sound for messages from others
       if (message.sender !== user?._id && isSoundEnabled()) {
-        playNotificationSound();
+        if (isCallEndedActivity(message)) {
+          playCallEndedSound();
+        } else {
+          playNotificationSound();
+        }
       }
 
       onMessage?.(message);

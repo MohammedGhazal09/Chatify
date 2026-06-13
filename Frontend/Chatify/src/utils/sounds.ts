@@ -1,5 +1,10 @@
 // Notification sound utility
 let notificationSound: HTMLAudioElement | null = null;
+let callEndedAudioContext: AudioContext | null = null;
+
+type WindowWithWebkitAudio = Window & {
+  webkitAudioContext?: typeof AudioContext;
+};
 
 export const playNotificationSound = () => {
   if (!notificationSound) {
@@ -14,6 +19,76 @@ export const playNotificationSound = () => {
   notificationSound.play().catch(() => {
     // Autoplay might be blocked, silently fail
   });
+};
+
+const getCallEndedAudioContext = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const AudioContextConstructor =
+    window.AudioContext ?? (window as WindowWithWebkitAudio).webkitAudioContext;
+
+  if (!AudioContextConstructor) {
+    return null;
+  }
+
+  callEndedAudioContext ??= new AudioContextConstructor();
+
+  if (callEndedAudioContext.state === 'suspended') {
+    void callEndedAudioContext.resume().catch(() => undefined);
+  }
+
+  return callEndedAudioContext;
+};
+
+const playCallEndedTone = (
+  context: AudioContext,
+  options: {
+    offset: number;
+    duration: number;
+    fromFrequency: number;
+    toFrequency: number;
+    type: OscillatorType;
+    volume: number;
+  }
+) => {
+  const startAt = context.currentTime + options.offset;
+  const endAt = startAt + options.duration;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+
+  oscillator.type = options.type;
+  oscillator.frequency.setValueAtTime(options.fromFrequency, startAt);
+  oscillator.frequency.exponentialRampToValueAtTime(options.toFrequency, endAt);
+
+  gain.gain.setValueAtTime(0.0001, startAt);
+  gain.gain.linearRampToValueAtTime(options.volume, startAt + 0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(startAt);
+  oscillator.stop(endAt + 0.02);
+};
+
+export const playCallEndedSound = () => {
+  const context = getCallEndedAudioContext();
+
+  if (!context) {
+    playNotificationSound();
+    return;
+  }
+
+  try {
+    [
+      { offset: 0.00, duration: 0.16, fromFrequency: 880, toFrequency: 660, type: 'triangle' as const, volume: 0.16 },
+      { offset: 0.11, duration: 0.18, fromFrequency: 660, toFrequency: 494, type: 'sine' as const, volume: 0.13 },
+      { offset: 0.25, duration: 0.24, fromFrequency: 523, toFrequency: 392, type: 'triangle' as const, volume: 0.11 },
+    ].forEach((tone) => playCallEndedTone(context, tone));
+  } catch {
+    playNotificationSound();
+  }
 };
 
 // Check if user has enabled sound notifications

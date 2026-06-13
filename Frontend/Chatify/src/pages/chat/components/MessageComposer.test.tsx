@@ -6,13 +6,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComposerSendPayload } from '../../../types/chat';
 import MessageComposer from './MessageComposer';
 
+vi.mock('./LazyEmojiPicker', () => ({
+  default: ({ height, onEmojiClick, width }: { height: number; onEmojiClick: (emoji: { emoji: string }) => void; width: number }) => (
+    <button type="button" data-height={height} data-testid="mock-emoji-picker" data-width={width} onClick={() => onEmojiClick({ emoji: ':)' })}>
+      Emoji picker
+    </button>
+  ),
+}));
+
 interface ComposerHarnessProps {
   onSend: (payload: ComposerSendPayload) => void;
   sendDisabledReason?: string | null;
   isSendError?: boolean;
+  showEmojiPicker?: boolean;
 }
 
-const ComposerHarness = ({ onSend, sendDisabledReason = null, isSendError = false }: ComposerHarnessProps) => {
+const ComposerHarness = ({ onSend, sendDisabledReason = null, isSendError = false, showEmojiPicker = false }: ComposerHarnessProps) => {
   const [value, setValue] = useState('');
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
@@ -31,7 +40,7 @@ const ComposerHarness = ({ onSend, sendDisabledReason = null, isSendError = fals
     <MessageComposer
       value={value}
       replyingTo={null}
-      showEmojiPicker={false}
+      showEmojiPicker={showEmojiPicker}
       isSending={false}
       isSendError={isSendError}
       sendDisabledReason={sendDisabledReason}
@@ -92,6 +101,19 @@ describe('MessageComposer', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
     expect(screen.getByText('Authenticated private session')).toBeInTheDocument();
     expect(screen.queryByText('Press Enter to send')).not.toBeInTheDocument();
+  });
+
+  it('stacks the emoji picker above the composer instead of clipping it inside the dock', () => {
+    const { container } = render(<ComposerHarness onSend={vi.fn()} showEmojiPicker />);
+
+    const composerDock = container.querySelector('.composer-dock');
+    expect(composerDock).toHaveClass('relative', 'z-20', 'overflow-visible');
+    expect(composerDock).not.toHaveClass('overflow-hidden');
+
+    const pickerLayer = screen.getByTestId('composer-emoji-picker-layer');
+    expect(pickerLayer).toHaveClass('absolute', 'bottom-full', 'right-0', 'z-[70]', 'mb-3');
+    expect(screen.getByTestId('mock-emoji-picker')).toHaveAttribute('data-width', '300');
+    expect(screen.getByTestId('mock-emoji-picker')).toHaveAttribute('data-height', '400');
   });
 
   it('keeps exactly 1000 characters sendable and blocks longer messages', async () => {

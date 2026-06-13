@@ -6,6 +6,7 @@ import { io } from 'socket.io-client';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
 import { makeChat, makeMessage, makeUser } from '../test/chatFixtures';
+import { isSoundEnabled, playCallEndedSound, playNotificationSound } from '../utils/sounds';
 import type { CallSessionPayload, Chat } from '../types/chat';
 import { chatsQueryKey, messagesQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
 import type { MessagesCacheData } from './messageCache';
@@ -118,6 +119,7 @@ vi.mock('socket.io-client', () => ({
 
 vi.mock('../utils/sounds', () => ({
   isSoundEnabled: vi.fn(() => false),
+  playCallEndedSound: vi.fn(),
   playNotificationSound: vi.fn(),
 }));
 
@@ -340,6 +342,43 @@ describe('useChatSocket', () => {
     expect(queryClient.getQueryData<MessagesCacheData>(messagesQueryKey('chat-1'))?.messages).toEqual([
       expect.objectContaining({ _id: 'message-self-echo' }),
     ]);
+  });
+
+  it('uses the call-ended sound for ended call activity messages', async () => {
+    vi.mocked(isSoundEnabled).mockReturnValue(true);
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+
+    act(() => {
+      socket.trigger('message:new', makeMessage({
+        _id: 'call-ended-message',
+        chatId: 'chat-1',
+        sender: 'user-2',
+        text: '',
+        messageType: 'call',
+        callActivity: {
+          callId: 'call-1',
+          callerId: 'user-2',
+          calleeId: 'user-1',
+          mode: 'audio',
+          result: 'ended',
+          startedAt: '2026-06-13T10:00:00.000Z',
+          endedAt: '2026-06-13T10:02:00.000Z',
+          durationSeconds: 120,
+        },
+      }));
+    });
+
+    expect(playCallEndedSound).toHaveBeenCalledTimes(1);
+    expect(playNotificationSound).not.toHaveBeenCalled();
   });
 
   it('reconciles attachment messages and pin events while invalidating detail queries', async () => {

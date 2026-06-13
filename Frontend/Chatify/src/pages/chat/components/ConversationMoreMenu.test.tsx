@@ -61,12 +61,12 @@ describe('ConversationMoreMenu', () => {
   it('uses call availability reasons to disable unavailable actions', () => {
     renderMenu({
       callDisabledReason: 'Realtime connection is unavailable.',
-      videoCallDisabledReason: 'This person is offline.',
+      videoCallDisabledReason: 'Both users must be online to call.',
     });
 
     expect(screen.getByRole('menuitem', { name: 'Call' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Call' })).toHaveAttribute('title', 'Realtime connection is unavailable.');
     expect(screen.getByRole('menuitem', { name: 'Video call' })).toBeDisabled();
-    expect(screen.getByRole('menuitem', { name: 'Video call' })).toHaveAttribute('title', 'This person is offline.');
+    expect(screen.getByRole('menuitem', { name: 'Video call' })).toHaveAttribute('title', 'Both users must be online to call.');
   });
 });

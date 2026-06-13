@@ -69,7 +69,7 @@ describe('ConversationHeader', () => {
         otherMemberStatus={{ userId: 'user-2', isOnline: false }}
         showMessageSearch={false}
         showConversationMoreMenu={false}
-        callDisabledReason="This person is offline."
+        callDisabledReason="Both users must be online to call."
         videoCallDisabledReason="Camera access is unavailable."
         searchButtonRef={createRef<HTMLButtonElement>()}
         moreButtonRef={createRef<HTMLButtonElement>()}
@@ -83,7 +83,7 @@ describe('ConversationHeader', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Call' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Call' })).toHaveAttribute('title', 'This person is offline.');
+    expect(screen.getByRole('button', { name: 'Call' })).toHaveAttribute('title', 'Both users must be online to call.');
     expect(screen.getByRole('button', { name: 'Video call' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Video call' })).toHaveAttribute('title', 'Camera access is unavailable.');
   });
