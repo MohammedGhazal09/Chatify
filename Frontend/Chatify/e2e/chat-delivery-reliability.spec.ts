@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 
 type LocalSmokeAccount = {
@@ -23,22 +21,6 @@ type LocalSmokeConfig =
     enabled: false;
     blockedReason: string;
   };
-
-const readDotEnv = (filePath: string) => {
-  if (!fs.existsSync(filePath)) {
-    return new Map<string, string>();
-  }
-
-  return new Map(
-    fs.readFileSync(filePath, 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/))
-      .filter((match): match is RegExpMatchArray => Boolean(match))
-      .map((match) => [match[1], match[2].replace(/^"|"$/g, '').trim()])
-  );
-};
-
-const frontendEnv = readDotEnv(path.resolve(process.cwd(), '.env'));
 
 const makePassword = () => `Phase101!${Date.now()}Aa`;
 
@@ -71,6 +53,42 @@ const getConfiguredAccount = (slot: 'A' | 'B'): LocalSmokeAccount | null => {
   };
 };
 
+const parseLocalBackendUrl = (value: string) => {
+  try {
+    const parsed = new URL(value);
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return {
+        error: 'CHATIFY_LOCAL_BACKEND_URL must use http or https.',
+        hostname: '',
+        url: '',
+      };
+    }
+
+    parsed.hash = '';
+
+    return {
+      error: '',
+      hostname: parsed.hostname,
+      url: parsed.toString().replace(/\/$/, ''),
+    };
+  } catch {
+    return {
+      error: 'CHATIFY_LOCAL_BACKEND_URL must be a valid absolute URL.',
+      hostname: '',
+      url: '',
+    };
+  }
+};
+
+const isLoopbackHost = (hostname: string) => (
+  hostname === 'localhost' ||
+  hostname === '127.0.0.1' ||
+  hostname === '::1' ||
+  hostname === '[::1]' ||
+  hostname.endsWith('.localhost')
+);
+
 const getLocalSmokeConfig = (): LocalSmokeConfig => {
   if (process.env.CHATIFY_LOCAL_DELIVERY_SMOKE !== '1') {
     return {
@@ -79,20 +97,56 @@ const getLocalSmokeConfig = (): LocalSmokeConfig => {
     };
   }
 
-  const backendUrl = (process.env.CHATIFY_LOCAL_BACKEND_URL ?? frontendEnv.get('VITE_BACKEND_URL') ?? '').replace(/\/$/, '');
-  if (!backendUrl) {
+  const backendUrlValue = process.env.CHATIFY_LOCAL_BACKEND_URL?.trim() ?? '';
+  if (!backendUrlValue) {
     return {
       enabled: false,
-      blockedReason: 'CHATIFY_LOCAL_BACKEND_URL or VITE_BACKEND_URL is required for local delivery smoke.',
+      blockedReason: 'CHATIFY_LOCAL_BACKEND_URL is required for local delivery smoke. VITE_BACKEND_URL is intentionally ignored.',
+    };
+  }
+
+  const parsedBackendUrl = parseLocalBackendUrl(backendUrlValue);
+  if (parsedBackendUrl.error) {
+    return {
+      enabled: false,
+      blockedReason: parsedBackendUrl.error,
+    };
+  }
+
+  const sender = getConfiguredAccount('A');
+  const recipient = getConfiguredAccount('B');
+  const hasConfiguredAccounts = Boolean(sender && recipient);
+  const loopbackBackend = isLoopbackHost(parsedBackendUrl.hostname);
+  const allowNonlocalBackend = process.env.CHATIFY_ALLOW_NONLOCAL_DELIVERY_SMOKE === '1';
+  const allowGeneratedAccounts = process.env.CHATIFY_LOCAL_EPHEMERAL_BACKEND === '1';
+
+  if (!loopbackBackend && !allowNonlocalBackend) {
+    return {
+      enabled: false,
+      blockedReason: 'CHATIFY_LOCAL_BACKEND_URL must point to localhost, 127.0.0.1, or .localhost unless CHATIFY_ALLOW_NONLOCAL_DELIVERY_SMOKE=1 is set.',
+    };
+  }
+
+  if (!loopbackBackend && !hasConfiguredAccounts) {
+    return {
+      enabled: false,
+      blockedReason: 'Explicit CHATIFY_LOCAL_USER_A/B_EMAIL and CHATIFY_LOCAL_USER_A/B_PASSWORD are required for nonlocal delivery smoke.',
+    };
+  }
+
+  if (!hasConfiguredAccounts && !allowGeneratedAccounts) {
+    return {
+      enabled: false,
+      blockedReason: 'Generated local smoke accounts require CHATIFY_LOCAL_EPHEMERAL_BACKEND=1 so persistent databases are not polluted.',
     };
   }
 
   return {
     enabled: true,
-    backendUrl,
+    backendUrl: parsedBackendUrl.url,
     accounts: {
-      sender: getConfiguredAccount('A') ?? makeGeneratedAccount('a'),
-      recipient: getConfiguredAccount('B') ?? makeGeneratedAccount('b'),
+      sender: sender ?? makeGeneratedAccount('a'),
+      recipient: recipient ?? makeGeneratedAccount('b'),
     },
   };
 };

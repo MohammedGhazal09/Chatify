@@ -74,7 +74,7 @@ afterEach(async () => {
 });
 
 describe('Socket.IO message state contract', () => {
-  it('emits one canonical new-message event and one absolute unread update for duplicate creates', async () => {
+  it('re-emits canonical side effects while keeping duplicate creates single-copy', async () => {
     const { memberOne, memberTwo, chat, chatId } = await setupRealtimeMessageScenario();
     const payload = {
       chatId,
@@ -91,15 +91,15 @@ describe('Socket.IO message state contract', () => {
     const newMessage = await newMessagePromise;
     const unread = await unreadPromise;
 
-    const noDuplicateMessagePromise = waitForNoSocketEvent(memberTwo.socket, 'message:new');
-    const noDuplicateUnreadPromise = waitForNoSocketEvent(memberTwo.socket, 'unread:update');
+    const duplicateMessagePromise = waitForSocketEvent(memberTwo.socket, 'message:new');
+    const duplicateUnreadPromise = waitForSocketEvent(memberTwo.socket, 'unread:update');
 
     const retryResponse = await memberOne.agent
       .post('/api/message/new-message')
       .send(payload)
       .expect(200);
-    const duplicateMessage = await noDuplicateMessagePromise;
-    const duplicateUnread = await noDuplicateUnreadPromise;
+    const duplicateMessage = await duplicateMessagePromise;
+    const duplicateUnread = await duplicateUnreadPromise;
 
     await expect(Message.countDocuments({
       chatId: chat._id,
@@ -121,8 +121,20 @@ describe('Socket.IO message state contract', () => {
       userId: memberTwo.user._id.toString(),
       count: 1,
     });
-    expect(duplicateMessage).toBeUndefined();
-    expect(duplicateUnread).toBeUndefined();
+    expect(duplicateMessage).toMatchObject({
+      _id: createResponse.body.data.message._id,
+      clientMessageId: payload.clientMessageId,
+      chatId,
+      sender: memberOne.user._id.toString(),
+      text: payload.text,
+      status: 'sent',
+      deletedForEveryone: false,
+    });
+    expect(duplicateUnread).toEqual({
+      chatId,
+      userId: memberTwo.user._id.toString(),
+      count: 1,
+    });
   });
 
   it('applies delivery once and preserves the first deliveredAt timestamp', async () => {

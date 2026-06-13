@@ -228,6 +228,78 @@ const logDeliveryLifecycle = (stage, metadata = {}) => {
   console.info('[chatify.delivery]', { stage, ...metadata });
 };
 
+const compareLatestCandidate = (candidate, current) => {
+  const candidateTime = new Date(candidate.createdAt).getTime();
+  const currentTime = new Date(current.createdAt).getTime();
+
+  if (!Number.isFinite(candidateTime) || !Number.isFinite(currentTime)) {
+    return 1;
+  }
+
+  if (candidateTime !== currentTime) {
+    return candidateTime - currentTime;
+  }
+
+  return candidate._id.toString().localeCompare(current._id.toString());
+};
+
+const shouldSetLatestMessage = async (chatId, message) => {
+  const currentChat = await Chats.findById(chatId).select('latestMessage').lean();
+  const currentLatestId = currentChat?.latestMessage;
+
+  if (!currentLatestId || currentLatestId.toString() === message._id.toString()) {
+    return true;
+  }
+
+  const currentLatestMessage = await Message.findById(currentLatestId).select('createdAt').lean();
+
+  if (!currentLatestMessage) {
+    return true;
+  }
+
+  return compareLatestCandidate(message, currentLatestMessage) >= 0;
+};
+
+const refreshLatestMessage = async (chatId, message) => {
+  if (!(await shouldSetLatestMessage(chatId, message))) {
+    return;
+  }
+
+  await Chats.findByIdAndUpdate(chatId, {
+    $set: { latestMessage: message._id },
+  }, { new: true });
+};
+
+const finalizeMessageCreate = async ({
+  chat,
+  message,
+  senderId,
+  clientMessageId,
+  idempotent = false,
+}) => {
+  await refreshLatestMessage(chat._id, message);
+
+  const serializedMessage = serializeMessage(message);
+
+  try {
+    const io = getIO();
+    logDeliveryLifecycle('socket.emit.message_new', {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      clientMessageId,
+      actorRole: 'sender',
+      status: message.status,
+      idempotent,
+    });
+    io.in(chat._id.toString()).emit('message:new', serializedMessage);
+    await emitUnreadCountsForRecipients(chat, senderId);
+  } catch (err) {
+    console.error("Message sent but failed to emit via socket.io:", err);
+  }
+
+  return serializedMessage;
+};
+
 const encodeSharedAssetCursor = (attachment) => {
   if (!attachment?.createdAt || !attachment?._id) {
     return null;
@@ -501,10 +573,18 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
         idempotent: true,
       });
 
+      const serializedMessage = await finalizeMessageCreate({
+        chat,
+        message,
+        senderId: userObjectId,
+        clientMessageId: normalizedClientMessageId.clientMessageId,
+        idempotent: true,
+      });
+
       res.status(200).json({
         status: 'message already created',
         data: {
-          message: serializeMessage(message),
+          message: serializedMessage,
           idempotent: true,
         },
       });
@@ -552,10 +632,18 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
           return;
         }
 
+        const serializedMessage = await finalizeMessageCreate({
+          chat,
+          message: existingMessage,
+          senderId: userObjectId,
+          clientMessageId: normalizedClientMessageId.clientMessageId,
+          idempotent: true,
+        });
+
         res.status(200).json({
           status: 'message already created',
           data: {
-            message: serializeMessage(existingMessage),
+            message: serializedMessage,
             idempotent: true,
           },
         });
@@ -566,27 +654,12 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     throw error;
   }
 
-  await Chats.findByIdAndUpdate(chat._id, {
-    $set: { latestMessage: message._id },
-  }, { new: true });
-
-  const serializedMessage = serializeMessage(message);
-
-  try {
-    const io = getIO();
-    logDeliveryLifecycle('socket.emit.message_new', {
-      chatId: chat._id.toString(),
-      messageId: message._id.toString(),
-      clientMessageId: normalizedClientMessageId.clientMessageId,
-      actorRole: 'sender',
-      status: message.status,
-      idempotent: false,
-    });
-    io.in(chat._id.toString()).emit('message:new', serializedMessage);
-    await emitUnreadCountsForRecipients(chat, userObjectId);
-  } catch (err) {
-    console.error("Message sent but failed to emit via socket.io:", err);
-  }
+  const serializedMessage = await finalizeMessageCreate({
+    chat,
+    message,
+    senderId: userObjectId,
+    clientMessageId: normalizedClientMessageId.clientMessageId,
+  });
 
   res.status(201).json({
     status: 'message created successfully',

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { BrowserContext } from '@playwright/test';
 
 const phaseAuditPath = path.resolve(
   process.cwd(),
@@ -32,6 +33,8 @@ export interface ProductionSmokeAccount {
   password: string;
   redactedEmail: string;
 }
+
+type BrowserCookie = Parameters<BrowserContext['addCookies']>[0][number];
 
 export interface ProductionSmokeMetadata {
   frontendOrigin: string;
@@ -161,6 +164,95 @@ export const requireProductionSmokeConfig = () => {
   }
 
   return config;
+};
+
+const splitSetCookieHeaders = (header: string) => {
+  return header ? [header] : [];
+};
+
+const parseSetCookieHeader = (header: string, backendUrl: string): BrowserCookie | null => {
+  const [nameValue, ...attributes] = header.split(';').map((part) => part.trim());
+  const separatorIndex = nameValue.indexOf('=');
+
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  const cookie: BrowserCookie = {
+    name: nameValue.slice(0, separatorIndex),
+    value: nameValue.slice(separatorIndex + 1),
+    url: backendUrl,
+  };
+
+  attributes.forEach((attribute) => {
+    const [rawName, ...rawValue] = attribute.split('=');
+    const name = rawName.toLowerCase();
+    const value = rawValue.join('=');
+
+    if (name === 'path' && value) {
+      cookie.path = value;
+    } else if (name === 'httponly') {
+      cookie.httpOnly = true;
+    } else if (name === 'secure') {
+      cookie.secure = true;
+    } else if (name === 'samesite') {
+      const normalized = value.toLowerCase();
+      if (normalized === 'strict' || normalized === 'lax' || normalized === 'none') {
+        cookie.sameSite = `${normalized[0].toUpperCase()}${normalized.slice(1)}` as BrowserCookie['sameSite'];
+      }
+    }
+  });
+
+  return cookie;
+};
+
+const getSetCookieHeaders = (response: Response) => {
+  const headersWithGetSetCookie = response.headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+  const setCookieHeaders = headersWithGetSetCookie.getSetCookie?.();
+
+  if (setCookieHeaders?.length) {
+    return setCookieHeaders;
+  }
+
+  return splitSetCookieHeaders(response.headers.get('set-cookie') ?? '');
+};
+
+export const authenticateProductionSmokeContext = async ({
+  account,
+  backendUrl,
+  context,
+}: {
+  account: ProductionSmokeAccount;
+  backendUrl: string;
+  context: BrowserContext;
+}) => {
+  const response = await fetch(`${backendUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: account.email,
+      password: account.password,
+      rememberMe: false,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`${account.label} API login failed with HTTP ${response.status}.`);
+  }
+
+  const cookies = getSetCookieHeaders(response)
+    .map((header) => parseSetCookieHeader(header, backendUrl))
+    .filter((cookie): cookie is BrowserCookie => Boolean(cookie));
+
+  if (cookies.length === 0) {
+    throw new Error(`${account.label} API login did not return an auth cookie.`);
+  }
+
+  await context.addCookies(cookies);
 };
 
 export const getProductionSmokeAuditPath = () => phaseAuditPath;

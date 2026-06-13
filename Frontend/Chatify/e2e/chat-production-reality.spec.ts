@@ -1,5 +1,6 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import {
+  authenticateProductionSmokeContext,
   appendProductionSmokeAudit,
   getProductionSmokeConfig,
   makeSmokeMessageText,
@@ -9,17 +10,9 @@ import {
 
 const initialConfig = getProductionSmokeConfig();
 
-const signIn = async (page: Page, frontendUrl: string, account: ProductionSmokeAccount) => {
-  await page.goto(`${frontendUrl}/login`, { waitUntil: 'networkidle' });
-
-  if (await page.getByTestId('chat-root').count()) {
-    return;
-  }
-
-  await page.getByLabel('Email Address').fill(account.email);
-  await page.getByLabel('Password').fill(account.password);
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await expect(page.getByTestId('chat-root')).toBeVisible({ timeout: 30000 });
+type ProductionSmokePage = {
+  context: BrowserContext;
+  page: Page;
 };
 
 const startOrContinueChat = async (page: Page, targetEmail: string) => {
@@ -72,11 +65,29 @@ const sendSmokeMessage = async (page: Page, text: string) => {
   await expect(page.getByTestId('conversation-pane').getByText(text).first()).toBeVisible({ timeout: 20000 });
 };
 
-const createSmokePage = async (browser: Browser) => {
+const createSmokePage = async (
+  browser: Browser,
+  config: ReturnType<typeof requireProductionSmokeConfig>,
+  account: ProductionSmokeAccount
+): Promise<ProductionSmokePage> => {
   const context = await browser.newContext();
-  const page = await context.newPage();
 
-  return { context, page };
+  try {
+    await authenticateProductionSmokeContext({
+      account,
+      backendUrl: config.backendUrl,
+      context,
+    });
+
+    const page = await context.newPage();
+    await page.goto(config.frontendUrl, { waitUntil: 'networkidle' });
+    await expect(page.getByTestId('chat-root')).toBeVisible({ timeout: 30000 });
+
+    return { context, page };
+  } catch (error) {
+    await context.close().catch(() => undefined);
+    throw error;
+  }
 };
 
 const describeSmokeError = (error: unknown) => {
@@ -115,18 +126,19 @@ test.describe('Phase 10 production smoke', () => {
   test('live two-account messenger audit without local fixture traffic', async ({ browser }) => {
     const config = requireProductionSmokeConfig();
     const marker = makeSmokeMessageText();
-    const sender = await createSmokePage(browser);
-    const recipient = await createSmokePage(browser);
+    const smokePages: ProductionSmokePage[] = [];
     const observations: string[] = [];
     let auditAppended = false;
 
     try {
-      await signIn(sender.page, config.frontendUrl, config.accounts.sender);
+      const sender = await createSmokePage(browser, config, config.accounts.sender);
+      smokePages.push(sender);
       await startOrContinueChat(sender.page, config.accounts.recipient.email);
       const detailSurface = await openDetailsAndVerifyTruthfulControls(sender.page);
       observations.push(`Detail surface verified: ${detailSurface}.`);
 
-      await signIn(recipient.page, config.frontendUrl, config.accounts.recipient);
+      const recipient = await createSmokePage(browser, config, config.accounts.recipient);
+      smokePages.push(recipient);
       await startOrContinueChat(recipient.page, config.accounts.sender.email);
 
       await sendSmokeMessage(sender.page, marker);
@@ -171,8 +183,7 @@ test.describe('Phase 10 production smoke', () => {
 
       throw error;
     } finally {
-      await sender.context.close();
-      await recipient.context.close();
+      await Promise.all(smokePages.map(({ context }) => context.close()));
     }
   });
 });
