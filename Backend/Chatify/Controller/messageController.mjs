@@ -42,6 +42,7 @@ import {
   serializePinnedMessage,
   toObjectId,
 } from '../Utils/messageState.mjs';
+import { assertConversationActivityAllowed } from '../Utils/conversationControls.mjs';
 
 const PINNED_MESSAGES_LIMIT = 50;
 const SHARED_ASSET_CURSOR_SORT_DESC = Object.freeze({ createdAt: -1, _id: -1 });
@@ -118,6 +119,20 @@ const loadChatForUser = async (chatId, userObjectId, res, options = {}) => {
   }
 
   return chat;
+};
+
+const ensureConversationActivityAllowed = async ({ chat, userObjectId, res }) => {
+  try {
+    await assertConversationActivityAllowed({ chat, actorId: userObjectId });
+    return true;
+  } catch (error) {
+    res.status(error.statusCode ?? 403).json({
+      status: 'fail',
+      code: error.code ?? 'conversation_blocked',
+      message: error.message ?? 'Conversation activity is not available',
+    });
+    return false;
+  }
 };
 
 const countUnreadForUser = (chatId, userId) => {
@@ -488,6 +503,10 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
   const chat = await loadChatForUser(chatId, userObjectId, res);
 
   if (!chat) {
+    return;
+  }
+
+  if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
     return;
   }
 
@@ -1053,6 +1072,10 @@ export const pinMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
+  if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
+    return;
+  }
+
   if (!canUserSeeMessage(message, userObjectId)) {
     respondWithChatAccessError(res, 404, 'Message not found');
     return;
@@ -1131,6 +1154,10 @@ export const unpinMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
+  if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
+    return;
+  }
+
   if (!canUserSeeMessage(message, userObjectId)) {
     respondWithChatAccessError(res, 404, 'Message not found');
     return;
@@ -1194,6 +1221,10 @@ export const markMessageAsRead = asyncErrorHandler(async (req, res) => {
     return;
   }
 
+  if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
+    return;
+  }
+
   const readResult = await promoteMessageReadState({ message, chat, userObjectId });
 
   if (readResult.changed) {
@@ -1250,6 +1281,10 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
 
   const chat = await loadChatForUser(chatId, userObjectId, res);
   if (!chat) {
+    return;
+  }
+
+  if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
     return;
   }
 
@@ -1471,6 +1506,10 @@ export const deleteMessage = asyncErrorHandler(async (req, res) => {
   }
 
   if (deleteForEveryone) {
+    if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
+      return;
+    }
+
     if (!message.sender.equals(userObjectId)) {
       respondWithChatAccessError(res, 403, 'You can only delete your own messages for everyone');
       return;
@@ -1600,6 +1639,10 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
+  if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
+    return;
+  }
+
   if (!canUserSeeMessage(message, userObjectId)) {
     respondWithChatAccessError(res, 404, 'Message not found');
     return;
@@ -1703,6 +1746,10 @@ export const toggleReaction = asyncErrorHandler(async (req, res) => {
 
   const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res);
   if (!chat) {
+    return;
+  }
+
+  if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
     return;
   }
 
