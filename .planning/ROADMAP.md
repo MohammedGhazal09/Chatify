@@ -337,7 +337,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 10.1-01: Harden backend message identity, idempotency, receipt truth, and redacted diagnostics
+- [x] 10.1-01: Harden backend message identity, idempotency, receipt truth, and redacted diagnostics
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -448,7 +448,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 8. Media Files And Conversation Detail Implementation | 3/3 | Complete | 2026-06-12 |
 | 9. Messenger Interaction Quality Gate | 3/3 | Complete | 2026-06-12 |
 | 10. Production Messenger Reality Audit And Fixture Removal | 0/0 | Not planned | - |
-| 10.1. Production Message Delivery Reliability Repair | 0/3 | Planned | - |
+| 10.1. Production Message Delivery Reliability Repair | 1/3 | In Progress | 2026-06-13 |
 | 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
 | 12. Live Media Voice And Identity Implementation | 0/0 | Not planned | - |
 | 13. Realtime Call And Video Implementation | 0/0 | Not planned | - |
