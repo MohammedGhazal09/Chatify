@@ -16,6 +16,36 @@ const setupReadScenario = async () => {
 };
 
 describe('message status and unread state', () => {
+  it('keeps HTTP-created messages sent until the recipient confirms delivery', async () => {
+    const { memberOne, memberTwo, chat } = await setupReadScenario();
+
+    const response = await memberOne.agent
+      .post('/api/message/new-message')
+      .send({
+        chatId: chat._id.toString(),
+        text: 'Offline recipient should not auto-deliver',
+        clientMessageId: 'offline-recipient-sent-state',
+      })
+      .expect(201);
+    const storedMessage = await Message.findById(response.body.data.message._id);
+
+    expect(response.body.data.message).toMatchObject({
+      status: 'sent',
+      deliveredAt: null,
+      readAt: null,
+      readBy: [],
+    });
+    expect(storedMessage.status).toBe('sent');
+    expect(storedMessage.deliveredAt).toBeUndefined();
+    expect(storedMessage.readAt).toBeUndefined();
+    await expect(Message.countDocuments({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      status: 'sent',
+      'readBy.user': { $ne: memberTwo.user._id },
+    })).resolves.toBe(1);
+  });
+
   it('derives unread counts per user from message readBy state', async () => {
     const { memberOne, memberTwo, chat } = await setupReadScenario();
     await createMessage({ chat, sender: memberOne.user, text: 'Unread for member two' });

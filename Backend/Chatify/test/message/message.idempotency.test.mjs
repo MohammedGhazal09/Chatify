@@ -14,6 +14,24 @@ const setupMessageScenario = async () => {
 };
 
 describe('message HTTP idempotency', () => {
+  it('rejects message creation without clientMessageId and creates no document', async () => {
+    const { memberOne, chat } = await setupMessageScenario();
+
+    const response = await memberOne.agent
+      .post('/api/message/new-message')
+      .send({
+        chatId: chat._id.toString(),
+        text: 'Missing client identity',
+      })
+      .expect(400);
+
+    expect(response.body.message).toMatch(/clientMessageId is required/i);
+    await expect(Message.countDocuments({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+    })).resolves.toBe(0);
+  });
+
   it('returns one persisted canonical message for duplicate clientMessageId retries', async () => {
     const { memberOne, chat } = await setupMessageScenario();
     const payload = {
@@ -53,6 +71,30 @@ describe('message HTTP idempotency', () => {
     });
     expect(firstResponse.body.data.message).toHaveProperty('createdAt');
     expect(firstResponse.body.data.message).toHaveProperty('updatedAt');
+  });
+
+  it('converges concurrent duplicate clientMessageId creates to one canonical message', async () => {
+    const { memberOne, chat } = await setupMessageScenario();
+    const payload = {
+      chatId: chat._id.toString(),
+      text: 'Concurrent retry',
+      clientMessageId: 'client-message-concurrent',
+    };
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      memberOne.agent.post('/api/message/new-message').send(payload),
+      memberOne.agent.post('/api/message/new-message').send(payload),
+    ]);
+    const responses = [firstResponse, secondResponse];
+    const messageIds = responses.map((response) => response.body.data?.message?._id);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 201]);
+    expect(new Set(messageIds).size).toBe(1);
+    await expect(Message.countDocuments({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      clientMessageId: payload.clientMessageId,
+    })).resolves.toBe(1);
   });
 
   it('rejects clientMessageId reuse with different normalized text', async () => {

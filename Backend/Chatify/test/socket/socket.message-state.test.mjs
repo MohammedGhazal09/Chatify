@@ -3,11 +3,13 @@ import Message from '../../Models/messageModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import { createMessage } from '../fixtures/messages.mjs';
 import {
+  connectSocketForSignup,
   connectSocketAsUser,
   emitWithAck,
   waitForSocketEvent,
 } from '../helpers/socketClient.mjs';
 import { startSocketTestServer } from '../helpers/socketServer.mjs';
+import { signupWithAgent } from '../helpers/authAgent.mjs';
 
 const servers = [];
 const sockets = [];
@@ -160,6 +162,52 @@ describe('Socket.IO message state contract', () => {
     expect(duplicateStatus).toBeUndefined();
     expect(secondStoredMessage.status).toBe('delivered');
     expect(secondStoredMessage.deliveredAt.getTime()).toBe(firstStoredMessage.deliveredAt.getTime());
+  });
+
+  it('does not let the sender mark their own message delivered through the socket', async () => {
+    const { memberOne, chat } = await setupRealtimeMessageScenario();
+    const message = await createMessage({ chat, sender: memberOne.user, text: 'Sender delivery no-op' });
+    const noStatusPromise = waitForNoSocketEvent(memberOne.socket, 'message:status-update');
+
+    const ack = await emitWithAck(memberOne.socket, 'message:delivered', {
+      messageId: message._id.toString(),
+    });
+    const statusUpdate = await noStatusPromise;
+    const storedMessage = await Message.findById(message._id);
+
+    expect(ack).toMatchObject({
+      ok: true,
+      event: 'message:delivered',
+      messageId: message._id.toString(),
+    });
+    expect(statusUpdate).toBeUndefined();
+    expect(storedMessage.status).toBe('sent');
+    expect(storedMessage.deliveredAt).toBeUndefined();
+  });
+
+  it('does not mark messages delivered during passive connection auto-join', async () => {
+    await Message.init();
+
+    const server = await startServer();
+    const memberOneSignup = await signupWithAgent({ firstName: 'Passive', lastName: 'Sender' });
+    const memberTwoSignup = await signupWithAgent({ firstName: 'Passive', lastName: 'Recipient' });
+    const chat = await createDirectChat([memberOneSignup.user, memberTwoSignup.user]);
+    const message = await createMessage({
+      chat,
+      sender: memberOneSignup.user,
+      text: 'Passive join must not deliver',
+    });
+
+    const memberTwo = await connectSocketForSignup(server.url, memberTwoSignup);
+    trackSocket(memberTwo.socket);
+
+    const noStatusUpdate = await waitForNoSocketEvent(memberTwo.socket, 'message:status-update');
+    const storedMessage = await Message.findById(message._id);
+
+    expect(memberTwo.ready.joinedChats).toBeGreaterThanOrEqual(1);
+    expect(noStatusUpdate).toBeUndefined();
+    expect(storedMessage.status).toBe('sent');
+    expect(storedMessage.deliveredAt).toBeUndefined();
   });
 
   it('does not let delivery overwrite an already-read message', async () => {

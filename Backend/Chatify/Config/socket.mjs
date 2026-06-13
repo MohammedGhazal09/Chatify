@@ -59,6 +59,14 @@ const socketEventLimits = {
 
 const socketEventWindows = new Map()
 
+const logDeliveryLifecycle = (stage, metadata = {}) => {
+  if (process.env.CHATIFY_DELIVERY_DIAGNOSTICS !== '1') {
+    return
+  }
+
+  console.info('[chatify.delivery]', { stage, ...metadata })
+}
+
 const getAllowedSocketOrigins = () => {
   const origins = [getCorsOrigin()]
     .filter(Boolean)
@@ -415,11 +423,27 @@ export const initSocket = (server) => {
         })
 
         if (message.sender.toString() === socket.data.userId) {
+          logDeliveryLifecycle('delivery.self_noop', {
+            chatId: chat._id.toString(),
+            messageId: message._id.toString(),
+            actorRole: 'sender',
+            socketId: socket.id,
+            status: message.status,
+          })
+
           if (typeof ack === 'function') {
             ack(respondSocketSuccess('message:delivered', { messageId: message._id.toString() }))
           }
           return
         }
+
+        logDeliveryLifecycle('delivery.ack_received', {
+          chatId: chat._id.toString(),
+          messageId: message._id.toString(),
+          actorRole: 'recipient',
+          socketId: socket.id,
+          status: message.status,
+        })
 
         const deliveredMessage = await Message.findOneAndUpdate(
           {
@@ -439,6 +463,13 @@ export const initSocket = (server) => {
         )
 
         if (deliveredMessage) {
+          logDeliveryLifecycle('delivery.status_update', {
+            chatId: chat._id.toString(),
+            messageId: deliveredMessage._id.toString(),
+            actorRole: 'recipient',
+            socketId: socket.id,
+            status: deliveredMessage.status,
+          })
           io.to(chat._id.toString()).emit('message:status-update', buildStatusPatch(deliveredMessage))
         }
 
@@ -555,6 +586,12 @@ const markMessagesAsDelivered = async (chatId, userId) => {
       )
 
       if (deliveredMessage) {
+        logDeliveryLifecycle('delivery.join_sweep_update', {
+          chatId: chatObjectId.toString(),
+          messageId: deliveredMessage._id.toString(),
+          actorRole: 'recipient',
+          status: deliveredMessage.status,
+        })
         io.to(chatObjectId.toString()).emit('message:status-update', buildStatusPatch(deliveredMessage))
       }
     }

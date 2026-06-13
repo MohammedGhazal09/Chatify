@@ -99,6 +99,35 @@ describe('message attachments', () => {
     await expect(Attachment.countDocuments({ chatId: chat._id })).resolves.toBe(1);
   });
 
+  it('cleans up concurrent duplicate attachment retries into one message and one attachment', async () => {
+    const { memberOne, chat } = await setupAttachmentScenario();
+    const buildRequest = () => attachText(
+      memberOne.agent
+        .post('/api/message/new-message')
+        .field('chatId', chat._id.toString())
+        .field('text', 'Concurrent attachment retry')
+        .field('clientMessageId', 'attachment-concurrent-idempotency'),
+      'concurrent-notes.txt',
+      'same concurrent content'
+    );
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      buildRequest(),
+      buildRequest(),
+    ]);
+    const responses = [firstResponse, secondResponse];
+    const messageIds = responses.map((response) => response.body.data?.message?._id);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 201]);
+    expect(new Set(messageIds).size).toBe(1);
+    await expect(Message.countDocuments({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      clientMessageId: 'attachment-concurrent-idempotency',
+    })).resolves.toBe(1);
+    await expect(Attachment.countDocuments({ chatId: chat._id })).resolves.toBe(1);
+  });
+
   it('removes uploaded files when attachment metadata creation fails', async () => {
     const { memberOne, chat } = await setupAttachmentScenario();
     const createSpy = vi

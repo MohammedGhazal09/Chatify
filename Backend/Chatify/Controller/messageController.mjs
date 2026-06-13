@@ -220,6 +220,14 @@ const isSameIdempotentPayload = ({ message, text, attachmentFingerprint }) => (
   message.text === text && getMessageAttachmentFingerprint(message) === attachmentFingerprint
 );
 
+const logDeliveryLifecycle = (stage, metadata = {}) => {
+  if (process.env.CHATIFY_DELIVERY_DIAGNOSTICS !== '1') {
+    return;
+  }
+
+  console.info('[chatify.delivery]', { stage, ...metadata });
+};
+
 const encodeSharedAssetCursor = (attachment) => {
   if (!attachment?.createdAt || !attachment?._id) {
     return null;
@@ -443,6 +451,14 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
+  if (!normalizedClientMessageId.clientMessageId) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'clientMessageId is required',
+    });
+    return;
+  }
+
   const idempotencyFilter = normalizedClientMessageId.clientMessageId
     ? {
         chatId: chat._id,
@@ -455,6 +471,12 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
   let message;
 
   if (idempotencyFilter) {
+    logDeliveryLifecycle('create.lookup', {
+      chatId: chat._id.toString(),
+      clientMessageId: normalizedClientMessageId.clientMessageId,
+      actorRole: 'sender',
+    });
+
     message = await Message.findOne(idempotencyFilter).select('+attachmentFingerprint');
 
     if (message) {
@@ -469,6 +491,15 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
         });
         return;
       }
+
+      logDeliveryLifecycle('create.idempotent', {
+        chatId: chat._id.toString(),
+        messageId: message._id.toString(),
+        clientMessageId: normalizedClientMessageId.clientMessageId,
+        actorRole: 'sender',
+        status: message.status,
+        idempotent: true,
+      });
 
       res.status(200).json({
         status: 'message already created',
@@ -543,6 +574,14 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
 
   try {
     const io = getIO();
+    logDeliveryLifecycle('socket.emit.message_new', {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      clientMessageId: normalizedClientMessageId.clientMessageId,
+      actorRole: 'sender',
+      status: message.status,
+      idempotent: false,
+    });
     io.in(chat._id.toString()).emit('message:new', serializedMessage);
     await emitUnreadCountsForRecipients(chat, userObjectId);
   } catch (err) {

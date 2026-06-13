@@ -89,7 +89,11 @@ describe('message HTTP authorization', () => {
 
     const createResponse = await memberOne.agent
       .post('/api/message/new-message')
-      .send({ chatId: chat._id.toString(), text: 'Member message' })
+      .send({
+        chatId: chat._id.toString(),
+        text: 'Member message',
+        clientMessageId: 'member-message-create',
+      })
       .expect(201);
 
     expect(createResponse.body.data.message.text).toBe('Member message');

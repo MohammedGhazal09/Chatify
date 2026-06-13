@@ -202,7 +202,11 @@ describe('Socket.IO chat authorization', () => {
 
     await memberOne.agent
       .post('/api/message/new-message')
-      .send({ chatId, text: 'Unread target check' })
+      .send({
+        chatId,
+        text: 'Unread target check',
+        clientMessageId: 'socket-unread-target-check',
+      })
       .expect(201);
 
     const recipientUnread = await recipientUnreadPromise;
