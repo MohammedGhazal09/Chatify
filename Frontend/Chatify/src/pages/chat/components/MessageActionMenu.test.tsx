@@ -14,6 +14,8 @@ interface MenuHarnessProps {
   onCopy?: (message: ReturnType<typeof makeMessage>) => void;
   onTogglePin?: (message: ReturnType<typeof makeMessage>) => void;
   onToggleReactionPicker?: () => void;
+  activeActionsDisabled?: boolean;
+  activeActionsDisabledReason?: string | null;
 }
 
 const MenuHarness = ({
@@ -24,6 +26,8 @@ const MenuHarness = ({
   onCopy = vi.fn(),
   onTogglePin = vi.fn(),
   onToggleReactionPicker = vi.fn(),
+  activeActionsDisabled = false,
+  activeActionsDisabledReason = null,
 }: MenuHarnessProps) => {
   const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -48,6 +52,8 @@ const MenuHarness = ({
         contextMenu={contextMenu}
         messages={[message]}
         showReactionPicker={false}
+        activeActionsDisabled={activeActionsDisabled}
+        activeActionsDisabledReason={activeActionsDisabledReason}
         contextMenuRef={contextMenuRef}
         onReaction={onReaction}
         onToggleReactionPicker={onToggleReactionPicker}
@@ -123,5 +129,42 @@ describe('MessageActionMenu', () => {
     expect(onDelete).toHaveBeenNthCalledWith(1, false);
     expect(onDelete).toHaveBeenNthCalledWith(2, true);
     expect(onToggleReactionPicker).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables active message actions while keeping passive actions available', async () => {
+    const user = userEvent.setup();
+    const onReaction = vi.fn();
+    const onReply = vi.fn();
+    const onCopy = vi.fn();
+    const onDelete = vi.fn();
+
+    render(
+      <MenuHarness
+        onReaction={onReaction}
+        onReply={onReply}
+        onCopy={onCopy}
+        onDelete={onDelete}
+        activeActionsDisabled
+        activeActionsDisabledReason="You blocked this user. Unblock them to send new activity."
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Open message actions' }));
+
+    expect(screen.getByRole('button', { name: 'React with 😂' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reply' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Pin message' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Delete for everyone' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Delete for me' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Delete for me' }));
+
+    expect(onCopy).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
+    expect(onDelete).toHaveBeenCalledWith(false);
+    expect(onReaction).not.toHaveBeenCalled();
+    expect(onReply).not.toHaveBeenCalled();
   });
 });

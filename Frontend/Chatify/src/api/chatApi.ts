@@ -6,6 +6,7 @@ interface ChatResponse {
   status: string;
   data: {
     chat: Chat;
+    conversationControls?: Chat['conversationControls'];
   };
 }
 
@@ -22,4 +23,10 @@ export const chatApi = {
 
   getAllChats: (): Promise<AxiosResponse<ChatsResponse>> =>
     axiosInstance.get('/api/chat/get-all-chats'),
+
+  blockChatPeer: (chatId: string): Promise<AxiosResponse<ChatResponse>> =>
+    axiosInstance.post(`/api/chat/${chatId}/block`),
+
+  unblockChatPeer: (chatId: string): Promise<AxiosResponse<ChatResponse>> =>
+    axiosInstance.delete(`/api/chat/${chatId}/block`),
 };

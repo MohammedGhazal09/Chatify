@@ -33,7 +33,10 @@ describe('ChatContextRail', () => {
       isSocketConnected: true,
       isReconnecting: false,
       isOffline: false,
+      onStartAudioCall: vi.fn(),
+      onStartVideoCall: vi.fn(),
       onSearchMessages: vi.fn(),
+      onOpenMoreMenu: vi.fn(),
       onJumpToMessage: vi.fn(),
       onUnpinMessage: vi.fn(),
       ...overrides,
@@ -47,15 +50,18 @@ describe('ChatContextRail', () => {
   it('renders server-backed sections and wires actions', async () => {
     const user = userEvent.setup();
     const onSearchMessages = vi.fn();
+    const onOpenMoreMenu = vi.fn();
     const onJumpToMessage = vi.fn();
     const onUnpinMessage = vi.fn();
-    renderRail({ onSearchMessages, onJumpToMessage, onUnpinMessage });
+    const onStartAudioCall = vi.fn();
+    const onStartVideoCall = vi.fn();
+    renderRail({ onSearchMessages, onOpenMoreMenu, onJumpToMessage, onUnpinMessage, onStartAudioCall, onStartVideoCall });
 
     expect(screen.getByRole('complementary', { name: 'Conversation details' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close conversation details' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Call' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Video call' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'More conversation actions' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Call' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Video call' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'More conversation actions' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Favorite conversation unavailable in this phase' })).toBeDisabled();
     expect(screen.getByText('Pinned messages')).toBeInTheDocument();
     expect(screen.getByText('Shared files')).toBeInTheDocument();
@@ -70,17 +76,24 @@ describe('ChatContextRail', () => {
     expect(screen.queryByText('delivery-metrics.xlsx')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Abstract shared media')).not.toBeInTheDocument();
     expect(screen.getByText('Authenticated session')).toBeInTheDocument();
-    expect(screen.getAllByText('Active')).toHaveLength(2);
+    expect(screen.getAllByText('Active')).toHaveLength(3);
     expect(screen.getByText('Member-only room')).toBeInTheDocument();
     expect(screen.getByText('Confirmed')).toBeInTheDocument();
     expect(screen.getByText('Realtime connection')).toBeInTheDocument();
     expect(screen.getByText('Connected')).toBeInTheDocument();
     expect(screen.getByText('Protected file access')).toBeInTheDocument();
+    expect(screen.getByText('Conversation controls')).toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Call' }));
+    await user.click(screen.getByRole('button', { name: 'Video call' }));
     await user.click(screen.getByRole('button', { name: 'Search messages' }));
+    await user.click(screen.getByRole('button', { name: 'More conversation actions' }));
     await user.click(screen.getByRole('button', { name: 'Retry logic note' }));
     await user.click(screen.getByRole('button', { name: 'Unpin Retry logic note' }));
+    expect(onStartAudioCall).toHaveBeenCalledTimes(1);
+    expect(onStartVideoCall).toHaveBeenCalledTimes(1);
     expect(onSearchMessages).toHaveBeenCalledTimes(1);
+    expect(onOpenMoreMenu).toHaveBeenCalledTimes(1);
     expect(onJumpToMessage).toHaveBeenCalledWith('message-pin');
     expect(onUnpinMessage).toHaveBeenCalledWith('message-pin');
   });
@@ -132,7 +145,12 @@ describe('ChatContextRail', () => {
         isSocketConnected={false}
         isReconnecting={false}
         isOffline
+        callDisabledReason="Realtime connection is unavailable."
+        videoCallDisabledReason="Realtime connection is unavailable."
+        onStartAudioCall={vi.fn()}
+        onStartVideoCall={vi.fn()}
         onSearchMessages={vi.fn()}
+        onOpenMoreMenu={vi.fn()}
         onJumpToMessage={vi.fn()}
         onUnpinMessage={vi.fn()}
       />

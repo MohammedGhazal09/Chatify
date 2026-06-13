@@ -1,6 +1,102 @@
 import type { User } from './auth';
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
+export type MessageType = 'text' | 'call';
+export type CallMode = 'audio' | 'video';
+export type CallStatus =
+  | 'ringing'
+  | 'connected'
+  | 'rejected'
+  | 'missed'
+  | 'ended'
+  | 'failed'
+  | 'canceled'
+  | 'blocked';
+export type CallUiStatus =
+  | 'idle'
+  | 'incoming'
+  | 'outgoing'
+  | 'ringing'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'rejected'
+  | 'missed'
+  | 'busy'
+  | 'permission_denied'
+  | 'failed'
+  | 'ended';
+export type CallEndReason = 'missed' | 'rejected' | 'ended' | 'failed' | 'canceled' | 'blocked';
+
+export interface CallActivity {
+  callId: string | null;
+  callerId: string | null;
+  calleeId: string | null;
+  mode: CallMode | null;
+  result: CallEndReason | null;
+  startedAt?: string | null;
+  ringingAt?: string | null;
+  answeredAt?: string | null;
+  endedAt?: string | null;
+  durationSeconds?: number | null;
+}
+
+export interface CallIceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface CallIceConfig {
+  iceServers: CallIceServer[];
+  turnReady: boolean;
+  productionReady: boolean;
+  warnings?: string[];
+}
+
+export interface CallSessionPayload {
+  callId: string;
+  chatId: string;
+  callerId: string;
+  calleeId: string;
+  mode: CallMode;
+  status: CallStatus;
+  startedAt?: string | null;
+  ringingAt?: string | null;
+  answeredAt?: string | null;
+  endedAt?: string | null;
+  endedReason?: CallEndReason | string | null;
+  deliveredTo?: string[];
+  durationSeconds?: number | null;
+  fromUserId?: string;
+  callConfig?: CallIceConfig;
+}
+
+export type CallSocketEventName =
+  | 'call:start'
+  | 'call:accept'
+  | 'call:reject'
+  | 'call:end'
+  | 'call:offer'
+  | 'call:answer'
+  | 'call:ice-candidate'
+  | 'call:sync';
+
+export interface CallActionAck extends Partial<CallSessionPayload> {
+  ok: boolean;
+  event: CallSocketEventName;
+  code?: string;
+  message?: string;
+  call?: CallSessionPayload | null;
+  callConfig?: CallIceConfig;
+}
+
+export interface CallSignalEvent {
+  callId: string;
+  chatId: string;
+  fromUserId: string;
+  signal: RTCSessionDescriptionInit | RTCIceCandidateInit | null;
+}
 
 export interface ReadByEntry {
   user: string;
@@ -49,6 +145,8 @@ export interface Message {
   chatId: string;
   sender: string;
   text: string;
+  messageType?: MessageType;
+  callActivity?: CallActivity | null;
   read: boolean;
   status: MessageStatus;
   deliveredAt?: string | null;
@@ -87,6 +185,19 @@ export interface CursorPaginationInfo {
   limit: number;
 }
 
+export type MessagingDisabledReason = 'blocked_by_me' | 'blocked_me' | null;
+
+export interface ConversationControls {
+  isDirectChat: boolean;
+  peerId: string | null;
+  canSendMessage: boolean;
+  canBlockUser: boolean;
+  canUnblockUser: boolean;
+  blockedByMe: boolean;
+  blockedMe: boolean;
+  messagingDisabledReason: MessagingDisabledReason;
+}
+
 export interface Chat {
   _id: string;
   members: User[];
@@ -97,6 +208,7 @@ export interface Chat {
   groupAdmin?: User;
   groupImage?: string;
   groupDescription?: string;
+  conversationControls?: ConversationControls;
   createdAt: string;
   updatedAt: string;
 }
@@ -242,10 +354,16 @@ export interface SocketReadyEvent {
   socketId: string;
   joinedChats: number;
   presence?: UserOnlineStatus[];
+  callConfig?: CallIceConfig;
 }
 
 export interface SocketErrorEvent {
   code: string;
   event?: string;
   message?: string;
+}
+
+export interface ConversationControlsUpdatedEvent {
+  chatId: string;
+  conversationControls: ConversationControls;
 }

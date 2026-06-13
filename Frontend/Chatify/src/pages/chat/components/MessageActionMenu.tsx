@@ -9,6 +9,8 @@ interface MessageActionMenuProps {
   contextMenu: MessageContextMenuState | null;
   messages: Message[];
   showReactionPicker: boolean;
+  activeActionsDisabled: boolean;
+  activeActionsDisabledReason?: string | null;
   contextMenuRef: RefObject<HTMLDivElement | null>;
   onReaction: (messageId: string, emoji: string) => void;
   onToggleReactionPicker: () => void;
@@ -26,6 +28,8 @@ const MessageActionMenu = ({
   contextMenu,
   messages,
   showReactionPicker,
+  activeActionsDisabled,
+  activeActionsDisabledReason,
   contextMenuRef,
   onReaction,
   onToggleReactionPicker,
@@ -69,8 +73,10 @@ const MessageActionMenu = ({
             key={emoji}
             type="button"
             onClick={() => onReaction(contextMenu.messageId, emoji)}
-            className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-lg transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+            className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-lg transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:opacity-45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
             aria-label={`React with ${emoji}`}
+            disabled={activeActionsDisabled}
+            title={activeActionsDisabledReason ?? undefined}
           >
             {emoji}
           </button>
@@ -78,9 +84,10 @@ const MessageActionMenu = ({
         <button
           type="button"
           onClick={onToggleReactionPicker}
-          className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-lg text-[#A8B3AF] transition-transform hover:bg-[#181C20] hover:text-[#F4F7F6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
+          className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-lg text-[#A8B3AF] transition-transform hover:bg-[#181C20] hover:text-[#F4F7F6] disabled:cursor-not-allowed disabled:opacity-45 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6]"
           title="More reactions"
           aria-label="More reactions"
+          disabled={activeActionsDisabled}
         >
           <SmilePlus aria-hidden="true" className="h-5 w-5" />
         </button>
@@ -103,7 +110,9 @@ const MessageActionMenu = ({
         onClick={() => {
           if (message) onReply(message);
         }}
-        className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
+        disabled={activeActionsDisabled}
+        title={activeActionsDisabledReason ?? undefined}
+        className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:text-[#6B7378] focus:outline-none focus-visible:bg-[#181C20]"
       >
         Reply
       </button>
@@ -111,7 +120,9 @@ const MessageActionMenu = ({
         <button
           type="button"
           onClick={() => onStartEdit(contextMenu.messageId, message?.text || '')}
-          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
+          disabled={activeActionsDisabled}
+          title={activeActionsDisabledReason ?? undefined}
+          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:text-[#6B7378] focus:outline-none focus-visible:bg-[#181C20]"
         >
           Edit
         </button>
@@ -129,7 +140,9 @@ const MessageActionMenu = ({
         <button
           type="button"
           onClick={() => onTogglePin(message)}
-          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
+          disabled={activeActionsDisabled}
+          title={activeActionsDisabledReason ?? undefined}
+          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:text-[#6B7378] focus:outline-none focus-visible:bg-[#181C20]"
         >
           {message.pinned ? 'Unpin message' : 'Pin message'}
         </button>
@@ -147,7 +160,9 @@ const MessageActionMenu = ({
         <button
           type="button"
           onClick={() => onDelete(true)}
-          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
+          disabled={activeActionsDisabled}
+          title={activeActionsDisabledReason ?? undefined}
+          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:text-[#6B7378] focus:outline-none focus-visible:bg-[#181C20]"
         >
           Delete for everyone
         </button>

@@ -31,6 +31,13 @@ import type {
   UnreadUpdateEvent,
   SocketErrorEvent,
   SocketReadyEvent,
+  ConversationControlsUpdatedEvent,
+  CallActionAck,
+  CallIceConfig,
+  CallMode,
+  CallSessionPayload,
+  CallSignalEvent,
+  CallSocketEventName,
 } from '../types/chat';
 
 type UseChatSocketOptions = {
@@ -45,6 +52,12 @@ type UseChatSocketOptions = {
   onMessageReaction?: (event: MessageReactionEvent) => void;
   onMessagePinned?: (event: MessagePinEvent) => void;
   onMessageUnpinned?: (event: MessagePinEvent) => void;
+  onCallIncoming?: (event: CallSessionPayload) => void;
+  onCallSync?: (event: CallSessionPayload) => void;
+  onCallOffer?: (event: CallSignalEvent) => void;
+  onCallAnswer?: (event: CallSignalEvent) => void;
+  onCallIceCandidate?: (event: CallSignalEvent) => void;
+  onCallError?: (event: SocketErrorEvent) => void;
 };
 
 const resolveSocketUrl = () => {
@@ -63,6 +76,9 @@ const resolveSocketUrl = () => {
 
 // Typing timeout duration (3 seconds)
 const TYPING_TIMEOUT = 3000;
+const CALL_ACK_TIMEOUT_MS = 8000;
+
+type CallEmitPayload = Record<string, unknown>;
 
 const clearTypingTimeoutsForChat = (
   timeouts: Record<string, ReturnType<typeof setTimeout>>,
@@ -90,12 +106,19 @@ export const useChatSocket = ({
   onMessageReaction,
   onMessagePinned,
   onMessageUnpinned,
+  onCallIncoming,
+  onCallSync,
+  onCallOffer,
+  onCallAnswer,
+  onCallIceCandidate,
+  onCallError,
 }: UseChatSocketOptions) => {
   const { isAuthenticated, user } = useAuthStore();
   const presenceStore = usePresenceStore();
   const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [socketError, setSocketError] = useState<SocketErrorEvent | null>(null);
+  const [callConfig, setCallConfig] = useState<CallIceConfig | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const typingTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   
@@ -168,6 +191,23 @@ export const useChatSocket = ({
     queryClientRef.current.invalidateQueries({ queryKey: pinnedMessagesQueryKey(targetChatId) });
   }, []);
 
+  const handleConversationControlsUpdated = useCallback((event: ConversationControlsUpdatedEvent) => {
+    queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+      if (!old) {
+        return old;
+      }
+
+      return old.map((chat) => chat._id === event.chatId
+        ? { ...chat, conversationControls: event.conversationControls }
+        : chat
+      );
+    });
+
+    if (!event.conversationControls.canSendMessage) {
+      presenceStoreRef.current.clearAllTypingForChat(event.chatId);
+    }
+  }, []);
+
   // Connect socket and set up user connection
   useEffect(() => {
     if (!enabled || !isAuthenticated || !socketUrl) {
@@ -193,6 +233,7 @@ export const useChatSocket = ({
 
     socketInstance.on('socket:ready', (data: SocketReadyEvent) => {
       setSocketError(null);
+      setCallConfig(data.callConfig ?? null);
       reconcileRealtimeState(data);
     });
 
@@ -261,6 +302,8 @@ export const useChatSocket = ({
       );
     });
 
+    socketInstance.on('conversation:controls-updated', handleConversationControlsUpdated);
+
     // Listen for typing events
     socketInstance.on('user:typing', (data: TypingUser) => {
       // Don't show typing indicator for own typing
@@ -312,12 +355,61 @@ export const useChatSocket = ({
         socketInstance.emit('chat:leave', activeRoomRef.current);
         activeRoomRef.current = null;
       }
+      socketInstance.off('conversation:controls-updated', handleConversationControlsUpdated);
       socketInstance.io.off('reconnect', handleReconnect);
       socketInstance.disconnect();
       setSocket(null);
       setSocketError(null);
+      setCallConfig(null);
     };
-  }, [enabled, isAuthenticated, socketUrl, user?._id, reconcileRealtimeState]);
+  }, [enabled, handleConversationControlsUpdated, isAuthenticated, socketUrl, user?._id, reconcileRealtimeState]);
+
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+
+    const handleCallIncoming = (event: CallSessionPayload) => {
+      onCallIncoming?.(event);
+    };
+
+    const handleCallSync = (event: CallSessionPayload) => {
+      onCallSync?.(event);
+    };
+
+    const handleCallOffer = (event: CallSignalEvent) => {
+      onCallOffer?.(event);
+    };
+
+    const handleCallAnswer = (event: CallSignalEvent) => {
+      onCallAnswer?.(event);
+    };
+
+    const handleCallIceCandidate = (event: CallSignalEvent) => {
+      onCallIceCandidate?.(event);
+    };
+
+    const handleCallError = (event: SocketErrorEvent) => {
+      setSocketError(event);
+      onCallError?.(event);
+    };
+
+    socket.on('call:incoming', handleCallIncoming);
+    socket.on('call:sync', handleCallSync);
+    socket.on('call:offer', handleCallOffer);
+    socket.on('call:answer', handleCallAnswer);
+    socket.on('call:ice-candidate', handleCallIceCandidate);
+    socket.on('call:error', handleCallError);
+
+    return () => {
+      socket.off('call:incoming', handleCallIncoming);
+      socket.off('call:sync', handleCallSync);
+      socket.off('call:offer', handleCallOffer);
+      socket.off('call:answer', handleCallAnswer);
+      socket.off('call:ice-candidate', handleCallIceCandidate);
+      socket.off('call:error', handleCallError);
+    };
+  }, [socket, onCallIncoming, onCallSync, onCallOffer, onCallAnswer, onCallIceCandidate, onCallError]);
 
   // Handle incoming messages
   const handleIncomingMessage = useCallback(
@@ -551,12 +643,96 @@ export const useChatSocket = ({
     [socket, chatId]
   );
 
+  const emitCallAction = useCallback((event: CallSocketEventName, payload: CallEmitPayload): Promise<CallActionAck> => {
+    if (!socket) {
+      return Promise.resolve({
+        ok: false,
+        event,
+        code: 'socket_unavailable',
+        message: 'Realtime connection unavailable',
+      });
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const timeoutId = window.setTimeout(() => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        resolve({
+          ok: false,
+          event,
+          code: 'ack_timeout',
+          message: 'Call action timed out',
+        });
+      }, CALL_ACK_TIMEOUT_MS);
+
+      socket.emit(event, payload, (response?: CallActionAck) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        window.clearTimeout(timeoutId);
+        resolve(response ?? {
+          ok: false,
+          event,
+          code: 'empty_ack',
+          message: 'Call action returned an empty acknowledgement',
+        });
+      });
+    });
+  }, [socket]);
+
+  const emitCallStart = useCallback((payload: { chatId: string; mode: CallMode }) => {
+    return emitCallAction('call:start', payload);
+  }, [emitCallAction]);
+
+  const emitCallAccept = useCallback((payload: { chatId: string; callId: string }) => {
+    return emitCallAction('call:accept', payload);
+  }, [emitCallAction]);
+
+  const emitCallReject = useCallback((payload: { chatId: string; callId: string }) => {
+    return emitCallAction('call:reject', payload);
+  }, [emitCallAction]);
+
+  const emitCallEnd = useCallback((payload: { chatId: string; callId: string; reason?: string }) => {
+    return emitCallAction('call:end', payload);
+  }, [emitCallAction]);
+
+  const emitCallSync = useCallback((payload: { chatId: string }) => {
+    return emitCallAction('call:sync', payload);
+  }, [emitCallAction]);
+
+  const emitCallOffer = useCallback((payload: { chatId: string; callId: string; signal: RTCSessionDescriptionInit }) => {
+    return emitCallAction('call:offer', payload);
+  }, [emitCallAction]);
+
+  const emitCallAnswer = useCallback((payload: { chatId: string; callId: string; signal: RTCSessionDescriptionInit }) => {
+    return emitCallAction('call:answer', payload);
+  }, [emitCallAction]);
+
+  const emitCallIceCandidate = useCallback((payload: { chatId: string; callId: string; signal: RTCIceCandidateInit }) => {
+    return emitCallAction('call:ice-candidate', payload);
+  }, [emitCallAction]);
+
   return {
     socket,
     socketError,
+    callConfig,
     emitTypingStart,
     emitTypingStop,
     emitMessageDelivered,
+    emitCallStart,
+    emitCallAccept,
+    emitCallReject,
+    emitCallEnd,
+    emitCallSync,
+    emitCallOffer,
+    emitCallAnswer,
+    emitCallIceCandidate,
   };
 };
 

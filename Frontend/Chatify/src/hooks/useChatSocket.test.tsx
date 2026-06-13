@@ -6,7 +6,7 @@ import { io } from 'socket.io-client';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
 import { makeChat, makeMessage, makeUser } from '../test/chatFixtures';
-import type { Chat } from '../types/chat';
+import type { CallSessionPayload, Chat } from '../types/chat';
 import { chatsQueryKey, messagesQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
 import type { MessagesCacheData } from './messageCache';
 import { useChatSocket } from './useChatSocket';
@@ -490,5 +490,104 @@ describe('useChatSocket', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: chatsQueryKey });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['unreadCounts'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: messagesQueryKey('chat-1') });
+  });
+
+  it('routes realtime call events and resolves call acknowledgements', async () => {
+    const onCallIncoming = vi.fn();
+    const onCallSync = vi.fn();
+    const onCallOffer = vi.fn();
+    const onCallAnswer = vi.fn();
+    const onCallIceCandidate = vi.fn();
+    const callConfig = {
+      iceServers: [{ urls: 'stun:stun.example.test:3478' }],
+      turnReady: false,
+      productionReady: false,
+    };
+    const session: CallSessionPayload = {
+      callId: 'call-1',
+      chatId: 'chat-1',
+      callerId: 'user-1',
+      calleeId: 'user-2',
+      mode: 'audio',
+      status: 'ringing',
+      startedAt: '2026-06-13T10:00:00.000Z',
+    };
+
+    const { result } = renderHook(
+      () => useChatSocket({
+        chatId: 'chat-1',
+        onCallIncoming,
+        onCallSync,
+        onCallOffer,
+        onCallAnswer,
+        onCallIceCandidate,
+      }),
+      {
+        wrapper: createWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+
+    act(() => {
+      socket.trigger('socket:ready', {
+        userId: 'user-1',
+        socketId: 'socket-1',
+        joinedChats: 1,
+        callConfig,
+      });
+      socket.trigger('call:incoming', session);
+      socket.trigger('call:sync', { ...session, status: 'connected' });
+      socket.trigger('call:offer', {
+        callId: 'call-1',
+        chatId: 'chat-1',
+        fromUserId: 'user-1',
+        signal: { type: 'offer', sdp: 'offer-sdp' },
+      });
+      socket.trigger('call:answer', {
+        callId: 'call-1',
+        chatId: 'chat-1',
+        fromUserId: 'user-2',
+        signal: { type: 'answer', sdp: 'answer-sdp' },
+      });
+      socket.trigger('call:ice-candidate', {
+        callId: 'call-1',
+        chatId: 'chat-1',
+        fromUserId: 'user-2',
+        signal: { candidate: 'candidate', sdpMid: '0', sdpMLineIndex: 0 },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.callConfig).toEqual(callConfig);
+    });
+    expect(onCallIncoming).toHaveBeenCalledWith(session);
+    expect(onCallSync).toHaveBeenCalledWith(expect.objectContaining({ callId: 'call-1', status: 'connected' }));
+    expect(onCallOffer).toHaveBeenCalledWith(expect.objectContaining({ signal: { type: 'offer', sdp: 'offer-sdp' } }));
+    expect(onCallAnswer).toHaveBeenCalledWith(expect.objectContaining({ signal: { type: 'answer', sdp: 'answer-sdp' } }));
+    expect(onCallIceCandidate).toHaveBeenCalledWith(expect.objectContaining({
+      signal: expect.objectContaining({ candidate: 'candidate' }),
+    }));
+
+    socket.emit.mockImplementationOnce((event: string, _payload: unknown, ack?: (response: unknown) => void) => {
+      ack?.({
+        ok: true,
+        event,
+        ...session,
+      });
+      return socket;
+    });
+
+    let ack: unknown;
+    await act(async () => {
+      ack = await result.current.emitCallStart({ chatId: 'chat-1', mode: 'audio' });
+    });
+
+    expect(socket.emit).toHaveBeenCalledWith('call:start', { chatId: 'chat-1', mode: 'audio' }, expect.any(Function));
+    expect(ack).toMatchObject({ ok: true, event: 'call:start', callId: 'call-1' });
   });
 });

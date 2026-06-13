@@ -25,12 +25,16 @@ import {
   usePinnedMessages,
   usePinMessage,
   useUnpinMessage,
+  useBlockChatPeer,
+  useUnblockChatPeer,
 } from '../../hooks/useChatQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
+import { useCallController } from '../../hooks/useCallController';
 import type {
   BatchReadEvent,
   AttachmentSummary,
   ComposerSendPayload,
+  ConversationControls,
   Message,
   MessageDeletedEvent,
   MessageEditedEvent,
@@ -39,8 +43,10 @@ import type {
 } from '../../types/chat';
 import {
   ChatContextRail,
+  CallOverlay,
   ChatShell,
   ChatSidebar,
+  ConversationMoreMenu,
   ConversationDetailDrawer,
   ConversationPane,
   MessageActionMenu,
@@ -82,6 +88,31 @@ const useDebounce = (callback: () => void, delay: number) => {
 const isValidEmailAddress = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const INVALID_EMAIL_COPY = 'Enter a valid email address.';
 const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the email and try again.';
+
+const getConversationDisabledReason = (controls?: ConversationControls) => {
+  if (!controls || controls.canSendMessage) {
+    return null;
+  }
+
+  if (controls.messagingDisabledReason === 'blocked_by_me') {
+    return 'You blocked this user. Unblock them to send new activity.';
+  }
+
+  if (controls.messagingDisabledReason === 'blocked_me') {
+    return 'This user is not available for new conversation activity.';
+  }
+
+  return 'Conversation activity is disabled.';
+};
+
+const getRequestErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    const message = error.response?.data?.message;
+    return typeof message === 'string' && message.trim() ? message : fallback;
+  }
+
+  return fallback;
+};
 
 const ChatPage = () => {
   const { user, isAuthenticated } = useAuthStore();
@@ -137,8 +168,9 @@ const ChatPage = () => {
   const newChatButtonRef = useRef<HTMLButtonElement>(null);
   const messageSearchInputRef = useRef<HTMLInputElement>(null);
   const messageSearchButtonRef = useRef<HTMLButtonElement>(null);
-  const detailButtonRef = useRef<HTMLButtonElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const messageActionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const callHandlersRef = useRef<ReturnType<typeof useCallController>['socketHandlers'] | null>(null);
   const messageHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightDraftKeysRef = useRef(new Set<string>());
   const shouldAutoScrollRef = useRef(true);
@@ -147,6 +179,7 @@ const ChatPage = () => {
   const [composerResetToken, setComposerResetToken] = useState(0);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const [isDetailRailOpen, setIsDetailRailOpen] = useState(true);
+  const [isConversationMoreOpen, setIsConversationMoreOpen] = useState(false);
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
@@ -175,6 +208,8 @@ const ChatPage = () => {
   const toggleReactionMutation = useToggleReaction();
   const pinMessageMutation = usePinMessage();
   const unpinMessageMutation = useUnpinMessage();
+  const blockChatPeerMutation = useBlockChatPeer();
+  const unblockChatPeerMutation = useUnblockChatPeer();
 
   const chatIds = useMemo(() => chats?.map((chat) => chat._id) ?? [], [chats]);
   const { data: unreadCounts } = useUnreadCounts(chatIds);
@@ -194,6 +229,9 @@ const ChatPage = () => {
     () => chats?.find((chat) => chat._id === selectedChatId) ?? null,
     [chats, selectedChatId]
   );
+  const conversationControls = selectedChat?.conversationControls;
+  const activeConversationDisabledReason = getConversationDisabledReason(conversationControls);
+  const isConversationControlPending = blockChatPeerMutation.isPending || unblockChatPeerMutation.isPending;
   const otherMember = selectedChat ? getOtherMember(selectedChat, user?._id) : null;
   const otherMemberStatus = otherMember ? onlineUsers.get(otherMember._id) ?? null : null;
   const allMessages = useMemo(() => messages ?? [], [messages]);
@@ -290,8 +328,17 @@ const ChatPage = () => {
   const {
     socket,
     socketError,
+    callConfig,
     emitTypingStart,
     emitTypingStop,
+    emitCallStart,
+    emitCallAccept,
+    emitCallReject,
+    emitCallEnd,
+    emitCallSync,
+    emitCallOffer,
+    emitCallAnswer,
+    emitCallIceCandidate,
   } = useChatSocket({
     chatId: selectedChatId,
     enabled: !!selectedChatId && isAuthenticated,
@@ -310,7 +357,79 @@ const ChatPage = () => {
         upsertMessage({ ...message, reactions: event.reactions });
       }
     },
+    onCallIncoming: (event) => callHandlersRef.current?.handleIncomingCall(event),
+    onCallSync: (event) => callHandlersRef.current?.handleCallSync(event),
+    onCallOffer: (event) => callHandlersRef.current?.handleCallOffer(event),
+    onCallAnswer: (event) => callHandlersRef.current?.handleCallAnswer(event),
+    onCallIceCandidate: (event) => callHandlersRef.current?.handleCallIceCandidate(event),
+    onCallError: (event) => {
+      showToast(event.message ?? 'Call action failed.', 'error');
+    },
   });
+
+  const callSocketActions = useMemo(() => ({
+    emitCallStart,
+    emitCallAccept,
+    emitCallReject,
+    emitCallEnd,
+    emitCallSync,
+    emitCallOffer,
+    emitCallAnswer,
+    emitCallIceCandidate,
+  }), [
+    emitCallAccept,
+    emitCallAnswer,
+    emitCallEnd,
+    emitCallIceCandidate,
+    emitCallOffer,
+    emitCallReject,
+    emitCallStart,
+    emitCallSync,
+  ]);
+
+  const {
+    state: callState,
+    audioAvailability,
+    videoAvailability,
+    startCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    toggleMute,
+    toggleCamera,
+    socketHandlers,
+  } = useCallController({
+    selectedChat,
+    currentUserId: user?._id,
+    otherMember,
+    otherMemberStatus,
+    conversationControls,
+    isAuthenticated,
+    isSocketConnected: Boolean(socket?.connected),
+    callConfig,
+    socketActions: callSocketActions,
+  });
+  callHandlersRef.current = socketHandlers;
+
+  const handleStartAudioCall = useCallback(() => {
+    void startCall('audio');
+  }, [startCall]);
+
+  const handleStartVideoCall = useCallback(() => {
+    void startCall('video');
+  }, [startCall]);
+
+  const handleAcceptCall = useCallback(() => {
+    void acceptCall();
+  }, [acceptCall]);
+
+  const handleRejectCall = useCallback(() => {
+    void rejectCall();
+  }, [rejectCall]);
+
+  const handleEndCall = useCallback(() => {
+    void endCall();
+  }, [endCall]);
 
   const { debouncedCallback: debouncedTypingStop, cancel: cancelTypingStop } = useDebounce(() => {
     setIsTyping(false);
@@ -370,6 +489,7 @@ const ChatPage = () => {
     clearHighlightedMessage();
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(true);
+    setIsConversationMoreOpen(false);
   }, [clearHighlightedMessage, selectedChatId]);
 
   useEffect(() => {
@@ -381,6 +501,10 @@ const ChatPage = () => {
   }, []);
 
   const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    if (activeConversationDisabledReason) {
+      return;
+    }
+
     setMessageInput(event.target.value);
 
     if (!isTyping && event.target.value.trim()) {
@@ -549,6 +673,11 @@ const ChatPage = () => {
           setEditText('');
         } else if (contextMenu) {
           closeContextMenu();
+        } else if (isConversationMoreOpen) {
+          setIsConversationMoreOpen(false);
+          window.requestAnimationFrame(() => {
+            moreButtonRef.current?.focus();
+          });
         } else if (showEmojiPicker) {
           setShowEmojiPicker(false);
         } else if (showMessageSearch) {
@@ -580,6 +709,7 @@ const ChatPage = () => {
     closeContextMenu,
     editingMessageId,
     isSidebarOpen,
+    isConversationMoreOpen,
     replyingTo,
     selectedChatId,
     setEditText,
@@ -622,6 +752,11 @@ const ChatPage = () => {
   };
 
   const handleSendMessage = (payload?: ComposerSendPayload) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      return;
+    }
+
     const sourceText = payload?.text ?? messageInput;
     const normalizedMessageInput = sourceText.trim();
     const attachmentDrafts = payload?.attachments ?? [];
@@ -708,12 +843,24 @@ const ChatPage = () => {
   };
 
   const handleReply = (message: Message) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
     setReplyingTo(message);
     closeContextMenu();
   };
 
   const handleDeleteMessage = (deleteForEveryone: boolean) => {
     if (!contextMenu || !selectedChatId) return;
+    if (deleteForEveryone && activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
     const messageId = contextMenu.messageId;
 
     removeMessage(messageId);
@@ -734,6 +881,12 @@ const ChatPage = () => {
   };
 
   const handleStartEdit = (messageId: string, currentText: string) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
     setEditingMessageId(messageId);
     setEditText(currentText);
     closeContextMenu();
@@ -741,6 +894,13 @@ const ChatPage = () => {
 
   const handleSaveEdit = () => {
     if (!editingMessageId || !editText.trim()) return;
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      setEditingMessageId(null);
+      setEditText('');
+      return;
+    }
+
     editMessageMutation.mutate(
       { messageId: editingMessageId, text: editText.trim() },
       {
@@ -773,6 +933,12 @@ const ChatPage = () => {
   };
 
   const handleReaction = (messageId: string, emoji: string) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
     const message = allMessages.find((item) => item._id === messageId);
     if (message) {
       const existingReaction = message.reactions?.find((reaction) => reaction.user === user?._id && reaction.emoji === emoji);
@@ -946,6 +1112,11 @@ const ChatPage = () => {
   };
 
   const handleRetryFailedMessage = (message: Message) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      return;
+    }
+
     if (!message.clientMessageId) {
       return;
     }
@@ -978,6 +1149,12 @@ const ChatPage = () => {
       return;
     }
 
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
     const mutation = message.pinned ? unpinMessageMutation : pinMessageMutation;
 
     mutation.mutate(
@@ -991,24 +1168,25 @@ const ChatPage = () => {
     closeContextMenu();
   };
 
-  const focusDetailButton = useCallback(() => {
+  const focusMoreButton = useCallback(() => {
     window.requestAnimationFrame(() => {
-      detailButtonRef.current?.focus();
+      moreButtonRef.current?.focus();
     });
   }, []);
 
   const closeDetailDrawer = useCallback(() => {
     setIsDetailDrawerOpen(false);
-    focusDetailButton();
-  }, [focusDetailButton]);
+    focusMoreButton();
+  }, [focusMoreButton]);
 
   const closeDetailRail = useCallback(() => {
     setIsDetailRailOpen(false);
-    focusDetailButton();
-  }, [focusDetailButton]);
+    focusMoreButton();
+  }, [focusMoreButton]);
 
   const handleOpenDetails = useCallback(() => {
     const isDesktopViewport = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
+    setIsConversationMoreOpen(false);
 
     if (isDesktopViewport) {
       setIsDetailDrawerOpen(false);
@@ -1019,8 +1197,64 @@ const ChatPage = () => {
     setIsDetailDrawerOpen(true);
   }, []);
 
+  const handleToggleConversationMoreMenu = useCallback(() => {
+    setIsConversationMoreOpen((currentValue) => !currentValue);
+  }, []);
+
+  const handleOpenMoreMenuFromDetails = useCallback(() => {
+    setIsDetailDrawerOpen(false);
+    setIsConversationMoreOpen(true);
+  }, []);
+
+  const handleBlockPeer = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (!conversationControls?.canBlockUser) {
+      showToast('Blocking is not available for this conversation.', 'error');
+      return;
+    }
+
+    blockChatPeerMutation.mutate(selectedChatId, {
+      onSuccess: () => {
+        setIsConversationMoreOpen(false);
+        showToast('User blocked. New activity is disabled for this conversation.', 'success');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not block this user.'), 'error');
+      },
+    });
+  }, [blockChatPeerMutation, conversationControls?.canBlockUser, selectedChatId, showToast]);
+
+  const handleUnblockPeer = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (!conversationControls?.canUnblockUser) {
+      showToast('Unblock is not available for this conversation.', 'error');
+      return;
+    }
+
+    unblockChatPeerMutation.mutate(selectedChatId, {
+      onSuccess: () => {
+        setIsConversationMoreOpen(false);
+        showToast('User unblocked. Messaging controls are available again.', 'success');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not unblock this user.'), 'error');
+      },
+    });
+  }, [conversationControls?.canUnblockUser, selectedChatId, showToast, unblockChatPeerMutation]);
+
   const handleUnpinMessage = (messageId: string) => {
     if (!selectedChatId) {
+      return;
+    }
+
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
       return;
     }
 
@@ -1093,10 +1327,14 @@ const ChatPage = () => {
           isLoadingMore={isLoadingMore}
           showScrollButton={showScrollButton}
           showMessageSearch={showMessageSearch}
+          showConversationMoreMenu={isConversationMoreOpen}
+          conversationControls={conversationControls}
+          callDisabledReason={audioAvailability.reason}
+          videoCallDisabledReason={videoAvailability.reason}
           messageSearch={messageSearch}
           messageSearchInputRef={messageSearchInputRef}
           messageSearchButtonRef={messageSearchButtonRef}
-          detailButtonRef={detailButtonRef}
+          moreButtonRef={moreButtonRef}
           messageSearchResults={messageSearchResult.messages}
           messageSearchNormalizedQuery={messageSearchResult.normalizedQuery}
           isMessageSearchLoading={messageSearchResult.isLoading || messageSearchResult.isFetching}
@@ -1112,6 +1350,7 @@ const ChatPage = () => {
           showEmojiPicker={showEmojiPicker}
           isSending={sendMessage.isPending}
           isSendError={sendMessage.isError}
+          sendDisabledReason={activeConversationDisabledReason}
           composerResetToken={composerResetToken}
           isOffline={isOffline}
           isSessionExpired={isSessionExpired}
@@ -1120,7 +1359,9 @@ const ChatPage = () => {
           messagesEndRef={messagesEndRef}
           emojiPickerRef={emojiPickerRef}
           onOpenSidebar={() => setIsSidebarOpen(true)}
-          onOpenDetails={handleOpenDetails}
+          onStartAudioCall={handleStartAudioCall}
+          onStartVideoCall={handleStartVideoCall}
+          onToggleConversationMoreMenu={handleToggleConversationMoreMenu}
           onToggleMessageSearch={handleToggleMessageSearch}
           onMessageSearchChange={setMessageSearch}
           onClearMessageSearch={handleClearMessageSearch}
@@ -1165,8 +1406,14 @@ const ChatPage = () => {
           isSocketConnected={Boolean(socket?.connected)}
           isReconnecting={isReconnecting}
           isOffline={isOffline}
+          conversationControls={conversationControls}
+          callDisabledReason={audioAvailability.reason}
+          videoCallDisabledReason={videoAvailability.reason}
           onClose={closeDetailRail}
+          onStartAudioCall={handleStartAudioCall}
+          onStartVideoCall={handleStartVideoCall}
           onSearchMessages={handleToggleMessageSearch}
+          onOpenMoreMenu={handleOpenMoreMenuFromDetails}
           onJumpToMessage={handleJumpToMessage}
           onUnpinMessage={handleUnpinMessage}
         />
@@ -1193,11 +1440,17 @@ const ChatPage = () => {
               isSocketConnected={Boolean(socket?.connected)}
               isReconnecting={isReconnecting}
               isOffline={isOffline}
+              conversationControls={conversationControls}
+              callDisabledReason={audioAvailability.reason}
+              videoCallDisabledReason={videoAvailability.reason}
               onClose={closeDetailDrawer}
+              onStartAudioCall={handleStartAudioCall}
+              onStartVideoCall={handleStartVideoCall}
               onSearchMessages={() => {
                 setIsDetailDrawerOpen(false);
                 handleToggleMessageSearch();
               }}
+              onOpenMoreMenu={handleOpenMoreMenuFromDetails}
               onJumpToMessage={(messageId) => {
                 setIsDetailDrawerOpen(false);
                 handleJumpToMessage(messageId);
@@ -1205,10 +1458,31 @@ const ChatPage = () => {
               onUnpinMessage={handleUnpinMessage}
             />
           )}
+          {selectedChat && (
+            <ConversationMoreMenu
+              isOpen={isConversationMoreOpen}
+              anchorRef={moreButtonRef}
+              conversationControls={conversationControls}
+              canExport={allMessages.length > 0}
+              isActionPending={isConversationControlPending}
+              callDisabledReason={audioAvailability.reason}
+              videoCallDisabledReason={videoAvailability.reason}
+              onOpenDetails={handleOpenDetails}
+              onStartAudioCall={handleStartAudioCall}
+              onStartVideoCall={handleStartVideoCall}
+              onSearchMessages={handleToggleMessageSearch}
+              onExportChat={handleExportChat}
+              onBlockUser={handleBlockPeer}
+              onUnblockUser={handleUnblockPeer}
+              onClose={() => setIsConversationMoreOpen(false)}
+            />
+          )}
           <MessageActionMenu
             contextMenu={contextMenu}
             messages={allMessages}
             showReactionPicker={showReactionPicker}
+            activeActionsDisabled={Boolean(activeConversationDisabledReason)}
+            activeActionsDisabledReason={activeConversationDisabledReason}
             contextMenuRef={contextMenuRef}
             onReaction={handleReaction}
             onToggleReactionPicker={() => setShowReactionPicker((prev) => !prev)}
@@ -1226,6 +1500,14 @@ const ChatPage = () => {
             chatThemePreference={chatTheme.preference}
             isChatThemeForced={chatTheme.isForced}
             onChatThemePreferenceChange={chatTheme.setPreference}
+          />
+          <CallOverlay
+            callState={callState}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+            onEnd={handleEndCall}
+            onToggleMute={toggleMute}
+            onToggleCamera={toggleCamera}
           />
         </>
       )}

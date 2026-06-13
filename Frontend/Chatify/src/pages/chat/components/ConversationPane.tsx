@@ -1,5 +1,5 @@
 import type { ChangeEvent, KeyboardEventHandler, RefObject } from 'react';
-import type { Chat, ComposerSendPayload, Message, UserOnlineStatus } from '../../../types/chat';
+import type { Chat, ComposerSendPayload, ConversationControls, Message, UserOnlineStatus } from '../../../types/chat';
 import type { User } from '../../../types/auth';
 import TypingIndicator from '../../../components/TypingIndicator';
 import { getChatTitle } from '../utils/chatDisplay';
@@ -23,10 +23,14 @@ interface ConversationPaneProps {
   highlightedMessageId: string | null;
   showScrollButton: boolean;
   showMessageSearch: boolean;
+  showConversationMoreMenu: boolean;
+  conversationControls?: ConversationControls;
+  callDisabledReason?: string | null;
+  videoCallDisabledReason?: string | null;
   messageSearch: string;
   messageSearchInputRef: RefObject<HTMLInputElement | null>;
   messageSearchButtonRef: RefObject<HTMLButtonElement | null>;
-  detailButtonRef?: RefObject<HTMLButtonElement | null>;
+  moreButtonRef?: RefObject<HTMLButtonElement | null>;
   messageSearchResults: Message[];
   messageSearchNormalizedQuery: string;
   isMessageSearchLoading: boolean;
@@ -41,6 +45,7 @@ interface ConversationPaneProps {
   showEmojiPicker: boolean;
   isSending: boolean;
   isSendError: boolean;
+  sendDisabledReason?: string | null;
   composerResetToken: number;
   isOffline: boolean;
   isSessionExpired: boolean;
@@ -49,7 +54,9 @@ interface ConversationPaneProps {
   messagesEndRef: RefObject<HTMLDivElement | null>;
   emojiPickerRef: RefObject<HTMLDivElement | null>;
   onOpenSidebar: () => void;
-  onOpenDetails: () => void;
+  onStartAudioCall: () => void;
+  onStartVideoCall: () => void;
+  onToggleConversationMoreMenu: () => void;
   onToggleMessageSearch: () => void;
   onMessageSearchChange: (value: string) => void;
   onClearMessageSearch: () => void;
@@ -90,10 +97,14 @@ const ConversationPane = ({
   highlightedMessageId,
   showScrollButton,
   showMessageSearch,
+  showConversationMoreMenu,
+  conversationControls,
+  callDisabledReason,
+  videoCallDisabledReason,
   messageSearch,
   messageSearchInputRef,
   messageSearchButtonRef,
-  detailButtonRef,
+  moreButtonRef,
   messageSearchResults,
   messageSearchNormalizedQuery,
   isMessageSearchLoading,
@@ -108,6 +119,7 @@ const ConversationPane = ({
   showEmojiPicker,
   isSending,
   isSendError,
+  sendDisabledReason,
   composerResetToken,
   isOffline,
   isSessionExpired,
@@ -116,7 +128,9 @@ const ConversationPane = ({
   messagesEndRef,
   emojiPickerRef,
   onOpenSidebar,
-  onOpenDetails,
+  onStartAudioCall,
+  onStartVideoCall,
+  onToggleConversationMoreMenu,
   onToggleMessageSearch,
   onMessageSearchChange,
   onClearMessageSearch,
@@ -177,10 +191,15 @@ const ConversationPane = ({
         otherMember={otherMember}
         otherMemberStatus={otherMemberStatus}
         showMessageSearch={showMessageSearch}
+        showConversationMoreMenu={showConversationMoreMenu}
+        callDisabledReason={callDisabledReason}
+        videoCallDisabledReason={videoCallDisabledReason}
         searchButtonRef={messageSearchButtonRef}
-        detailButtonRef={detailButtonRef}
+        moreButtonRef={moreButtonRef}
         onOpenSidebar={onOpenSidebar}
-        onOpenDetails={onOpenDetails}
+        onStartAudioCall={onStartAudioCall}
+        onStartVideoCall={onStartVideoCall}
+        onToggleConversationMoreMenu={onToggleConversationMoreMenu}
         onToggleMessageSearch={onToggleMessageSearch}
         onExportChat={onExportChat}
       />
@@ -273,7 +292,9 @@ const ConversationPane = ({
             ? 'You are offline. Reconnect to send new messages.'
             : isSessionExpired
               ? 'Your session expired. Sign in again to continue.'
-              : null
+              : conversationControls?.canSendMessage === false
+                ? sendDisabledReason ?? 'Conversation activity is disabled.'
+                : sendDisabledReason ?? null
         }
         emojiPickerRef={emojiPickerRef}
         onChange={onComposerChange}

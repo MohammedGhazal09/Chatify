@@ -17,7 +17,7 @@ import type { ReactNode } from 'react';
 import { messageApi } from '../../../api/messageApi';
 import OnlineStatus from '../../../components/OnlineStatus';
 import type { User } from '../../../types/auth';
-import type { Chat, PinnedMessage, SharedAsset, UserOnlineStatus } from '../../../types/chat';
+import type { Chat, ConversationControls, PinnedMessage, SharedAsset, UserOnlineStatus } from '../../../types/chat';
 import { formatFileSize } from '../utils/attachmentDisplay';
 import { getChatTitle } from '../utils/chatDisplay';
 import AbstractIdentityTile from './AbstractIdentityTile';
@@ -41,7 +41,13 @@ export interface ConversationDetailContentProps {
   isSocketConnected: boolean;
   isReconnecting: boolean;
   isOffline: boolean;
+  conversationControls?: ConversationControls;
+  callDisabledReason?: string | null;
+  videoCallDisabledReason?: string | null;
+  onStartAudioCall: () => void;
+  onStartVideoCall: () => void;
   onSearchMessages: () => void;
+  onOpenMoreMenu: () => void;
   onJumpToMessage: (messageId: string) => void;
   onUnpinMessage: (messageId: string) => void;
 }
@@ -64,7 +70,13 @@ const ConversationDetailContent = ({
   isSocketConnected,
   isReconnecting,
   isOffline,
+  conversationControls,
+  callDisabledReason,
+  videoCallDisabledReason,
+  onStartAudioCall,
+  onStartVideoCall,
   onSearchMessages,
+  onOpenMoreMenu,
   onJumpToMessage,
   onUnpinMessage,
 }: ConversationDetailContentProps) => {
@@ -117,10 +129,22 @@ const ConversationDetailContent = ({
       </div>
 
       <div className="grid grid-cols-4 gap-2 border-b border-[var(--chat-border)] pb-5">
-        <ContextAction label="Call" title="Call unavailable in this phase" icon={<Phone aria-hidden="true" className="h-5 w-5" />} />
-        <ContextAction label="Video call" title="Video call unavailable in this phase" icon={<Video aria-hidden="true" className="h-5 w-5" />} />
+        <ContextAction
+          label="Call"
+          title={callDisabledReason ?? 'Start audio call'}
+          icon={<Phone aria-hidden="true" className="h-5 w-5" />}
+          disabledReason={callDisabledReason}
+          onClick={onStartAudioCall}
+        />
+        <ContextAction
+          label="Video call"
+          title={videoCallDisabledReason ?? 'Start video call'}
+          icon={<Video aria-hidden="true" className="h-5 w-5" />}
+          disabledReason={videoCallDisabledReason}
+          onClick={onStartVideoCall}
+        />
         <ContextAction label="Search messages" icon={<Search aria-hidden="true" className="h-5 w-5" />} onClick={onSearchMessages} />
-        <ContextAction label="More conversation actions" title="More conversation actions unavailable in this phase" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} />
+        <ContextAction label="More conversation actions" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} onClick={onOpenMoreMenu} />
       </div>
 
       <RailSection title="Pinned messages" count={pinnedMessages.length}>
@@ -210,6 +234,12 @@ const ConversationDetailContent = ({
           value={isAuthenticated ? 'Active' : 'Unavailable'}
           tone={isAuthenticated ? 'success' : 'neutral'}
         />
+        <SecurityRow
+          icon={<ShieldCheck aria-hidden="true" className="h-4 w-4" />}
+          label="Conversation controls"
+          value={conversationControls?.canSendMessage === false ? 'Limited' : 'Active'}
+          tone={conversationControls?.canSendMessage === false ? 'warning' : 'success'}
+        />
       </RailSection>
     </>
   );
@@ -219,19 +249,21 @@ const ContextAction = ({
   label,
   title,
   icon,
+  disabledReason,
   onClick,
 }: {
   label: string;
   title?: string;
   icon: ReactNode;
+  disabledReason?: string | null;
   onClick?: () => void;
 }) => (
   <button
     type="button"
-    onClick={onClick}
+    onClick={disabledReason ? undefined : onClick}
     aria-label={label}
-    title={title}
-    disabled={!onClick}
+    title={disabledReason ?? title}
+    disabled={Boolean(disabledReason) || !onClick}
     className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-xs font-medium text-[var(--chat-text-muted)] transition enabled:cursor-pointer enabled:hover:border-[var(--chat-border-strong)] enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
   >
     {icon}

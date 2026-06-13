@@ -1,8 +1,8 @@
 import { memo, useMemo } from 'react';
 import type { MouseEvent } from 'react';
-import { MoreHorizontal, RefreshCw } from 'lucide-react';
+import { MoreHorizontal, Phone, PhoneMissed, PhoneOff, RefreshCw, Video } from 'lucide-react';
 import MessageStatus from '../../../components/MessageStatus';
-import type { Chat, Message } from '../../../types/chat';
+import type { CallActivity, Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
 import AttachmentPreview from './AttachmentPreview';
 
@@ -18,6 +18,85 @@ interface MessageBubbleProps {
   onRetryFailed?: (message: Message) => void;
   onDismissFailed?: (message: Message) => void;
 }
+
+const formatCallDuration = (durationSeconds?: number | null) => {
+  if (!Number.isFinite(Number(durationSeconds)) || Number(durationSeconds) <= 0) {
+    return null;
+  }
+
+  const totalSeconds = Math.floor(Number(durationSeconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes <= 0) {
+    return `${seconds}s`;
+  }
+
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+};
+
+const getCallActivityTitle = (activity: CallActivity) => {
+  const modeLabel = activity.mode === 'video' ? 'Video' : 'Audio';
+  const duration = formatCallDuration(activity.durationSeconds);
+
+  switch (activity.result) {
+    case 'missed':
+      return `Missed ${modeLabel.toLowerCase()} call`;
+    case 'rejected':
+      return `${modeLabel} call declined`;
+    case 'failed':
+      return `${modeLabel} call failed`;
+    case 'canceled':
+      return `${modeLabel} call canceled`;
+    case 'blocked':
+      return `${modeLabel} call ended by conversation block`;
+    case 'ended':
+      return duration ? `${modeLabel} call ended after ${duration}` : `${modeLabel} call ended`;
+    default:
+      return `${modeLabel} call activity`;
+  }
+};
+
+const getCallActivityIcon = (activity: CallActivity) => {
+  if (activity.result === 'missed') {
+    return PhoneMissed;
+  }
+
+  if (activity.result === 'rejected' || activity.result === 'failed' || activity.result === 'blocked') {
+    return PhoneOff;
+  }
+
+  return activity.mode === 'video' ? Video : Phone;
+};
+
+const CallActivityRow = ({ message }: { message: Message }) => {
+  const activity = message.callActivity;
+
+  if (!activity) {
+    return null;
+  }
+
+  const Icon = getCallActivityIcon(activity);
+  const title = getCallActivityTitle(activity);
+  const timestamp = formatTimestamp(activity.endedAt ?? message.updatedAt);
+
+  return (
+    <div
+      className="flex justify-center"
+      data-message-id={message._id}
+      data-message-kind="call-activity"
+      role="note"
+      aria-label={`${title} at ${timestamp}`}
+    >
+      <div className="inline-flex max-w-[min(92vw,520px)] items-center gap-2 rounded-full border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] px-3 py-2 text-xs font-medium text-[var(--chat-text-muted)] shadow-sm">
+        <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--chat-accent)]" />
+        <span className="min-w-0 truncate">{title}</span>
+        <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-[var(--chat-text-soft)]" />
+        <time dateTime={activity.endedAt ?? message.updatedAt} className="shrink-0">{timestamp}</time>
+      </div>
+    </div>
+  );
+};
 
 const MessageBubble = memo(({
   message,
@@ -54,6 +133,10 @@ const MessageBubble = memo(({
     });
     return Array.from(groups.entries()).map(([emoji, count]) => ({ emoji, count }));
   }, [message.reactions]);
+
+  if (message.messageType === 'call') {
+    return <CallActivityRow message={message} />;
+  }
 
   const isFailed = message.optimisticState === 'failed';
   const isSending = message.optimisticState === 'sending';

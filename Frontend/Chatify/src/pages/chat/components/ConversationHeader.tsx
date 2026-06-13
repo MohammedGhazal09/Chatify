@@ -11,10 +11,15 @@ interface ConversationHeaderProps {
   otherMember: User | null;
   otherMemberStatus: UserOnlineStatus | null;
   showMessageSearch: boolean;
+  showConversationMoreMenu: boolean;
+  callDisabledReason?: string | null;
+  videoCallDisabledReason?: string | null;
   searchButtonRef: RefObject<HTMLButtonElement | null>;
-  detailButtonRef?: RefObject<HTMLButtonElement | null>;
+  moreButtonRef?: RefObject<HTMLButtonElement | null>;
   onOpenSidebar: () => void;
-  onOpenDetails: () => void;
+  onStartAudioCall: () => void;
+  onStartVideoCall: () => void;
+  onToggleConversationMoreMenu: () => void;
   onToggleMessageSearch: () => void;
   onExportChat: () => void;
 }
@@ -25,12 +30,20 @@ const ConversationHeader = ({
   otherMember,
   otherMemberStatus,
   showMessageSearch,
+  showConversationMoreMenu,
+  callDisabledReason,
+  videoCallDisabledReason,
   searchButtonRef,
-  detailButtonRef,
+  moreButtonRef,
   onOpenSidebar,
-  onOpenDetails,
+  onStartAudioCall,
+  onStartVideoCall,
+  onToggleConversationMoreMenu,
   onToggleMessageSearch,
 }: ConversationHeaderProps) => {
+  const isCallDisabled = Boolean(callDisabledReason);
+  const isVideoCallDisabled = Boolean(videoCallDisabledReason);
+
   return (
     <div className="flex min-h-20 min-w-0 max-w-full items-center gap-3 overflow-hidden border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-3 text-[var(--chat-text)] md:px-8">
       <button
@@ -72,20 +85,22 @@ const ConversationHeader = ({
 
       <button
         type="button"
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        onClick={onStartAudioCall}
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] enabled:cursor-pointer enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
         aria-label="Call"
-        title="Call unavailable in this phase"
-        disabled
+        title={callDisabledReason ?? 'Start audio call'}
+        disabled={isCallDisabled}
       >
         <Phone aria-hidden="true" className="h-5 w-5" />
       </button>
 
       <button
         type="button"
-        className="hidden h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
+        onClick={onStartVideoCall}
+        className="hidden h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] enabled:cursor-pointer enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
         aria-label="Video call"
-        title="Video call unavailable in this phase"
-        disabled
+        title={videoCallDisabledReason ?? 'Start video call'}
+        disabled={isVideoCallDisabled}
       >
         <Video aria-hidden="true" className="h-5 w-5" />
       </button>
@@ -103,12 +118,14 @@ const ConversationHeader = ({
       </button>
 
       <button
-        ref={detailButtonRef}
+        ref={moreButtonRef}
         type="button"
-        onClick={onOpenDetails}
+        onClick={onToggleConversationMoreMenu}
         className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-        aria-label="Open conversation details"
-        title="Open conversation details"
+        aria-label="More conversation actions"
+        title="More conversation actions"
+        aria-haspopup="menu"
+        aria-expanded={showConversationMoreMenu}
       >
         <MoreVertical aria-hidden="true" className="h-5 w-5" />
       </button>

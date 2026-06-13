@@ -156,6 +156,41 @@ describe('MessageBubble', () => {
     );
   });
 
+  it('renders call activity as a centered system row without message actions', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          _id: 'call-activity-1',
+          sender: 'user-2',
+          text: '',
+          messageType: 'call',
+          callActivity: {
+            callId: 'call-1',
+            callerId: 'user-2',
+            calleeId: 'user-1',
+            mode: 'video',
+            result: 'ended',
+            startedAt: '2026-06-13T10:00:00.000Z',
+            ringingAt: '2026-06-13T10:00:01.000Z',
+            answeredAt: '2026-06-13T10:00:05.000Z',
+            endedAt: '2026-06-13T10:02:10.000Z',
+            durationSeconds: 125,
+          },
+          createdAt: '2026-06-13T10:02:10.000Z',
+          updatedAt: '2026-06-13T10:02:10.000Z',
+        })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    expect(screen.getByRole('note', { name: /Video call ended after 2m 05s/ })).toBeInTheDocument();
+    expect(screen.getByText('Video call ended after 2m 05s')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open message actions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /Message/ })).not.toBeInTheDocument();
+  });
+
   it('does not render attachment previews on deleted-for-everyone tombstones', () => {
     render(
       <MessageBubble

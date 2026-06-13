@@ -96,4 +96,35 @@ describe('MessageList', () => {
 
     expect(screen.getByRole('textbox', { name: 'Edit message' })).toHaveValue('Editable message');
   });
+
+  it('keeps call activity in the durable timeline as system history', () => {
+    renderMessageList({
+      messages: [
+        makeMessage({
+          _id: 'call-activity-1',
+          sender: 'user-2',
+          text: '',
+          messageType: 'call',
+          callActivity: {
+            callId: 'call-1',
+            callerId: 'user-2',
+            calleeId: 'user-1',
+            mode: 'audio',
+            result: 'missed',
+            startedAt: '2026-06-13T10:00:00.000Z',
+            ringingAt: '2026-06-13T10:00:01.000Z',
+            answeredAt: null,
+            endedAt: '2026-06-13T10:00:30.000Z',
+            durationSeconds: null,
+          },
+          createdAt: '2026-06-13T10:00:30.000Z',
+          updatedAt: '2026-06-13T10:00:30.000Z',
+        }),
+        makeMessage({ _id: 'message-1', text: 'Follow-up message' }),
+      ],
+    });
+
+    expect(screen.getByRole('note', { name: /Missed audio call/ })).toBeInTheDocument();
+    expect(screen.getByText('Follow-up message')).toBeInTheDocument();
+  });
 });

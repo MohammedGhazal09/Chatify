@@ -64,6 +64,39 @@ const invalidateDetailQueries = (queryClient: ReturnType<typeof useQueryClient>,
   queryClient.invalidateQueries({ queryKey: pinnedMessagesQueryKey(chatId) });
 };
 
+const mergeChatInCache = (queryClient: ReturnType<typeof useQueryClient>, updatedChat: Chat) => {
+  queryClient.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+    if (!old) {
+      return [updatedChat];
+    }
+
+    let found = false;
+    const nextChats = old.map((chat) => {
+      if (chat._id !== updatedChat._id) {
+        return chat;
+      }
+
+      found = true;
+      return {
+        ...chat,
+        ...updatedChat,
+        latestMessage: updatedChat.latestMessage ?? chat.latestMessage,
+      };
+    });
+
+    return found ? nextChats : [updatedChat, ...old];
+  });
+};
+
+const invalidateConversationQueries = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  chatId: string
+) => {
+  queryClient.invalidateQueries({ queryKey: messagesQueryKey(chatId) });
+  queryClient.invalidateQueries({ queryKey: ['messageSearch', chatId] });
+  invalidateDetailQueries(queryClient, chatId);
+};
+
 export const useChats = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -455,6 +488,36 @@ export const useCreateChat = () => {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+};
+
+export const useBlockChatPeer = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<Chat, unknown, string>({
+    mutationFn: async (chatId) => {
+      const response = await chatApi.blockChatPeer(chatId);
+      return response.data.data.chat;
+    },
+    onSuccess: (chat) => {
+      mergeChatInCache(queryClient, chat);
+      invalidateConversationQueries(queryClient, chat._id);
+    },
+  });
+};
+
+export const useUnblockChatPeer = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<Chat, unknown, string>({
+    mutationFn: async (chatId) => {
+      const response = await chatApi.unblockChatPeer(chatId);
+      return response.data.data.chat;
+    },
+    onSuccess: (chat) => {
+      mergeChatInCache(queryClient, chat);
+      invalidateConversationQueries(queryClient, chat._id);
     },
   });
 };
