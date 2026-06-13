@@ -1,10 +1,10 @@
 # Phase 14 Live Acceptance
 
-**Generated:** 2026-06-13T06:28:18.098Z
+**Generated:** 2026-06-13T06:33:51.648Z
 **Status:** blocked
 **Readiness:** Blocked
 **Command:** npm run test:e2e:prod -- --grep "Phase 14 production live acceptance"
-**Local git head:** 6111148
+**Local git head:** 812a0b2
 
 ## Production Target
 
@@ -12,6 +12,8 @@
 |-------|-------|
 | Frontend origin | [missing] |
 | Backend origin | [missing] |
+| Frontend deployed commit | [not provided] |
+| Backend deployed commit | [not provided] |
 | Opted in | no |
 | Accounts | Smoke user A ([missing]), Smoke user B ([missing]) |
 | Missing env | CHATIFY_PRODUCTION_SMOKE, CHATIFY_PROD_FRONTEND_URL, CHATIFY_PROD_BACKEND_URL, CHATIFY_SMOKE_USER_A_EMAIL, CHATIFY_SMOKE_USER_A_PASSWORD, CHATIFY_SMOKE_USER_B_EMAIL, CHATIFY_SMOKE_USER_B_PASSWORD |
@@ -37,3 +39,7 @@
 ## Remaining Risks
 
 - No live product readiness claim is allowed until the full Phase 14 gate runs with configured production smoke accounts.
+
+## Final Decision
+
+Readiness blocked: 3 blockers recorded.

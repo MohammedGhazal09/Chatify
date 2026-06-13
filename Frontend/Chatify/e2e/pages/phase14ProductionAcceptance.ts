@@ -36,6 +36,8 @@ interface Phase14AccountLabel {
 export interface Phase14ProductionMetadata {
   frontendOrigin: string;
   backendOrigin: string;
+  deployedFrontendCommit: string;
+  deployedBackendCommit: string;
   accounts: Phase14AccountLabel[];
   missingEnv: Phase14RequiredEnvVar[];
   invalidUrlEnv: Phase14UrlEnvVar[];
@@ -97,6 +99,17 @@ export const phase14StaticContentDenylist = [
 ] as const;
 
 const readEnv = (name: Phase14RequiredEnvVar) => process.env[name]?.trim() ?? '';
+
+const readOptionalCommitEnv = (name: 'CHATIFY_PROD_FRONTEND_COMMIT' | 'CHATIFY_PROD_BACKEND_COMMIT') => {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    return '[not provided]';
+  }
+
+  const sanitized = value.replace(/[^a-zA-Z0-9._/-]/g, '').slice(0, 80);
+  return sanitized || '[invalid]';
+};
 
 const formatList = (items: readonly string[]) => {
   if (items.length === 0) {
@@ -184,6 +197,8 @@ export const getPhase14ProductionAcceptanceConfig = (): Phase14ProductionAccepta
   const metadata: Phase14ProductionMetadata = {
     frontendOrigin: frontendUrl.origin,
     backendOrigin: backendUrl.origin,
+    deployedFrontendCommit: readOptionalCommitEnv('CHATIFY_PROD_FRONTEND_COMMIT'),
+    deployedBackendCommit: readOptionalCommitEnv('CHATIFY_PROD_BACKEND_COMMIT'),
     accounts: [
       { label: 'Smoke user A', redactedEmail: senderEmail ? redactEmail(senderEmail) : '[missing]' },
       { label: 'Smoke user B', redactedEmail: recipientEmail ? redactEmail(recipientEmail) : '[missing]' },
@@ -279,6 +294,9 @@ export const writePhase14LiveAcceptanceReport = ({
 }: Phase14LiveAcceptanceReportInput) => {
   const allBlockers = config.enabled ? blockers : [...config.blockers, ...blockers];
   const readiness = status === 'passed' && allBlockers.length === 0 ? 'Allowed' : 'Blocked';
+  const finalDecision = readiness === 'Allowed'
+    ? 'Readiness allowed: the Phase 14 live gate has zero blockers.'
+    : `Readiness blocked: ${allBlockers.length} blocker${allBlockers.length === 1 ? '' : 's'} recorded.`;
   const rows = checks.length > 0
     ? checks.map((check) => `| ${check.name} | ${check.status} | ${check.detail ?? ''} |`)
     : ['| Harness initialized | blocked | Full live workflow has not run yet. |'];
@@ -300,6 +318,8 @@ export const writePhase14LiveAcceptanceReport = ({
 |-------|-------|
 | Frontend origin | ${config.metadata.frontendOrigin} |
 | Backend origin | ${config.metadata.backendOrigin} |
+| Frontend deployed commit | ${config.metadata.deployedFrontendCommit} |
+| Backend deployed commit | ${config.metadata.deployedBackendCommit} |
 | Opted in | ${config.metadata.optIn ? 'yes' : 'no'} |
 | Accounts | ${accountSummary} |
 | Missing env | ${formatList(config.metadata.missingEnv)} |
@@ -322,6 +342,10 @@ ${evidencePaths.length > 0 ? evidencePaths.map((evidencePath) => `- ${evidencePa
 ## Remaining Risks
 
 ${risks.length > 0 ? risks.map((risk) => `- ${risk}`).join('\n') : '- Full live behavior acceptance has not run yet.'}
+
+## Final Decision
+
+${finalDecision}
 `;
 
   fs.mkdirSync(path.dirname(phase14LiveAcceptancePath), { recursive: true });

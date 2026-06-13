@@ -471,7 +471,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 14-03: Call/Video, Deployment Evidence, And Final Readiness Gate
+- [x] 14-03: Call/Video, Deployment Evidence, And Final Readiness Gate
 
 **Cross-cutting constraints:**
 
@@ -499,4 +499,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
 | 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
-| 14. Production Live Acceptance Gate | 2/3 | In Progress | - |
+| 14. Production Live Acceptance Gate | 3/3 | Blocked pending live env | - |

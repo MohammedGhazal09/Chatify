@@ -64,15 +64,26 @@ const appendObservation = (observations: string[], value: string) => {
   }
 };
 
-const installNetworkObservations = (page: Page, label: string, observations: string[]) => {
+const installNetworkObservations = (page: Page, label: string, config: EnabledPhase14Config, observations: string[]) => {
+  const backendOrigin = new URL(config.backendUrl).origin;
+
   page.on('response', (response) => {
     const url = new URL(response.url());
 
-    if (!url.pathname.startsWith('/api/')) {
+    if (url.origin !== backendOrigin || (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/socket.io/'))) {
       return;
     }
 
-    appendObservation(observations, `${label}: ${response.request().method()} ${url.pathname} -> ${response.status()}`);
+    const trafficKind = url.pathname.startsWith('/socket.io/') ? 'socket' : 'api';
+    appendObservation(observations, `${label}: ${trafficKind} ${response.request().method()} ${url.origin}${url.pathname} -> ${response.status()}`);
+  });
+
+  page.on('websocket', (webSocket) => {
+    const url = new URL(webSocket.url());
+
+    if (url.origin === backendOrigin) {
+      appendObservation(observations, `${label}: websocket ${url.origin}${url.pathname}`);
+    }
   });
 
   page.on('console', (message) => {
@@ -127,9 +138,18 @@ const createPhase14Page = async (
     });
 
     const page = await context.newPage();
-    installNetworkObservations(page, account.label, observations);
+    installNetworkObservations(page, account.label, config, observations);
     await page.goto(`${config.frontendUrl}/?chatTheme=dark`, { waitUntil: 'networkidle' });
     await expect(page.getByTestId('chat-root')).toBeVisible({ timeout: 30000 });
+    const backendCookies = await context.cookies(config.backendUrl);
+    const cookieSummary = backendCookies
+      .map((cookie) => `${cookie.name}(secure=${cookie.secure},httpOnly=${cookie.httpOnly},sameSite=${cookie.sameSite ?? 'Unset'})`)
+      .join(', ');
+
+    appendObservation(
+      observations,
+      `${account.label}: auth cookie metadata ${cookieSummary || 'none'}`
+    );
 
     return {
       context,
@@ -304,7 +324,75 @@ const exerciseUnsupportedControls = async (page: Page) => {
     buttons.filter((button) => !button.hasAttribute('disabled')).length
   ));
 
-  return `Voice unavailable state verified when present. Call controls enabled=${enabledCallButtons}, disabled=${disabledCallButtons}; video enabled=${enabledVideoButtons}, disabled=${disabledVideoButtons}. Enabled call/video controls are exercised in Phase 14 plan 03.`;
+  return `Voice unavailable state verified when present. Call controls enabled=${enabledCallButtons}, disabled=${disabledCallButtons}; video enabled=${enabledVideoButtons}, disabled=${disabledVideoButtons}.`;
+};
+
+const isAcceptableCallDisabledReason = (reason: string) => (
+  /supported secure browser|camera access is not available/i.test(reason)
+);
+
+const exerciseCallMode = async ({
+  callee,
+  caller,
+  config,
+  mode,
+  selectedChatId,
+}: {
+  callee: Page;
+  caller: Page;
+  config: EnabledPhase14Config;
+  mode: 'audio' | 'video';
+  selectedChatId: string | null;
+}) => {
+  await caller.setViewportSize({ width: 1440, height: 900 });
+  await callee.setViewportSize({ width: 1440, height: 900 });
+  await gotoChatVariant(caller, config, selectedChatId, 'dark');
+  await gotoChatVariant(callee, config, selectedChatId, 'dark');
+
+  const buttonName = mode === 'audio' ? 'Call' : 'Video call';
+  const callButton = caller.getByRole('button', { name: buttonName }).first();
+  await expect(callButton).toBeVisible({ timeout: 10000 });
+
+  await expect.poll(async () => callButton.isEnabled(), {
+    timeout: 10000,
+    message: `${buttonName} should become enabled while both production smoke contexts are online.`,
+  }).toBeTruthy().catch(() => undefined);
+
+  if (!(await callButton.isEnabled())) {
+    const reason = await callButton.getAttribute('title');
+    expect(reason, `${buttonName} disabled controls must expose an accessible reason`).toBeTruthy();
+
+    if (reason && isAcceptableCallDisabledReason(reason)) {
+      return `${buttonName} is honestly unavailable in this browser context: ${reason}`;
+    }
+
+    throw new Error(`${buttonName} stayed disabled during two-account live acceptance: ${reason ?? 'no reason'}`);
+  }
+
+  await callButton.click();
+  const callerDialog = caller.getByRole('dialog', { name: 'Call controls' });
+  const calleeDialog = callee.getByRole('dialog', { name: 'Call controls' });
+
+  await expect(callerDialog.getByText(/Calling|Connecting/)).toBeVisible({ timeout: 15000 });
+  await expect(calleeDialog.getByText(new RegExp(`Incoming ${mode} call`, 'i'))).toBeVisible({ timeout: 20000 });
+  await calleeDialog.getByRole('button', { name: 'Accept call' }).click();
+  await expect(callerDialog.getByText(/Connected with/i)).toBeVisible({ timeout: 30000 });
+  await expect(calleeDialog.getByText(/Connected with/i)).toBeVisible({ timeout: 30000 });
+
+  if (mode === 'video') {
+    await expect(callerDialog.locator('video[aria-label="Local preview"]')).toBeVisible();
+    await expect(calleeDialog.locator('video[aria-label="Local preview"]')).toBeVisible();
+  }
+
+  await callerDialog.getByRole('button', { name: 'End call' }).click();
+  await expect(callerDialog).toBeHidden({ timeout: 20000 });
+  await expect(calleeDialog).toBeHidden({ timeout: 20000 });
+  await caller.reload({ waitUntil: 'networkidle' });
+  await callee.reload({ waitUntil: 'networkidle' });
+  await expect(caller.getByRole('dialog', { name: 'Call controls' })).toBeHidden({ timeout: 10000 });
+  await expect(callee.getByRole('dialog', { name: 'Call controls' })).toBeHidden({ timeout: 10000 });
+
+  return `${buttonName} completed outgoing, incoming, accepted, connected, ended, and reload-cleanup states.`;
 };
 
 const exerciseBlockAndRestore = async (page: Page) => {
@@ -412,12 +500,24 @@ const verifySharedSurfaces = async (page: Page, config: EnabledPhase14Config, ch
 
   await expect(rail.getByRole('heading', { name: 'Shared files' })).toBeVisible();
   await expect(rail.getByText(evidence.textFileName)).toBeVisible({ timeout: 20000 });
-  await expect(rail.getByRole('link', { name: `Open ${evidence.textFileName}` })).toHaveAttribute('href', /\/api\/message\/attachments\/.+\/preview$/);
-  await expect(rail.getByRole('link', { name: `Download ${evidence.textFileName}` })).toHaveAttribute('href', /\/api\/message\/attachments\/.+\/download$/);
+  const previewLink = rail.getByRole('link', { name: `Open ${evidence.textFileName}` });
+  const downloadLink = rail.getByRole('link', { name: `Download ${evidence.textFileName}` });
+  await expect(previewLink).toHaveAttribute('href', /\/api\/message\/attachments\/.+\/preview$/);
+  await expect(downloadLink).toHaveAttribute('href', /\/api\/message\/attachments\/.+\/download$/);
+  const previewHref = await previewLink.getAttribute('href');
+  const downloadHref = await downloadLink.getAttribute('href');
+
+  expect(previewHref).toBeTruthy();
+  expect(downloadHref).toBeTruthy();
+  const previewResponse = await page.request.get(previewHref!);
+  const downloadResponse = await page.request.get(downloadHref!);
+
+  expect(previewResponse.status(), 'authenticated preview access should succeed').toBeLessThan(400);
+  expect(downloadResponse.status(), 'authenticated download access should succeed').toBeLessThan(400);
   await expect(rail.getByRole('heading', { name: 'Shared media' })).toBeVisible();
   await expect(rail.getByText(evidence.imageFileName)).toBeVisible({ timeout: 20000 });
 
-  return 'Generated file/media attachments persisted and appeared in shared surfaces with protected asset links.';
+  return `Generated file/media attachments persisted and protected asset access returned preview ${previewResponse.status()} and download ${downloadResponse.status()}.`;
 };
 
 const assertNoStaticContentLeaks = async (page: Page, allowlist: readonly string[]) => {
@@ -426,6 +526,29 @@ const assertNoStaticContentLeaks = async (page: Page, allowlist: readonly string
 
   expect(leaks, `Static fixture/demo content leaked into live chat: ${leaks.join(', ')}`).toEqual([]);
   return 'Known demo/static strings were absent from the live chat surface.';
+};
+
+const verifyDeploymentEvidence = (config: EnabledPhase14Config, observations: readonly string[]) => {
+  const backendOrigin = config.metadata.backendOrigin;
+  const apiObservations = observations.filter((observation) => observation.includes(': api ') && observation.includes(backendOrigin));
+  const socketObservations = observations.filter((observation) => (
+    (observation.includes(': socket ') || observation.includes(': websocket ')) &&
+    observation.includes(backendOrigin)
+  ));
+  const cookieObservations = observations.filter((observation) => (
+    observation.includes('auth cookie metadata') &&
+    !observation.endsWith(' none')
+  ));
+  const corsOrCredentialErrors = observations.filter((observation) => (
+    /console (error|warning).*(cors|access-control|credential|blocked by)/i.test(observation)
+  ));
+
+  expect(apiObservations.length, 'API traffic should target the configured deployed backend origin').toBeGreaterThan(0);
+  expect(socketObservations.length, 'Socket.IO traffic should target the configured deployed backend origin').toBeGreaterThan(0);
+  expect(cookieObservations.length, 'Auth cookie metadata should be recorded for both smoke accounts').toBeGreaterThanOrEqual(2);
+  expect(corsOrCredentialErrors, 'No CORS or credential console errors should be observed').toEqual([]);
+
+  return `Observed ${apiObservations.length} API responses, ${socketObservations.length} socket observations, and ${cookieObservations.length} auth cookie metadata rows against ${backendOrigin}.`;
 };
 
 const gotoChatVariant = async (
@@ -517,7 +640,7 @@ test.describe.serial('Phase 14 production live acceptance', () => {
     const evidencePaths: string[] = [];
     const observations: string[] = [];
     const risks = [
-      'Call and video two-party media behavior is completed in Phase 14 plan 03; plan 02 records whether the controls are enabled or honestly disabled.',
+      'Production readiness remains blocked whenever the live gate is skipped, unavailable, or records any blocker row.',
     ];
     const pages: Phase14Page[] = [];
     const allowlist: string[] = [];
@@ -683,6 +806,42 @@ test.describe.serial('Phase 14 production live acceptance', () => {
         });
       });
 
+      await test.step('exercise live audio and video call controls', async () => {
+        await recordCheck({
+          blockers,
+          checks,
+          name: 'Live audio call behavior',
+          run: async () => {
+            expect(sender).not.toBeNull();
+            expect(recipient).not.toBeNull();
+            return exerciseCallMode({
+              caller: sender!.page,
+              callee: recipient!.page,
+              config,
+              mode: 'audio',
+              selectedChatId,
+            });
+          },
+        });
+
+        await recordCheck({
+          blockers,
+          checks,
+          name: 'Live video call behavior',
+          run: async () => {
+            expect(sender).not.toBeNull();
+            expect(recipient).not.toBeNull();
+            return exerciseCallMode({
+              caller: sender!.page,
+              callee: recipient!.page,
+              config,
+              mode: 'video',
+              selectedChatId,
+            });
+          },
+        });
+      });
+
       await test.step('exercise block and unblock restore late in the run', async () => {
         await recordCheck({
           blockers,
@@ -704,6 +863,13 @@ test.describe.serial('Phase 14 production live acceptance', () => {
             expect(sender).not.toBeNull();
             return assertNoStaticContentLeaks(sender!.page, allowlist);
           },
+        });
+
+        await recordCheck({
+          blockers,
+          checks,
+          name: 'Deployment origin, cookie, socket, and console evidence',
+          run: async () => verifyDeploymentEvidence(config, observations),
         });
 
         await recordCheck({
