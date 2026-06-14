@@ -2,15 +2,79 @@ import User from '../Models/userModel.mjs';
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import {CustomError} from '../Utils/customError.mjs';
 import jsonwebtoken from 'jsonwebtoken'
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { generateTokenAndSetCookie } from '../Utils/tokenCookieGenerator.mjs'
 import passport from 'passport';
 import PasswordReset from '../Models/passwordResetModel.mjs';
+import OAuthHandoff from '../Models/oauthHandoffModel.mjs';
 import {sendPasswordResetEmail} from '../Services/emailService.mjs';
+import { resolveOAuthFinalizeBaseURL } from '../Utils/oauthConfig.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 const FRONTEND_URL = isProd 
   ? process.env.FRONTEND_ORIGIN || 'https://chatify-ten-rho.vercel.app'
   : 'http://localhost:5173';
+const OAUTH_STATE_COOKIE = 'chatify_oauth_state';
+const OAUTH_HANDOFF_PURPOSE = 'oauth_handoff';
+const OAUTH_HANDOFF_EXPIRES_IN = '60s';
+const OAUTH_HANDOFF_TTL_MS = 60 * 1000;
+
+const hashOAuthState = (state) => createHash('sha256').update(state).digest('base64url');
+
+const getOAuthStateCookieOptions = () => ({
+  httpOnly: true,
+  secure: isProd,
+  sameSite: 'lax',
+  maxAge: 5 * 60 * 1000,
+  path: '/api/auth',
+});
+
+const getClearOAuthStateCookieOptions = () => ({
+  httpOnly: true,
+  secure: isProd,
+  sameSite: 'lax',
+  path: '/api/auth',
+});
+
+const clearOAuthStateCookie = (res) => {
+  res.clearCookie(OAUTH_STATE_COOKIE, getClearOAuthStateCookieOptions());
+};
+
+const buildFrontendUrl = (pathname, params = {}) => {
+  const url = new URL(pathname, FRONTEND_URL);
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      url.searchParams.set(key, value);
+    }
+  });
+
+  return url.toString();
+};
+
+const buildOAuthFinalizeUrl = (handoffToken) => {
+  const url = new URL('/api/auth/oauth/finalize', resolveOAuthFinalizeBaseURL());
+  url.searchParams.set('token', handoffToken);
+  return url.toString();
+};
+
+const generateOAuthState = () => randomBytes(32).toString('base64url');
+
+const generateOAuthHandoffToken = ({ user, jti, stateHash }) => jsonwebtoken.sign(
+  {
+    userId: user._id,
+    purpose: OAUTH_HANDOFF_PURPOSE,
+    jti,
+    stateHash,
+  },
+  process.env.SECRET_JWT_KEY,
+  { expiresIn: OAUTH_HANDOFF_EXPIRES_IN }
+);
+
+const redirectOAuthFailure = (res) => {
+  clearOAuthStateCookie(res);
+  return res.redirect(buildFrontendUrl('/login', { error: 'auth_failed' }));
+};
 
 export const signup =asyncErrHandler( async (req, res, next) => {
   let { firstName, lastName, email, password, profilePic } = req.body;
@@ -127,42 +191,122 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
 // Helper function for OAuth callbacks
 const createOAuthCallback = (provider) => {
   return (req, res, next) => {
-    passport.authenticate(provider, { session: false }, (err, user, info) => {
+    passport.authenticate(provider, { session: false }, async (err, user) => {
       
       if (err) {
-        return res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
+        return res.redirect(buildFrontendUrl('/login', { error: 'oauth_failed' }));
       }
 
       if (!user) {
-        return res.redirect(`${FRONTEND_URL}/login?error=oauth_no_user`);
+        return res.redirect(buildFrontendUrl('/login', { error: 'oauth_no_user' }));
       }
 
       try {
-        
-        // Generate JWT token and set cookie
-        generateTokenAndSetCookie(user, res, false);
-        
-        const redirectUrl = `${FRONTEND_URL}/?auth=success`;
-        
-        return res.redirect(redirectUrl);
-      } catch (error) {
-        return res.redirect(`${FRONTEND_URL}/login?error=auth_failed`);
+        const state = typeof req.query.state === 'string' ? req.query.state : '';
+
+        if (!state) {
+          return res.redirect(buildFrontendUrl('/login', { error: 'auth_failed' }));
+        }
+
+        const stateHash = hashOAuthState(state);
+        const jti = randomUUID();
+
+        await OAuthHandoff.create({
+          jti,
+          userId: user._id,
+          stateHash,
+          expiresAt: new Date(Date.now() + OAUTH_HANDOFF_TTL_MS),
+        });
+
+        const handoffToken = generateOAuthHandoffToken({ user, jti, stateHash });
+
+        return res.redirect(buildOAuthFinalizeUrl(handoffToken));
+      } catch {
+        return res.redirect(buildFrontendUrl('/login', { error: 'auth_failed' }));
       }
     })(req, res, next);
   };
 };
 
+export const finalizeOAuth = asyncErrHandler(async (req, res) => {
+  const { token } = req.query;
+  const stateCookie = req.cookies[OAUTH_STATE_COOKIE];
+
+  if (typeof token !== 'string' || !token) {
+    return redirectOAuthFailure(res);
+  }
+
+  if (typeof stateCookie !== 'string' || !stateCookie) {
+    return redirectOAuthFailure(res);
+  }
+
+  try {
+    const decoded = jsonwebtoken.verify(token, process.env.SECRET_JWT_KEY);
+
+    if (
+      decoded?.purpose !== OAUTH_HANDOFF_PURPOSE ||
+      !decoded.userId ||
+      typeof decoded.jti !== 'string' ||
+      typeof decoded.stateHash !== 'string' ||
+      decoded.stateHash !== hashOAuthState(stateCookie)
+    ) {
+      return redirectOAuthFailure(res);
+    }
+
+    const handoff = await OAuthHandoff.findOneAndUpdate(
+      {
+        jti: decoded.jti,
+        userId: decoded.userId,
+        stateHash: decoded.stateHash,
+        consumedAt: null,
+        expiresAt: { $gt: new Date() },
+      },
+      { $set: { consumedAt: new Date() } },
+      { new: true }
+    );
+
+    if (!handoff) {
+      return redirectOAuthFailure(res);
+    }
+
+    const user = await User.findById(decoded.userId);
+
+    if (!user) {
+      return redirectOAuthFailure(res);
+    }
+
+    generateTokenAndSetCookie(user, res, false);
+    clearOAuthStateCookie(res);
+
+    return res.redirect(buildFrontendUrl('/', { auth: 'success' }));
+  } catch {
+    return redirectOAuthFailure(res);
+  }
+});
+
 // OAuth authentication initiators
-export const googleAuth = passport.authenticate('google', {
-  scope: ['profile', 'email']
+const createOAuthInitiator = (provider, options) => {
+  return (req, res, next) => {
+    const state = generateOAuthState();
+
+    res.cookie(OAUTH_STATE_COOKIE, state, getOAuthStateCookieOptions());
+    return passport.authenticate(provider, {
+      ...options,
+      state,
+    })(req, res, next);
+  };
+};
+
+export const googleAuth = createOAuthInitiator('google', {
+  scope: ['profile', 'email'],
 });
 
-export const githubAuth = passport.authenticate('github', {
-  scope: ['user:email']
+export const githubAuth = createOAuthInitiator('github', {
+  scope: ['user:email'],
 });
 
-export const discordAuth = passport.authenticate('discord', {
-  scope: ['identify', 'email']
+export const discordAuth = createOAuthInitiator('discord', {
+  scope: ['identify', 'email'],
 });
 
 // OAuth callbacks

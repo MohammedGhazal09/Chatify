@@ -109,7 +109,14 @@ const CallOverlay = ({
 
   const isIncoming = callState.status === 'incoming';
   const isConnected = callState.status === 'connected' || callState.status === 'reconnecting';
-  const isVideo = callState.mode === 'video' && !callState.audioFallbackOffered;
+  const isVideo = callState.mode === 'video' && (
+    callState.status === 'incoming'
+    || callState.status === 'outgoing'
+    || callState.status === 'ringing'
+    || callState.status === 'connecting'
+    || callState.status === 'connected'
+    || callState.status === 'reconnecting'
+  );
 
   return (
     <div
@@ -129,7 +136,7 @@ const CallOverlay = ({
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-lg font-bold">{statusCopy}</h2>
               <p className="text-sm text-[var(--chat-text-muted)]" aria-live="polite">
-                {isConnected ? elapsed : callState.audioFallbackOffered ? 'Camera unavailable. Audio fallback is active.' : 'Secure session active'}
+                {isConnected ? elapsed : 'Secure session active'}
               </p>
             </div>
           </div>

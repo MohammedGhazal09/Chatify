@@ -1,9 +1,13 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
-import { afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 
 afterEach(() => {
   cleanup();
+});
+
+beforeEach(() => {
+  (globalThis as typeof globalThis & { __mockRTCPeerConnections?: unknown[] }).__mockRTCPeerConnections = [];
 });
 
 if (!window.requestAnimationFrame) {
@@ -61,15 +65,29 @@ class MockRTCPeerConnection {
   onicecandidate: RTCPeerConnection['onicecandidate'] = null;
   onconnectionstatechange: RTCPeerConnection['onconnectionstatechange'] = null;
 
+  private remoteDescription: RTCSessionDescriptionInit | null = null;
+
   addTrack = vi.fn();
   createOffer = vi.fn(async () => ({ type: 'offer', sdp: 'mock-offer' }) as RTCSessionDescriptionInit);
   createAnswer = vi.fn(async () => ({ type: 'answer', sdp: 'mock-answer' }) as RTCSessionDescriptionInit);
   setLocalDescription = vi.fn(async () => undefined);
-  setRemoteDescription = vi.fn(async () => undefined);
-  addIceCandidate = vi.fn(async () => undefined);
+  setRemoteDescription = vi.fn(async (description: RTCSessionDescriptionInit) => {
+    this.remoteDescription = description;
+  });
+  addIceCandidate = vi.fn(async () => {
+    if (!this.remoteDescription) {
+      throw new DOMException('Remote description not set', 'InvalidStateError');
+    }
+  });
   close = vi.fn(() => {
     this.connectionState = 'closed';
   });
+
+  constructor() {
+    const connections = (globalThis as typeof globalThis & { __mockRTCPeerConnections?: MockRTCPeerConnection[] }).__mockRTCPeerConnections ?? [];
+    connections.push(this);
+    (globalThis as typeof globalThis & { __mockRTCPeerConnections?: MockRTCPeerConnection[] }).__mockRTCPeerConnections = connections;
+  }
 }
 
 Object.defineProperty(globalThis, 'MediaStream', {

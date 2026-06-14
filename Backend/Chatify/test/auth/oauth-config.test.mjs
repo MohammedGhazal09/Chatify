@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { resolveOAuthCallbackBaseURL } from '../../Utils/oauthConfig.mjs';
+import {
+  resolveOAuthCallbackBaseURL,
+  resolveOAuthFinalizeBaseURL,
+} from '../../Utils/oauthConfig.mjs';
 
 describe('OAuth callback origin config', () => {
-  it('uses the frontend origin for production callbacks by default', () => {
+  it('uses the public backend origin for production provider callbacks by default', () => {
     expect(resolveOAuthCallbackBaseURL({
       NODE_ENV: 'production',
       FRONTEND_ORIGIN: 'https://chatify-ten-rho.vercel.app/',
-    })).toBe('https://chatify-ten-rho.vercel.app');
+    })).toBe('https://chatify-ckmn.onrender.com');
   });
 
   it('allows an explicit callback origin override', () => {
@@ -22,5 +25,12 @@ describe('OAuth callback origin config', () => {
       NODE_ENV: 'development',
       FRONTEND_ORIGIN_DEV: 'http://localhost:5173',
     })).toBe('http://localhost:3000');
+  });
+
+  it('uses the frontend origin for production cookie finalization', () => {
+    expect(resolveOAuthFinalizeBaseURL({
+      NODE_ENV: 'production',
+      FRONTEND_ORIGIN: 'https://chatify-ten-rho.vercel.app/',
+    })).toBe('https://chatify-ten-rho.vercel.app');
   });
 });

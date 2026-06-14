@@ -59,37 +59,25 @@ export const requestCallMedia = async (mode: CallMode): Promise<MediaRequestResu
     throw new Error('media_not_supported');
   }
 
-  if (mode === 'audio') {
-    return {
-      stream: await navigator.mediaDevices.getUserMedia({ audio: true, video: false }),
-      mode: 'audio',
-      audioFallback: false,
-    };
-  }
+  const constraints = mode === 'audio'
+    ? { audio: true, video: false }
+    : { audio: true, video: true };
 
-  try {
-    return {
-      stream: await navigator.mediaDevices.getUserMedia({ audio: true, video: true }),
-      mode: 'video',
-      audioFallback: false,
-    };
-  } catch (videoError) {
-    try {
-      return {
-        stream: await navigator.mediaDevices.getUserMedia({ audio: true, video: false }),
-        mode: 'audio',
-        audioFallback: true,
-      };
-    } catch {
-      throw videoError;
-    }
-  }
+  return {
+    stream: await navigator.mediaDevices.getUserMedia(constraints),
+    mode,
+    audioFallback: false,
+  };
 };
 
 export class WebRtcCallSession {
   private readonly peerConnection: RTCPeerConnection;
 
   private readonly remoteStream = new MediaStream();
+
+  private readonly pendingIceCandidates: RTCIceCandidateInit[] = [];
+
+  private remoteDescriptionReady = false;
 
   constructor(options: WebRtcSessionOptions) {
     this.peerConnection = new RTCPeerConnection({
@@ -120,6 +108,19 @@ export class WebRtcCallSession {
     };
   }
 
+  private async flushPendingIceCandidates() {
+    if (!this.remoteDescriptionReady || this.pendingIceCandidates.length === 0) {
+      return;
+    }
+
+    const queuedCandidates = [...this.pendingIceCandidates];
+    this.pendingIceCandidates.length = 0;
+
+    for (const candidate of queuedCandidates) {
+      await this.peerConnection.addIceCandidate(candidate);
+    }
+  }
+
   async createOffer() {
     const offer = await this.peerConnection.createOffer();
     await this.peerConnection.setLocalDescription(offer);
@@ -128,6 +129,8 @@ export class WebRtcCallSession {
 
   async createAnswer(offer: RTCSessionDescriptionInit) {
     await this.peerConnection.setRemoteDescription(offer);
+    this.remoteDescriptionReady = true;
+    await this.flushPendingIceCandidates();
     const answer = await this.peerConnection.createAnswer();
     await this.peerConnection.setLocalDescription(answer);
     return answer;
@@ -135,13 +138,22 @@ export class WebRtcCallSession {
 
   async acceptAnswer(answer: RTCSessionDescriptionInit) {
     await this.peerConnection.setRemoteDescription(answer);
+    this.remoteDescriptionReady = true;
+    await this.flushPendingIceCandidates();
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit) {
+    if (!this.remoteDescriptionReady) {
+      this.pendingIceCandidates.push(candidate);
+      return;
+    }
+
     await this.peerConnection.addIceCandidate(candidate);
   }
 
   close() {
+    this.pendingIceCandidates.length = 0;
+    this.remoteDescriptionReady = false;
     this.peerConnection.close();
   }
 }

@@ -91,6 +91,14 @@ const terminalStatusMap: Partial<Record<string, CallUiStatus>> = {
 const CALL_DISCONNECT_GRACE_MS = 15_000;
 const CALL_SETUP_TIMEOUT_MS = 20_000;
 const CALL_ONLINE_REQUIREMENT_REASON = 'Both users must be online to call.';
+const activeCallStatuses = new Set<CallUiStatus>([
+  'incoming',
+  'outgoing',
+  'ringing',
+  'connecting',
+  'connected',
+  'reconnecting',
+]);
 
 const getAckErrorCopy = (ack: CallActionAck) => {
   if (ack.code === 'call_busy') {
@@ -112,19 +120,37 @@ const getAckErrorCopy = (ack: CallActionAck) => {
   return ack.message ?? 'Call action failed.';
 };
 
-const getMediaErrorStatus = (error: unknown): Pick<CallControllerState, 'status' | 'error'> => {
+const getMediaErrorStatus = (error: unknown, mode: CallMode): Pick<CallControllerState, 'status' | 'error'> => {
   const name = error instanceof DOMException ? error.name : '';
 
   if (name === 'NotAllowedError' || name === 'SecurityError') {
     return {
       status: 'permission_denied',
-      error: 'Microphone or camera permission was denied.',
+      error: 'Camera or microphone permission was denied.',
     };
+  }
+
+  if (mode === 'video') {
+    if (name === 'NotFoundError') {
+      return {
+        status: 'failed',
+        error: 'No camera was found for this device.',
+      };
+    }
+
+    if (name === 'NotReadableError' || name === 'AbortError') {
+      return {
+        status: 'failed',
+        error: 'The camera is already in use.',
+      };
+    }
   }
 
   return {
     status: 'failed',
-    error: 'Could not access the requested media device.',
+    error: mode === 'video'
+      ? 'Could not access the camera for this video call.'
+      : 'Could not access the requested microphone.',
   };
 };
 
@@ -144,6 +170,8 @@ export const useCallController = ({
   const peerSessionRef = useRef<WebRtcCallSession | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const activeCallIdRef = useRef<string | null>(null);
   const offerSentRef = useRef(false);
   const disconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -164,11 +192,32 @@ export const useCallController = ({
     }
   }, []);
 
+  const queueIceCandidate = useCallback((callId: string, candidate: RTCIceCandidateInit) => {
+    const queuedCandidates = pendingIceCandidatesRef.current.get(callId) ?? [];
+    queuedCandidates.push(candidate);
+    pendingIceCandidatesRef.current.set(callId, queuedCandidates);
+  }, []);
+
+  const flushQueuedIceCandidates = useCallback((callId: string, peerSession: WebRtcCallSession) => {
+    const queuedCandidates = pendingIceCandidatesRef.current.get(callId);
+
+    if (!queuedCandidates?.length) {
+      return;
+    }
+
+    pendingIceCandidatesRef.current.delete(callId);
+    queuedCandidates.forEach((candidate) => {
+      void peerSession.addIceCandidate(candidate);
+    });
+  }, []);
+
   const resetPeer = useCallback(() => {
     clearDisconnectTimeout();
     clearCallSetupTimeout();
     peerSessionRef.current?.close();
     peerSessionRef.current = null;
+    pendingIceCandidatesRef.current.clear();
+    activeCallIdRef.current = null;
     stopMediaStream(localStreamRef.current);
     localStreamRef.current = null;
     remoteStreamRef.current = null;
@@ -262,11 +311,7 @@ export const useCallController = ({
   }, [clearCallSetupTimeout, resetPeer, socketActions]);
 
   const createPeerSession = useCallback((session: CallSessionPayload, stream: MediaStream) => {
-    if (peerSessionRef.current) {
-      return peerSessionRef.current;
-    }
-
-    const peerSession = new WebRtcCallSession({
+    const peerSession = peerSessionRef.current ?? new WebRtcCallSession({
       iceConfig: callConfig ?? session.callConfig ?? null,
       localStream: stream,
       onRemoteStream: (remoteStream) => {
@@ -305,10 +350,14 @@ export const useCallController = ({
       },
     });
 
-    peerSessionRef.current = peerSession;
-    scheduleCallSetupTimeout(session);
+    if (!peerSessionRef.current) {
+      peerSessionRef.current = peerSession;
+      scheduleCallSetupTimeout(session);
+    }
+
+    flushQueuedIceCandidates(session.callId, peerSession);
     return peerSession;
-  }, [callConfig, clearCallSetupTimeout, scheduleCallSetupTimeout, socketActions]);
+  }, [callConfig, clearCallSetupTimeout, flushQueuedIceCandidates, scheduleCallSetupTimeout, socketActions]);
 
   const requestMediaForCall = useCallback(async (mode: CallMode) => {
     const media = await requestCallMedia(mode);
@@ -360,6 +409,7 @@ export const useCallController = ({
       }
 
       const session = ack as CallSessionPayload;
+      activeCallIdRef.current = session.callId;
       setState((current) => ({
         ...current,
         status: 'outgoing',
@@ -373,7 +423,7 @@ export const useCallController = ({
       resetPeer();
       setState((current) => ({
         ...current,
-        ...getMediaErrorStatus(error),
+        ...getMediaErrorStatus(error, mode),
       }));
     }
   }, [getAvailability, otherMember, requestMediaForCall, resetPeer, selectedChat, socketActions]);
@@ -399,6 +449,7 @@ export const useCallController = ({
         return;
       }
 
+      activeCallIdRef.current = session.callId;
       createPeerSession(session, media.stream);
       setState((current) => ({
         ...current,
@@ -407,8 +458,16 @@ export const useCallController = ({
         error: null,
       }));
     } catch (error) {
+      if (session) {
+        await socketActions.emitCallEnd({
+          chatId: session.chatId,
+          callId: session.callId,
+          reason: 'failed',
+        }).catch(() => undefined);
+      }
+
       resetPeer();
-      setState((current) => ({ ...current, ...getMediaErrorStatus(error) }));
+      setState((current) => ({ ...current, ...getMediaErrorStatus(error, session.mode) }));
     }
   }, [createPeerSession, requestMediaForCall, resetPeer, socketActions]);
 
@@ -467,6 +526,7 @@ export const useCallController = ({
       peer: otherMember,
       startedAt: event.startedAt ?? null,
     });
+    activeCallIdRef.current = event.callId;
   }, [currentUserId, otherMember]);
 
   const handleCallSync = useCallback(async (event: CallSessionPayload) => {
@@ -477,6 +537,7 @@ export const useCallController = ({
     }
 
     if (event.status === 'ringing') {
+      activeCallIdRef.current = event.callId;
       setState((existing) => ({
         ...existing,
         session: event,
@@ -486,6 +547,7 @@ export const useCallController = ({
     }
 
     if (event.status === 'connected') {
+      activeCallIdRef.current = event.callId;
       setState((existing) => ({
         ...existing,
         session: event,
@@ -549,12 +611,25 @@ export const useCallController = ({
   }, []);
 
   const handleCallIceCandidate = useCallback(async (event: CallSignalEvent) => {
-    if (!peerSessionRef.current || !event.signal) {
+    if (!event.signal || !event.callId) {
       return;
     }
 
-    await peerSessionRef.current.addIceCandidate(event.signal as RTCIceCandidateInit);
-  }, []);
+    const currentSession = stateRef.current.session;
+    const peerSession = peerSessionRef.current;
+    const candidate = event.signal as RTCIceCandidateInit;
+
+    if (activeCallIdRef.current !== event.callId || !currentSession || !activeCallStatuses.has(stateRef.current.status)) {
+      return;
+    }
+
+    if (peerSession) {
+      await peerSession.addIceCandidate(candidate);
+      return;
+    }
+
+    queueIceCandidate(event.callId, candidate);
+  }, [queueIceCandidate]);
 
   useEffect(() => {
     if (!selectedChat?._id) {

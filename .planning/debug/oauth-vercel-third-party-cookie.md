@@ -29,6 +29,10 @@ updated: 2026-06-14
 - 2026-06-14: `Frontend/Chatify/src/pages/login/login.tsx` builds OAuth URLs from `VITE_BACKEND_URL`, while `signup.tsx` uses `/api/auth/...`.
 - 2026-06-14: `Frontend/Chatify/vercel.json` only has a catch-all SPA rewrite, so no API or Socket.IO traffic is proxied before the frontend fallback.
 - 2026-06-14: `Backend/Chatify/Config/passport.mjs` hard-codes the production OAuth callback base to Render.
+- 2026-06-14: After the same-origin proxy patch was deployed, live Google OAuth sends `redirect_uri=https://chatify-ten-rho.vercel.app/api/auth/google/callback`, which Google rejects with `redirect_uri_mismatch` because the provider app is still registered for the Render callback.
+- 2026-06-14: Production resolver check now emits provider callback base `https://chatify-ckmn.onrender.com` and final cookie handoff base `https://chatify-ten-rho.vercel.app`.
+- 2026-06-14: OAuth handoff review found that a signed URL token alone could be replayed or used for session swap if leaked. The finalizer now requires the original first-party state cookie and consumes a one-time database handoff record before setting `accessToken`.
+- 2026-06-14: Live `https://chatify-ten-rho.vercel.app/api/auth/google` still returns the old Vercel callback redirect before deployment of this backend fix.
 
 ## Eliminated
 
@@ -37,7 +41,7 @@ updated: 2026-06-14
 
 ## Resolution
 
-- root_cause: Production OAuth and API traffic mixed `chatify-ten-rho.vercel.app` with `chatify-ckmn.onrender.com`. Login initiated directly against Render in one path, `/api/auth/...` was swallowed by the Vercel SPA fallback in another path, Passport hard-coded callback URLs to Render, and cookies set on Render were then used from the Vercel app as third-party cookies.
-- fix: Added a production same-origin URL resolver for HTTP, OAuth, and Socket.IO; added Vercel rewrites for `/api/*` and `/socket.io/*` before the SPA fallback; made backend OAuth callback origin configurable and default to `FRONTEND_ORIGIN`; updated the production acceptance gate to accept either direct backend or same-origin proxy traffic.
-- verification: `npm run test -- apiOrigin.test.ts axios.test.ts useChatSocket.test.tsx`; `npm run test -- auth/oauth-config.test.mjs`; `npm run test:e2e:prod -- --grep "production smoke config|matches production traffic"`; `npm run lint`; `npm run build`.
-- files_changed: `Frontend/Chatify/src/api/apiOrigin.ts`, `Frontend/Chatify/src/api/axios.ts`, `Frontend/Chatify/src/pages/login/login.tsx`, `Frontend/Chatify/src/pages/signup/signup.tsx`, `Frontend/Chatify/src/hooks/useChatSocket.ts`, `Frontend/Chatify/vercel.json`, `Backend/Chatify/Utils/oauthConfig.mjs`, `Backend/Chatify/Config/passport.mjs`, focused regression tests, and Phase 14 production acceptance helpers.
+- root_cause: Production OAuth originally mixed `chatify-ten-rho.vercel.app` with `chatify-ckmn.onrender.com`, so Render-domain auth cookies were not reliably first-party for Vercel visitors. The first same-origin callback patch fixed the cookie target but broke provider authorization because Google/GitHub/Discord still had the Render callback registered.
+- fix: Keep provider callbacks on the registered backend origin by default, then redirect through a short-lived OAuth handoff to `https://chatify-ten-rho.vercel.app/api/auth/oauth/finalize`. The handoff is bound to the OAuth `state` cookie that was set on the Vercel origin, backed by a one-time MongoDB record, and consumed before the finalizer sets the first-party Vercel `accessToken` cookie.
+- verification: `npm run test -- auth/oauth-config.test.mjs auth/auth.lifecycle.test.mjs` (15 tests passing); production resolver check: `callback=https://chatify-ckmn.onrender.com`, `finalize=https://chatify-ten-rho.vercel.app`.
+- files_changed: `Backend/Chatify/Utils/oauthConfig.mjs`, `Backend/Chatify/Controller/authController.mjs`, `Backend/Chatify/Routes/authRouter.mjs`, `Backend/Chatify/test/auth/oauth-config.test.mjs`, `Backend/Chatify/test/auth/auth.lifecycle.test.mjs`, plus the prior Vercel same-origin proxy/frontend resolver changes.

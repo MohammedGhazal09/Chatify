@@ -45,6 +45,15 @@ const makeActions = (): CallSocketActions => ({
   emitCallIceCandidate: vi.fn(async (): Promise<CallActionAck> => ({ ok: true, event: 'call:ice-candidate' })),
 });
 
+type MockPeerConnection = {
+  addIceCandidate: ReturnType<typeof vi.fn>;
+  setRemoteDescription: ReturnType<typeof vi.fn>;
+};
+
+const getMockPeerConnections = () => (
+  (globalThis as typeof globalThis & { __mockRTCPeerConnections?: MockPeerConnection[] }).__mockRTCPeerConnections ?? []
+);
+
 const renderController = (overrides: Partial<Parameters<typeof useCallController>[0]> = {}) => {
   const chat = makeChat({ conversationControls });
   const peer = makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper' });
@@ -120,11 +129,9 @@ describe('useCallController', () => {
     expect(result.current.state.status).toBe('outgoing');
   });
 
-  it('falls back to audio when camera capture fails before the call is started', async () => {
+  it('fails video capture instead of silently falling back to audio', async () => {
     const getUserMedia = vi.mocked(navigator.mediaDevices.getUserMedia);
-    getUserMedia
-      .mockRejectedValueOnce(new DOMException('No camera', 'NotFoundError'))
-      .mockResolvedValueOnce(new MediaStream());
+    getUserMedia.mockRejectedValueOnce(new DOMException('No camera', 'NotFoundError'));
     const { result, actions } = renderController();
 
     await act(async () => {
@@ -132,10 +139,11 @@ describe('useCallController', () => {
     });
 
     expect(getUserMedia).toHaveBeenNthCalledWith(1, { audio: true, video: true });
-    expect(getUserMedia).toHaveBeenNthCalledWith(2, { audio: true, video: false });
-    expect(actions.emitCallStart).toHaveBeenCalledWith({ chatId: 'chat-1', mode: 'audio' });
-    expect(result.current.state.audioFallbackOffered).toBe(true);
-    expect(result.current.state.mode).toBe('audio');
+    expect(actions.emitCallStart).not.toHaveBeenCalled();
+    expect(result.current.state.audioFallbackOffered).toBe(false);
+    expect(result.current.state.mode).toBe('video');
+    expect(result.current.state.status).toBe('failed');
+    expect(result.current.state.error).toMatch(/camera/i);
   });
 
   it('requests media before accepting an incoming call', async () => {
@@ -160,6 +168,142 @@ describe('useCallController', () => {
     expect(getUserMedia.mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(actions.emitCallAccept).mock.invocationCallOrder[0]
     );
+  });
+
+  it('ends a ringing call as failed when the callee cannot capture media', async () => {
+    const getUserMedia = vi.mocked(navigator.mediaDevices.getUserMedia);
+    getUserMedia.mockRejectedValueOnce(new DOMException('No camera', 'NotFoundError'));
+    const session = makeCallSession({ callerId: 'user-2', calleeId: 'user-1', mode: 'video' });
+    const { result, actions } = renderController();
+
+    act(() => {
+      result.current.socketHandlers.handleIncomingCall(session);
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.status).toBe('incoming');
+    });
+
+    await act(async () => {
+      await result.current.acceptCall();
+    });
+
+    expect(actions.emitCallEnd).toHaveBeenCalledWith({
+      chatId: 'chat-1',
+      callId: 'call-1',
+      reason: 'failed',
+    });
+    expect(actions.emitCallAccept).not.toHaveBeenCalled();
+    expect(result.current.state.status).toBe('failed');
+    expect(result.current.state.error).toMatch(/camera/i);
+  });
+
+  it('buffers ICE candidates until the remote description is ready', async () => {
+    const session = makeCallSession({ callerId: 'user-2', calleeId: 'user-1', mode: 'audio' });
+    const { result } = renderController();
+    const candidate = {
+      candidate: 'candidate:1 1 udp 2122260223 192.0.2.1 54400 typ host',
+      sdpMid: '0',
+      sdpMLineIndex: 0,
+    };
+    const offer = {
+      type: 'offer',
+      sdp: 'mock-offer',
+    } as RTCSessionDescriptionInit;
+
+    act(() => {
+      result.current.socketHandlers.handleIncomingCall(session);
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.status).toBe('incoming');
+    });
+
+    await act(async () => {
+      await result.current.socketHandlers.handleCallIceCandidate({
+        callId: session.callId,
+        chatId: session.chatId,
+        fromUserId: session.callerId,
+        signal: candidate,
+      });
+    });
+
+    expect(getMockPeerConnections()).toHaveLength(0);
+
+    await act(async () => {
+      await result.current.acceptCall();
+    });
+
+    const peerConnection = getMockPeerConnections()[0];
+    if (!peerConnection) {
+      throw new Error('Expected a peer connection to be created.');
+    }
+
+    expect(peerConnection.addIceCandidate).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.socketHandlers.handleCallOffer({
+        callId: session.callId,
+        chatId: session.chatId,
+        fromUserId: session.callerId,
+        signal: offer,
+      });
+    });
+
+    expect(peerConnection.setRemoteDescription).toHaveBeenCalledWith(offer);
+    expect(peerConnection.addIceCandidate).toHaveBeenCalledWith(candidate);
+  });
+
+  it('drops late ICE candidates after the call has ended', async () => {
+    const session = makeCallSession({ callerId: 'user-2', calleeId: 'user-1', mode: 'audio' });
+    const { result } = renderController();
+    const candidate = {
+      candidate: 'candidate:2 1 udp 2122260223 192.0.2.2 54401 typ host',
+      sdpMid: '0',
+      sdpMLineIndex: 0,
+    };
+
+    act(() => {
+      result.current.socketHandlers.handleIncomingCall(session);
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.status).toBe('incoming');
+    });
+
+    await act(async () => {
+      await result.current.acceptCall();
+    });
+
+    await waitFor(() => {
+      expect(getMockPeerConnections()).toHaveLength(1);
+    });
+
+    const peerConnection = getMockPeerConnections()[0];
+    if (!peerConnection) {
+      throw new Error('Expected a peer connection to be created.');
+    }
+
+    await act(async () => {
+      await result.current.socketHandlers.handleCallSync({
+        ...session,
+        status: 'ended',
+        endedAt: '2026-06-13T10:00:06.000Z',
+        endedReason: 'ended',
+      });
+    });
+
+    await act(async () => {
+      await result.current.socketHandlers.handleCallIceCandidate({
+        callId: session.callId,
+        chatId: session.chatId,
+        fromUserId: session.callerId,
+        signal: candidate,
+      });
+    });
+
+    expect(peerConnection.addIceCandidate).not.toHaveBeenCalled();
+    expect(result.current.state.status).toBe('ended');
   });
 
   it('accepts an incoming call by session chat id when no conversation is selected', async () => {

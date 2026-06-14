@@ -80,4 +80,18 @@ describe('CallOverlay', () => {
     expect(handlers.onToggleCamera).toHaveBeenCalledTimes(1);
     expect(handlers.onEnd).toHaveBeenCalledTimes(1);
   });
+
+  it('shows a failed video call without the fallback copy', () => {
+    renderOverlay({
+      status: 'failed',
+      mode: 'video',
+      error: 'Could not access the camera for this video call.',
+    });
+
+    expect(screen.getByRole('dialog', { name: 'Call controls' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Could not access the camera for this video call.' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not access the camera for this video call.');
+    expect(screen.queryByText('Camera unavailable. Audio fallback is active.')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Remote video')).not.toBeInTheDocument();
+  });
 });

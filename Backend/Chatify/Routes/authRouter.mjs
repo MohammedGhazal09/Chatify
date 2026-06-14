@@ -7,7 +7,8 @@ import {
   isAuthenticated,
   forgotPassword,
   resetPassword,
-  verifyResetCode
+  verifyResetCode,
+  finalizeOAuth
 } from "../Controller/authController.mjs";
 import { authLimiter, sessionCheckLimiter, refreshTokenLimiter } from "../Middlewares/rateLimiters.mjs";
 
@@ -22,6 +23,9 @@ router.route("/reset-password").post(authLimiter, resetPassword);
 
 // Session check - lenient rate limiting (60 req/min)
 router.route("/is-authenticated").get(sessionCheckLimiter, isAuthenticated);
+
+// OAuth handoff finalizes the first-party frontend cookie after provider callbacks.
+router.route("/oauth/finalize").get(authLimiter, finalizeOAuth);
 
 // Token refresh - moderate rate limiting (30 req/15 min)
 router.route("/refresh-token").post(refreshTokenLimiter, refreshToken);
