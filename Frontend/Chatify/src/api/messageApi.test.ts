@@ -7,15 +7,22 @@ const axiosMock = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
+const apiOriginMock = vi.hoisted(() => ({
+  resolveApiBaseUrl: vi.fn(() => 'https://chatify-ten-rho.vercel.app'),
+}));
+
 vi.mock('./axios', () => ({
   default: axiosMock,
 }));
+
+vi.mock('./apiOrigin', () => apiOriginMock);
 
 import { messageApi } from './messageApi';
 
 describe('messageApi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiOriginMock.resolveApiBaseUrl.mockReturnValue('https://chatify-ten-rho.vercel.app');
   });
 
   it('keeps text-only sends as JSON payloads', () => {
@@ -62,5 +69,15 @@ describe('messageApi', () => {
     expect(axiosMock.delete).toHaveBeenCalledWith('/api/message/message-1/pin');
     expect(messageApi.getAttachmentPreviewUrl('attachment 1')).toContain('/api/message/attachments/attachment%201/preview');
     expect(messageApi.getAttachmentDownloadUrl('attachment 1')).toContain('/api/message/attachments/attachment%201/download');
+  });
+
+  it('builds protected attachment URLs from the resolved API origin', () => {
+    expect(messageApi.getAttachmentPreviewUrl('6a2db3cb8e9e167fc0f5d875')).toBe(
+      'https://chatify-ten-rho.vercel.app/api/message/attachments/6a2db3cb8e9e167fc0f5d875/preview'
+    );
+    expect(messageApi.getAttachmentDownloadUrl('attachment 1')).toBe(
+      'https://chatify-ten-rho.vercel.app/api/message/attachments/attachment%201/download'
+    );
+    expect(apiOriginMock.resolveApiBaseUrl).toHaveBeenCalled();
   });
 });

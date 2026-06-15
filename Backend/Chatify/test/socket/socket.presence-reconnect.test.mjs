@@ -89,7 +89,7 @@ afterEach(async () => {
 });
 
 describe('Socket.IO presence and reconnect contract', () => {
-  it('keeps a user online across multiple sockets and emits offline after final disconnect debounce', async () => {
+  it('keeps a user online across multiple sockets and emits offline immediately after final disconnect', async () => {
     const { server, memberOne, memberTwo } = await setupPresenceScenario();
     const memberTwoSocket = await connectTrackedSignup(server.url, memberTwo);
     const onlinePromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change');
@@ -119,7 +119,7 @@ describe('Socket.IO presence and reconnect contract', () => {
 
     expect(await noOfflinePromise).toBeUndefined();
 
-    const offlinePromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change', 6000);
+    const offlinePromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change', 1000);
     memberOneSocketTwo.socket.disconnect();
     const offline = await offlinePromise;
     const storedUser = await User.findById(memberOne.user._id);
@@ -135,31 +135,41 @@ describe('Socket.IO presence and reconnect contract', () => {
     expect(storedUser.lastSeen).toBeInstanceOf(Date);
   });
 
-  it('cancels the offline transition when the user reconnects during the debounce', async () => {
+  it('emits online again when a user reconnects after the immediate offline transition', async () => {
     const { server, memberOne, memberTwo } = await setupPresenceScenario();
     const memberTwoSocket = await connectTrackedSignup(server.url, memberTwo);
     const onlinePromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change');
     const memberOneSocket = await connectTrackedSignup(server.url, memberOne);
     await onlinePromise;
 
+    const offlinePromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change', 1000);
     memberOneSocket.socket.disconnect();
-    await wait(500);
+    const offline = await offlinePromise;
+    const storedOfflineUser = await User.findById(memberOne.user._id);
 
+    expect(offline).toMatchObject({
+      userId: memberOne.user._id.toString(),
+      isOnline: false,
+      isCallReachable: false,
+    });
+    expect(storedOfflineUser.isOnline).toBe(false);
+
+    const onlineAgainPromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change', 1000);
     const reconnected = await connectTrackedWithCookie(server.url, extractCookieHeader(memberOne.response));
+    const onlineAgain = await onlineAgainPromise;
+
     expect(reconnected.ready).toMatchObject({
       userId: memberOne.user._id.toString(),
       joinedChats: 1,
     });
-
-    const offline = await waitForNoMatchingSocketEvent(
-      memberTwoSocket.socket,
-      'user:status-change',
-      (payload) => payload.userId === memberOne.user._id.toString() && payload.isOnline === false,
-      4300
-    );
     const storedUser = await User.findById(memberOne.user._id);
 
-    expect(offline).toBeUndefined();
+    expect(onlineAgain).toMatchObject({
+      userId: memberOne.user._id.toString(),
+      userName: 'Presence One',
+      isOnline: true,
+      isCallReachable: true,
+    });
     expect(storedUser.isOnline).toBe(true);
   });
 

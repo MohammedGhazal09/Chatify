@@ -52,10 +52,8 @@ const socketToUser = new Map()
 // Track user to sockets: Map<userId, Set<socketId>>
 const userToSockets = new Map()
 // Single-process presence state. Use a Redis adapter/shared state before horizontal Socket.IO scaling.
-const offlineTimers = new Map()
 const callTimeoutTimers = new Map()
 const callDisconnectTimers = new Map()
-const OFFLINE_DEBOUNCE_MS = 4000
 const DEFAULT_CALL_DISCONNECT_GRACE_MS = 15_000
 const MAX_SIGNAL_SDP_LENGTH = 128_000
 const MAX_ICE_CANDIDATE_LENGTH = 8_000
@@ -523,16 +521,6 @@ const getAuthorizedPresenceSnapshot = async (userId) => {
   ))
 }
 
-const clearOfflineTimer = (userId) => {
-  const normalizedUserId = userId.toString()
-  const timer = offlineTimers.get(normalizedUserId)
-
-  if (timer) {
-    clearTimeout(timer)
-    offlineTimers.delete(normalizedUserId)
-  }
-}
-
 // Helper to broadcast user status to authorized contacts only.
 const broadcastUserStatus = async (userId, isOnline, lastSeen = null) => {
   try {
@@ -570,22 +558,15 @@ const setUserOnline = async (userId, isOnline) => {
   }
 }
 
-const scheduleOfflineTransition = (userId) => {
+const transitionUserOffline = async (userId) => {
   const normalizedUserId = userId.toString()
-  clearOfflineTimer(normalizedUserId)
 
-  const timer = setTimeout(async () => {
-    offlineTimers.delete(normalizedUserId)
+  if (getUserSockets(normalizedUserId).size > 0) {
+    return
+  }
 
-    if (getUserSockets(normalizedUserId).size > 0) {
-      return
-    }
-
-    const lastSeen = await setUserOnline(normalizedUserId, false)
-    await broadcastUserStatus(normalizedUserId, false, lastSeen)
-  }, OFFLINE_DEBOUNCE_MS)
-
-  offlineTimers.set(normalizedUserId, timer)
+  const lastSeen = await setUserOnline(normalizedUserId, false)
+  await broadcastUserStatus(normalizedUserId, false, lastSeen)
 }
 
 export const initSocket = (server) => {
@@ -609,8 +590,6 @@ export const initSocket = (server) => {
 
     const userId = socket.data.userId
     const userHadSockets = getUserSockets(userId).size > 0
-    const reconnectingDuringDebounce = offlineTimers.has(userId)
-    clearOfflineTimer(userId)
     clearCallDisconnectTimer(userId)
 
     socketToUser.set(socket.id, userId)
@@ -627,7 +606,7 @@ export const initSocket = (server) => {
     })
 
     await setUserOnline(userId, true)
-    if (!userHadSockets && !reconnectingDuringDebounce) {
+    if (!userHadSockets) {
       await broadcastUserStatus(userId, true)
     }
 
@@ -1013,7 +992,7 @@ export const initSocket = (server) => {
           // If user has no more sockets, they're offline
           if (userSockets.size === 0) {
             userToSockets.delete(userId)
-            scheduleOfflineTransition(userId)
+            await transitionUserOffline(userId)
             scheduleCallDisconnectCleanup(userId)
           }
         }
@@ -1171,8 +1150,6 @@ export const removeUserFromChat = (userId, chatId) => {
 
 export const closeSocketServer = async () => {
   if (!io) {
-    offlineTimers.forEach(timer => clearTimeout(timer))
-    offlineTimers.clear()
     callTimeoutTimers.forEach(timer => clearTimeout(timer))
     callTimeoutTimers.clear()
     callDisconnectTimers.forEach(timer => clearTimeout(timer))
@@ -1185,8 +1162,6 @@ export const closeSocketServer = async () => {
 
   const currentIO = io
   io = undefined
-  offlineTimers.forEach(timer => clearTimeout(timer))
-  offlineTimers.clear()
   callTimeoutTimers.forEach(timer => clearTimeout(timer))
   callTimeoutTimers.clear()
   callDisconnectTimers.forEach(timer => clearTimeout(timer))

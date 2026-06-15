@@ -1,5 +1,6 @@
 import axiosInstance from './axios';
 import type { AxiosResponse } from 'axios';
+import { resolveApiBaseUrl } from './apiOrigin';
 import type {
   CursorPaginationInfo,
   Message,
@@ -130,8 +131,6 @@ type SharedAssetsOptions = {
   limit?: number;
 };
 
-const API_BASE_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-
 const hasAttachments = (payload: NewMessagePayload) => Boolean(payload.attachments?.length);
 
 const buildCreateMessageBody = (payload: NewMessagePayload) => {
@@ -151,7 +150,7 @@ const buildCreateMessageBody = (payload: NewMessagePayload) => {
 };
 
 const buildProtectedAssetUrl = (attachmentId: string, action: 'preview' | 'download') => {
-  return `${API_BASE_URL}/api/message/attachments/${encodeURIComponent(attachmentId)}/${action}`;
+  return `${resolveApiBaseUrl()}/api/message/attachments/${encodeURIComponent(attachmentId)}/${action}`;
 };
 
 export const messageApi = {
