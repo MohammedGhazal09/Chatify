@@ -113,7 +113,7 @@ const getAckErrorCopy = (ack: CallActionAck) => {
   }
 
   if (ack.code === 'callee_unavailable') {
-    return 'This person is not available for a call right now.';
+    return CALL_PEER_UNREACHABLE_REASON;
   }
 
   if (ack.code === 'ack_timeout') {
@@ -267,10 +267,6 @@ export const useCallController = ({
 
     if (!otherMemberStatus?.isOnline) {
       return { available: false, reason: CALL_ONLINE_REQUIREMENT_REASON };
-    }
-
-    if (otherMemberStatus.isCallReachable !== true) {
-      return { available: false, reason: CALL_PEER_UNREACHABLE_REASON };
     }
 
     if (!isWebRTCSupported()) {

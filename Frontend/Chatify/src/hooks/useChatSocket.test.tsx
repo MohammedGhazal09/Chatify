@@ -15,6 +15,11 @@ import { useChatSocket } from './useChatSocket';
 type SocketEventHandler = (...args: unknown[]) => void;
 
 const socketMockState = vi.hoisted(() => {
+  type ConnectEvent = {
+    event: string;
+    args: unknown[];
+  };
+
   type MockSocket = {
     connected: boolean;
     emit: ReturnType<typeof vi.fn>;
@@ -48,6 +53,7 @@ const socketMockState = vi.hoisted(() => {
   }> = [];
 
   let readyPayloadOnConnect: unknown;
+  let eventsOnConnect: ConnectEvent[] = [];
 
   const createSocket = () => {
     const handlers = new Map<string, Set<SocketEventHandler>>();
@@ -94,6 +100,10 @@ const socketMockState = vi.hoisted(() => {
         handlers.get('socket:ready')?.forEach((handler) => handler(readyPayloadOnConnect));
       }
 
+      eventsOnConnect.forEach(({ event, args }) => {
+        handlers.get(event)?.forEach((handler) => handler(...args));
+      });
+
       return socket;
     });
     socket.trigger = (event: string, ...args: unknown[]) => {
@@ -136,8 +146,12 @@ const socketMockState = vi.hoisted(() => {
     setReadyPayloadOnConnect: (payload: unknown) => {
       readyPayloadOnConnect = payload;
     },
+    setEventsOnConnect: (events: ConnectEvent[]) => {
+      eventsOnConnect = events;
+    },
     clearReadyPayloadOnConnect: () => {
       readyPayloadOnConnect = undefined;
+      eventsOnConnect = [];
     },
   };
 });
@@ -231,6 +245,100 @@ describe('useChatSocket', () => {
         isCallReachable: true,
       });
     });
+  });
+
+  it('handles messages emitted during socket connect before follow-up effects can run', async () => {
+    const incoming = makeMessage({
+      _id: 'message-connect',
+      chatId: 'chat-1',
+      sender: 'user-2',
+      text: 'Arrived during connect',
+      status: 'delivered',
+      createdAt: '2026-06-15T10:00:00.000Z',
+      updatedAt: '2026-06-15T10:00:00.000Z',
+    });
+    const onMessage = vi.fn();
+
+    queryClient.setQueryData(chatsQueryKey, [
+      makeChat({ _id: 'chat-1', latestMessage: null, updatedAt: '2026-06-15T09:59:00.000Z' }),
+    ]);
+    socketMockState.setEventsOnConnect([{ event: 'message:new', args: [incoming] }]);
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1', onMessage }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(onMessage).toHaveBeenCalledWith(incoming);
+    });
+
+    const socket = socketMockState.sockets[0];
+    const messageListenerCallIndex = socket.on.mock.calls.findIndex(([eventName]) => eventName === 'message:new');
+
+    expect(messageListenerCallIndex).toBeGreaterThanOrEqual(0);
+    expect(socket.on.mock.invocationCallOrder[messageListenerCallIndex]).toBeLessThan(
+      socket.connect.mock.invocationCallOrder[0]
+    );
+    expect(queryClient.getQueryData<MessagesCacheData>(messagesQueryKey('chat-1'))?.messages).toEqual([
+      expect.objectContaining({ _id: 'message-connect', text: 'Arrived during connect' }),
+    ]);
+    expect(queryClient.getQueryData<Chat[]>(chatsQueryKey)?.[0]?.latestMessage).toMatchObject({
+      _id: 'message-connect',
+      text: 'Arrived during connect',
+    });
+    expect(socket.emit).toHaveBeenCalledWith('message:delivered', {
+      messageId: 'message-connect',
+      chatId: 'chat-1',
+    });
+  });
+
+  it('handles incoming call signaling emitted during socket connect', async () => {
+    const session: CallSessionPayload = {
+      callId: 'call-connect',
+      chatId: 'chat-1',
+      callerId: 'user-2',
+      calleeId: 'user-1',
+      mode: 'video',
+      status: 'ringing',
+      startedAt: '2026-06-15T10:00:00.000Z',
+      ringingAt: '2026-06-15T10:00:01.000Z',
+      deliveredTo: ['user-1'],
+    };
+    const offer = {
+      chatId: 'chat-1',
+      callId: 'call-connect',
+      senderId: 'user-2',
+      signal: { type: 'offer', sdp: 'offer-sdp' },
+    };
+    const onCallIncoming = vi.fn();
+    const onCallOffer = vi.fn();
+
+    socketMockState.setEventsOnConnect([
+      { event: 'call:incoming', args: [session] },
+      { event: 'call:offer', args: [offer] },
+    ]);
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1', onCallIncoming, onCallOffer }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(onCallIncoming).toHaveBeenCalledWith(session);
+      expect(onCallOffer).toHaveBeenCalledWith(offer);
+    });
+
+    const socket = socketMockState.sockets[0];
+    const incomingListenerCallIndex = socket.on.mock.calls.findIndex(([eventName]) => eventName === 'call:incoming');
+    const offerListenerCallIndex = socket.on.mock.calls.findIndex(([eventName]) => eventName === 'call:offer');
+
+    expect(incomingListenerCallIndex).toBeGreaterThanOrEqual(0);
+    expect(offerListenerCallIndex).toBeGreaterThanOrEqual(0);
+    expect(socket.on.mock.invocationCallOrder[incomingListenerCallIndex]).toBeLessThan(
+      socket.connect.mock.invocationCallOrder[0]
+    );
+    expect(socket.on.mock.invocationCallOrder[offerListenerCallIndex]).toBeLessThan(
+      socket.connect.mock.invocationCallOrder[0]
+    );
   });
 
   it('clears previous chat typing state immediately when the selected chat changes', async () => {

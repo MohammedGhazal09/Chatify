@@ -113,18 +113,33 @@ describe('useCallController', () => {
     });
   });
 
-  it('uses the peer reachability reason when the peer is visible online without an active socket', () => {
+  it('allows calls when the peer is online even if reachability is stale', () => {
     const { result } = renderController({
       otherMemberStatus: { userId: 'user-2', isOnline: true, isCallReachable: false },
     });
 
     expect(result.current.audioAvailability).toEqual({
-      available: false,
-      reason: 'This person is online but not reachable for calls yet.',
+      available: true,
+      reason: null,
     });
     expect(result.current.videoAvailability).toEqual({
-      available: false,
-      reason: 'This person is online but not reachable for calls yet.',
+      available: true,
+      reason: null,
+    });
+  });
+
+  it('allows calls when the peer is online and reachability is missing from presence', () => {
+    const { result } = renderController({
+      otherMemberStatus: { userId: 'user-2', isOnline: true },
+    });
+
+    expect(result.current.audioAvailability).toEqual({
+      available: true,
+      reason: null,
+    });
+    expect(result.current.videoAvailability).toEqual({
+      available: true,
+      reason: null,
     });
   });
 
@@ -142,6 +157,25 @@ describe('useCallController', () => {
       vi.mocked(actions.emitCallStart).mock.invocationCallOrder[0]
     );
     expect(result.current.state.status).toBe('outgoing');
+  });
+
+  it('surfaces backend peer-unreachable acknowledgement after allowing an online call attempt', async () => {
+    const { result, actions } = renderController({
+      otherMemberStatus: { userId: 'user-2', isOnline: true, isCallReachable: false },
+    });
+    vi.mocked(actions.emitCallStart).mockResolvedValueOnce({
+      ok: false,
+      event: 'call:start',
+      code: 'callee_unavailable',
+    });
+
+    await act(async () => {
+      await result.current.startCall('audio');
+    });
+
+    expect(actions.emitCallStart).toHaveBeenCalledWith({ chatId: 'chat-1', mode: 'audio' });
+    expect(result.current.state.status).toBe('failed');
+    expect(result.current.state.error).toBe('This person is online but not reachable for calls yet.');
   });
 
   it('fails video capture instead of silently falling back to audio', async () => {
