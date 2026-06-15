@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConversationControls } from '../../../types/chat';
@@ -58,9 +58,9 @@ describe('ChatContextRail', () => {
       ...overrides,
     };
 
-    render(<ChatContextRail {...props} />);
+    const view = render(<ChatContextRail {...props} />);
 
-    return props;
+    return { props, ...view };
   };
 
   it('renders server-backed sections and wires actions', async () => {
@@ -166,6 +166,28 @@ describe('ChatContextRail', () => {
     renderRail({ isOpen: false });
 
     expect(screen.queryByRole('complementary', { name: 'Conversation details' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the rail mounted during the close animation before removing it', () => {
+    vi.useFakeTimers();
+
+    try {
+      const { props, rerender } = renderRail();
+
+      expect(screen.getByTestId('chat-context-rail')).toBeInTheDocument();
+
+      rerender(<ChatContextRail {...props} isOpen={false} />);
+
+      expect(screen.getByTestId('chat-context-rail')).toHaveAttribute('aria-hidden', 'true');
+
+      act(() => {
+        vi.advanceTimersByTime(220);
+      });
+
+      expect(screen.queryByTestId('chat-context-rail')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('closes from the close button and Escape key', async () => {

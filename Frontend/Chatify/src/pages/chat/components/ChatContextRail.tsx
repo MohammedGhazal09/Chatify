@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { ConversationDetailContentProps } from './ConversationDetailContent';
 import ConversationDetailContent from './ConversationDetailContent';
@@ -7,16 +8,46 @@ interface ChatContextRailProps extends ConversationDetailContentProps {
   onClose: () => void;
 }
 
+const RAIL_TRANSITION_MS = 220;
+
 const ChatContextRail = ({ isOpen, onClose, ...contentProps }: ChatContextRailProps) => {
-  if (!isOpen) {
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(isOpen);
+
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+      const animationFrame = window.requestAnimationFrame(() => {
+        setIsVisible(true);
+      });
+
+      return () => {
+        window.cancelAnimationFrame(animationFrame);
+      };
+    }
+
+    setIsVisible(false);
+    const timeout = window.setTimeout(() => {
+      setShouldRender(false);
+    }, RAIL_TRANSITION_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isOpen]);
+
+  if (!shouldRender) {
     return null;
   }
 
   return (
     <aside
       data-testid="chat-context-rail"
-      className="hidden min-h-0 flex-col overflow-hidden border-l border-[var(--chat-border)] bg-[var(--chat-panel)] text-[var(--chat-text)] xl:flex"
+      className={`chat-context-rail hidden min-h-0 min-w-0 flex-col overflow-hidden border-l border-[var(--chat-border)] bg-[var(--chat-panel)] text-[var(--chat-text)] transition-all duration-200 ease-out xl:flex ${
+        isVisible ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-6 opacity-0'
+      }`}
       aria-label="Conversation details"
+      aria-hidden={!isOpen}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           onClose();

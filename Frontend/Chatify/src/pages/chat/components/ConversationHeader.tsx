@@ -1,5 +1,5 @@
 import OnlineStatus, { OnlineDot } from '../../../components/OnlineStatus';
-import { ArrowLeft, MoreVertical, Phone, Search, Video } from 'lucide-react';
+import { ArrowLeft, MoreVertical, PanelRightClose, PanelRightOpen, Phone, Search, Video } from 'lucide-react';
 import type { RefObject } from 'react';
 import type { User } from '../../../types/auth';
 import type { Chat, UserOnlineStatus } from '../../../types/chat';
@@ -13,6 +13,7 @@ interface ConversationHeaderProps {
   isPresenceChecking?: boolean;
   showMessageSearch: boolean;
   showConversationMoreMenu: boolean;
+  showConversationDetails: boolean;
   callDisabledReason?: string | null;
   videoCallDisabledReason?: string | null;
   searchButtonRef: RefObject<HTMLButtonElement | null>;
@@ -21,6 +22,7 @@ interface ConversationHeaderProps {
   onStartAudioCall: () => void;
   onStartVideoCall: () => void;
   onToggleConversationMoreMenu: () => void;
+  onToggleConversationDetails: () => void;
   onToggleMessageSearch: () => void;
   onExportChat: () => void;
 }
@@ -33,6 +35,7 @@ const ConversationHeader = ({
   isPresenceChecking = false,
   showMessageSearch,
   showConversationMoreMenu,
+  showConversationDetails,
   callDisabledReason,
   videoCallDisabledReason,
   searchButtonRef,
@@ -41,10 +44,13 @@ const ConversationHeader = ({
   onStartAudioCall,
   onStartVideoCall,
   onToggleConversationMoreMenu,
+  onToggleConversationDetails,
   onToggleMessageSearch,
 }: ConversationHeaderProps) => {
   const isCallDisabled = Boolean(callDisabledReason);
   const isVideoCallDisabled = Boolean(videoCallDisabledReason);
+  const DetailsIcon = showConversationDetails ? PanelRightClose : PanelRightOpen;
+  const detailsLabel = showConversationDetails ? 'Close conversation details' : 'Open conversation details';
 
   return (
     <div className="flex min-h-20 min-w-0 max-w-full items-center gap-3 overflow-hidden border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-3 text-[var(--chat-text)] md:px-8">
@@ -134,6 +140,17 @@ const ConversationHeader = ({
         aria-expanded={showConversationMoreMenu}
       >
         <MoreVertical aria-hidden="true" className="h-5 w-5" />
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleConversationDetails}
+        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        aria-label={detailsLabel}
+        title={detailsLabel}
+        aria-pressed={showConversationDetails}
+      >
+        <DetailsIcon aria-hidden="true" className="h-5 w-5" />
       </button>
     </div>
   );

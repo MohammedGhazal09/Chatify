@@ -25,6 +25,7 @@ const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) 
     showScrollButton: false,
     showMessageSearch: false,
     showConversationMoreMenu: false,
+    showConversationDetails: false,
     conversationControls: undefined,
     messageSearch: '',
     messageSearchInputRef: createRef<HTMLInputElement>(),
@@ -57,6 +58,7 @@ const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) 
     onStartAudioCall: vi.fn(),
     onStartVideoCall: vi.fn(),
     onToggleConversationMoreMenu: vi.fn(),
+    onToggleConversationDetails: vi.fn(),
     onToggleMessageSearch: vi.fn(),
     onMessageSearchChange: vi.fn(),
     onClearMessageSearch: vi.fn(),
@@ -147,6 +149,21 @@ describe('ConversationPane', () => {
     await user.click(screen.getByRole('button', { name: 'Close message search' }));
 
     expect(onToggleMessageSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles conversation details from the top-right header action', async () => {
+    const user = userEvent.setup();
+    const onToggleConversationDetails = vi.fn();
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      onToggleConversationDetails,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Open conversation details' }));
+
+    expect(onToggleConversationDetails).toHaveBeenCalledTimes(1);
   });
 
   it('pins blocked-by-me status above the conversation and removes the old composer-only copy', async () => {

@@ -181,7 +181,7 @@ const ChatPage = () => {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [composerResetToken, setComposerResetToken] = useState(0);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
-  const [isDetailRailOpen, setIsDetailRailOpen] = useState(true);
+  const [isDetailRailOpen, setIsDetailRailOpen] = useState(false);
   const [isConversationMoreOpen, setIsConversationMoreOpen] = useState(false);
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
@@ -499,7 +499,7 @@ const ChatPage = () => {
     setIsSidebarOpen(false);
     setIsNewChatOpen(false);
     setIsDetailDrawerOpen(false);
-    setIsDetailRailOpen(true);
+    setIsDetailRailOpen(false);
     setAttachmentPreview(null);
     setNewChatEmail('');
     setCreateChatError(null);
@@ -537,7 +537,7 @@ const ChatPage = () => {
     clearHighlightedMessage();
     setAttachmentPreview(null);
     setIsDetailDrawerOpen(false);
-    setIsDetailRailOpen(true);
+    setIsDetailRailOpen(false);
     setIsConversationMoreOpen(false);
   }, [clearHighlightedMessage, selectedChatId]);
 
@@ -1256,7 +1256,7 @@ const ChatPage = () => {
   }, [focusMoreButton]);
 
   const handleOpenDetails = useCallback(() => {
-    const isDesktopViewport = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
+    const isDesktopViewport = typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1280px)').matches === true;
     setIsConversationMoreOpen(false);
 
     if (isDesktopViewport) {
@@ -1266,6 +1266,20 @@ const ChatPage = () => {
     }
 
     setIsDetailDrawerOpen(true);
+  }, []);
+
+  const handleToggleDetails = useCallback(() => {
+    const isDesktopViewport = typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1280px)').matches === true;
+    setIsConversationMoreOpen(false);
+
+    if (isDesktopViewport) {
+      setIsDetailDrawerOpen(false);
+      setIsDetailRailOpen((currentValue) => !currentValue);
+      return;
+    }
+
+    setIsDetailRailOpen(false);
+    setIsDetailDrawerOpen((currentValue) => !currentValue);
   }, []);
 
   const handleToggleConversationMoreMenu = useCallback(() => {
@@ -1409,6 +1423,7 @@ const ChatPage = () => {
           showScrollButton={showScrollButton}
           showMessageSearch={showMessageSearch}
           showConversationMoreMenu={isConversationMoreOpen}
+          showConversationDetails={isDetailRailOpen || isDetailDrawerOpen}
           conversationControls={conversationControls}
           callDisabledReason={audioAvailability.reason}
           videoCallDisabledReason={videoAvailability.reason}
@@ -1444,6 +1459,7 @@ const ChatPage = () => {
           onStartAudioCall={handleStartAudioCall}
           onStartVideoCall={handleStartVideoCall}
           onToggleConversationMoreMenu={handleToggleConversationMoreMenu}
+          onToggleConversationDetails={handleToggleDetails}
           onToggleMessageSearch={handleToggleMessageSearch}
           onMessageSearchChange={setMessageSearch}
           onClearMessageSearch={handleClearMessageSearch}

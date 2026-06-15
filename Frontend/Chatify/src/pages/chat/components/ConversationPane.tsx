@@ -27,6 +27,7 @@ interface ConversationPaneProps {
   showScrollButton: boolean;
   showMessageSearch: boolean;
   showConversationMoreMenu: boolean;
+  showConversationDetails: boolean;
   conversationControls?: ConversationControls;
   callDisabledReason?: string | null;
   videoCallDisabledReason?: string | null;
@@ -61,6 +62,7 @@ interface ConversationPaneProps {
   onStartAudioCall: () => void;
   onStartVideoCall: () => void;
   onToggleConversationMoreMenu: () => void;
+  onToggleConversationDetails: () => void;
   onToggleMessageSearch: () => void;
   onMessageSearchChange: (value: string) => void;
   onClearMessageSearch: () => void;
@@ -105,6 +107,7 @@ const ConversationPane = ({
   showScrollButton,
   showMessageSearch,
   showConversationMoreMenu,
+  showConversationDetails,
   conversationControls,
   callDisabledReason,
   videoCallDisabledReason,
@@ -139,6 +142,7 @@ const ConversationPane = ({
   onStartAudioCall,
   onStartVideoCall,
   onToggleConversationMoreMenu,
+  onToggleConversationDetails,
   onToggleMessageSearch,
   onMessageSearchChange,
   onClearMessageSearch,
@@ -204,6 +208,7 @@ const ConversationPane = ({
         isPresenceChecking={isPresenceChecking}
         showMessageSearch={showMessageSearch}
         showConversationMoreMenu={showConversationMoreMenu}
+        showConversationDetails={showConversationDetails}
         callDisabledReason={callDisabledReason}
         videoCallDisabledReason={videoCallDisabledReason}
         searchButtonRef={messageSearchButtonRef}
@@ -212,6 +217,7 @@ const ConversationPane = ({
         onStartAudioCall={onStartAudioCall}
         onStartVideoCall={onStartVideoCall}
         onToggleConversationMoreMenu={onToggleConversationMoreMenu}
+        onToggleConversationDetails={onToggleConversationDetails}
         onToggleMessageSearch={onToggleMessageSearch}
         onExportChat={onExportChat}
       />

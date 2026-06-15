@@ -135,6 +135,7 @@
 
 .chat-shell {
   grid-template-columns: minmax(0, 1fr);
+  transition: grid-template-columns 220ms ease;
 }
 
 @media (min-width: 768px) {
@@ -145,12 +146,16 @@
 
 @media (min-width: 1280px) {
   .chat-shell {
-    grid-template-columns: 344px minmax(0, 1fr);
+    grid-template-columns: 344px minmax(0, 1fr) 0;
   }
 
   .chat-shell[data-right-rail="open"] {
-    grid-template-columns: 344px minmax(0, 1fr) 392px;
+    grid-template-columns: 344px minmax(0, 1fr) minmax(360px, 392px);
   }
+}
+
+.chat-context-rail {
+  will-change: opacity, transform;
 }
 
 /* Sidebar scrollbar */
@@ -407,6 +412,8 @@
 @media (prefers-reduced-motion: reduce) {
   .chat-sidebar,
   .chat-overlay,
+  .chat-shell,
+  .chat-context-rail,
   .animate-fade-in,
   .animate-slide-down,
   .typing-dot,
