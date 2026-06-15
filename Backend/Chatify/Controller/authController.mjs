@@ -3,7 +3,14 @@ import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import {CustomError} from '../Utils/customError.mjs';
 import jsonwebtoken from 'jsonwebtoken'
 import { createHash, randomBytes, randomUUID } from 'crypto';
-import { generateTokenAndSetCookie } from '../Utils/tokenCookieGenerator.mjs'
+import {
+  clearSessionCookies,
+  issueSessionCookies,
+  readRefreshTokenFromRequest,
+  revokeRefreshSession,
+  rotateSessionCookies,
+} from '../Utils/tokenCookieGenerator.mjs'
+import { readAccessTokenFromRequest, verifyAccessToken } from '../Utils/authToken.mjs';
 import passport from 'passport';
 import PasswordReset from '../Models/passwordResetModel.mjs';
 import OAuthHandoff from '../Models/oauthHandoffModel.mjs';
@@ -97,7 +104,7 @@ export const signup =asyncErrHandler( async (req, res, next) => {
     authProvider: 'local',
   })
 
-  generateTokenAndSetCookie(user, res);
+  await issueSessionCookies({ user, res, rememberMe: false });
   return res.status(201).json({
     success: true,
     message: 'User created successfully',
@@ -123,7 +130,7 @@ export const login = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError("Password or email are wrong", 400))
   }
 
-  generateTokenAndSetCookie(user, res, rememberMe);
+  await issueSessionCookies({ user, res, rememberMe });
 
   return res.status(200).json({
     status:"success",
@@ -132,14 +139,8 @@ export const login = asyncErrHandler(async (req, res, next) => {
 })
 
 export const logout = asyncErrHandler(async (req, res, next) => {
-  const isProd = process.env.NODE_ENV === 'production';
-  
-  res.clearCookie('accessToken', {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
-    path: '/',
-  });
+  await revokeRefreshSession(readRefreshTokenFromRequest(req));
+  clearSessionCookies(res);
   
   res.status(200).json({
     status: 'success',
@@ -148,43 +149,31 @@ export const logout = asyncErrHandler(async (req, res, next) => {
 })
 
 export const refreshToken = asyncErrHandler(async (req, res, next) => {
-  const token = req.cookies.accessToken;
-  
-  if (!token) {
-    return next(new CustomError('No token provided', 401));
-  }
-  
-  let decoded;
-  try {
-    // Try to verify the token
-    decoded = jsonwebtoken.verify(token, process.env.SECRET_JWT_KEY);
-  } catch (error) {
-    if (error instanceof jsonwebtoken.TokenExpiredError) {
-      // Token is expired, but we can still decode it to get userId
-      decoded = jsonwebtoken.decode(token);
-      if (!decoded || !decoded.userId) {
-        return next(new CustomError('Invalid token', 401));
-      }
-    } else {
-      return next(new CustomError('Invalid token', 401));
-    }
-  }
-  
-  const user = await User.findById(decoded.userId);
-  if (!user) {
-    return next(new CustomError('User not found', 404));
-  }
-  generateTokenAndSetCookie(user, res)
+  await rotateSessionCookies({
+    refreshToken: readRefreshTokenFromRequest(req),
+    res,
+  });
 
   return res.status(200).json({ status: 'success', message: 'Token refreshed successfully' });
 });
 
 export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
-  const token = !!req.cookies.accessToken
+  const token = readAccessTokenFromRequest(req);
+  let isValid = false;
+
+  if (token) {
+    try {
+      verifyAccessToken(token);
+      isValid = true;
+    } catch {
+      isValid = false;
+    }
+  }
+
   res.status(200).json({
     status:"success",
     message:"User is authenticated",
-    token
+    token: isValid
   })
 })
 
@@ -275,7 +264,7 @@ export const finalizeOAuth = asyncErrHandler(async (req, res) => {
       return redirectOAuthFailure(res);
     }
 
-    generateTokenAndSetCookie(user, res, false);
+    await issueSessionCookies({ user, res, rememberMe: false });
     clearOAuthStateCookie(res);
 
     return res.redirect(buildFrontendUrl('/', { auth: 'success' }));

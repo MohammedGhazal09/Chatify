@@ -17,6 +17,7 @@ interface ConversationPaneProps {
   currentUserId?: string;
   otherMember: User | null;
   otherMemberStatus: UserOnlineStatus | null;
+  isPresenceChecking?: boolean;
   messages: Message[];
   isMessagesLoading: boolean;
   messagesError: boolean;
@@ -94,6 +95,7 @@ const ConversationPane = ({
   currentUserId,
   otherMember,
   otherMemberStatus,
+  isPresenceChecking = false,
   messages,
   isMessagesLoading,
   messagesError,
@@ -199,6 +201,7 @@ const ConversationPane = ({
         title={getChatTitle(selectedChat, currentUserId)}
         otherMember={otherMember}
         otherMemberStatus={otherMemberStatus}
+        isPresenceChecking={isPresenceChecking}
         showMessageSearch={showMessageSearch}
         showConversationMoreMenu={showConversationMoreMenu}
         callDisabledReason={callDisabledReason}

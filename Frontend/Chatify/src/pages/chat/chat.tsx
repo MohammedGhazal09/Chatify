@@ -27,6 +27,7 @@ import {
   useUnpinMessage,
   useBlockChatPeer,
   useUnblockChatPeer,
+  useOnlinePresence,
 } from '../../hooks/useChatQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import { useCallController } from '../../hooks/useCallController';
@@ -218,6 +219,8 @@ const ChatPage = () => {
 
   const chatIds = useMemo(() => chats?.map((chat) => chat._id) ?? [], [chats]);
   const { data: unreadCounts } = useUnreadCounts(chatIds);
+  const presenceQuery = useOnlinePresence({ enabled: isAuthenticated });
+  const refetchPresence = presenceQuery.refetch;
 
   useSelectedChatPersistence({
     userId: user?._id,
@@ -240,6 +243,7 @@ const ChatPage = () => {
   const isConversationControlPending = blockChatPeerMutation.isPending || unblockChatPeerMutation.isPending;
   const otherMember = selectedChat ? getOtherMember(selectedChat, user?._id) : null;
   const otherMemberStatus = otherMember ? onlineUsers.get(otherMember._id) ?? null : null;
+  const isPresenceChecking = Boolean(otherMember && presenceQuery.isFetching && !onlineUsers.has(otherMember._id));
   const allMessages = useMemo(() => messages ?? [], [messages]);
   const messageSearchQuery = showMessageSearch ? messageSearch : '';
   const messageSearchResult = useMessageSearch(selectedChatId, messageSearchQuery);
@@ -365,6 +369,7 @@ const ChatPage = () => {
   const {
     isSocketConnected,
     socketError,
+    socketStatus,
     callConfig,
     emitTypingStart,
     emitTypingStop,
@@ -440,6 +445,7 @@ const ChatPage = () => {
     currentUserId: user?._id,
     otherMember,
     otherMemberStatus,
+    isPresenceChecking,
     conversationControls,
     isAuthenticated,
     isSocketConnected,
@@ -613,7 +619,10 @@ const ChatPage = () => {
   }, [allMessages, selectedChatId, user?._id]);
 
   useEffect(() => {
-    const handleOnline = () => setIsBrowserOnline(true);
+    const handleOnline = () => {
+      setIsBrowserOnline(true);
+      void refetchPresence();
+    };
     const handleOffline = () => setIsBrowserOnline(false);
 
     window.addEventListener('online', handleOnline);
@@ -623,7 +632,7 @@ const ChatPage = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [refetchPresence]);
 
   useEffect(() => {
     const lastMessage = allMessages[allMessages.length - 1];
@@ -1328,7 +1337,14 @@ const ChatPage = () => {
 
   const isOffline = !isBrowserOnline;
   const isSessionExpired = !isAuthenticated && !isChatsLoading;
-  const isReconnecting = Boolean(selectedChatId && isAuthenticated && !isOffline && (socketError || !isSocketConnected));
+  const isSocketAuthFailed = socketStatus === 'auth_failed';
+  const isReconnecting = Boolean(
+    selectedChatId &&
+    isAuthenticated &&
+    !isOffline &&
+    !isSocketAuthFailed &&
+    (socketError || !isSocketConnected)
+  );
 
   if (!isAuthenticated && isChatsLoading) {
     return <LoadingSpinner />;
@@ -1378,6 +1394,7 @@ const ChatPage = () => {
           currentUserId={user?._id}
           otherMember={otherMember}
           otherMemberStatus={otherMemberStatus}
+          isPresenceChecking={isPresenceChecking}
           messages={allMessages}
           isMessagesLoading={isMessagesLoading}
           messagesError={messagesError}
@@ -1454,6 +1471,7 @@ const ChatPage = () => {
           currentUserId={user?._id}
           otherMember={otherMember}
           otherMemberStatus={otherMemberStatus}
+          isPresenceChecking={isPresenceChecking}
           pinnedMessages={pinnedMessagesQuery.data ?? []}
           sharedFiles={sharedFilesQuery.data ?? []}
           sharedMedia={sharedMediaQuery.data ?? []}
@@ -1493,6 +1511,7 @@ const ChatPage = () => {
               currentUserId={user?._id}
               otherMember={otherMember}
               otherMemberStatus={otherMemberStatus}
+              isPresenceChecking={isPresenceChecking}
               pinnedMessages={pinnedMessagesQuery.data ?? []}
               sharedFiles={sharedFilesQuery.data ?? []}
               sharedMedia={sharedMediaQuery.data ?? []}

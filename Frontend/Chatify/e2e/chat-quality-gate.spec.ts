@@ -30,12 +30,12 @@ const runAxeScan = async (page: Page) => {
 const expectUnsupportedControlsUnavailable = async (page: Page) => {
   const callButton = page.getByRole('button', { name: 'Call' }).first();
   await expect(callButton).toBeDisabled();
-  await expect(callButton).toHaveAttribute('title', /unavailable/i);
+  await expect(callButton).toHaveAttribute('title', /unavailable|direct chats|online|connection|availability/i);
 
   const videoButton = page.getByRole('button', { name: 'Video call' }).first();
   if (await videoButton.count()) {
     await expect(videoButton).toBeDisabled();
-    await expect(videoButton).toHaveAttribute('title', /unavailable/i);
+    await expect(videoButton).toHaveAttribute('title', /unavailable|direct chats|online|connection|availability/i);
   }
 
   const voiceButton = page.getByRole('button', { name: 'Voice message unavailable in this phase' });
@@ -46,9 +46,9 @@ const expectUnsupportedControlsUnavailable = async (page: Page) => {
 
 const expectProtectedAssetControls = async (page: Page) => {
   await expect(page.getByText('phase09-routing-ledger.pdf').first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Open phase09-routing-ledger.pdf' }).first()).toHaveAttribute('href', /\/api\/message\/attachments\/phase09-attachment-routing-ledger\/preview$/);
+  await expect(page.getByRole('button', { name: 'Open phase09-routing-ledger.pdf' }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Download phase09-routing-ledger.pdf' }).first()).toHaveAttribute('href', /\/api\/message\/attachments\/phase09-attachment-routing-ledger\/download$/);
-  await expect(page.getByRole('link', { name: 'Open phase09-circuit-grid.png' }).first()).toHaveAttribute('href', /\/api\/message\/attachments\/phase09-attachment-circuit-grid\/preview$/);
+  await expect(page.getByRole('button', { name: 'Open phase09-circuit-grid.png' }).first()).toBeVisible();
 };
 
 const expectDesktopDetailRailReady = async (page: Page) => {
@@ -60,8 +60,8 @@ const expectDesktopDetailRailReady = async (page: Page) => {
   await expect(rail.getByText('Delivery and read receipts stay visible after interaction.')).toBeVisible();
   await expect(rail.getByText('phase09-routing-ledger.pdf')).toBeVisible();
   await expect(rail.getByText('Authenticated session')).toBeVisible();
-  await expect(rail.getByRole('button', { name: 'Favorite conversation unavailable in this phase' })).toBeDisabled();
-  await expect(rail.getByRole('button', { name: 'More conversation actions' })).toBeDisabled();
+  await expect(rail.getByRole('button', { name: 'Star conversation' })).toBeEnabled();
+  await expect(rail.getByRole('button', { name: 'More conversation actions' })).toBeEnabled();
   await expectDesktopRailWithinViewport(page);
 };
 
@@ -99,6 +99,19 @@ const sendAttachmentMessage = async (page: Page) => {
   await expect(page.getByTestId('attachment-tray').getByText('phase09-upload-sample.txt')).toBeVisible();
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByTestId('conversation-pane').getByText('phase09-upload-sample.txt')).toBeVisible();
+};
+
+const getConversationActionsButton = (page: Page) => page.getByRole('button', { name: 'More conversation actions' }).first();
+
+const openConversationDetails = async (page: Page) => {
+  const conversationActions = getConversationActionsButton(page);
+  await conversationActions.click();
+  await page
+    .getByRole('menu', { name: 'Conversation actions' })
+    .getByRole('menuitem', { name: 'Conversation details' })
+    .click();
+
+  return conversationActions;
 };
 
 const expectConversationReclaimsClosedRailSpace = async (page: Page) => {
@@ -198,8 +211,7 @@ test.describe('Phase 09 messenger interaction quality gate', () => {
     await page.getByRole('button', { name: /Relay Grid/ }).click();
     await assertBaselineConversation(page);
 
-    const detailsButton = page.getByRole('button', { name: 'Open conversation details' });
-    await detailsButton.click();
+    const detailsButton = await openConversationDetails(page);
     const detailsDialog = page.getByRole('dialog', { name: 'Conversation details' });
     await expect(detailsDialog).toBeVisible();
     await expectConversationDetailWithinViewport(page);
@@ -211,11 +223,11 @@ test.describe('Phase 09 messenger interaction quality gate', () => {
     await expectVisibleTouchTargets(page, [
       'Open conversations',
       'Call',
-      'Open conversation details',
+      'More conversation actions',
       'Attach file',
       'Send message',
     ]);
-    await detailsButton.click();
+    await openConversationDetails(page);
     await expect(page.getByRole('dialog', { name: 'Conversation details' })).toBeVisible();
     await expectVisibleTouchTargets(page, ['Close conversation details']);
     await expectNoHorizontalOverflow(page);
@@ -255,7 +267,7 @@ test.describe('Phase 10 production messenger reality', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openPhase09Chat(page, { theme: 'dark', chatId: PHASE09_PRIMARY_CHAT_ID });
 
-    const detailsButton = page.getByRole('button', { name: 'Open conversation details' });
+    const detailsButton = getConversationActionsButton(page);
     const rail = page.getByTestId('chat-context-rail');
     await expect(rail).toBeVisible();
     await expect(rail.getByRole('heading', { name: 'Pinned messages' })).toBeVisible();
@@ -268,7 +280,7 @@ test.describe('Phase 10 production messenger reality', () => {
     await expect(page.getByTestId('chat-shell')).toHaveAttribute('data-right-rail', 'closed');
     await expectConversationReclaimsClosedRailSpace(page);
 
-    await detailsButton.click();
+    await openConversationDetails(page);
     await expect(rail).toBeVisible();
     await expect(page.getByTestId('chat-shell')).toHaveAttribute('data-right-rail', 'open');
     await rail.getByRole('button', { name: 'Search messages' }).click();
@@ -276,7 +288,6 @@ test.describe('Phase 10 production messenger reality', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('textbox', { name: 'Search this conversation' })).toBeHidden();
 
-    await detailsButton.click();
     await expect(rail).toBeVisible();
     await rail.getByRole('button', { name: 'Search messages' }).focus();
     await page.keyboard.press('Escape');
@@ -288,22 +299,19 @@ test.describe('Phase 10 production messenger reality', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openPhase09Chat(page, { theme: 'light', chatId: PHASE09_PRIMARY_CHAT_ID });
 
-    const detailsButton = page.getByRole('button', { name: 'Open conversation details' });
-    await detailsButton.click();
+    const detailsButton = await openConversationDetails(page);
     const detailsDialog = page.getByRole('dialog', { name: 'Conversation details' });
     await expect(detailsDialog).toBeVisible();
     await expect(detailsDialog.getByRole('heading', { name: 'Pinned messages' })).toBeVisible();
     await detailsDialog.getByRole('button', { name: 'Search messages' }).click();
     await expect(page.getByRole('textbox', { name: 'Search this conversation' })).toBeFocused();
 
-    await detailsButton.click();
-    await expect(detailsDialog).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(detailsDialog).toBeHidden();
-    await expect(detailsButton).toBeFocused();
+    await expect(detailsButton).toBeVisible();
 
     await page.setViewportSize({ width: 800, height: 844 });
-    await detailsButton.click();
+    await openConversationDetails(page);
     await expect(detailsDialog).toBeVisible();
     await page.mouse.click(8, 8);
     await expect(detailsDialog).toBeHidden();

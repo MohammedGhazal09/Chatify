@@ -29,11 +29,38 @@ const getMessagesForChat = (chatId: string) => {
   return messagesByChatId[chatId] ?? [];
 };
 
+const createPresenceSnapshot = () => {
+  const presenceByUserId = new Map(phase06VisualFixture.presence.map((status) => [status.userId, status]));
+  const allContacts = phase06VisualFixture.users
+    .filter((user) => user._id !== phase06VisualFixture.currentUser._id)
+    .map((user) => {
+      const status = presenceByUserId.get(user._id);
+
+      return {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profilePic: user.profilePic,
+        isOnline: status?.isOnline ?? false,
+        lastSeen: status?.lastSeen,
+      };
+    });
+
+  return {
+    status: 'success',
+    data: {
+      onlineUsers: allContacts.filter((contact) => contact.isOnline),
+      allContacts,
+    },
+  };
+};
+
 const mockChatifyApi = async (page: Page) => {
   await page.route('**/socket.io/**', (route) => route.abort());
   await page.route('**/api/csrf-token', (route) => fulfillJson(route, { csrfToken: 'ui-smoke-token' }));
   await page.route('**/api/auth/is-authenticated', (route) => fulfillJson(route, { token: true }));
   await page.route('**/api/user/get-logged-user', (route) => fulfillJson(route, { status: 'success', user: phase06VisualFixture.currentUser }));
+  await page.route('**/api/user/online-users', (route) => fulfillJson(route, createPresenceSnapshot()));
   await page.route('**/api/auth/logout', (route) => fulfillJson(route, { status: 'success' }));
   await page.route('**/api/chat/get-all-chats', (route) => fulfillJson(route, {
     status: 'success',
@@ -184,7 +211,11 @@ const assertRightRailSearchReuse = async (page: Page) => {
 const assertMobileLayout = async (page: Page) => {
   await expect(page.getByRole('button', { name: 'Open conversations' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Call' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Open conversation details' })).toBeVisible();
+  const conversationActions = page.getByRole('button', { name: 'More conversation actions' }).first();
+  await expect(conversationActions).toBeVisible();
+  await conversationActions.click();
+  await expect(page.getByRole('menu', { name: 'Conversation actions' }).getByRole('menuitem', { name: 'Conversation details' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(page.getByTestId('chat-context-rail')).toBeHidden();
 
   const sidebarBox = await page.getByTestId('chat-sidebar').boundingBox();

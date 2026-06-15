@@ -20,12 +20,14 @@ const socketMockState = vi.hoisted(() => {
     emit: ReturnType<typeof vi.fn>;
     on: ReturnType<typeof vi.fn>;
     off: ReturnType<typeof vi.fn>;
+    connect: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
     trigger: (event: string, ...args: unknown[]) => void;
     triggerIo: (event: string, ...args: unknown[]) => void;
     io: {
       on: ReturnType<typeof vi.fn>;
       off: ReturnType<typeof vi.fn>;
+      reconnection: ReturnType<typeof vi.fn>;
     };
   };
 
@@ -34,12 +36,14 @@ const socketMockState = vi.hoisted(() => {
     emit: ReturnType<typeof vi.fn>;
     on: ReturnType<typeof vi.fn>;
     off: ReturnType<typeof vi.fn>;
+    connect: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
     trigger: (event: string, ...args: unknown[]) => void;
     triggerIo: (event: string, ...args: unknown[]) => void;
     io: {
       on: ReturnType<typeof vi.fn>;
       off: ReturnType<typeof vi.fn>;
+      reconnection: ReturnType<typeof vi.fn>;
     };
   }> = [];
 
@@ -77,6 +81,7 @@ const socketMockState = vi.hoisted(() => {
       return socket;
     });
     socket.disconnect = vi.fn();
+    socket.connect = vi.fn();
     socket.trigger = (event: string, ...args: unknown[]) => {
       if (event === 'connect') {
         socket.connected = true;
@@ -104,6 +109,7 @@ const socketMockState = vi.hoisted(() => {
         removeHandler(ioHandlers, event, handler);
         return socket.io;
       }),
+      reconnection: vi.fn(() => socket.io),
     };
 
     sockets.push(socket);
@@ -113,8 +119,18 @@ const socketMockState = vi.hoisted(() => {
   return { sockets, createSocket };
 });
 
+const axiosMockState = vi.hoisted(() => ({
+  refreshAuthSession: vi.fn(),
+  dispatchAuthExpired: vi.fn(),
+}));
+
 vi.mock('socket.io-client', () => ({
   io: vi.fn(() => socketMockState.createSocket()),
+}));
+
+vi.mock('../api/axios', () => ({
+  refreshAuthSession: axiosMockState.refreshAuthSession,
+  dispatchAuthExpired: axiosMockState.dispatchAuthExpired,
 }));
 
 vi.mock('../utils/sounds', () => ({
@@ -142,6 +158,8 @@ describe('useChatSocket', () => {
     });
     socketMockState.sockets.length = 0;
     vi.mocked(io).mockClear();
+    axiosMockState.refreshAuthSession.mockResolvedValue(undefined);
+    axiosMockState.dispatchAuthExpired.mockClear();
     useAuthStore.setState({
       user: makeUser({ _id: 'user-1' }),
       isAuthenticated: true,
@@ -558,6 +576,16 @@ describe('useChatSocket', () => {
     });
 
     const socket = socketMockState.sockets[0];
+
+    act(() => {
+      socket.trigger('socket:ready', {
+        userId: 'user-1',
+        socketId: 'socket-1',
+        joinedChats: 1,
+        presence: [],
+      });
+    });
+
     expect(result.current.isSocketConnected).toBe(true);
 
     act(() => {
@@ -582,7 +610,67 @@ describe('useChatSocket', () => {
       socket.triggerIo('reconnect');
     });
 
+    expect(result.current.isSocketConnected).toBe(false);
+
+    act(() => {
+      socket.trigger('socket:ready', {
+        userId: 'user-1',
+        socketId: 'socket-2',
+        joinedChats: 1,
+        presence: [],
+      });
+    });
+
     expect(result.current.isSocketConnected).toBe(true);
+  });
+
+  it('refreshes auth and waits for socket readiness after socket auth errors', async () => {
+    const { result } = renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+
+    act(() => {
+      socket.trigger('connect_error', Object.assign(new Error('Socket authentication expired'), {
+        data: {
+          code: 'socket_auth_expired',
+          message: 'Socket authentication expired',
+        },
+      }));
+    });
+
+    expect(result.current.socketStatus).toBe('authenticating');
+
+    await waitFor(() => {
+      expect(axiosMockState.refreshAuthSession).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(socket.io.reconnection).toHaveBeenCalledWith(true);
+      expect(socket.connect).toHaveBeenCalled();
+    });
+
+    expect(result.current.isSocketConnected).toBe(false);
+
+    act(() => {
+      socket.trigger('socket:ready', {
+        userId: 'user-1',
+        socketId: 'socket-refreshed',
+        joinedChats: 1,
+        presence: [{ userId: 'user-2', isOnline: true }],
+      });
+    });
+
+    expect(result.current.socketStatus).toBe('ready');
+    expect(result.current.isSocketConnected).toBe(true);
+    expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
+      isOnline: true,
+    });
   });
 
   it('routes realtime call events and resolves call acknowledgements', async () => {

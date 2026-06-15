@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '../api/chatApi';
 import { messageApi } from '../api/messageApi';
+import { userApi } from '../api/userApi';
 import { useAuthStore } from '../store/authstore';
-import type { AttachmentSummary, Chat, Message, MessageStatus, SharedAssetKind } from '../types/chat';
+import { usePresenceStore } from '../store/presenceStore';
+import type { AttachmentSummary, Chat, Message, MessageStatus, SharedAssetKind, UserOnlineStatus } from '../types/chat';
 import {
   applyBatchReadInCache,
   applyReceiptPatchInCache,
@@ -24,6 +26,7 @@ export const messagesQueryKey = (chatId: string) => ['messages', chatId] as cons
 export const messageSearchQueryKey = (chatId: string, query: string) => ['messageSearch', chatId, query] as const;
 export const sharedAssetsQueryKey = (chatId: string, kind?: SharedAssetKind) => ['sharedAssets', chatId, kind ?? 'all'] as const;
 export const pinnedMessagesQueryKey = (chatId: string) => ['pinnedMessages', chatId] as const;
+export const onlinePresenceQueryKey = ['onlinePresence'] as const;
 
 type SendMessageVariables = {
   chatId: string;
@@ -58,6 +61,25 @@ const MIN_MESSAGE_SEARCH_LENGTH = 2;
 const normalizeSearchText = (query: string) => query.trim();
 
 const hasAttachmentFiles = (attachments?: File[]) => Boolean(attachments?.length);
+
+const getPresenceName = (user: { firstName?: string; lastName?: string }) => (
+  `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim()
+);
+
+const normalizePresenceSnapshot = (
+  contacts: Array<{
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+    isOnline?: boolean;
+    lastSeen?: string;
+  }>
+): UserOnlineStatus[] => contacts.map((contact) => ({
+  userId: contact._id,
+  userName: getPresenceName(contact),
+  isOnline: contact.isOnline === true,
+  lastSeen: contact.lastSeen,
+}));
 
 const invalidateDetailQueries = (queryClient: ReturnType<typeof useQueryClient>, chatId: string) => {
   queryClient.invalidateQueries({ queryKey: ['sharedAssets', chatId] });
@@ -108,6 +130,30 @@ export const useChats = () => {
     },
     enabled: isAuthenticated,
   });
+};
+
+export const useOnlinePresence = ({ enabled = true }: { enabled?: boolean } = {}) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const replaceOnlineUsers = usePresenceStore((state) => state.replaceOnlineUsers);
+  const query = useQuery({
+    queryKey: onlinePresenceQueryKey,
+    queryFn: async () => {
+      const response = await userApi.getOnlineUsers();
+      return normalizePresenceSnapshot(response.data.data.allContacts);
+    },
+    enabled: enabled && isAuthenticated,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+
+  useEffect(() => {
+    if (query.data) {
+      replaceOnlineUsers(query.data);
+    }
+  }, [query.data, replaceOnlineUsers]);
+
+  return query;
 };
 
 export const useMessages = (chatId: string | null) => {

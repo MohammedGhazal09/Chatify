@@ -1,4 +1,5 @@
 import { Server } from 'socket.io'
+import jwt from 'jsonwebtoken'
 import User from '../Models/userModel.mjs'
 import Message from '../Models/messageModel.mjs'
 import Chats from '../Models/chatModel.mjs'
@@ -446,7 +447,12 @@ const authenticateSocket = (socket, next) => {
     const { userId } = verifyAccessToken(token)
     socket.data.userId = userId
     next()
-  } catch {
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      next(createSocketAuthError('socket_auth_expired', 'Socket authentication expired'))
+      return
+    }
+
     next(createSocketAuthError('socket_auth_invalid', 'Socket authentication invalid'))
   }
 }

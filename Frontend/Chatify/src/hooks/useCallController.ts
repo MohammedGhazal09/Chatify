@@ -57,6 +57,7 @@ export interface UseCallControllerOptions {
   currentUserId?: string;
   otherMember: User | null;
   otherMemberStatus: UserOnlineStatus | null;
+  isPresenceChecking?: boolean;
   conversationControls?: ConversationControls;
   isAuthenticated: boolean;
   isSocketConnected: boolean;
@@ -159,6 +160,7 @@ export const useCallController = ({
   currentUserId,
   otherMember,
   otherMemberStatus,
+  isPresenceChecking = false,
   conversationControls,
   isAuthenticated,
   isSocketConnected,
@@ -257,6 +259,10 @@ export const useCallController = ({
       return { available: false, reason: 'Call recipient is unavailable.' };
     }
 
+    if (isPresenceChecking && !otherMemberStatus) {
+      return { available: false, reason: 'Checking availability.' };
+    }
+
     if (!otherMemberStatus?.isOnline) {
       return { available: false, reason: CALL_ONLINE_REQUIREMENT_REASON };
     }
@@ -279,8 +285,9 @@ export const useCallController = ({
     conversationControls?.isDirectChat,
     isAuthenticated,
     isSocketConnected,
+    isPresenceChecking,
     otherMember,
-    otherMemberStatus?.isOnline,
+    otherMemberStatus,
     selectedChat,
   ]);
 

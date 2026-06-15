@@ -4,7 +4,6 @@ import helmet from 'helmet';
 import hpp from 'hpp';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
-import { randomBytes } from 'crypto';
 import authRouter from './Routes/authRouter.mjs';
 import userRouter from './Routes/userRouter.mjs'
 import chatRouter from './Routes/chatRouter.mjs';
@@ -15,6 +14,7 @@ import { CustomError } from './Utils/customError.mjs';
 import sanitization from './Middlewares/sanitization.mjs';
 import { requestLogger, errorRequestLogger } from './Middlewares/requestLogger.mjs';
 import { queueStatus, queueHeavyRequests, addQueueHeaders } from './Middlewares/queueMiddleware.mjs';
+import csrfProtection, { createCsrfToken, getCsrfCookieOptions } from './Middlewares/csrfProtection.mjs';
 import passport from 'passport';
 import './Config/passport.mjs'; // Import passport configuration
 import {googleAuth,
@@ -106,19 +106,13 @@ app.get("/api/auth/github/callback", githubCallback);
 app.get("/api/auth/discord", discordAuth);
 app.get("/api/auth/discord/callback", discordCallback);
 
-const createCsrfToken = () => randomBytes(32).toString('base64url');
-
 app.get('/api/csrf-token', (req, res) => {
   const token = createCsrfToken();
-  res.cookie('XSRF-TOKEN', token, {
-    httpOnly: false,
-    sameSite: isProd ? 'none' : 'lax',
-    secure: isProd,
-  });
+  res.cookie('XSRF-TOKEN', token, getCsrfCookieOptions());
   res.status(204).end();
 });
 
-app.use('/api/auth', authRouter);
+app.use('/api/auth', csrfProtection, authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, chatRouter);
 app.use('/api/message', protect, messageLimiter, messageRouter);

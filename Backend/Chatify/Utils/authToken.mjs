@@ -41,10 +41,16 @@ export const readAccessTokenFromRequest = (req) => {
 };
 
 export const verifyAccessToken = (token) => {
-  const decoded = jwt.verify(token, process.env.SECRET_JWT_KEY);
+  const decoded = jwt.verify(token, process.env.SECRET_JWT_KEY, {
+    algorithms: ['HS256'],
+  });
 
   if (!decoded?.userId) {
     throw new jwt.JsonWebTokenError('Missing user id claim');
+  }
+
+  if (decoded.type && decoded.type !== 'access') {
+    throw new jwt.JsonWebTokenError('Invalid token type');
   }
 
   return {

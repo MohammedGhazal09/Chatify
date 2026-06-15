@@ -3,7 +3,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { messageApi } from '../api/messageApi';
+import { userApi } from '../api/userApi';
 import { useAuthStore } from '../store/authstore';
+import { usePresenceStore } from '../store/presenceStore';
 import { makeMessage, makeUser } from '../test/chatFixtures';
 import {
   messageSearchQueryKey,
@@ -11,6 +13,7 @@ import {
   pinnedMessagesQueryKey,
   sharedAssetsQueryKey,
   useMessageSearch,
+  useOnlinePresence,
   usePinnedMessages,
   useSharedAssets,
 } from './useChatQueries';
@@ -20,6 +23,12 @@ vi.mock('../api/messageApi', () => ({
     searchMessages: vi.fn(),
     getSharedAssets: vi.fn(),
     getPinnedMessages: vi.fn(),
+  },
+}));
+
+vi.mock('../api/userApi', () => ({
+  userApi: {
+    getOnlineUsers: vi.fn(),
   },
 }));
 
@@ -44,6 +53,10 @@ describe('useMessageSearch', () => {
       user: makeUser(),
       isAuthenticated: true,
       isLoading: false,
+    });
+    usePresenceStore.setState({
+      onlineUsers: new Map(),
+      typingUsers: new Map(),
     });
     vi.mocked(messageApi.searchMessages).mockResolvedValue({
       data: {
@@ -101,6 +114,33 @@ describe('useMessageSearch', () => {
         },
       },
     } as unknown as Awaited<ReturnType<typeof messageApi.getPinnedMessages>>);
+    vi.mocked(userApi.getOnlineUsers).mockResolvedValue({
+      data: {
+        status: 'success',
+        data: {
+          onlineUsers: [],
+          allContacts: [
+            {
+              _id: 'user-2',
+              firstName: 'Online',
+              lastName: 'Contact',
+              isOnline: true,
+            },
+            {
+              _id: 'user-3',
+              firstName: 'Away',
+              lastName: 'Contact',
+              isOnline: false,
+              lastSeen: '2026-06-14T01:00:00.000Z',
+            },
+          ],
+        },
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as unknown as Awaited<ReturnType<typeof userApi.getOnlineUsers>>);
   });
 
   afterEach(() => {
@@ -175,5 +215,25 @@ describe('useMessageSearch', () => {
     expect(queryClient.getQueryData(pinnedMessagesQueryKey('chat-1'))).toEqual([
       expect.objectContaining({ messageId: 'message-1' }),
     ]);
+  });
+
+  it('hydrates the presence store from the HTTP presence fallback', async () => {
+    const { result } = renderHook(() => useOnlinePresence(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toHaveLength(2);
+    });
+
+    expect(userApi.getOnlineUsers).toHaveBeenCalledTimes(1);
+    expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
+      userName: 'Online Contact',
+      isOnline: true,
+    });
+    expect(usePresenceStore.getState().onlineUsers.get('user-3')).toMatchObject({
+      isOnline: false,
+      lastSeen: '2026-06-14T01:00:00.000Z',
+    });
   });
 });

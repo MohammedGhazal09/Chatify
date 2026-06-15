@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import jsonwebtoken from 'jsonwebtoken';
 import { createUser } from '../fixtures/users.mjs';
-import { signupWithAgent } from '../helpers/authAgent.mjs';
+import { getCsrfForAgent, signupWithAgent } from '../helpers/authAgent.mjs';
 import {
   connectSocketAsUser,
   connectSocketWithCookie,
+  connectSocketWithReady,
   emitWithAck,
   extractCookieHeader,
   waitForSocketEvent,
@@ -92,6 +94,42 @@ describe('authenticated Socket.IO handshake', () => {
     expect(error.message).toBe('Socket authentication invalid');
     expect(error.data).toMatchObject({ code: 'socket_auth_invalid' });
     expect(socket.connected).toBe(false);
+  });
+
+  it('rejects an expired access token and accepts the socket after HTTP refresh', async () => {
+    const server = await startServer();
+    const signup = await signupWithAgent({ firstName: 'Refresh', lastName: 'Socket' });
+    const expiredAccessToken = jsonwebtoken.sign(
+      {
+        userId: signup.user._id.toString(),
+        type: 'access',
+        exp: Math.floor(Date.now() / 1000) - 10,
+      },
+      process.env.SECRET_JWT_KEY,
+      { algorithm: 'HS256' }
+    );
+    const expiredSocket = trackSocket(connectSocketWithCookie(server.url, `accessToken=${expiredAccessToken}`));
+    const errorPromise = waitForSocketEvent(expiredSocket, 'connect_error');
+
+    expiredSocket.connect();
+    const error = await errorPromise;
+
+    expect(error.message).toBe('Socket authentication expired');
+    expect(error.data).toMatchObject({ code: 'socket_auth_expired' });
+    expect(expiredSocket.connected).toBe(false);
+
+    const csrfToken = await getCsrfForAgent(signup.agent);
+    const refreshResponse = await signup.agent
+      .post('/api/auth/refresh-token')
+      .set('X-CSRF-Token', csrfToken)
+      .expect(200);
+    const refreshed = await connectSocketWithReady(server.url, extractCookieHeader(refreshResponse));
+    trackSocket(refreshed.socket);
+
+    expect(refreshed.ready).toMatchObject({
+      userId: signup.user._id.toString(),
+      socketId: refreshed.socket.id,
+    });
   });
 
   it('rejects a websocket handshake from a disallowed origin before authentication', async () => {

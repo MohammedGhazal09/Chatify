@@ -14,12 +14,12 @@ export const useAuthInit = () => {
     queryKey: ['auth'],
     queryFn: async () => {
       await authApi.fetchCSRFToken()
-      const authCheck = await authApi.checkAuth()
-      
-      if (!authCheck.data.token) return null
-      
-      const userResponse = await authApi.getLoggedUser()
-      return userResponse.data.user
+      try {
+        const userResponse = await authApi.getLoggedUser()
+        return userResponse.data.user
+      } catch {
+        return null
+      }
     },
     retry: false,
     refetchOnWindowFocus: false,

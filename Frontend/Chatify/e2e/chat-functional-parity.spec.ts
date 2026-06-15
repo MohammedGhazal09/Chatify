@@ -52,7 +52,11 @@ test.describe('Phase 07 functional parity', () => {
 
     await expect(page.getByRole('button', { name: 'Call' }).first()).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Video call' }).first()).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'Open conversation details' })).toBeEnabled();
+    const conversationActions = page.getByRole('button', { name: 'More conversation actions' }).first();
+    await expect(conversationActions).toBeEnabled();
+    await conversationActions.click();
+    await expect(page.getByRole('menu', { name: 'Conversation actions' }).getByRole('menuitem', { name: 'Conversation details' })).toBeEnabled();
+    await page.keyboard.press('Escape');
     await expect(page.locator('button[aria-label="Attach file"]')).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Voice message unavailable in this phase' })).toBeDisabled();
     await expect(page.getByText('No shared files')).toBeVisible();

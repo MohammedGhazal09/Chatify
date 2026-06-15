@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveSocketUrl } from '../api/apiOrigin';
+import { dispatchAuthExpired, refreshAuthSession } from '../api/axios';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { chatsQueryKey, messagesQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
+import { chatsQueryKey, messagesQueryKey, onlinePresenceQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
 import {
   applyBatchReadInCache,
   applyDeletedMessageInCache,
@@ -61,6 +62,15 @@ type UseChatSocketOptions = {
   onCallError?: (event: SocketErrorEvent) => void;
 };
 
+export type SocketConnectionStatus =
+  | 'idle'
+  | 'connecting'
+  | 'ready'
+  | 'reconnecting'
+  | 'authenticating'
+  | 'auth_failed'
+  | 'disconnected';
+
 // Typing timeout duration (3 seconds)
 const TYPING_TIMEOUT = 3000;
 const CALL_ACK_TIMEOUT_MS = 8000;
@@ -108,11 +118,12 @@ export const useChatSocket = ({
   const presenceStore = usePresenceStore();
   const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [socketStatus, setSocketStatus] = useState<SocketConnectionStatus>('idle');
   const [socketError, setSocketError] = useState<SocketErrorEvent | null>(null);
   const [callConfig, setCallConfig] = useState<CallIceConfig | null>(null);
   const activeRoomRef = useRef<string | null>(null);
   const typingTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const authRefreshInFlightRef = useRef(false);
   
   // Use ref to avoid stale closure issues with store methods
   const presenceStoreRef = useRef(presenceStore);
@@ -123,6 +134,7 @@ export const useChatSocket = ({
   queryClientRef.current = queryClient;
 
   const socketUrl = useMemo(() => resolveSocketUrl(), []);
+  const isSocketConnected = socketStatus === 'ready';
 
   const reconcileRealtimeState = useCallback((ready?: SocketReadyEvent) => {
     queryClientRef.current.invalidateQueries({ queryKey: chatsQueryKey });
@@ -203,46 +215,93 @@ export const useChatSocket = ({
   // Connect socket and set up user connection
   useEffect(() => {
     if (!enabled || !isAuthenticated || !socketUrl) {
+      setSocketStatus('idle');
       return;
     }
 
+    let disposed = false;
     const socketInstance: Socket = io(socketUrl, {
       withCredentials: true,
       transports: ['polling', 'websocket'],
     });
 
-    setIsSocketConnected(Boolean(socketInstance.connected));
+    setSocketStatus(socketInstance.connected ? 'connecting' : 'connecting');
     setSocket(socketInstance);
 
     const handleReconnect = () => {
-      setIsSocketConnected(true);
+      setSocketStatus('reconnecting');
       setSocketError(null);
-      reconcileRealtimeState();
     };
 
     const handleConnect = () => {
-      setIsSocketConnected(true);
+      setSocketStatus('connecting');
       setSocketError(null);
-      reconcileRealtimeState();
     };
 
     const handleSocketReady = (data: SocketReadyEvent) => {
-      setIsSocketConnected(true);
+      authRefreshInFlightRef.current = false;
+      setSocketStatus('ready');
       setSocketError(null);
       setCallConfig(data.callConfig ?? null);
       reconcileRealtimeState(data);
     };
 
     const handleDisconnect = () => {
-      setIsSocketConnected(false);
+      setSocketStatus('disconnected');
     };
 
+    const refreshSocketSession = async () => {
+      if (authRefreshInFlightRef.current) {
+        return;
+      }
+
+      authRefreshInFlightRef.current = true;
+      setSocketStatus('authenticating');
+
+      try {
+        socketInstance.io.reconnection(false);
+        socketInstance.disconnect();
+        await refreshAuthSession();
+
+        if (disposed) {
+          return;
+        }
+
+        socketInstance.io.reconnection(true);
+        setSocketError(null);
+        setSocketStatus('connecting');
+        socketInstance.connect();
+      } catch {
+        if (disposed) {
+          return;
+        }
+
+        setSocketStatus('auth_failed');
+        dispatchAuthExpired();
+      } finally {
+        authRefreshInFlightRef.current = false;
+      }
+    };
+
+    const isSocketAuthError = (code?: string) => (
+      code === 'socket_auth_required' ||
+      code === 'socket_auth_invalid' ||
+      code === 'socket_auth_expired'
+    );
+
     const handleConnectError = (error: Error & { data?: Partial<SocketErrorEvent> }) => {
-      setIsSocketConnected(false);
-      setSocketError({
+      const payload = {
         code: error.data?.code ?? 'socket_connect_error',
         message: error.data?.message ?? error.message,
-      });
+      };
+
+      setSocketStatus('disconnected');
+      setSocketError(payload);
+      queryClientRef.current.invalidateQueries({ queryKey: onlinePresenceQueryKey });
+
+      if (isSocketAuthError(payload.code)) {
+        void refreshSocketSession();
+      }
     };
 
     const handleSocketError = (data: SocketErrorEvent) => {
@@ -354,6 +413,7 @@ export const useChatSocket = ({
     });
 
     return () => {
+      disposed = true;
       // Clear all typing timeouts
       Object.values(typingTimeoutRef.current).forEach(clearTimeout);
       typingTimeoutRef.current = {};
@@ -372,7 +432,7 @@ export const useChatSocket = ({
       socketInstance.io.off('reconnect', handleReconnect);
       socketInstance.disconnect();
       setSocket(null);
-      setIsSocketConnected(false);
+      setSocketStatus('idle');
       setSocketError(null);
       setCallConfig(null);
     };
@@ -738,6 +798,7 @@ export const useChatSocket = ({
 
   return {
     socket,
+    socketStatus,
     isSocketConnected,
     socketError,
     callConfig,

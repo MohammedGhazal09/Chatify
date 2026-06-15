@@ -10,6 +10,7 @@ interface ConversationHeaderProps {
   title: string;
   otherMember: User | null;
   otherMemberStatus: UserOnlineStatus | null;
+  isPresenceChecking?: boolean;
   showMessageSearch: boolean;
   showConversationMoreMenu: boolean;
   callDisabledReason?: string | null;
@@ -29,6 +30,7 @@ const ConversationHeader = ({
   title,
   otherMember,
   otherMemberStatus,
+  isPresenceChecking = false,
   showMessageSearch,
   showConversationMoreMenu,
   callDisabledReason,
@@ -72,6 +74,10 @@ const ConversationHeader = ({
         {selectedChat.isGroupChat ? (
           <p className="text-xs font-medium text-[var(--chat-text-muted)]">
             {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
+          </p>
+        ) : otherMember && isPresenceChecking ? (
+          <p className="text-xs font-medium text-[var(--chat-text-muted)]">
+            Checking availability
           </p>
         ) : otherMember ? (
           <OnlineStatus

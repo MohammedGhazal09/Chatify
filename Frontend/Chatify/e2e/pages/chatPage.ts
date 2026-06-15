@@ -39,6 +39,30 @@ const transparentPng = Buffer.from(
   'base64'
 );
 
+const createPresenceSnapshot = (
+  presence: readonly { userId: string; userName?: string; isOnline: boolean; lastSeen?: string }[]
+) => {
+  const allContacts = presence.map((status) => {
+    const [firstName = 'Contact', ...lastNameParts] = (status.userName ?? 'Contact').split(' ');
+
+    return {
+      _id: status.userId,
+      firstName,
+      lastName: lastNameParts.join(' '),
+      isOnline: status.isOnline,
+      lastSeen: status.lastSeen,
+    };
+  });
+
+  return {
+    status: 'success',
+    data: {
+      onlineUsers: allContacts.filter((contact) => contact.isOnline),
+      allContacts,
+    },
+  };
+};
+
 export const installPhase07ApiMocks = async (page: Page) => {
   const messagesByChatId = new Map<string, unknown[]>(
     Object.entries(phase07BehaviorFixture.messagesByChatId).map(([chatId, messages]) => [
@@ -53,6 +77,10 @@ export const installPhase07ApiMocks = async (page: Page) => {
     status: 'success',
     user: phase07BehaviorFixture.currentUser,
   }));
+  await page.route('**/api/user/online-users', (route) => fulfillJson(
+    route,
+    createPresenceSnapshot(phase07BehaviorFixture.presence)
+  ));
   await page.route('**/api/auth/logout', (route) => fulfillJson(route, { status: 'success' }));
   await page.route('**/api/chat/get-all-chats', (route) => fulfillJson(route, {
     status: 'success',
@@ -180,6 +208,10 @@ export const installPhase09ApiMocks = async (page: Page) => {
     status: 'success',
     user: phase09QualityGateFixture.currentUser,
   }));
+  await page.route('**/api/user/online-users', (route) => fulfillJson(
+    route,
+    createPresenceSnapshot(phase09QualityGateFixture.presence)
+  ));
   await page.route('**/api/auth/logout', (route) => fulfillJson(route, { status: 'success' }));
   await page.route('**/api/chat/get-all-chats', (route) => fulfillJson(route, {
     status: 'success',
@@ -423,7 +455,7 @@ export const expectDesktopRailWithinViewport = async (page: Page) => {
 export const expectVisibleTouchTargets = async (page: Page, labels: string[]) => {
   for (const label of labels) {
     const escapedLabel = label.replace(/"/g, '\\"');
-    const explicitButton = page.locator(`button[aria-label="${escapedLabel}"]`).first();
+    const explicitButton = page.locator(`button[aria-label="${escapedLabel}"]:visible`).first();
     const target = await explicitButton.count() > 0
       ? explicitButton
       : page.getByRole('button', { name: label }).first();

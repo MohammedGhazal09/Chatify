@@ -31,6 +31,7 @@ export interface ConversationDetailContentProps {
   currentUserId?: string;
   otherMember: User | null;
   otherMemberStatus: UserOnlineStatus | null;
+  isPresenceChecking?: boolean;
   pinnedMessages: PinnedMessage[];
   sharedFiles: SharedAsset[];
   sharedMedia: SharedAsset[];
@@ -65,6 +66,7 @@ const ConversationDetailContent = ({
   currentUserId,
   otherMember,
   otherMemberStatus,
+  isPresenceChecking = false,
   pinnedMessages,
   sharedFiles,
   sharedMedia,
@@ -119,6 +121,10 @@ const ConversationDetailContent = ({
               {selectedChat.isGroupChat ? (
                 <p className="text-sm text-[var(--chat-text-muted)]">
                   {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
+                </p>
+              ) : otherMember && isPresenceChecking ? (
+                <p className="text-sm text-[var(--chat-text-muted)]">
+                  Checking availability
                 </p>
               ) : otherMember ? (
                 <OnlineStatus

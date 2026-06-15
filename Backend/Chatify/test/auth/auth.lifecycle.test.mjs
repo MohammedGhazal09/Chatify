@@ -3,13 +3,19 @@ import { describe, expect, it } from 'vitest';
 import jsonwebtoken from 'jsonwebtoken';
 import { createHash, randomUUID } from 'crypto';
 import { createUser, buildUserPayload, TEST_PASSWORD } from '../fixtures/users.mjs';
-import { loginWithAgent, signupWithAgent } from '../helpers/authAgent.mjs';
+import { getCsrfForAgent, loginWithAgent, signupWithAgent } from '../helpers/authAgent.mjs';
 import { getTestApp } from '../setup/app.mjs';
 import OAuthHandoff from '../../Models/oauthHandoffModel.mjs';
+import Session from '../../Models/sessionModel.mjs';
 
 const getAccessTokenCookie = (response) => {
   const cookies = response.headers['set-cookie'] ?? [];
   return cookies.find((cookie) => cookie.startsWith('accessToken='));
+};
+
+const getRefreshTokenCookie = (response) => {
+  const cookies = response.headers['set-cookie'] ?? [];
+  return cookies.find((cookie) => cookie.startsWith('refreshToken='));
 };
 
 const getCookieMaxAge = (cookie) => {
@@ -53,31 +59,41 @@ const createOAuthHandoff = async ({ user, state = 'oauth-state' } = {}) => {
 };
 
 describe('auth lifecycle routes', () => {
-  it('sets an access token cookie on signup', async () => {
+  it('sets access and refresh token cookies on signup', async () => {
     const app = await getTestApp();
+    const agent = request.agent(app);
     const payload = buildUserPayload();
+    const csrfToken = await getCsrfForAgent(agent);
 
-    const response = await request(app)
+    const response = await agent
       .post('/api/auth/signup')
+      .set('X-CSRF-Token', csrfToken)
       .send(payload)
       .expect(201);
 
-    const cookie = getAccessTokenCookie(response);
-    expect(cookie).toBeTruthy();
-    expect(cookie).toContain('HttpOnly');
+    const accessCookie = getAccessTokenCookie(response);
+    const refreshCookie = getRefreshTokenCookie(response);
+    expect(accessCookie).toBeTruthy();
+    expect(refreshCookie).toBeTruthy();
+    expect(accessCookie).toContain('HttpOnly');
+    expect(refreshCookie).toContain('HttpOnly');
     expect(response.body.success).toBe(true);
   });
 
-  it('sets an access token cookie on login', async () => {
+  it('sets access and refresh token cookies on login', async () => {
     const app = await getTestApp();
+    const agent = request.agent(app);
     const user = await createUser();
+    const csrfToken = await getCsrfForAgent(agent);
 
-    const response = await request(app)
+    const response = await agent
       .post('/api/auth/login')
+      .set('X-CSRF-Token', csrfToken)
       .send({ email: user.email, password: TEST_PASSWORD })
       .expect(200);
 
     expect(getAccessTokenCookie(response)).toBeTruthy();
+    expect(getRefreshTokenCookie(response)).toBeTruthy();
     expect(response.body.status).toBe('success');
   });
 
@@ -91,34 +107,70 @@ describe('auth lifecycle routes', () => {
 
   it('clears the access token cookie on logout', async () => {
     const { agent } = await signupWithAgent();
+    const csrfToken = await getCsrfForAgent(agent);
 
-    const response = await agent.post('/api/auth/logout').expect(200);
-    const cookie = getAccessTokenCookie(response);
+    const response = await agent
+      .post('/api/auth/logout')
+      .set('X-CSRF-Token', csrfToken)
+      .expect(200);
+    const accessCookie = getAccessTokenCookie(response);
+    const refreshCookie = getRefreshTokenCookie(response);
 
-    expect(cookie).toBeTruthy();
-    expect(cookie).toContain('accessToken=');
-    expect(cookie).toMatch(/Expires=Thu, 01 Jan 1970/i);
+    expect(accessCookie).toBeTruthy();
+    expect(refreshCookie).toBeTruthy();
+    expect(accessCookie).toContain('accessToken=');
+    expect(refreshCookie).toContain('refreshToken=');
+    expect(accessCookie).toMatch(/Expires=Thu, 01 Jan 1970/i);
+    expect(refreshCookie).toMatch(/Expires=Thu, 01 Jan 1970/i);
   });
 
-  it('uses a longer cookie max-age for remember-me logins', async () => {
+  it('uses a longer refresh cookie max-age for remember-me logins', async () => {
     const user = await createUser();
 
     const normalLogin = await loginWithAgent({ email: user.email, rememberMe: false });
     const rememberLogin = await loginWithAgent({ email: user.email, rememberMe: true });
 
-    const normalMaxAge = getCookieMaxAge(getAccessTokenCookie(normalLogin.response));
-    const rememberMaxAge = getCookieMaxAge(getAccessTokenCookie(rememberLogin.response));
+    const normalMaxAge = getCookieMaxAge(getRefreshTokenCookie(normalLogin.response));
+    const rememberMaxAge = getCookieMaxAge(getRefreshTokenCookie(rememberLogin.response));
 
     expect(normalMaxAge).toBeGreaterThan(0);
     expect(rememberMaxAge).toBeGreaterThan(normalMaxAge);
   });
 
+  it('rotates refresh tokens and rejects replayed refresh cookies', async () => {
+    const app = await getTestApp();
+    const { agent, response } = await signupWithAgent();
+    const oldRefreshCookie = getRefreshTokenCookie(response)?.split(';')[0];
+    const csrfToken = await getCsrfForAgent(agent);
+
+    const refreshResponse = await agent
+      .post('/api/auth/refresh-token')
+      .set('X-CSRF-Token', csrfToken)
+      .expect(200);
+
+    expect(getAccessTokenCookie(refreshResponse)).toBeTruthy();
+    expect(getRefreshTokenCookie(refreshResponse)).toBeTruthy();
+    expect(getRefreshTokenCookie(refreshResponse)?.split(';')[0]).not.toBe(oldRefreshCookie);
+    expect(await Session.countDocuments({ revokedAt: { $ne: null } })).toBe(1);
+
+    const replayAgent = request.agent(app);
+    const replayCsrf = await getCsrfForAgent(replayAgent);
+    await replayAgent
+      .post('/api/auth/refresh-token')
+      .set('Cookie', `${oldRefreshCookie}; XSRF-TOKEN=${encodeURIComponent(replayCsrf)}`)
+      .set('X-CSRF-Token', replayCsrf)
+      .expect(401);
+  });
+
   it('rejects invalid credentials', async () => {
     const app = await getTestApp();
     const user = await createUser();
+    const agent = request.agent(app);
+    const csrfToken = await getCsrfForAgent(agent);
 
-    const response = await request(app)
+    const response = await agent
       .post('/api/auth/login')
+      .set('X-CSRF-Token', csrfToken)
       .send({ email: user.email, password: 'WrongPassword123!' });
 
     expect(response.statusCode).toBeGreaterThanOrEqual(400);
@@ -144,7 +196,7 @@ describe('auth lifecycle routes', () => {
     expect(stateCookie).toMatch(/SameSite=Lax/i);
   });
 
-  it('finalizes a valid OAuth handoff into an access token cookie', async () => {
+  it('finalizes a valid OAuth handoff into access and refresh token cookies', async () => {
     const app = await getTestApp();
     const { state, token } = await createOAuthHandoff();
 
@@ -156,6 +208,7 @@ describe('auth lifecycle routes', () => {
 
     expect(response.headers.location).toBe('http://localhost:5173/?auth=success');
     expect(getAccessTokenCookie(response)).toBeTruthy();
+    expect(getRefreshTokenCookie(response)).toBeTruthy();
     expect(getNamedCookie(response, 'chatify_oauth_state')).toMatch(/Expires=Thu, 01 Jan 1970/i);
   });
 
