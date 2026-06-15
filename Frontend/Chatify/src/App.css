@@ -1,8 +1,19 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
-  background-color: #d3e2f1;
+  background-color: #050806;
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+#root {
+  min-height: 100dvh;
+  background-color: #050806;
 }
 
 /* Chrome, Safari and Opera */

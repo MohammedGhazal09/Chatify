@@ -1350,7 +1350,9 @@ const ChatPage = () => {
     (socketError || !isSocketConnected)
   );
 
-  if (!isAuthenticated && isChatsLoading) {
+  const isInitialChatListLoading = isAuthenticated && isChatsLoading && !chats;
+
+  if ((!isAuthenticated && isChatsLoading) || isInitialChatListLoading) {
     return <LoadingSpinner />;
   }
 
