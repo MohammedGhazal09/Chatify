@@ -92,6 +92,8 @@ const terminalStatusMap: Partial<Record<string, CallUiStatus>> = {
 const CALL_DISCONNECT_GRACE_MS = 15_000;
 const CALL_SETUP_TIMEOUT_MS = 20_000;
 const CALL_ONLINE_REQUIREMENT_REASON = 'Both users must be online to call.';
+const CALL_SOCKET_NOT_READY_REASON = 'Realtime connection is not ready for calls.';
+const CALL_PEER_UNREACHABLE_REASON = 'This person is online but not reachable for calls yet.';
 const activeCallStatuses = new Set<CallUiStatus>([
   'incoming',
   'outgoing',
@@ -252,7 +254,7 @@ export const useCallController = ({
     }
 
     if (!isSocketConnected) {
-      return { available: false, reason: CALL_ONLINE_REQUIREMENT_REASON };
+      return { available: false, reason: CALL_SOCKET_NOT_READY_REASON };
     }
 
     if (!otherMember) {
@@ -265,6 +267,10 @@ export const useCallController = ({
 
     if (!otherMemberStatus?.isOnline) {
       return { available: false, reason: CALL_ONLINE_REQUIREMENT_REASON };
+    }
+
+    if (otherMemberStatus.isCallReachable !== true) {
+      return { available: false, reason: CALL_PEER_UNREACHABLE_REASON };
     }
 
     if (!isWebRTCSupported()) {

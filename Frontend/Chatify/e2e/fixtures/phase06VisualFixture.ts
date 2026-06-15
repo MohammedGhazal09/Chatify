@@ -238,11 +238,13 @@ export const phase06Presence: UserOnlineStatus[] = [
     userId: phase06InNode._id,
     userName: 'IN-8B21',
     isOnline: true,
+    isCallReachable: true,
   },
   {
     userId: phase06DataSync._id,
     userName: 'DS-4C9A',
     isOnline: true,
+    isCallReachable: true,
   },
 ];
 

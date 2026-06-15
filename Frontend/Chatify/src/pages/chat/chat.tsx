@@ -219,8 +219,6 @@ const ChatPage = () => {
 
   const chatIds = useMemo(() => chats?.map((chat) => chat._id) ?? [], [chats]);
   const { data: unreadCounts } = useUnreadCounts(chatIds);
-  const presenceQuery = useOnlinePresence({ enabled: isAuthenticated });
-  const refetchPresence = presenceQuery.refetch;
 
   useSelectedChatPersistence({
     userId: user?._id,
@@ -243,7 +241,6 @@ const ChatPage = () => {
   const isConversationControlPending = blockChatPeerMutation.isPending || unblockChatPeerMutation.isPending;
   const otherMember = selectedChat ? getOtherMember(selectedChat, user?._id) : null;
   const otherMemberStatus = otherMember ? onlineUsers.get(otherMember._id) ?? null : null;
-  const isPresenceChecking = Boolean(otherMember && presenceQuery.isFetching && !onlineUsers.has(otherMember._id));
   const allMessages = useMemo(() => messages ?? [], [messages]);
   const messageSearchQuery = showMessageSearch ? messageSearch : '';
   const messageSearchResult = useMessageSearch(selectedChatId, messageSearchQuery);
@@ -408,6 +405,13 @@ const ChatPage = () => {
       showToast(event.message ?? 'Call action failed.', 'error');
     },
   });
+
+  const presenceQuery = useOnlinePresence({
+    enabled: isAuthenticated && !isSocketConnected,
+    syncToStore: !isSocketConnected,
+  });
+  const refetchPresence = presenceQuery.refetch;
+  const isPresenceChecking = Boolean(otherMember && presenceQuery.isFetching && !onlineUsers.has(otherMember._id));
 
   const callSocketActions = useMemo(() => ({
     emitCallStart,

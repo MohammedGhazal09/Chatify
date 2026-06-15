@@ -7,8 +7,8 @@ import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
 import { makeChat, makeMessage, makeUser } from '../test/chatFixtures';
 import { isSoundEnabled, playCallEndedSound, playNotificationSound } from '../utils/sounds';
-import type { CallSessionPayload, Chat } from '../types/chat';
-import { chatsQueryKey, messagesQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
+import type { CallSessionPayload, Chat, ConversationControls, UserOnlineStatus } from '../types/chat';
+import { chatsQueryKey, messagesQueryKey, onlinePresenceQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
 import type { MessagesCacheData } from './messageCache';
 import { useChatSocket } from './useChatSocket';
 
@@ -47,6 +47,8 @@ const socketMockState = vi.hoisted(() => {
     };
   }> = [];
 
+  let readyPayloadOnConnect: unknown;
+
   const createSocket = () => {
     const handlers = new Map<string, Set<SocketEventHandler>>();
     const ioHandlers = new Map<string, Set<SocketEventHandler>>();
@@ -70,7 +72,7 @@ const socketMockState = vi.hoisted(() => {
       registry.get(event)?.delete(handler);
     };
 
-    socket.connected = true;
+    socket.connected = false;
     socket.emit = vi.fn();
     socket.on = vi.fn((event: string, handler: SocketEventHandler) => {
       addHandler(handlers, event, handler);
@@ -80,8 +82,20 @@ const socketMockState = vi.hoisted(() => {
       removeHandler(handlers, event, handler);
       return socket;
     });
-    socket.disconnect = vi.fn();
-    socket.connect = vi.fn();
+    socket.disconnect = vi.fn(() => {
+      socket.connected = false;
+      return socket;
+    });
+    socket.connect = vi.fn(() => {
+      socket.connected = true;
+      handlers.get('connect')?.forEach((handler) => handler());
+
+      if (readyPayloadOnConnect) {
+        handlers.get('socket:ready')?.forEach((handler) => handler(readyPayloadOnConnect));
+      }
+
+      return socket;
+    });
     socket.trigger = (event: string, ...args: unknown[]) => {
       if (event === 'connect') {
         socket.connected = true;
@@ -116,7 +130,16 @@ const socketMockState = vi.hoisted(() => {
     return socket;
   };
 
-  return { sockets, createSocket };
+  return {
+    sockets,
+    createSocket,
+    setReadyPayloadOnConnect: (payload: unknown) => {
+      readyPayloadOnConnect = payload;
+    },
+    clearReadyPayloadOnConnect: () => {
+      readyPayloadOnConnect = undefined;
+    },
+  };
 });
 
 const axiosMockState = vi.hoisted(() => ({
@@ -157,6 +180,7 @@ describe('useChatSocket', () => {
       },
     });
     socketMockState.sockets.length = 0;
+    socketMockState.clearReadyPayloadOnConnect();
     vi.mocked(io).mockClear();
     axiosMockState.refreshAuthSession.mockResolvedValue(undefined);
     axiosMockState.dispatchAuthExpired.mockClear();
@@ -176,6 +200,39 @@ describe('useChatSocket', () => {
     vi.clearAllMocks();
   });
 
+  it('registers socket readiness listeners before connecting', async () => {
+    socketMockState.setReadyPayloadOnConnect({
+      userId: 'user-1',
+      socketId: 'socket-ready',
+      joinedChats: 1,
+      presence: [
+        { userId: 'user-2', userName: 'Grace Hopper', isOnline: true, isCallReachable: true },
+      ],
+    });
+
+    const { result } = renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(result.current.socketStatus).toBe('ready');
+    });
+
+    const socket = socketMockState.sockets[0];
+    const readyListenerCallIndex = socket.on.mock.calls.findIndex(([eventName]) => eventName === 'socket:ready');
+
+    expect(readyListenerCallIndex).toBeGreaterThanOrEqual(0);
+    expect(socket.on.mock.invocationCallOrder[readyListenerCallIndex]).toBeLessThan(
+      socket.connect.mock.invocationCallOrder[0]
+    );
+    await waitFor(() => {
+      expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
+        isOnline: true,
+        isCallReachable: true,
+      });
+    });
+  });
+
   it('clears previous chat typing state immediately when the selected chat changes', async () => {
     const { rerender, unmount } = renderHook(
       ({ chatId }) => useChatSocket({ chatId }),
@@ -190,6 +247,7 @@ describe('useChatSocket', () => {
     });
 
     expect(io).toHaveBeenCalledWith('http://localhost:3000', expect.objectContaining({
+      autoConnect: false,
       transports: ['polling', 'websocket'],
       withCredentials: true,
     }));
@@ -296,6 +354,39 @@ describe('useChatSocket', () => {
       text: 'Realtime message',
     });
     expect(queryClient.getQueryData<Map<string, number>>(['unreadCounts', 'chat-1'])?.get('chat-1')).toBe(0);
+  });
+
+  it('preserves recipient conversation controls from chat:new payloads', async () => {
+    const controls: ConversationControls = {
+      isDirectChat: true,
+      peerId: 'user-2',
+      canSendMessage: true,
+      canBlockUser: true,
+      canUnblockUser: false,
+      blockedByMe: false,
+      blockedMe: false,
+      messagingDisabledReason: null,
+    };
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('chat:new', makeChat({
+        _id: 'chat-new',
+        conversationControls: controls,
+      }));
+    });
+
+    expect(queryClient.getQueryData<Chat[]>(chatsQueryKey)?.[0]).toMatchObject({
+      _id: 'chat-new',
+      conversationControls: controls,
+    });
   });
 
   it('acknowledges incoming delivery only after the message is cached', async () => {
@@ -536,6 +627,7 @@ describe('useChatSocket', () => {
         userId: 'user-2',
         userName: 'Cipher Node',
         isOnline: true,
+        isCallReachable: true,
       });
       socket.trigger('user:typing', {
         chatId: 'chat-1',
@@ -548,15 +640,18 @@ describe('useChatSocket', () => {
         socketId: 'socket-1',
         joinedChats: 1,
         presence: [
-          { userId: 'user-3', userName: 'Data Sync', isOnline: true },
+          { userId: 'user-3', userName: 'Data Sync', isOnline: true, isCallReachable: true },
         ],
       });
       socket.triggerIo('reconnect');
     });
 
-    expect(usePresenceStore.getState().onlineUsers.get('user-3')).toMatchObject({
-      userName: 'Data Sync',
-      isOnline: true,
+    await waitFor(() => {
+      expect(usePresenceStore.getState().onlineUsers.get('user-3')).toMatchObject({
+        userName: 'Data Sync',
+        isOnline: true,
+        isCallReachable: true,
+      });
     });
     expect(usePresenceStore.getState().getTypingUsersForChat('chat-1')).toEqual([
       expect.objectContaining({ userId: 'user-2', isTyping: true }),
@@ -564,6 +659,72 @@ describe('useChatSocket', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: chatsQueryKey });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['unreadCounts'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: messagesQueryKey('chat-1') });
+  });
+
+  it('updates the online presence query cache from realtime status changes', async () => {
+    queryClient.setQueryData<UserOnlineStatus[]>(onlinePresenceQueryKey, [
+      {
+        userId: 'user-2',
+        userName: 'Cached Contact',
+        isOnline: false,
+        isCallReachable: false,
+        lastSeen: '2026-06-14T01:00:00.000Z',
+      },
+    ]);
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('user:status-change', {
+        userId: 'user-2',
+        userName: 'Realtime Contact',
+        isOnline: true,
+        isCallReachable: true,
+      });
+    });
+
+    expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
+      userName: 'Realtime Contact',
+      isOnline: true,
+      isCallReachable: true,
+    });
+    expect(queryClient.getQueryData<UserOnlineStatus[]>(onlinePresenceQueryKey)).toEqual([
+      expect.objectContaining({
+        userId: 'user-2',
+        userName: 'Realtime Contact',
+        isOnline: true,
+        isCallReachable: true,
+      }),
+    ]);
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('user:status-change', {
+        userId: 'user-2',
+        userName: 'Realtime Contact',
+        isOnline: false,
+        lastSeen: '2026-06-14T01:05:00.000Z',
+      });
+    });
+
+    expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
+      isOnline: false,
+      isCallReachable: false,
+      lastSeen: '2026-06-14T01:05:00.000Z',
+    });
+    expect(queryClient.getQueryData<UserOnlineStatus[]>(onlinePresenceQueryKey)).toEqual([
+      expect.objectContaining({
+        userId: 'user-2',
+        isOnline: false,
+        isCallReachable: false,
+        lastSeen: '2026-06-14T01:05:00.000Z',
+      }),
+    ]);
   });
 
   it('publishes disconnect state and blocks call emits while disconnected', async () => {
@@ -662,15 +823,61 @@ describe('useChatSocket', () => {
         userId: 'user-1',
         socketId: 'socket-refreshed',
         joinedChats: 1,
-        presence: [{ userId: 'user-2', isOnline: true }],
+        presence: [{ userId: 'user-2', isOnline: true, isCallReachable: true }],
       });
     });
 
     expect(result.current.socketStatus).toBe('ready');
     expect(result.current.isSocketConnected).toBe(true);
-    expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
-      isOnline: true,
+    await waitFor(() => {
+      expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
+        isOnline: true,
+        isCallReachable: true,
+      });
     });
+  });
+
+  it('refreshes once when transport connects without socket readiness', async () => {
+    vi.useFakeTimers();
+    let unmount: (() => void) | undefined;
+    try {
+      const rendered = renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+        wrapper: createWrapper(queryClient),
+      });
+      unmount = rendered.unmount;
+      const { result } = rendered;
+      const socket = socketMockState.sockets[0];
+
+      expect(socket.connect).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(axiosMockState.refreshAuthSession).toHaveBeenCalledTimes(1);
+      expect(socket.connect).toHaveBeenCalledTimes(2);
+      expect(result.current.socketStatus).toBe('connecting');
+
+      await act(async () => {
+        vi.advanceTimersByTime(5000);
+        await Promise.resolve();
+      });
+
+      expect(axiosMockState.refreshAuthSession).toHaveBeenCalledTimes(1);
+      expect(result.current.socketStatus).toBe('disconnected');
+      expect(result.current.socketError).toMatchObject({
+        code: 'socket_ready_timeout',
+        message: 'Realtime connection is not ready for calls.',
+      });
+    } finally {
+      unmount?.();
+      vi.useRealTimers();
+    }
   });
 
   it('routes realtime call events and resolves call acknowledgements', async () => {

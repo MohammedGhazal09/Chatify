@@ -42,6 +42,7 @@ const createPresenceSnapshot = () => {
         lastName: user.lastName,
         profilePic: user.profilePic,
         isOnline: status?.isOnline ?? false,
+        isCallReachable: status?.isCallReachable ?? status?.isOnline ?? false,
         lastSeen: status?.lastSeen,
       };
     });

@@ -137,7 +137,7 @@ const onSubmit = async (data: SignupFormData) => {
             <p className="text-gray-400 text-center text-sm">Sign up to get started with Chatify</p>
           </div>
 
-          <div className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label htmlFor="firstName" className="block text-sm font-medium text-white">
@@ -235,21 +235,21 @@ const onSubmit = async (data: SignupFormData) => {
             )}
 
             {/* Submit button */}
-<button
-  onClick={handleSubmit(onSubmit)}
-  disabled={isSubmitting || signupMutation.isPending}
-  className="w-full bg-gradient-to-r cursor-pointer from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 shadow-lg shadow-green-500/25"
->
-  {isSubmitting || signupMutation.isPending ? (
-    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-  ) : (
-    <>
-      Create Account
-      <ArrowRight size={18} />
-    </>
-  )}
-</button>
-          </div>
+            <button
+              type="submit"
+              disabled={isSubmitting || signupMutation.isPending}
+              className="w-full bg-gradient-to-r cursor-pointer from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 shadow-lg shadow-green-500/25"
+            >
+              {isSubmitting || signupMutation.isPending ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  Create Account
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+          </form>
 
           {/* Divider */}
           <div className="my-6 flex items-center">

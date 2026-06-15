@@ -22,6 +22,7 @@ interface OnlineUsersResponse {
       lastName?: string;
       profilePic?: string;
       isOnline: boolean;
+      isCallReachable?: boolean;
     }>;
     allContacts: Array<{
       _id: string;
@@ -29,6 +30,7 @@ interface OnlineUsersResponse {
       lastName?: string;
       profilePic?: string;
       isOnline?: boolean;
+      isCallReachable?: boolean;
       lastSeen?: string;
     }>;
   };

@@ -51,9 +51,20 @@ describe('direct chat continuation', () => {
 
     expect(chat.directKey).toBe(expectedDirectKey);
     expect(response.body.data.chat.members).toHaveLength(2);
+    expect(response.body.data.chat.conversationControls).toMatchObject({
+      isDirectChat: true,
+      peerId: target.user._id.toString(),
+    });
     expect(joinUserToChat).toHaveBeenCalledTimes(2);
     expect(emitToUserSockets).toHaveBeenCalledTimes(1);
-    expect(emitToUserSockets).toHaveBeenCalledWith(target.user._id, 'chat:new', expect.any(Object));
+    const [emittedUserId, emittedEvent, emittedChat] = emitToUserSockets.mock.calls[0];
+    expect(emittedUserId.toString()).toBe(target.user._id.toString());
+    expect(emittedEvent).toBe('chat:new');
+    expect(emittedChat._id.toString()).toBe(response.body.data.chat._id);
+    expect(emittedChat.conversationControls).toMatchObject({
+      isDirectChat: true,
+      peerId: requester.user._id.toString(),
+    });
   });
 
   it('continues an existing exact-email direct chat with 200 semantics', async () => {

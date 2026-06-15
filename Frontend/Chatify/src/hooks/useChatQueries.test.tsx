@@ -125,12 +125,14 @@ describe('useMessageSearch', () => {
               firstName: 'Online',
               lastName: 'Contact',
               isOnline: true,
+              isCallReachable: true,
             },
             {
               _id: 'user-3',
               firstName: 'Away',
               lastName: 'Contact',
               isOnline: false,
+              isCallReachable: false,
               lastSeen: '2026-06-14T01:00:00.000Z',
             },
           ],
@@ -230,10 +232,62 @@ describe('useMessageSearch', () => {
     expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
       userName: 'Online Contact',
       isOnline: true,
+      isCallReachable: true,
     });
     expect(usePresenceStore.getState().onlineUsers.get('user-3')).toMatchObject({
       isOnline: false,
+      isCallReachable: false,
       lastSeen: '2026-06-14T01:00:00.000Z',
+    });
+  });
+
+  it('does not overwrite realtime presence state when fallback store sync is disabled', async () => {
+    vi.mocked(userApi.getOnlineUsers).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          onlineUsers: [],
+          allContacts: [
+            {
+              _id: 'user-2',
+              firstName: 'Online',
+              lastName: 'Contact',
+              isOnline: false,
+              isCallReachable: false,
+              lastSeen: '2026-06-14T01:00:00.000Z',
+            },
+          ],
+        },
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as unknown as Awaited<ReturnType<typeof userApi.getOnlineUsers>>);
+
+    usePresenceStore.getState().setUserOnline('user-2', {
+      userId: 'user-2',
+      userName: 'Realtime Contact',
+      isOnline: true,
+      isCallReachable: true,
+    });
+
+    const { result } = renderHook(() => useOnlinePresence({ syncToStore: false }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.[0]).toMatchObject({
+        userId: 'user-2',
+        isOnline: false,
+        isCallReachable: false,
+      });
+    });
+
+    expect(usePresenceStore.getState().onlineUsers.get('user-2')).toMatchObject({
+      userName: 'Realtime Contact',
+      isOnline: true,
+      isCallReachable: true,
     });
   });
 });

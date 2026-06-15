@@ -179,6 +179,9 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
   await newChat.populate("members", "-password");
   await newChat.populate("latestMessage");
 
+  const requesterChat = await serializeChatForRequester(newChat, requesterId);
+  const targetChat = await serializeChatForRequester(newChat, targetUser._id.toString());
+
   // Notify all members about the new chat via socket
   try {
     // Join both users to the new chat room so they can receive messages immediately
@@ -186,7 +189,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
     joinUserToChat(targetUser._id.toString(), newChat._id);
     
     // Notify the target user about the new chat so they can see it without refreshing
-    emitToUserSockets(targetUser._id, 'chat:new', newChat);
+    emitToUserSockets(targetUser._id, 'chat:new', targetChat);
   } catch (err) {
     // Log but don't fail the request if socket notification fails
     console.error('Failed to notify users about new chat:', err);
@@ -195,7 +198,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
   res.status(201).json({
     status: "chat created successfully",
     data: {
-      chat: await serializeChatForRequester(newChat, requesterId),
+      chat: requesterChat,
     },
   });
 });

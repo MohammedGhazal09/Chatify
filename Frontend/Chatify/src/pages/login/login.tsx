@@ -173,7 +173,7 @@ const Login = () => {
             </p>
           </div>
 
-          <div className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Email */}
             <div className="space-y-2">
               <label
@@ -284,8 +284,8 @@ const Login = () => {
 
             {/* Submit button */}
             <button
-              onClick={handleSubmit(onSubmit)}
-              disabled={isSubmitting}
+              type="submit"
+              disabled={isSubmitting || loginMutation.isPending}
               className="w-full bg-gradient-to-r cursor-pointer from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 shadow-lg shadow-green-500/25"
             >
               <>
@@ -293,7 +293,7 @@ const Login = () => {
                 <ArrowRight size={18} />
               </>
             </button>
-          </div>
+          </form>
 
           {/* Divider */}
           <div className="my-6 flex items-center">

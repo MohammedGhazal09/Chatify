@@ -62,7 +62,7 @@ const renderController = (overrides: Partial<Parameters<typeof useCallController
     selectedChat: chat,
     currentUserId: 'user-1',
     otherMember: peer,
-    otherMemberStatus: { userId: 'user-2', isOnline: true },
+    otherMemberStatus: { userId: 'user-2', isOnline: true, isCallReachable: true },
     conversationControls,
     isAuthenticated: true,
     isSocketConnected: true,
@@ -98,18 +98,33 @@ describe('useCallController', () => {
     });
   });
 
-  it('uses the online requirement reason when the realtime session is disconnected', () => {
+  it('uses the realtime readiness reason when the current socket is disconnected', () => {
     const { result } = renderController({
       isSocketConnected: false,
     });
 
     expect(result.current.audioAvailability).toEqual({
       available: false,
-      reason: 'Both users must be online to call.',
+      reason: 'Realtime connection is not ready for calls.',
     });
     expect(result.current.videoAvailability).toEqual({
       available: false,
-      reason: 'Both users must be online to call.',
+      reason: 'Realtime connection is not ready for calls.',
+    });
+  });
+
+  it('uses the peer reachability reason when the peer is visible online without an active socket', () => {
+    const { result } = renderController({
+      otherMemberStatus: { userId: 'user-2', isOnline: true, isCallReachable: false },
+    });
+
+    expect(result.current.audioAvailability).toEqual({
+      available: false,
+      reason: 'This person is online but not reachable for calls yet.',
+    });
+    expect(result.current.videoAvailability).toEqual({
+      available: false,
+      reason: 'This person is online but not reachable for calls yet.',
     });
   });
 

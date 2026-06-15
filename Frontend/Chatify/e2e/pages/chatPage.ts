@@ -40,7 +40,7 @@ const transparentPng = Buffer.from(
 );
 
 const createPresenceSnapshot = (
-  presence: readonly { userId: string; userName?: string; isOnline: boolean; lastSeen?: string }[]
+  presence: readonly { userId: string; userName?: string; isOnline: boolean; isCallReachable?: boolean; lastSeen?: string }[]
 ) => {
   const allContacts = presence.map((status) => {
     const [firstName = 'Contact', ...lastNameParts] = (status.userName ?? 'Contact').split(' ');
@@ -50,6 +50,7 @@ const createPresenceSnapshot = (
       firstName,
       lastName: lastNameParts.join(' '),
       isOnline: status.isOnline,
+      isCallReachable: status.isCallReachable ?? status.isOnline,
       lastSeen: status.lastSeen,
     };
   });

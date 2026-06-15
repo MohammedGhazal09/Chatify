@@ -72,12 +72,14 @@ const normalizePresenceSnapshot = (
     firstName?: string;
     lastName?: string;
     isOnline?: boolean;
+    isCallReachable?: boolean;
     lastSeen?: string;
   }>
 ): UserOnlineStatus[] => contacts.map((contact) => ({
   userId: contact._id,
   userName: getPresenceName(contact),
   isOnline: contact.isOnline === true,
+  isCallReachable: contact.isCallReachable === true,
   lastSeen: contact.lastSeen,
 }));
 
@@ -132,7 +134,10 @@ export const useChats = () => {
   });
 };
 
-export const useOnlinePresence = ({ enabled = true }: { enabled?: boolean } = {}) => {
+export const useOnlinePresence = ({
+  enabled = true,
+  syncToStore = true,
+}: { enabled?: boolean; syncToStore?: boolean } = {}) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const replaceOnlineUsers = usePresenceStore((state) => state.replaceOnlineUsers);
   const query = useQuery({
@@ -148,10 +153,10 @@ export const useOnlinePresence = ({ enabled = true }: { enabled?: boolean } = {}
   });
 
   useEffect(() => {
-    if (query.data) {
+    if (syncToStore && query.data) {
       replaceOnlineUsers(query.data);
     }
-  }, [query.data, replaceOnlineUsers]);
+  }, [query.data, replaceOnlineUsers, syncToStore]);
 
   return query;
 };

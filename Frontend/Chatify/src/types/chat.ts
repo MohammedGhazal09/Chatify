@@ -265,6 +265,7 @@ export interface UserOnlineStatus {
   userId: string;
   userName?: string;
   isOnline: boolean;
+  isCallReachable?: boolean;
   lastSeen?: string;
 }
 
@@ -272,6 +273,7 @@ export interface UserStatusChangeEvent {
   userId: string;
   userName: string;
   isOnline: boolean;
+  isCallReachable?: boolean;
   lastSeen?: string;
 }
 

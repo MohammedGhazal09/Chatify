@@ -23,7 +23,7 @@ test.describe('Phase 13 call smoke', () => {
     await expect(callButton).toBeDisabled();
     await expect(callButton).toHaveAttribute(
       'title',
-      /Calls are available only in direct chats|Realtime connection is unavailable|This person is offline|Calls require a supported secure browser/
+      /Calls are available only in direct chats|Realtime connection is not ready for calls|This person is online but not reachable for calls yet|Both users must be online to call|Calls require a supported secure browser/
     );
     await expect(page.getByRole('dialog', { name: 'Call controls' })).not.toBeVisible();
 

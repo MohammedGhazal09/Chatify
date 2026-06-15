@@ -44,12 +44,14 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
         newOnlineUsers.set(userId, {
           ...existing,
           isOnline: false,
+          isCallReachable: false,
           lastSeen: lastSeen || new Date().toISOString(),
         });
       } else {
         newOnlineUsers.set(userId, {
           userId,
           isOnline: false,
+          isCallReachable: false,
           lastSeen: lastSeen || new Date().toISOString(),
         });
       }

@@ -141,6 +141,7 @@ export const phase07Presence: UserOnlineStatus[] = [
     userId: relayNode._id,
     userName: 'Relay Node',
     isOnline: true,
+    isCallReachable: true,
   },
   {
     userId: matrixSync._id,

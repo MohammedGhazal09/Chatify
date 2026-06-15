@@ -24,6 +24,7 @@ import type {
   MessageStatusUpdateEvent,
   MessageReadEvent,
   BatchReadEvent,
+  UserOnlineStatus,
   UserStatusChangeEvent,
   TypingUser,
   MessageDeletedEvent,
@@ -74,6 +75,7 @@ export type SocketConnectionStatus =
 // Typing timeout duration (3 seconds)
 const TYPING_TIMEOUT = 3000;
 const CALL_ACK_TIMEOUT_MS = 8000;
+const SOCKET_READY_TIMEOUT_MS = 5000;
 
 type CallEmitPayload = Record<string, unknown>;
 
@@ -124,6 +126,8 @@ export const useChatSocket = ({
   const activeRoomRef = useRef<string | null>(null);
   const typingTimeoutRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const authRefreshInFlightRef = useRef(false);
+  const readyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readyRetryAttemptedRef = useRef(false);
   
   // Use ref to avoid stale closure issues with store methods
   const presenceStoreRef = useRef(presenceStore);
@@ -136,7 +140,47 @@ export const useChatSocket = ({
   const socketUrl = useMemo(() => resolveSocketUrl(), []);
   const isSocketConnected = socketStatus === 'ready';
 
-  const reconcileRealtimeState = useCallback((ready?: SocketReadyEvent) => {
+  const updatePresenceQueryCache = useCallback((event: UserStatusChangeEvent) => {
+    queryClientRef.current.setQueryData<UserOnlineStatus[]>(onlinePresenceQueryKey, (old) => {
+      const current = old ?? [];
+      const existingIndex = current.findIndex((status) => status.userId === event.userId);
+      const existing = existingIndex >= 0 ? current[existingIndex] : undefined;
+      const nextStatus: UserOnlineStatus = event.isOnline
+        ? {
+            ...existing,
+            userId: event.userId,
+            userName: event.userName ?? existing?.userName,
+            isOnline: true,
+            isCallReachable: event.isCallReachable === true,
+            lastSeen: undefined,
+          }
+        : {
+            ...existing,
+            userId: event.userId,
+            userName: event.userName ?? existing?.userName,
+            isOnline: false,
+            isCallReachable: false,
+            lastSeen: event.lastSeen ?? existing?.lastSeen,
+          };
+
+      if (existingIndex < 0) {
+        return [...current, nextStatus];
+      }
+
+      const next = [...current];
+      next[existingIndex] = nextStatus;
+      return next;
+    });
+  }, []);
+
+  const reconcileRealtimeState = useCallback(async (ready?: SocketReadyEvent) => {
+    if (ready?.presence) {
+      await queryClientRef.current.cancelQueries({ queryKey: onlinePresenceQueryKey });
+      queryClientRef.current.setQueryData<UserOnlineStatus[]>(onlinePresenceQueryKey, ready.presence);
+      queryClientRef.current.invalidateQueries({ queryKey: onlinePresenceQueryKey, refetchType: 'none' });
+      presenceStoreRef.current.replaceOnlineUsers(ready.presence);
+    }
+
     queryClientRef.current.invalidateQueries({ queryKey: chatsQueryKey });
     queryClientRef.current.invalidateQueries({ queryKey: ['unreadCounts'] });
 
@@ -146,9 +190,6 @@ export const useChatSocket = ({
       });
     }
 
-    if (ready?.presence) {
-      presenceStoreRef.current.replaceOnlineUsers(ready.presence);
-    }
   }, []);
 
   const updateChatsLatestMessage = useCallback((incoming: Message) => {
@@ -220,35 +261,28 @@ export const useChatSocket = ({
     }
 
     let disposed = false;
+    readyRetryAttemptedRef.current = false;
     const socketInstance: Socket = io(socketUrl, {
       withCredentials: true,
       transports: ['polling', 'websocket'],
+      autoConnect: false,
     });
 
-    setSocketStatus(socketInstance.connected ? 'connecting' : 'connecting');
+    setSocketStatus('connecting');
     setSocket(socketInstance);
 
-    const handleReconnect = () => {
-      setSocketStatus('reconnecting');
-      setSocketError(null);
+    const clearReadyTimeout = () => {
+      if (readyTimeoutRef.current) {
+        clearTimeout(readyTimeoutRef.current);
+        readyTimeoutRef.current = null;
+      }
     };
 
-    const handleConnect = () => {
-      setSocketStatus('connecting');
-      setSocketError(null);
-    };
-
-    const handleSocketReady = (data: SocketReadyEvent) => {
-      authRefreshInFlightRef.current = false;
-      setSocketStatus('ready');
-      setSocketError(null);
-      setCallConfig(data.callConfig ?? null);
-      reconcileRealtimeState(data);
-    };
-
-    const handleDisconnect = () => {
-      setSocketStatus('disconnected');
-    };
+    const isSocketAuthError = (code?: string) => (
+      code === 'socket_auth_required' ||
+      code === 'socket_auth_invalid' ||
+      code === 'socket_auth_expired'
+    );
 
     const refreshSocketSession = async () => {
       if (authRefreshInFlightRef.current) {
@@ -256,6 +290,7 @@ export const useChatSocket = ({
       }
 
       authRefreshInFlightRef.current = true;
+      clearReadyTimeout();
       setSocketStatus('authenticating');
 
       try {
@@ -283,11 +318,57 @@ export const useChatSocket = ({
       }
     };
 
-    const isSocketAuthError = (code?: string) => (
-      code === 'socket_auth_required' ||
-      code === 'socket_auth_invalid' ||
-      code === 'socket_auth_expired'
-    );
+    const scheduleReadyTimeout = () => {
+      clearReadyTimeout();
+      readyTimeoutRef.current = setTimeout(() => {
+        if (disposed) {
+          return;
+        }
+
+        const payload = {
+          code: 'socket_ready_timeout',
+          message: 'Realtime connection is not ready for calls.',
+        };
+
+        setSocketError(payload);
+        queryClientRef.current.invalidateQueries({ queryKey: onlinePresenceQueryKey });
+
+        if (readyRetryAttemptedRef.current) {
+          setSocketStatus('disconnected');
+          return;
+        }
+
+        readyRetryAttemptedRef.current = true;
+        void refreshSocketSession();
+      }, SOCKET_READY_TIMEOUT_MS);
+    };
+
+    const handleReconnect = () => {
+      setSocketStatus('reconnecting');
+      setSocketError(null);
+      scheduleReadyTimeout();
+    };
+
+    const handleConnect = () => {
+      setSocketStatus('connecting');
+      setSocketError(null);
+      scheduleReadyTimeout();
+    };
+
+    const handleSocketReady = (data: SocketReadyEvent) => {
+      clearReadyTimeout();
+      authRefreshInFlightRef.current = false;
+      readyRetryAttemptedRef.current = false;
+      setSocketStatus('ready');
+      setSocketError(null);
+      setCallConfig(data.callConfig ?? null);
+      void reconcileRealtimeState(data);
+    };
+
+    const handleDisconnect = () => {
+      clearReadyTimeout();
+      setSocketStatus('disconnected');
+    };
 
     const handleConnectError = (error: Error & { data?: Partial<SocketErrorEvent> }) => {
       const payload = {
@@ -295,6 +376,7 @@ export const useChatSocket = ({
         message: error.data?.message ?? error.message,
       };
 
+      clearReadyTimeout();
       setSocketStatus('disconnected');
       setSocketError(payload);
       queryClientRef.current.invalidateQueries({ queryKey: onlinePresenceQueryKey });
@@ -324,10 +406,13 @@ export const useChatSocket = ({
           userId: data.userId,
           userName: data.userName,
           isOnline: true,
+          isCallReachable: data.isCallReachable === true,
         });
       } else {
         presenceStoreRef.current.setUserOffline(data.userId, data.lastSeen);
       }
+
+      updatePresenceQueryCache(data);
     });
 
     // Listen for new chat creation (when someone creates a chat with this user)
@@ -345,6 +430,10 @@ export const useChatSocket = ({
         // Add to the beginning of the list
         return [newChat, ...old];
       });
+
+      if (!newChat.conversationControls) {
+        queryClientRef.current.invalidateQueries({ queryKey: chatsQueryKey });
+      }
       
       // Note: Backend now auto-joins users to chat rooms, no need to manually join
     });
@@ -412,8 +501,11 @@ export const useChatSocket = ({
       );
     });
 
+    socketInstance.connect();
+
     return () => {
       disposed = true;
+      clearReadyTimeout();
       // Clear all typing timeouts
       Object.values(typingTimeoutRef.current).forEach(clearTimeout);
       typingTimeoutRef.current = {};
@@ -436,7 +528,7 @@ export const useChatSocket = ({
       setSocketError(null);
       setCallConfig(null);
     };
-  }, [enabled, handleConversationControlsUpdated, isAuthenticated, socketUrl, user?._id, reconcileRealtimeState]);
+  }, [enabled, handleConversationControlsUpdated, isAuthenticated, socketUrl, user?._id, reconcileRealtimeState, updatePresenceQueryCache]);
 
   useEffect(() => {
     if (!socket) {

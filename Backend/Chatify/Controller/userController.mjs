@@ -3,6 +3,7 @@ import Chats from '../Models/chatModel.mjs'
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs'
 import { CustomError } from '../Utils/customError.mjs'
 import mongoose from 'mongoose'
+import { isUserOnline as hasActiveSocket } from '../Config/socket.mjs'
 
 export const getLoggedUser = asyncErrHandler(async (req, res, next) => {
   const user = await User.findById(req.userId)
@@ -90,6 +91,7 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
       lastName: user.lastName,
       profilePic: user.profilePic,
       isOnline: true,
+      isCallReachable: user.isOnline && hasActiveSocket(user._id),
     }));
 
   const usersWithStatus = contacts.map(user => {
@@ -102,6 +104,7 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
 
     if (user.showOnlineStatus) {
       result.isOnline = user.isOnline;
+      result.isCallReachable = user.isOnline && hasActiveSocket(user._id);
     }
 
     if (user.showLastSeen && !user.isOnline) {

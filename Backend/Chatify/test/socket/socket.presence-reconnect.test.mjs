@@ -45,7 +45,7 @@ const waitForNoMatchingSocketEvent = (socket, eventName, predicate, timeoutMs = 
   });
 };
 
-const setupPresenceScenario = async ({ hideMemberOne = false } = {}) => {
+const setupPresenceScenario = async ({ hideMemberOne = false, hideMemberTwo = false } = {}) => {
   const server = await startServer();
   const memberOne = await signupWithAgent({ firstName: 'Presence', lastName: 'One' });
   const memberTwo = await signupWithAgent({ firstName: 'Presence', lastName: 'Two' });
@@ -53,6 +53,10 @@ const setupPresenceScenario = async ({ hideMemberOne = false } = {}) => {
 
   if (hideMemberOne) {
     await User.findByIdAndUpdate(memberOne.user._id, { showOnlineStatus: false });
+  }
+
+  if (hideMemberTwo) {
+    await User.findByIdAndUpdate(memberTwo.user._id, { showOnlineStatus: false });
   }
 
   const chat = await createDirectChat([memberOne.user, memberTwo.user]);
@@ -101,6 +105,7 @@ describe('Socket.IO presence and reconnect contract', () => {
       userId: memberOne.user._id.toString(),
       userName: 'Presence One',
       isOnline: true,
+      isCallReachable: true,
     });
 
     const noOfflinePromise = waitForNoMatchingSocketEvent(
@@ -123,6 +128,7 @@ describe('Socket.IO presence and reconnect contract', () => {
       userId: memberOne.user._id.toString(),
       userName: 'Presence One',
       isOnline: false,
+      isCallReachable: false,
     });
     expect(offline.lastSeen).toBeDefined();
     expect(storedUser.isOnline).toBe(false);
@@ -187,6 +193,7 @@ describe('Socket.IO presence and reconnect contract', () => {
         expect.objectContaining({
           userId: memberTwo.user._id.toString(),
           isOnline: true,
+          isCallReachable: true,
         }),
       ])
     );
@@ -212,10 +219,79 @@ describe('Socket.IO presence and reconnect contract', () => {
         expect.objectContaining({
           userId: memberTwo.user._id.toString(),
           isOnline: true,
+          isCallReachable: true,
         }),
       ])
     );
     expect(memberTwoSocket.socket.connected).toBe(true);
     expect(outsiderSocket.socket.connected).toBe(true);
+  });
+
+  it('includes offline authorized contacts in socket readiness presence snapshots', async () => {
+    const { server, memberOne, memberTwo, outsider } = await setupPresenceScenario();
+    const memberOneSocket = await connectTrackedSignup(server.url, memberOne);
+
+    expect(memberOneSocket.ready.presence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: memberTwo.user._id.toString(),
+          userName: 'Presence Two',
+          isOnline: false,
+          isCallReachable: false,
+        }),
+      ])
+    );
+    expect(memberOneSocket.ready.presence).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: outsider.user._id.toString(),
+        }),
+      ])
+    );
+  });
+
+  it('does not expose hidden online status in socket readiness snapshots', async () => {
+    const { server, memberOne, memberTwo } = await setupPresenceScenario({ hideMemberTwo: true });
+    await connectTrackedSignup(server.url, memberTwo);
+    const memberOneSocket = await connectTrackedSignup(server.url, memberOne);
+
+    expect(memberOneSocket.ready.presence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: memberTwo.user._id.toString(),
+          userName: 'Presence Two',
+          isOnline: false,
+          isCallReachable: false,
+        }),
+      ])
+    );
+  });
+
+  it('returns HTTP presence with display online state and socket call reachability', async () => {
+    const { server, memberOne, memberTwo } = await setupPresenceScenario();
+    await connectTrackedSignup(server.url, memberTwo);
+
+    const response = await memberOne.agent
+      .get('/api/user/online-users')
+      .expect(200);
+
+    expect(response.body.data.allContacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          _id: memberTwo.user._id.toString(),
+          isOnline: true,
+          isCallReachable: true,
+        }),
+      ])
+    );
+    expect(response.body.data.onlineUsers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          _id: memberTwo.user._id.toString(),
+          isOnline: true,
+          isCallReachable: true,
+        }),
+      ])
+    );
   });
 });

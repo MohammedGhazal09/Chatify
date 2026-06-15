@@ -309,6 +309,7 @@ export const phase09Presence: UserOnlineStatus[] = [
     userId: relayGrid._id,
     userName: 'Relay Grid',
     isOnline: true,
+    isCallReachable: true,
   },
   {
     userId: vectorArchive._id,
@@ -320,6 +321,7 @@ export const phase09Presence: UserOnlineStatus[] = [
     userId: cipherVault._id,
     userName: 'Cipher Vault',
     isOnline: true,
+    isCallReachable: true,
   },
 ];
 

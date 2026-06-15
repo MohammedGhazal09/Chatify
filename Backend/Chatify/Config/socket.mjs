@@ -469,13 +469,16 @@ const getUserChatRooms = async (userId) => {
 }
 
 const formatUserStatus = (user, isOnline, lastSeen = null) => {
+  const isVisibleOnline = user.showOnlineStatus !== false && isOnline === true
+  const isCallReachable = isVisibleOnline && getUserSockets(user._id).size > 0
   const payload = {
     userId: user._id.toString(),
     userName: `${user.firstName} ${user.lastName || ''}`.trim(),
-    isOnline,
+    isOnline: isVisibleOnline,
+    isCallReachable,
   }
 
-  if (!isOnline && lastSeen) {
+  if (!isVisibleOnline && user.showLastSeen !== false && lastSeen) {
     payload.lastSeen = lastSeen instanceof Date ? lastSeen.toISOString() : lastSeen
   }
 
@@ -511,11 +514,13 @@ const getAuthorizedPresenceSnapshot = async (userId) => {
 
   const contacts = await User.find({
     _id: { $in: contactIds },
-    isOnline: true,
-    showOnlineStatus: true,
-  }).select('firstName lastName isOnline lastSeen showOnlineStatus')
+  }).select('firstName lastName isOnline lastSeen showOnlineStatus showLastSeen')
 
-  return contacts.map(contact => formatUserStatus(contact, true, contact.lastSeen))
+  return contacts.map(contact => formatUserStatus(
+    contact,
+    contact.showOnlineStatus !== false && contact.isOnline === true,
+    contact.showLastSeen !== false && contact.isOnline !== true ? contact.lastSeen : null
+  ))
 }
 
 const clearOfflineTimer = (userId) => {
@@ -1083,7 +1088,12 @@ export const getIO = () => {
 
 // Export helper functions for use in controllers
 export const isUserOnline = (userId) => {
-  return userToSockets.has(userId) && userToSockets.get(userId).size > 0
+  if (!userId) {
+    return false
+  }
+
+  const normalizedUserId = userId.toString()
+  return userToSockets.has(normalizedUserId) && userToSockets.get(normalizedUserId).size > 0
 }
 
 export const getOnlineUsers = () => {
