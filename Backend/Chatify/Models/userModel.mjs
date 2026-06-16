@@ -3,6 +3,48 @@ import validator from 'validator'
 import { verify, hash } from 'argon2'
 import {CustomError} from '../Utils/customError.mjs'
 
+export const buildUploadedProfileImageUrl = ({ userId, version }) => {
+  const safeVersion = encodeURIComponent(version || '1');
+  return `/api/user/${userId}/profile-image?v=${safeVersion}`;
+};
+
+const isUploadedProfileImageUrl = (value) => (
+  typeof value === 'string' &&
+  /^\/api\/user\/[^/]+\/profile-image(?:\?|$)/.test(value)
+);
+
+const hideProfileImageInternals = (ret) => {
+  delete ret.providerProfilePic;
+  delete ret.uploadedProfileImage;
+  return ret;
+};
+
+const uploadedProfileImageSchema = new mongoose.Schema({
+  storageFileId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+  },
+  mimeType: {
+    type: String,
+    required: true,
+  },
+  size: {
+    type: Number,
+    required: true,
+  },
+  version: {
+    type: String,
+    required: true,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
 const userSchema = new mongoose.Schema({
    firstName: {
       type: String,
@@ -33,6 +75,16 @@ const userSchema = new mongoose.Schema({
     profilePic: {
         type: String,
         required: false
+    },
+    providerProfilePic: {
+        type: String,
+        required: false,
+        select: false,
+    },
+    uploadedProfileImage: {
+        type: uploadedProfileImageSchema,
+        required: false,
+        select: false,
     },
     authProvider: {
         type: String,
@@ -84,7 +136,17 @@ const userSchema = new mongoose.Schema({
             delete ret.googleId;
             delete ret.discordId;
             delete ret.githubId;
-            return ret;
+            return hideProfileImageInternals(ret);
+        }
+    },
+    toObject: {
+        virtuals: true,
+        transform: function (doc, ret) {
+            delete ret.password;
+            delete ret.googleId;
+            delete ret.discordId;
+            delete ret.githubId;
+            return hideProfileImageInternals(ret);
         }
     },
   })
@@ -113,6 +175,30 @@ const userSchema = new mongoose.Schema({
       return false;
     }
     return await verify(this.password,givenPassword)
+  }
+
+  userSchema.methods.hasUploadedProfileImage = function() {
+    return Boolean(this.uploadedProfileImage?.storageFileId);
+  }
+
+  userSchema.methods.setUploadedProfileImage = function({ storageFileId, mimeType, size, version }) {
+    this.uploadedProfileImage = {
+      storageFileId,
+      mimeType,
+      size,
+      version,
+      updatedAt: new Date(),
+    };
+    this.profilePic = buildUploadedProfileImageUrl({ userId: this._id, version });
+  }
+
+  userSchema.methods.clearUploadedProfileImage = function() {
+    const fallbackProfilePic = this.providerProfilePic || (
+      isUploadedProfileImageUrl(this.profilePic) ? '' : this.profilePic
+    ) || '';
+
+    this.uploadedProfileImage = undefined;
+    this.profilePic = fallbackProfilePic;
   }
 
   const User = mongoose.model('Users', userSchema)

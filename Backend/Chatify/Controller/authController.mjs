@@ -84,7 +84,7 @@ const redirectOAuthFailure = (res) => {
 };
 
 export const signup =asyncErrHandler( async (req, res, next) => {
-  let { firstName, lastName, email, password, profilePic } = req.body;
+  let { firstName, lastName, email, password } = req.body;
 
   if (!firstName || !lastName || !email || !password) {
     return next(new CustomError('Please provide all the required fields', 400));
@@ -100,7 +100,7 @@ export const signup =asyncErrHandler( async (req, res, next) => {
     lastName,
     email,
     password,
-    profilePic,
+    profilePic: '',
     authProvider: 'local',
   })
 

@@ -22,7 +22,7 @@ const handleOAuthUser = async (profile, provider) => {
                     firstName: profile.name.givenName,
                     lastName: profile.name.familyName === undefined ? '' : profile.name.familyName,
                     email: profile.emails[0].value,
-                    profilePic: profile.photos[0]?.value || ''
+                    providerProfilePic: profile.photos[0]?.value || ''
                 };
                 break;
             case 'github':
@@ -32,7 +32,7 @@ const handleOAuthUser = async (profile, provider) => {
                     firstName: nameParts[0] || profile.username,
                     lastName: nameParts.slice(1).join(' ') || 'User',
                     email: profile.emails?.[0]?.value || `${profile.username}@github.local`,
-                    profilePic: profile.photos[0]?.value || ''
+                    providerProfilePic: profile.photos[0]?.value || ''
                 };
                 break;
             case 'discord':
@@ -41,7 +41,7 @@ const handleOAuthUser = async (profile, provider) => {
                     firstName: profile.username || profile.global_name,
                     lastName: '',
                     email: providerEmail,
-                    profilePic: avatarUrl || ''
+                    providerProfilePic: avatarUrl || ''
                 };
                 break;
         }
@@ -49,18 +49,18 @@ const handleOAuthUser = async (profile, provider) => {
         // Check if user exists with same email (account linking)
         const existingEmailUser = await User.findOne({ 
             email: userInfo.email,
-        });
+        }).select('+providerProfilePic +uploadedProfileImage');
 
         if (existingEmailUser) {
             // Link provider account to existing local account
             existingEmailUser.authProvider = provider;
             existingEmailUser.isVerified = true;
-            existingEmailUser.profilePic = userInfo.profilePic
+            existingEmailUser.providerProfilePic = userInfo.providerProfilePic
             existingEmailUser[providerIdField] = providerId;
             
-            // Update profile pic if user doesn't have one
-            if (!existingEmailUser.profilePic && userInfo.profilePic) {
-                existingEmailUser.profilePic = userInfo.profilePic;
+            // Keep a user-uploaded image active. Otherwise expose the provider image as fallback.
+            if (!existingEmailUser.hasUploadedProfileImage()) {
+                existingEmailUser.profilePic = userInfo.providerProfilePic || '';
             }
             
             await existingEmailUser.save();
@@ -73,7 +73,8 @@ const handleOAuthUser = async (profile, provider) => {
             firstName: userInfo.firstName,
             lastName: userInfo.lastName,
             email: userInfo.email,
-            profilePic: userInfo.profilePic,
+            profilePic: userInfo.providerProfilePic,
+            providerProfilePic: userInfo.providerProfilePic,
             authProvider: provider,
             isVerified: true
         });

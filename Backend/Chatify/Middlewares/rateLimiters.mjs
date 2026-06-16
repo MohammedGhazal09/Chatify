@@ -39,3 +39,12 @@ export const attachmentUploadLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const profileImageUploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  skip: skipInTests,
+  message: { status: 'error', message: 'Updating profile image too fast, slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

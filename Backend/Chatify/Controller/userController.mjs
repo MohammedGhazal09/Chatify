@@ -3,7 +3,84 @@ import Chats from '../Models/chatModel.mjs'
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs'
 import { CustomError } from '../Utils/customError.mjs'
 import mongoose from 'mongoose'
+import multer from 'multer'
 import { isUserOnline as hasActiveSocket } from '../Config/socket.mjs'
+import {
+  deleteProfileImageFile,
+  openProfileImageDownloadStream,
+  uploadProfileImageBuffer,
+} from '../Services/profileImageStorageService.mjs'
+import {
+  MAX_PROFILE_IMAGE_SIZE_BYTES,
+  PROFILE_IMAGE_ERROR_CODES,
+  validateIncomingProfileImage,
+} from '../Utils/profileImageValidation.mjs'
+
+const PROFILE_IMAGE_NOT_FOUND = 'Profile image not found';
+
+const profileImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_PROFILE_IMAGE_SIZE_BYTES,
+    files: 1,
+  },
+});
+
+const createProfileImageVersion = () => Date.now().toString(36);
+
+const isExternalProfilePic = (value) => (
+  typeof value === 'string' &&
+  /^https?:\/\//i.test(value)
+);
+
+const buildProfileImageFilename = ({ userId, extension }) => (
+  `${userId}-profile-image.${extension}`
+);
+
+const respondWithProfileImageUploadError = (res, error) => {
+  const isTooLarge = error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE';
+
+  res.status(400).json({
+    status: 'fail',
+    code: isTooLarge
+      ? PROFILE_IMAGE_ERROR_CODES.SIZE_EXCEEDED
+      : 'PROFILE_IMAGE_UPLOAD_INVALID',
+    message: isTooLarge
+      ? 'Profile image exceeds the 2 MB limit'
+      : 'Profile image upload is invalid',
+  });
+};
+
+export const parseProfileImageUpload = (req, res, next) => {
+  profileImageUpload.single('profileImage')(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    respondWithProfileImageUploadError(res, error);
+  });
+};
+
+const loadProfileImageUser = (userId) => User.findById(userId)
+  .select('+providerProfilePic +uploadedProfileImage');
+
+const serializeProfileImageUser = (user) => user.toJSON();
+
+const cleanupProfileImage = async (storageFileId) => {
+  if (!storageFileId) {
+    return;
+  }
+
+  try {
+    await deleteProfileImageFile(storageFileId);
+  } catch (error) {
+    console.warn('Profile image cleanup skipped:', {
+      code: error?.code,
+      name: error?.name,
+    });
+  }
+};
 
 export const getLoggedUser = asyncErrHandler(async (req, res, next) => {
   const user = await User.findById(req.userId)
@@ -152,5 +229,135 @@ export const updatePrivacySettings = asyncErrHandler(async (req, res, next) => {
       showLastSeen: user.showLastSeen,
     },
   });
+});
+
+export const uploadProfileImage = asyncErrHandler(async (req, res, next) => {
+  const validation = await validateIncomingProfileImage(req.file);
+
+  if (!validation.ok) {
+    return res.status(validation.statusCode).json({
+      status: 'fail',
+      code: validation.code,
+      message: validation.message,
+    });
+  }
+
+  const user = await loadProfileImageUser(req.userId);
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  const previousStorageFileId = user.uploadedProfileImage?.storageFileId;
+  const profileImage = validation.profileImage;
+  const version = createProfileImageVersion();
+  const storageFileId = await uploadProfileImageBuffer({
+    buffer: profileImage.buffer,
+    filename: buildProfileImageFilename({
+      userId: user._id.toString(),
+      extension: profileImage.originalExtension,
+    }),
+    contentType: profileImage.mimeType,
+    metadata: {
+      userId: user._id.toString(),
+      purpose: 'profile-image',
+    },
+  });
+
+  if (!user.providerProfilePic && isExternalProfilePic(user.profilePic)) {
+    user.providerProfilePic = user.profilePic;
+  }
+
+  user.setUploadedProfileImage({
+    storageFileId,
+    mimeType: profileImage.mimeType,
+    size: profileImage.size,
+    version,
+  });
+
+  try {
+    await user.save();
+  } catch (error) {
+    await cleanupProfileImage(storageFileId);
+    throw error;
+  }
+
+  if (previousStorageFileId) {
+    await cleanupProfileImage(previousStorageFileId);
+  }
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      user: serializeProfileImageUser(user),
+    },
+  });
+});
+
+export const removeProfileImage = asyncErrHandler(async (req, res, next) => {
+  const user = await loadProfileImageUser(req.userId);
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  const previousStorageFileId = user.uploadedProfileImage?.storageFileId;
+  user.clearUploadedProfileImage();
+  await user.save();
+
+  if (previousStorageFileId) {
+    await cleanupProfileImage(previousStorageFileId);
+  }
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      user: serializeProfileImageUser(user),
+    },
+  });
+});
+
+export const getProfileImage = asyncErrHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return next(new CustomError(PROFILE_IMAGE_NOT_FOUND, 404));
+  }
+
+  const user = await loadProfileImageUser(userId);
+
+  if (!user?.uploadedProfileImage?.storageFileId) {
+    return next(new CustomError(PROFILE_IMAGE_NOT_FOUND, 404));
+  }
+
+  if (
+    typeof req.query?.v === 'string' &&
+    req.query.v &&
+    req.query.v !== user.uploadedProfileImage.version
+  ) {
+    return next(new CustomError(PROFILE_IMAGE_NOT_FOUND, 404));
+  }
+
+  const stream = openProfileImageDownloadStream(user.uploadedProfileImage.storageFileId);
+
+  res.set({
+    'Content-Type': user.uploadedProfileImage.mimeType,
+    'Cache-Control': 'private, max-age=300',
+    'Content-Disposition': 'inline; filename="profile-image"',
+  });
+
+  stream.on('error', () => {
+    if (!res.headersSent) {
+      res.status(404).json({
+        status: 'fail',
+        message: PROFILE_IMAGE_NOT_FOUND,
+      });
+      return;
+    }
+
+    res.destroy();
+  });
+
+  stream.pipe(res);
 });
 
