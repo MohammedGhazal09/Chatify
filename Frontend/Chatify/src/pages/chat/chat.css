@@ -158,6 +158,25 @@
   will-change: opacity, transform;
 }
 
+.chat-logout-button {
+  color: var(--chat-danger);
+  border: 1px solid color-mix(in srgb, var(--chat-danger) 34%, var(--chat-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--chat-danger) 9%, var(--chat-panel-elevated)), var(--chat-panel-elevated));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 34%, transparent);
+}
+
+.chat-logout-button:hover {
+  color: var(--chat-own-text);
+  border-color: var(--chat-danger);
+  background: var(--chat-danger);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--chat-danger) 20%, transparent);
+}
+
+.chat-logout-button:active {
+  transform: translateY(1px);
+}
+
 /* Sidebar scrollbar */
 .chat-sidebar-scroll {
   scrollbar-width: thin;

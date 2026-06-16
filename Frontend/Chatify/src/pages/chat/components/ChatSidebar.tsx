@@ -1,7 +1,6 @@
-import AccountsButton from '../../../components/accountsButton';
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
-import { Lock, Plus, Search, Settings, X } from 'lucide-react';
+import { Lock, LogOut, Plus, Search, Settings, X } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
 import { getChatTitle, getOtherMember } from '../utils/chatDisplay';
@@ -118,9 +117,16 @@ const ChatSidebar = ({
           >
             <Settings aria-hidden="true" className="h-5 w-5" />
           </button>
-          <div onClick={onLogout} className="cursor-pointer">
-            <AccountsButton color="#dc2626" text="Logout" />
-          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="chat-logout-button inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            title="Logout"
+            aria-label="Logout"
+          >
+            <LogOut aria-hidden="true" className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
         </div>
       </div>
 

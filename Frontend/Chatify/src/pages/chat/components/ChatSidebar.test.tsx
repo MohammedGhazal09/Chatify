@@ -65,6 +65,21 @@ describe('ChatSidebar', () => {
     expect(screen.queryByText('No conversations yet')).not.toBeInTheDocument();
   });
 
+  it('renders a compact logout button and triggers logout', async () => {
+    const user = userEvent.setup();
+    const onLogout = vi.fn();
+
+    renderSidebar({ onLogout });
+
+    const logoutButton = screen.getByRole('button', { name: 'Logout' });
+
+    expect(logoutButton).toHaveClass('chat-logout-button');
+
+    await user.click(logoutButton);
+
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
   it('shows unread counts and selects a conversation', async () => {
     const user = userEvent.setup();
     const onSelectChat = vi.fn();
