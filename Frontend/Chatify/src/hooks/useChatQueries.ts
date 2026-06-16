@@ -27,6 +27,8 @@ export const messageSearchQueryKey = (chatId: string, query: string) => ['messag
 export const sharedAssetsQueryKey = (chatId: string, kind?: SharedAssetKind) => ['sharedAssets', chatId, kind ?? 'all'] as const;
 export const pinnedMessagesQueryKey = (chatId: string) => ['pinnedMessages', chatId] as const;
 export const onlinePresenceQueryKey = ['onlinePresence'] as const;
+export const usersQueryKey = ['users'] as const;
+export const userSearchQueryKey = ['userSearch'] as const;
 
 type SendMessageVariables = {
   chatId: string;

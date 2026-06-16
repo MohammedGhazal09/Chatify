@@ -1,4 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import type { ChangeEvent } from 'react';
+import { ImagePlus, LoaderCircle, RotateCcw, Trash2 } from 'lucide-react';
+import { resolveApiBaseUrl } from '../api/apiOrigin';
+import { useProfileImageMutation } from '../hooks/useProfileImageMutation';
+import AbstractIdentityTile from '../pages/chat/components/AbstractIdentityTile';
+import { useAuthStore } from '../store/authstore';
 import { setSoundEnabled, isSoundEnabled } from '../utils/sounds';
 import useLocalStorage from '../hooks/useLocalStorage';
 import type { ChatTheme, ChatThemePreference } from '../pages/chat/hooks/useChatTheme';
@@ -18,6 +24,58 @@ const themeOptions: Array<{ value: ChatThemePreference; label: string }> = [
   { value: 'dark', label: 'Dark' },
 ];
 
+const PROFILE_IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp';
+const PROFILE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const SUPPORTED_PROFILE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+const getUserDisplayName = (user: { firstName?: string; lastName?: string } | null) => {
+  const displayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim();
+  return displayName || 'Current user';
+};
+
+const resolveProfileImageSrc = (src?: string | null) => {
+  if (!src) {
+    return null;
+  }
+
+  if (/^(blob:|data:|https?:\/\/)/i.test(src)) {
+    return src;
+  }
+
+  if (src.startsWith('/')) {
+    return `${resolveApiBaseUrl()}${src}`;
+  }
+
+  return src;
+};
+
+const isUploadedProfileImage = (src?: string | null) => Boolean(src && src.includes('/api/user/') && src.includes('/profile-image'));
+
+const validateProfileImageFile = (file: File) => {
+  if (!SUPPORTED_PROFILE_IMAGE_TYPES.has(file.type)) {
+    return 'Choose a PNG, JPG, or WebP image.';
+  }
+
+  if (file.size > PROFILE_IMAGE_MAX_BYTES) {
+    return 'Choose an image smaller than 2 MB.';
+  }
+
+  return null;
+};
+
+const getProfileImageErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === 'object' && error && 'response' in error) {
+    const response = (error as { response?: { data?: { message?: unknown } } }).response;
+    const message = response?.data?.message;
+
+    if (typeof message === 'string' && message.trim()) {
+      return message;
+    }
+  }
+
+  return fallback;
+};
+
 const SettingsModal = ({
   isOpen,
   onClose,
@@ -28,12 +86,129 @@ const SettingsModal = ({
 }: SettingsModalProps) => {
   const [soundEnabled, setSoundEnabledState] = useState(isSoundEnabled());
   const [enterToSend, setEnterToSend] = useLocalStorage('chatify_enter_to_send', true);
+  const currentUser = useAuthStore((state) => state.user);
+  const { uploadProfileImage, removeProfileImage, isPending: isProfileImagePending } = useProfileImageMutation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null);
+  const [previewProfileImageUrl, setPreviewProfileImageUrl] = useState<string | null>(null);
+  const [profileImageError, setProfileImageError] = useState<string | null>(null);
+  const [profileImageStatus, setProfileImageStatus] = useState<string | null>(null);
+  const displayName = getUserDisplayName(currentUser);
+  const currentProfileImageSrc = useMemo(
+    () => resolveProfileImageSrc(currentUser?.profilePic),
+    [currentUser?.profilePic]
+  );
+  const visibleProfileImageSrc = previewProfileImageUrl ?? currentProfileImageSrc;
+  const canRemoveUploadedProfileImage = isUploadedProfileImage(currentUser?.profilePic);
+
+  useEffect(() => {
+    if (!selectedProfileImage) {
+      setPreviewProfileImageUrl(null);
+      return undefined;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedProfileImage);
+    setPreviewProfileImageUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedProfileImage]);
+
+  const resetProfileImageSelection = useCallback(() => {
+    setSelectedProfileImage(null);
+    setProfileImageError(null);
+    setProfileImageStatus(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetProfileImageSelection();
+    }
+  }, [isOpen, resetProfileImageSelection]);
 
   const handleSoundToggle = useCallback(() => {
     const newValue = !soundEnabled;
     setSoundEnabledState(newValue);
     setSoundEnabled(newValue);
   }, [soundEnabled]);
+
+  const handleProfileImageChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setProfileImageStatus(null);
+
+    if (!file) {
+      setSelectedProfileImage(null);
+      return;
+    }
+
+    const validationError = validateProfileImageFile(file);
+
+    if (validationError) {
+      setSelectedProfileImage(null);
+      setProfileImageError(validationError);
+      event.target.value = '';
+      return;
+    }
+
+    setProfileImageError(null);
+    setSelectedProfileImage(file);
+  }, []);
+
+  const handleSaveProfileImage = useCallback(async () => {
+    if (!selectedProfileImage || isProfileImagePending) {
+      return;
+    }
+
+    setProfileImageError(null);
+    setProfileImageStatus(null);
+
+    try {
+      await uploadProfileImage.mutateAsync(selectedProfileImage);
+      resetProfileImageSelection();
+      setProfileImageStatus('Profile picture updated.');
+    } catch (error) {
+      setProfileImageError(getProfileImageErrorMessage(error, 'We could not update your profile picture. Try again.'));
+    }
+  }, [isProfileImagePending, resetProfileImageSelection, selectedProfileImage, uploadProfileImage]);
+
+  const handleRemoveProfileImage = useCallback(async () => {
+    if (isProfileImagePending) {
+      return;
+    }
+
+    if (selectedProfileImage) {
+      resetProfileImageSelection();
+      return;
+    }
+
+    if (!canRemoveUploadedProfileImage) {
+      setProfileImageStatus(null);
+      setProfileImageError('There is no uploaded profile picture to remove.');
+      return;
+    }
+
+    setProfileImageError(null);
+    setProfileImageStatus(null);
+
+    try {
+      await removeProfileImage.mutateAsync();
+      resetProfileImageSelection();
+      setProfileImageStatus('Profile picture removed.');
+    } catch (error) {
+      setProfileImageError(getProfileImageErrorMessage(error, 'We could not remove your profile picture. Try again.'));
+    }
+  }, [
+    canRemoveUploadedProfileImage,
+    isProfileImagePending,
+    removeProfileImage,
+    resetProfileImageSelection,
+    selectedProfileImage,
+  ]);
 
   if (!isOpen) return null;
 
@@ -64,6 +239,110 @@ const SettingsModal = ({
 
         {/* Content */}
         <div className="p-4 space-y-4">
+          <section
+            aria-labelledby="profile-picture-settings-title"
+            className="rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] p-3"
+          >
+            <div className="flex items-start gap-3">
+              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--chat-border)] bg-[var(--chat-panel)]">
+                {visibleProfileImageSrc ? (
+                  <img
+                    src={visibleProfileImageSrc}
+                    alt={previewProfileImageUrl ? `Selected profile picture preview for ${displayName}` : `Current profile picture for ${displayName}`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <AbstractIdentityTile
+                    id={currentUser?._id}
+                    label={displayName}
+                    variant="account"
+                    className="h-full w-full"
+                    aria-label={`${displayName} profile picture fallback`}
+                  />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 space-y-3">
+                <div>
+                  <h3 id="profile-picture-settings-title" className="text-sm font-semibold text-[var(--chat-text)]">
+                    Profile picture
+                  </h3>
+                  <p className="mt-0.5 text-xs text-[var(--chat-text-muted)]">
+                    PNG, JPG, or WebP up to 2 MB.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label
+                    htmlFor="profile-picture-input"
+                    className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] px-3 py-2 text-sm font-semibold text-[var(--chat-text)] transition hover:bg-[var(--chat-panel-elevated)] focus-within:ring-2 focus-within:ring-[var(--chat-focus)]"
+                  >
+                    <ImagePlus aria-hidden="true" className="h-4 w-4" />
+                    Choose image
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    id="profile-picture-input"
+                    name="profileImage"
+                    type="file"
+                    accept={PROFILE_IMAGE_ACCEPT}
+                    className="sr-only"
+                    onChange={handleProfileImageChange}
+                    aria-describedby="profile-picture-help profile-picture-feedback"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveProfileImage}
+                    disabled={!selectedProfileImage || isProfileImagePending}
+                    className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] px-3 py-2 text-sm font-semibold text-[var(--chat-own-text)] transition hover:bg-[var(--chat-accent-strong)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                  >
+                    {uploadProfileImage.isPending ? (
+                      <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
+                    ) : (
+                      <ImagePlus aria-hidden="true" className="h-4 w-4" />
+                    )}
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveProfileImage}
+                    disabled={isProfileImagePending || (!selectedProfileImage && !canRemoveUploadedProfileImage)}
+                    className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] px-3 py-2 text-sm font-semibold text-[var(--chat-danger)] transition hover:bg-[var(--chat-panel-elevated)] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                  >
+                    {removeProfileImage.isPending ? (
+                      <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
+                    ) : (
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
+                    )}
+                    Remove
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetProfileImageSelection}
+                    disabled={!selectedProfileImage && !profileImageError}
+                    className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] border border-transparent px-3 py-2 text-sm font-semibold text-[var(--chat-text-muted)] transition hover:bg-[var(--chat-panel-elevated)] hover:text-[var(--chat-text)] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                  >
+                    <RotateCcw aria-hidden="true" className="h-4 w-4" />
+                    Reset
+                  </button>
+                </div>
+                <p id="profile-picture-help" className="sr-only">
+                  Choose an image file, preview it, then save it as your profile picture.
+                </p>
+                <div id="profile-picture-feedback" className="min-h-5">
+                  {profileImageError ? (
+                    <p className="text-xs font-medium text-[var(--chat-danger)]" role="alert">
+                      {profileImageError}
+                    </p>
+                  ) : null}
+                  {profileImageStatus ? (
+                    <p className="text-xs font-medium text-[var(--chat-success)]" role="status">
+                      {profileImageStatus}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* Sound Notifications */}
           <div className="flex items-center justify-between">
             <div>

@@ -49,6 +49,13 @@ interface AllUsersResponse {
   users: User[];
 }
 
+interface ProfileImageResponse {
+  status: string;
+  data: {
+    user: User;
+  };
+}
+
 export const userApi = {
   getOnlineStatus: (userId: string): Promise<AxiosResponse<OnlineStatusResponse>> =>
     axiosInstance.get(`/api/user/online-status/${userId}`),
@@ -64,4 +71,14 @@ export const userApi = {
 
   getAllUsers: (): Promise<AxiosResponse<AllUsersResponse>> =>
     axiosInstance.get('/api/user/get-all-users'),
+
+  uploadProfileImage: (file: File): Promise<AxiosResponse<ProfileImageResponse>> => {
+    const formData = new FormData();
+    formData.append('profileImage', file);
+
+    return axiosInstance.patch('/api/user/profile-image', formData);
+  },
+
+  removeProfileImage: (): Promise<AxiosResponse<ProfileImageResponse>> =>
+    axiosInstance.delete('/api/user/profile-image'),
 };

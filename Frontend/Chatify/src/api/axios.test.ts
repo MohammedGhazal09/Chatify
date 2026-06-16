@@ -7,6 +7,7 @@ describe('axios auth refresh handling', () => {
 
   afterEach(() => {
     axiosInstance.defaults.adapter = originalAdapter;
+    document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
     vi.clearAllMocks();
   });
 
@@ -113,5 +114,29 @@ describe('axios auth refresh handling', () => {
     ])).resolves.toHaveLength(2);
 
     expect(refreshCalls).toBe(1);
+  });
+
+  it('attaches the CSRF token to multipart profile image updates', async () => {
+    document.cookie = 'XSRF-TOKEN=profile-csrf-token; path=/';
+    const adapter: AxiosAdapter = vi.fn(async (config) => ({
+      config,
+      data: {},
+      headers: {},
+      status: 200,
+      statusText: 'OK',
+    }));
+
+    axiosInstance.defaults.adapter = adapter;
+
+    const formData = new FormData();
+    formData.append('profileImage', new File(['image'], 'avatar.png', { type: 'image/png' }));
+
+    await axiosInstance.patch('/api/user/profile-image', formData);
+
+    const config = vi.mocked(adapter).mock.calls[0]?.[0];
+    const headers = config?.headers as { get?: (name: string) => string | null; [key: string]: unknown } | undefined;
+    const csrfHeader = headers?.get?.('X-CSRF-Token') ?? headers?.['X-CSRF-Token'];
+
+    expect(csrfHeader).toBe('profile-csrf-token');
   });
 });
