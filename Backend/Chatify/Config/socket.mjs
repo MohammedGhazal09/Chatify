@@ -45,7 +45,7 @@ import {
 } from '../Utils/messageState.mjs'
 
 let io
-const isProd = process.env.NODE_ENV === 'production'
+const isProductionRuntime = () => process.env.NODE_ENV === 'production'
 
 // Track online users: Map<socketId, userId>
 const socketToUser = new Map()
@@ -61,13 +61,13 @@ const MAX_ICE_TOKEN_LENGTH = 256
 
 // Debug logging helper - only logs in development
 const debugLog = (...args) => {
-  if (!isProd) {
+  if (!isProductionRuntime()) {
     console.log(...args)
   }
 }
 
 const getCorsOrigin = () => {
-  if (isProd) {
+  if (isProductionRuntime()) {
     return process.env.FRONTEND_ORIGIN
   } else {
     return process.env.FRONTEND_ORIGIN_DEV || 'http://localhost:5173'
@@ -124,11 +124,56 @@ const getAllowedSocketOrigins = () => {
   return new Set(origins)
 }
 
+const getHeaderValues = (headerValue) => {
+  if (!headerValue) {
+    return []
+  }
+
+  const values = Array.isArray(headerValue) ? headerValue : [headerValue]
+
+  return values
+    .flatMap(value => value.split(','))
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+const getOriginHost = (origin) => {
+  try {
+    return new URL(origin).host.toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+const getAllowedSocketOriginHosts = () => new Set(
+  [...getAllowedSocketOrigins()]
+    .map(getOriginHost)
+    .filter(Boolean)
+)
+
+const isTrustedSameOriginProxyRequest = (request) => {
+  const allowedHosts = getAllowedSocketOriginHosts()
+
+  if (allowedHosts.size === 0) {
+    return false
+  }
+
+  const forwardedHosts = [
+    ...getHeaderValues(request.headers['x-forwarded-host']),
+    ...getHeaderValues(request.headers.host),
+  ]
+  const forwardedProtos = getHeaderValues(request.headers['x-forwarded-proto'])
+  const hasAllowedHost = forwardedHosts.some(host => allowedHosts.has(host))
+  const hasAllowedProto = forwardedProtos.length === 0 || forwardedProtos.includes('https')
+
+  return hasAllowedHost && hasAllowedProto
+}
+
 const isAllowedSocketRequest = (request) => {
   const origin = request.headers.origin
 
   if (!origin) {
-    return !isProd
+    return !isProductionRuntime() || isTrustedSameOriginProxyRequest(request)
   }
 
   return getAllowedSocketOrigins().has(origin)

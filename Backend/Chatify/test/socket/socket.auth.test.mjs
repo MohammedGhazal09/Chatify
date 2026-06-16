@@ -27,6 +27,20 @@ const trackSocket = (socket) => {
   return socket;
 };
 
+const withProductionSocketOrigin = async (origin, callback) => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalFrontendOrigin = process.env.FRONTEND_ORIGIN;
+
+  try {
+    process.env.NODE_ENV = 'production';
+    process.env.FRONTEND_ORIGIN = origin;
+    await callback();
+  } finally {
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.FRONTEND_ORIGIN = originalFrontendOrigin;
+  }
+};
+
 afterEach(async () => {
   sockets.splice(0).forEach((socket) => {
     if (socket.connected || socket.active) {
@@ -69,6 +83,53 @@ describe('authenticated Socket.IO handshake', () => {
     expect(ready).toMatchObject({
       userId: user._id.toString(),
       socketId: socket.id,
+    });
+  });
+
+  it('accepts origin-less production polling from the configured same-origin proxy host', async () => {
+    const server = await startServer();
+    const signup = await signupWithAgent({ firstName: 'Vercel', lastName: 'Proxy' });
+
+    await withProductionSocketOrigin('https://chatify-ten-rho.vercel.app', async () => {
+      const socket = trackSocket(
+        connectSocketWithCookie(server.url, extractCookieHeader(signup.response), {
+          transports: ['polling'],
+          extraHeaders: {
+            'x-forwarded-host': 'chatify-ten-rho.vercel.app',
+            'x-forwarded-proto': 'https',
+          },
+        })
+      );
+      const readyPromise = waitForSocketEvent(socket, 'socket:ready');
+
+      socket.connect();
+      const ready = await readyPromise;
+
+      expect(ready).toMatchObject({
+        userId: signup.user._id.toString(),
+        socketId: socket.id,
+      });
+      expect(socket.connected).toBe(true);
+    });
+  });
+
+  it('rejects origin-less production polling when it is not from the configured proxy host', async () => {
+    const server = await startServer();
+    const signup = await signupWithAgent({ firstName: 'No', lastName: 'Proxy' });
+
+    await withProductionSocketOrigin('https://chatify-ten-rho.vercel.app', async () => {
+      const socket = trackSocket(
+        connectSocketWithCookie(server.url, extractCookieHeader(signup.response), {
+          transports: ['polling'],
+        })
+      );
+      const errorPromise = waitForSocketEvent(socket, 'connect_error');
+
+      socket.connect();
+      const error = await errorPromise;
+
+      expect(error.message).toMatch(/xhr poll error|Socket origin not allowed/i);
+      expect(socket.connected).toBe(false);
     });
   });
 
