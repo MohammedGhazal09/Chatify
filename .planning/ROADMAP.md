@@ -503,7 +503,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
 | 14. Production Live Acceptance Gate | 3/3 | Blocked pending live env | - |
 | 15. Investigate And Fix Audio And Video Call Reliability | 0/4 | Planned | - |
-| 16. Profile Picture Upload And Shared Avatar Visibility | 0/4 | Planned | - |
+| 16. Profile Picture Upload And Shared Avatar Visibility | 1/4 | In Progress | - |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
@@ -537,10 +537,10 @@ Plans:
 **Goal:** Authenticated users can upload, preview, replace, and remove a profile picture from Settings, and other authenticated users see it through existing chat identity surfaces with safe fallback behavior.
 **Requirements**: ID-01, ID-02, SEC-01, SEC-02, TEST-01, TEST-04, TEST-05, UI-04, UI-05, UI-06
 **Depends on:** Phase 15
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 Plans:
 
-- [ ] 16-01: Backend profile image contract, storage, and security
+- [x] 16-01: Backend profile image contract, storage, and security
 - [ ] 16-02: Settings profile picture workflow and cache propagation
 - [ ] 16-03: Avatar rendering surfaces and fixture guardrails
 - [ ] 16-04: Acceptance evidence, privacy scan, and regression gate
