@@ -4,6 +4,7 @@ import asyncErrHandler from '../Utils/asyncErrHandler.mjs'
 import { CustomError } from '../Utils/customError.mjs'
 import mongoose from 'mongoose'
 import multer from 'multer'
+import { randomUUID } from 'node:crypto'
 import { isUserOnline as hasActiveSocket } from '../Config/socket.mjs'
 import {
   deleteProfileImageFile,
@@ -26,7 +27,7 @@ const profileImageUpload = multer({
   },
 });
 
-const createProfileImageVersion = () => Date.now().toString(36);
+const createProfileImageVersion = () => randomUUID();
 
 const isExternalProfilePic = (value) => (
   typeof value === 'string' &&

@@ -91,7 +91,28 @@ test.describe('Phase 16 local profile picture acceptance', () => {
       }
 
       const backendAvailable = await assertBackendAvailable(request, initialConfig.backendUrl);
-      test.skip(!backendAvailable, `Local backend was not reachable at ${initialConfig.backendUrl}.`);
+
+      if (!backendAvailable) {
+        const blockedReason = `Local backend was not reachable at ${initialConfig.backendUrl}.`;
+
+        writePhase16AcceptanceReport({
+          command,
+          config: initialConfig,
+          status: 'blocked',
+          checks: [
+            {
+              name: 'Phase 16 local backend reachability',
+              status: 'blocked',
+              detail: blockedReason,
+            },
+          ],
+          risks: [
+            'Cross-user visibility remains blocked until the configured local backend is reachable.',
+          ],
+        });
+        test.skip(true, blockedReason);
+        return;
+      }
 
       const imagePath = ensurePhase16ProfileImageFixture();
       const uploader = await createAuthenticatedPage(browser);
@@ -106,14 +127,25 @@ test.describe('Phase 16 local profile picture acceptance', () => {
         await expect(uploader.page.getByAltText(/Selected profile picture preview/)).toBeVisible();
         await uploader.page.getByRole('button', { name: 'Save' }).click();
         await expect(uploader.page.getByRole('status')).toContainText('Profile picture updated.', { timeout: 20000 });
-        await expect(uploader.page.getByRole('img', { name: 'Current account profile picture' })).toBeVisible();
+        const uploadedProfileImage = uploader.page.getByRole('img', { name: 'Current account profile picture' });
+        await expect(uploadedProfileImage).toBeVisible();
+        const uploadedProfileImageSrc = await uploadedProfileImage.getAttribute('src');
+
+        if (!uploadedProfileImageSrc) {
+          throw new Error('Account A profile image source was missing after upload.');
+        }
+
+        expect(uploadedProfileImageSrc).toContain('/api/user/');
+        expect(uploadedProfileImageSrc).toContain('/profile-image');
 
         await signIn(observer.page, initialConfig.accounts.observer.email, initialConfig.accounts.observer.password);
         await startOrContinueChat(observer.page, initialConfig.accounts.uploader.email);
         await observer.page.reload({ waitUntil: 'networkidle' });
 
         await expect(
-          observer.page.locator('img[src*="/api/user/"][alt*="profile picture"]').first()
+          observer.page.locator(
+            `img[src=${JSON.stringify(uploadedProfileImageSrc)}][alt*="profile picture"]`
+          ).first()
         ).toBeVisible({ timeout: 20000 });
 
         writePhase16AcceptanceReport({
@@ -129,7 +161,7 @@ test.describe('Phase 16 local profile picture acceptance', () => {
             {
               name: 'Account B profile image visibility',
               status: 'passed',
-              detail: 'A second authenticated browser context observed an app-served profile image after normal chat refresh.',
+              detail: "A second authenticated browser context observed Account A's exact app-served profile image URL after normal chat refresh.",
             },
           ],
           risks: [

@@ -182,19 +182,28 @@ describe('user profile images', () => {
       providerProfilePic: providerUrl,
     });
 
-    const firstUpload = await uploadProfileImage(agent, csrfToken, {
-      filename: 'first.png',
-      contentType: 'image/png',
-      buffer: tinyPngBuffer(),
-    }).expect(200);
-    const firstProfilePic = firstUpload.body.data.user.profilePic;
+    const stableNow = Date.now();
+    const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(stableNow);
+    let firstProfilePic;
+    let secondProfilePic;
 
-    const secondUpload = await uploadProfileImage(agent, csrfToken, {
-      filename: 'second.webp',
-      contentType: 'image/webp',
-      buffer: tinyWebpBuffer(),
-    }).expect(200);
-    const secondProfilePic = secondUpload.body.data.user.profilePic;
+    try {
+      const firstUpload = await uploadProfileImage(agent, csrfToken, {
+        filename: 'first.png',
+        contentType: 'image/png',
+        buffer: tinyPngBuffer(),
+      }).expect(200);
+      firstProfilePic = firstUpload.body.data.user.profilePic;
+
+      const secondUpload = await uploadProfileImage(agent, csrfToken, {
+        filename: 'second.webp',
+        contentType: 'image/webp',
+        buffer: tinyWebpBuffer(),
+      }).expect(200);
+      secondProfilePic = secondUpload.body.data.user.profilePic;
+    } finally {
+      dateNowSpy.mockRestore();
+    }
 
     expect(secondProfilePic).not.toBe(firstProfilePic);
     await agent.get(firstProfilePic).expect(404);

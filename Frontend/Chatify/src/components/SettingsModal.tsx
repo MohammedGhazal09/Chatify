@@ -277,17 +277,17 @@ const SettingsModal = ({
                   >
                     <ImagePlus aria-hidden="true" className="h-4 w-4" />
                     Choose image
+                    <input
+                      ref={fileInputRef}
+                      id="profile-picture-input"
+                      name="profileImage"
+                      type="file"
+                      accept={PROFILE_IMAGE_ACCEPT}
+                      className="sr-only"
+                      onChange={handleProfileImageChange}
+                      aria-describedby="profile-picture-help profile-picture-feedback"
+                    />
                   </label>
-                  <input
-                    ref={fileInputRef}
-                    id="profile-picture-input"
-                    name="profileImage"
-                    type="file"
-                    accept={PROFILE_IMAGE_ACCEPT}
-                    className="sr-only"
-                    onChange={handleProfileImageChange}
-                    aria-describedby="profile-picture-help profile-picture-feedback"
-                  />
                   <button
                     type="button"
                     onClick={handleSaveProfileImage}

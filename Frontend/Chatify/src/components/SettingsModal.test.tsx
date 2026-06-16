@@ -80,6 +80,20 @@ describe('SettingsModal profile picture workflow', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:profile-preview');
   });
 
+  it('keeps the file chooser focus ring on the visible control for keyboard users', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Close settings' })).toHaveFocus();
+
+    await user.tab();
+    const chooserInput = screen.getByLabelText('Choose image');
+
+    expect(chooserInput).toHaveFocus();
+    expect(chooserInput.closest('label')).toHaveClass('focus-within:ring-2');
+  });
+
   it('blocks unsupported files before calling the upload mutation', async () => {
     const user = userEvent.setup({ applyAccept: false });
     renderSettings();

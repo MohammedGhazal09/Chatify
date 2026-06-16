@@ -1,7 +1,7 @@
 ---
 phase: 16-profile-picture-upload-and-shared-avatar-visibility
 review: 16
-status: issues_found
+status: resolved
 depth: standard
 files_reviewed: 33
 findings:
@@ -14,6 +14,7 @@ commands:
   - "git diff --name-only 929ab07^..HEAD -- source review exclusions"
   - "static review of Phase 16 backend, frontend, and Playwright acceptance files"
 reviewed_at: 2026-06-16
+resolved_at: 2026-06-16
 ---
 
 # Phase 16 Code Review
@@ -64,7 +65,17 @@ No blocking questions. My recommendation is to fix WR-001 first because it can a
 
 ## Verification
 
-No automated tests were run during this review. This was a static code review over the Phase 16 implementation, tests, and acceptance artifact.
+- `cd Backend/Chatify; npm test -- --run test/user/user.profile-image.test.mjs` - passed, 1 file, 10 tests.
+- `cd Frontend/Chatify; npm test -- --run src/components/SettingsModal.test.tsx` - passed, 1 file, 7 tests.
+- `cd Frontend/Chatify; npm run lint` - passed.
+- `cd Frontend/Chatify; npm run build` - passed.
+- `cd Frontend/Chatify; npm run test:ui -- --grep "Phase 16" --list` - passed, 2 tests listed.
+
+## Resolution
+
+- WR-001 resolved by replacing time-derived profile image versions with UUIDs and adding a same-millisecond replacement regression.
+- WR-002 resolved by making the browser acceptance gate assert Account B renders Account A's exact uploaded profile image URL, and by writing a blocked report before backend-unreachable skips.
+- WR-003 resolved by nesting the file input inside the visible chooser label so `focus-within` applies to the keyboard-focused control, with focused test coverage.
 
 ## Skills Used
 
@@ -73,4 +84,5 @@ No automated tests were run during this review. This was a static code review ov
 - `code-review-security` - checked upload, URL, cache, auth, and private metadata boundaries.
 - `api-sec` - used REST endpoint/object-access triage for the profile image routes.
 - `frontend-accessibility` - reviewed the new chooser and avatar UI for keyboard and semantic issues.
+- `fixing-accessibility` - installed from `ibelick/ui-skills@fixing-accessibility` during the fix pass and used for the minimal keyboard-focus repair.
 - `vitest` - reviewed the focused unit-test and skipped acceptance-test behavior.
