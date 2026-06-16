@@ -28,6 +28,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 12: Live Media Voice And Identity Implementation** - Make user identity images/marks, attachments, shared media/files, and voice messages real persisted workflows.
 - [x] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons. (completed 2026-06-13)
 - [ ] **Phase 14: Production Live Acceptance Gate** - Prove the deployed Vercel/Render product works with real accounts and no fixture bypass.
+- [ ] **Phase 15: Investigate And Fix Audio And Video Call Reliability** - Make audio and video calls connect, fail honestly, clean up safely, and report readiness with evidence.
+- [ ] **Phase 16: Profile Picture Upload And Shared Avatar Visibility** - Let users upload a profile picture from their own PC and show it consistently to other users.
 
 ## Phase Details
 
@@ -481,7 +483,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -500,6 +502,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
 | 14. Production Live Acceptance Gate | 3/3 | Blocked pending live env | - |
+| 15. Investigate And Fix Audio And Video Call Reliability | 0/4 | Planned | - |
+| 16. Profile Picture Upload And Shared Avatar Visibility | 0/4 | Planned | - |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
@@ -527,3 +531,27 @@ Plans:
 - D-25: Keep the 15 second socket disconnect grace unless reproduction proves change is required.
 - D-26: Do not implement ICE renegotiation unless the failure report proves it is required.
 - D-28: Video camera failure must not silently become an audio call.
+
+### Phase 16: Profile Picture Upload And Shared Avatar Visibility
+
+**Goal:** Authenticated users can upload, preview, replace, and remove a profile picture from Settings, and other authenticated users see it through existing chat identity surfaces with safe fallback behavior.
+**Requirements**: ID-01, ID-02, SEC-01, SEC-02, TEST-01, TEST-04, TEST-05, UI-04, UI-05, UI-06
+**Depends on:** Phase 15
+**Plans:** 4 plans
+Plans:
+
+- [ ] 16-01: Backend profile image contract, storage, and security
+- [ ] 16-02: Settings profile picture workflow and cache propagation
+- [ ] 16-03: Avatar rendering surfaces and fixture guardrails
+- [ ] 16-04: Acceptance evidence, privacy scan, and regression gate
+
+**Cross-cutting constraints:**
+
+- D-04: Never expose raw storage internals in client payloads.
+- D-20: Unsafe profile-picture methods must use CSRF or a documented verified exemption.
+- D-22: Logs and errors must not expose image internals or user-identifying secrets.
+- D-35: Fixture guardrails must remain narrow and active.
+- D-36: Verification must include backend, frontend, fixture guard, and local two-account Playwright evidence.
+- D-37: Production E2E is not required for Phase 16.
+- D-39: Preserve unrelated local work and stage only focused Phase 16 files.
+- D-38: Avoid direct edits to Frontend/Chatify/src/pages/chat/chat.tsx unless integration requires it.

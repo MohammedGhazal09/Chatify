@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_execute
-stopped_at: Phase 15 planned
-last_updated: "2026-06-14T00:58:49.7553279+03:00"
-last_activity: 2026-06-14 -- Phase 15 planning complete with research, validation architecture, and 4 plans ready
+status: executing
+stopped_at: Phase 16 planned
+last_updated: "2026-06-16T04:49:35.885Z"
+last_activity: 2026-06-16 -- Phase 16 planning complete with research, validation architecture, and 4 plans ready
 progress:
-  total_phases: 16
+  total_phases: 17
   completed_phases: 12
-  total_plans: 44
+  total_plans: 48
   completed_plans: 37
-  percent: 75
+  percent: 77
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 15 — investigate-and-fix-audio-and-video-call-reliability
+**Current focus:** Phase 16 — profile-picture-upload-and-shared-avatar-visibility
 
 ## Current Position
 
-Phase: 15 (investigate-and-fix-audio-and-video-call-reliability)
+Phase: 16 (profile-picture-upload-and-shared-avatar-visibility)
 Plan: 4 plans ready
 Status: Ready to execute.
-Last activity: 2026-06-14 -- Phase 15 planning complete with research, validation architecture, and 4 plans ready
+Last activity: 2026-06-16 -- Phase 16 planning complete with research, validation architecture, and 4 plans ready
 
 Progress: 77%
 
@@ -118,6 +118,8 @@ Recent decisions affecting current work:
 - Phase 14 plan 14-02 completed with the main production live acceptance spec for two-account messaging, controls, generated attachments, shared surfaces, static-content denial, blocked no-env reporting, and behavior-backed screenshot capture when smoke env is configured.
 - Phase 14 plan 14-03 completed with call/video fake-media acceptance paths, deployment-origin/cookie/socket/file evidence, optional deployed commit metadata, final readiness decision reporting, and local quality gates passing.
 - Phase 15 added: Investigate and fix audio and video call reliability.
+- Phase 16 added: Profile Picture Upload And Shared Avatar Visibility.
+- Phase 16 planned with 4 plans across 3 waves: backend profile image contract/storage/security, Settings workflow and cache propagation, avatar rendering surfaces with fixture guardrails, and acceptance evidence with local two-account verification.
 
 ### Pending Todos
 
