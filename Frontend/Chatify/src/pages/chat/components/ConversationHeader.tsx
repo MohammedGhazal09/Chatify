@@ -3,7 +3,7 @@ import { ArrowLeft, MoreVertical, PanelRightClose, PanelRightOpen, Phone, Search
 import type { RefObject } from 'react';
 import type { User } from '../../../types/auth';
 import type { Chat, UserOnlineStatus } from '../../../types/chat';
-import AbstractIdentityTile from './AbstractIdentityTile';
+import UserAvatar from './UserAvatar';
 
 interface ConversationHeaderProps {
   selectedChat: Chat;
@@ -65,8 +65,8 @@ const ConversationHeader = ({
 
       {otherMember && (
         <div className="relative shrink-0">
-          <AbstractIdentityTile
-            id={otherMember._id}
+          <UserAvatar
+            user={otherMember}
             label={`${otherMember.firstName} ${otherMember.lastName ?? ''}`.trim()}
             variant="conversation"
             className="h-12 w-12 md:h-14 md:w-14"

@@ -19,7 +19,7 @@ export const makeCodedUser = (label: string, overrides: Partial<User> = {}): Use
     firstName: label,
     lastName: '',
     email: `${slug}@chatify.invalid`,
-    profilePic: `https://fixtures.invalid/chatify/${slug}.png`,
+    profilePic: `/api/user/fixture-${slug}/profile-image?v=fixture`,
     ...overrides,
   });
 };

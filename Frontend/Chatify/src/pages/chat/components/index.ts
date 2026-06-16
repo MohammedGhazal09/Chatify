@@ -12,6 +12,7 @@ export { default as ConversationDetailDrawer } from './ConversationDetailDrawer'
 export { default as ConversationHeader } from './ConversationHeader';
 export { default as ConversationMoreMenu } from './ConversationMoreMenu';
 export { default as ConversationPane } from './ConversationPane';
+export { default as UserAvatar } from './UserAvatar';
 export { default as MessageActionMenu } from './MessageActionMenu';
 export { default as MessageBubble } from './MessageBubble';
 export { default as MessageComposer } from './MessageComposer';

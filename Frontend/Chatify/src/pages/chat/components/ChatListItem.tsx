@@ -1,18 +1,20 @@
 import OnlineStatus from '../../../components/OnlineStatus';
+import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
-import AbstractIdentityTile from './AbstractIdentityTile';
+import UserAvatar from './UserAvatar';
 
 interface ChatListItemProps {
   chat: Chat;
   title: string;
+  avatarUser?: User | null;
   isActive: boolean;
   isOnline: boolean;
   unreadCount: number;
   onSelect: () => void;
 }
 
-const ChatListItem = ({ chat, title, isActive, isOnline, unreadCount, onSelect }: ChatListItemProps) => {
+const ChatListItem = ({ chat, title, avatarUser, isActive, isOnline, unreadCount, onSelect }: ChatListItemProps) => {
   const timestamp = chat.latestMessage
     ? formatTimestamp(chat.latestMessage.updatedAt)
     : formatTimestamp(chat.updatedAt);
@@ -27,7 +29,12 @@ const ChatListItem = ({ chat, title, isActive, isOnline, unreadCount, onSelect }
         }`}
       >
         <div className="flex items-center gap-3">
-          <AbstractIdentityTile id={chat._id} label={title} variant="conversation" className="h-11 w-11" />
+          <UserAvatar
+            user={avatarUser}
+            label={title}
+            variant="conversation"
+            className="h-11 w-11"
+          />
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2 text-sm font-semibold leading-5">
               <span className="truncate">{title}</span>

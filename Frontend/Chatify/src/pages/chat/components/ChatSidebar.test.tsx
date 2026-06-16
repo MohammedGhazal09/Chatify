@@ -42,6 +42,17 @@ const renderSidebar = (overrides: Partial<ChatSidebarProps> = {}) => {
 };
 
 describe('ChatSidebar', () => {
+  it('renders the current account profile image in the sidebar header', () => {
+    renderSidebar({
+      user: makeUser({ profilePic: '/api/user/user-1/profile-image?v=account' }),
+    });
+
+    expect(screen.getByRole('img', { name: 'Current account profile picture' })).toHaveAttribute(
+      'src',
+      expect.stringContaining('/api/user/user-1/profile-image?v=account')
+    );
+  });
+
   it('renders the empty sidebar state and close control', async () => {
     const user = userEvent.setup();
     const onCloseSidebar = vi.fn();

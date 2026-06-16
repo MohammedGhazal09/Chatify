@@ -36,7 +36,9 @@ const blockedPatterns = [
   { label: 'private storage leak', pattern: /raw[-_ ]?hash/i },
   { label: 'private storage leak', pattern: /file[-_ ]?hash/i },
   { label: 'private storage leak', pattern: /sha256/i },
-  { label: 'living visual fixture term', pattern: /profile[-_ ]?(pic|picture|photo)/i },
+  { label: 'static profile image fixture', pattern: /profile[-_ ]?(pic|picture|photo)[-_ ]?fixture/i },
+  { label: 'static profile image fixture', pattern: /fixture[-_ ]?profile[-_ ]?(pic|picture|photo)/i },
+  { label: 'static profile image fixture', pattern: /demo[-_ ]?(avatar|profile[-_ ]?(pic|picture|photo))/i },
   { label: 'living visual fixture term', pattern: /realistic avatar/i },
   { label: 'living visual fixture term', pattern: /\b(human|animal|pet|bird|insect|plant|flower|tree|mascot|portrait|silhouette)\b/i },
 ];
@@ -53,6 +55,20 @@ const runtimeEntries = Object.entries(runtimeSource).filter(([filePath]) => (
 ));
 
 describe('chat runtime fixture leak guard', () => {
+  it('allows real profile image route and profilePic handling while blocking fixture wording', () => {
+    const allowedRuntimeSource = 'const profilePic = "/api/user/user-1/profile-image?v=1";';
+    const blockedFixtureSource = 'const demoAvatar = "profile photo fixture";';
+
+    expect(blockedPatterns.filter(({ pattern }) => pattern.test(allowedRuntimeSource))).toEqual([]);
+    expect(blockedPatterns.some(({ pattern }) => pattern.test(blockedFixtureSource))).toBe(true);
+  });
+
+  it('still blocks private storage internals in runtime samples', () => {
+    const blockedStorageSource = 'gridfs storageFileId objectKey sha256 private path';
+
+    expect(blockedPatterns.some(({ pattern }) => pattern.test(blockedStorageSource))).toBe(true);
+  });
+
   it('keeps test fixtures, private asset internals, and living visual fixture data out of production chat runtime files', () => {
     const leakedFiles = runtimeEntries.flatMap(([filePath, source]) => {
       if (typeof source !== 'string') {

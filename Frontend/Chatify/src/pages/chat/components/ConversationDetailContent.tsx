@@ -22,9 +22,9 @@ import type { User } from '../../../types/auth';
 import type { Chat, ConversationControls, PinnedMessage, SharedAsset, UserOnlineStatus } from '../../../types/chat';
 import { formatFileSize } from '../utils/attachmentDisplay';
 import { getChatTitle } from '../utils/chatDisplay';
-import AbstractIdentityTile from './AbstractIdentityTile';
 import AttachmentPreview from './AttachmentPreview';
 import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
+import UserAvatar from './UserAvatar';
 
 export interface ConversationDetailContentProps {
   selectedChat: Chat;
@@ -108,8 +108,8 @@ const ConversationDetailContent = ({
   return (
     <>
       <div className="mb-5 flex items-start gap-4">
-        <AbstractIdentityTile
-          id={otherMember?._id ?? selectedChat._id}
+        <UserAvatar
+          user={otherMember}
           label={title}
           variant="large"
           className="h-20 w-20"

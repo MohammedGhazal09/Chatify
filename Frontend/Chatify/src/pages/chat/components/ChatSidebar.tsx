@@ -4,9 +4,9 @@ import { Lock, LogOut, Plus, Search, Settings, X } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
 import { getChatTitle, getOtherMember } from '../utils/chatDisplay';
-import AbstractIdentityTile from './AbstractIdentityTile';
 import ChatListItem from './ChatListItem';
 import NewChatDialog from './NewChatDialog';
+import UserAvatar from './UserAvatar';
 
 interface ChatSidebarProps {
   user: User | null;
@@ -84,12 +84,13 @@ const ChatSidebar = ({
       }`}
     >
       <div className="flex min-h-16 items-center gap-3 border-b border-[var(--chat-border)] p-4">
-        <AbstractIdentityTile
-          id={user?._id}
+        <UserAvatar
+          user={user}
           label={user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}
           variant="account"
           className="h-11 w-11"
-          aria-label="Current account abstract identity"
+          imageAlt="Current account profile picture"
+          fallbackAriaLabel="Current account profile picture fallback"
         />
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-[var(--chat-text-soft)]">Chatify</p>
@@ -197,6 +198,7 @@ const ChatSidebar = ({
                   key={chat._id}
                   chat={chat}
                   title={getChatTitle(chat, user?._id)}
+                  avatarUser={otherMember}
                   isActive={chat._id === selectedChatId}
                   isOnline={memberStatus?.isOnline ?? false}
                   unreadCount={unreadCounts?.get(chat._id) ?? 0}

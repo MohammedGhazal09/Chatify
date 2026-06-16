@@ -1,12 +1,16 @@
 import { createRef } from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { makeChat, makeUser } from '../../../test/chatFixtures';
 import ConversationHeader from './ConversationHeader';
 
+vi.mock('../../../api/apiOrigin', () => ({
+  resolveApiBaseUrl: vi.fn(() => 'https://backend.test'),
+}));
+
 describe('ConversationHeader', () => {
-  it('uses abstract identity and accessible reference actions', async () => {
+  it('uses profile image identity and accessible reference actions', async () => {
     const user = userEvent.setup();
     const onOpenSidebar = vi.fn();
     const onToggleMessageSearch = vi.fn();
@@ -43,7 +47,7 @@ describe('ConversationHeader', () => {
     );
 
     expect(screen.getByText('IN-8B21')).toBeInTheDocument();
-    expect(document.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'IN 8B21 profile picture' })).toHaveAttribute('src', 'https://example.com/avatar.png');
 
     await user.click(screen.getByRole('button', { name: 'Open conversations' }));
     await user.click(screen.getByRole('button', { name: 'Call' }));
@@ -63,6 +67,40 @@ describe('ConversationHeader', () => {
     expect(screen.getByRole('button', { name: 'More conversation actions' })).toBeEnabled();
     const headerButtons = screen.getAllByRole('button');
     expect(headerButtons[headerButtons.length - 1]).toBe(screen.getByRole('button', { name: 'Open conversation details' }));
+  });
+
+  it('falls back in the header when the member image fails to load', () => {
+    const chat = makeChat({
+      members: [
+        makeUser({ _id: 'user-1', firstName: 'AX', lastName: '7F3C' }),
+        makeUser({ _id: 'user-2', firstName: 'IN', lastName: '8B21', profilePic: '/api/user/user-2/profile-image?v=broken' }),
+      ],
+    });
+
+    render(
+      <ConversationHeader
+        selectedChat={chat}
+        title="IN-8B21"
+        otherMember={chat.members[1]}
+        otherMemberStatus={{ userId: 'user-2', isOnline: true }}
+        showMessageSearch={false}
+        showConversationMoreMenu={false}
+        showConversationDetails={false}
+        searchButtonRef={createRef<HTMLButtonElement>()}
+        moreButtonRef={createRef<HTMLButtonElement>()}
+        onOpenSidebar={vi.fn()}
+        onStartAudioCall={vi.fn()}
+        onStartVideoCall={vi.fn()}
+        onToggleConversationMoreMenu={vi.fn()}
+        onToggleConversationDetails={vi.fn()}
+        onToggleMessageSearch={vi.fn()}
+        onExportChat={vi.fn()}
+      />
+    );
+
+    fireEvent.error(screen.getByRole('img', { name: 'IN 8B21 profile picture' }));
+
+    expect(screen.getByRole('img', { name: 'IN 8B21 profile picture fallback' })).toBeInTheDocument();
   });
 
   it('shows the close state for the top-right detail toggle when details are open', () => {
