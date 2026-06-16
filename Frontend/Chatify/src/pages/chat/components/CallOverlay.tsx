@@ -144,7 +144,7 @@ const CallOverlay = ({
 
         {isVideo && (
           <div className="grid min-h-[280px] bg-[var(--chat-bg)] p-4 sm:grid-cols-[1fr_180px] sm:gap-4">
-            <VideoSurface label="Remote video" stream={callState.remoteStream} muted={false} />
+            <VideoSurface label="Remote video" stream={callState.remoteStream} muted />
             <VideoSurface label="Local preview" stream={callState.localStream} muted />
           </div>
         )}
@@ -159,6 +159,10 @@ const CallOverlay = ({
               </div>
             </div>
           </div>
+        )}
+
+        {callState.remoteStream && (
+          <RemoteAudioSink stream={callState.remoteStream} />
         )}
 
         {callState.error && (
@@ -216,6 +220,32 @@ const CallOverlay = ({
         </div>
       </section>
     </div>
+  );
+};
+
+const RemoteAudioSink = ({ stream }: { stream: MediaStream }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const audioElement = audioRef.current;
+
+    if (!audioElement) {
+      return;
+    }
+
+    audioElement.srcObject = stream;
+    void audioElement.play().catch(() => undefined);
+  }, [stream]);
+
+  return (
+    <audio
+      ref={audioRef}
+      autoPlay
+      playsInline
+      aria-label="Remote call audio"
+      data-testid="remote-call-audio"
+      className="sr-only"
+    />
   );
 };
 

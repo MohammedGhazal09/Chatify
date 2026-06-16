@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeUser } from '../../../test/chatFixtures';
 import type { CallControllerState } from '../../../hooks/useCallController';
 import CallOverlay from './CallOverlay';
@@ -34,6 +34,14 @@ const renderOverlay = (state: Partial<CallControllerState>) => {
 };
 
 describe('CallOverlay', () => {
+  beforeEach(() => {
+    vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('does not render while idle', () => {
     renderOverlay({ status: 'idle' });
 
@@ -58,18 +66,41 @@ describe('CallOverlay', () => {
     expect(handlers.onReject).toHaveBeenCalledTimes(1);
   });
 
+  it('attaches the remote stream to audio playback during active audio calls', () => {
+    const remoteStream = new MediaStream();
+
+    renderOverlay({
+      status: 'connected',
+      mode: 'audio',
+      connectedAt: new Date().toISOString(),
+      remoteStream,
+    });
+
+    const remoteAudio = screen.getByTestId('remote-call-audio') as HTMLAudioElement;
+
+    expect(remoteAudio.srcObject).toBe(remoteStream);
+    expect(remoteAudio.muted).toBe(false);
+    expect(window.HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+  });
+
   it('controls active video calls', async () => {
     const user = userEvent.setup();
+    const remoteStream = new MediaStream();
     const handlers = renderOverlay({
       status: 'connected',
       mode: 'video',
       connectedAt: new Date().toISOString(),
       localStream: new MediaStream(),
-      remoteStream: new MediaStream(),
+      remoteStream,
     });
+    const remoteVideo = screen.getByLabelText('Remote video') as HTMLVideoElement;
+    const remoteAudio = screen.getByTestId('remote-call-audio') as HTMLAudioElement;
 
     expect(screen.getByRole('dialog', { name: 'Call controls' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Remote video')).toBeInTheDocument();
+    expect(remoteVideo).toBeInTheDocument();
+    expect(remoteVideo.muted).toBe(true);
+    expect(remoteAudio.srcObject).toBe(remoteStream);
+    expect(remoteAudio.muted).toBe(false);
     expect(screen.getByLabelText('Local preview')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Mute microphone' }));
