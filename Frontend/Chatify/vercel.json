@@ -5,6 +5,14 @@
       "destination": "https://chatify-ckmn.onrender.com/api/:path*"
     },
     {
+      "source": "/socket.io",
+      "destination": "https://chatify-ckmn.onrender.com/socket.io"
+    },
+    {
+      "source": "/socket.io/",
+      "destination": "https://chatify-ckmn.onrender.com/socket.io/"
+    },
+    {
       "source": "/socket.io/:path*",
       "destination": "https://chatify-ckmn.onrender.com/socket.io/:path*"
     },

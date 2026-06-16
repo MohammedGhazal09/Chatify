@@ -70,7 +70,10 @@ describe('MessageComposer', () => {
   it('keeps the message text vertically centered in the composer input', () => {
     render(<ComposerHarness onSend={vi.fn()} />);
 
-    expect(screen.getByRole('textbox', { name: 'Write a private message' })).toHaveClass('py-3.5', 'leading-5');
+    const textbox = screen.getByRole('textbox', { name: 'Write a private message' });
+
+    expect(textbox).toHaveAttribute('rows', '1');
+    expect(textbox).toHaveClass('block', 'px-4', 'py-3.5', 'leading-5');
   });
 
   it('sends on Enter when text is present', async () => {

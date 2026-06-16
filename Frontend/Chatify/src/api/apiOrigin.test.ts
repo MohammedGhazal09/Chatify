@@ -28,11 +28,20 @@ describe('api origin resolution', () => {
     }, vercelLocation)).toBe('https://api.chatify.example.com');
   });
 
-  it('uses an explicit socket URL before the API origin', () => {
+  it('keeps production sockets on the same origin even when a stale socket URL env var exists', () => {
+    expect(resolveSocketUrl({
+      PROD: true,
+      VITE_SOCKET_URL: 'https://chatify-ckmn.onrender.com/',
+      VITE_BACKEND_URL: 'https://chatify-ckmn.onrender.com',
+    }, vercelLocation)).toBe('https://chatify-ten-rho.vercel.app');
+  });
+
+  it('allows an explicit cross-origin socket opt-out', () => {
     expect(resolveSocketUrl({
       PROD: true,
       VITE_SOCKET_URL: 'https://socket.chatify.example.com/',
       VITE_BACKEND_URL: 'https://api.chatify.example.com',
+      VITE_USE_SAME_ORIGIN_API: 'false',
     }, vercelLocation)).toBe('https://socket.chatify.example.com');
   });
 

@@ -111,6 +111,32 @@ test.describe('Phase 10 production smoke config', () => {
 });
 
 test.describe('Phase 14 production smoke config', () => {
+  test('proxies the bare Socket.IO endpoint before the SPA fallback', () => {
+    const vercelConfig = JSON.parse(fs.readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+    const rewrites = vercelConfig.rewrites as Array<{ source: string; destination: string }>;
+    const rewriteSources = rewrites.map((rewrite) => rewrite.source);
+
+    expect(rewrites).toEqual(
+      expect.arrayContaining([
+        {
+          source: '/socket.io',
+          destination: 'https://chatify-ckmn.onrender.com/socket.io',
+        },
+        {
+          source: '/socket.io/',
+          destination: 'https://chatify-ckmn.onrender.com/socket.io/',
+        },
+        {
+          source: '/socket.io/:path*',
+          destination: 'https://chatify-ckmn.onrender.com/socket.io/:path*',
+        },
+      ])
+    );
+    expect(rewriteSources.indexOf('/socket.io')).toBeLessThan(rewriteSources.indexOf('/(.*)'));
+    expect(rewriteSources.indexOf('/socket.io/')).toBeLessThan(rewriteSources.indexOf('/(.*)'));
+    expect(rewriteSources.indexOf('/socket.io/:path*')).toBeLessThan(rewriteSources.indexOf('/(.*)'));
+  });
+
   test('blocks missing Phase 14 env without default production URL fallback', async () => {
     await withSmokeEnv(
       missingSmokeEnv,

@@ -265,11 +265,12 @@ const MessageComposer = ({
             value={value}
             onChange={onChange}
             onKeyDown={handleKeyDown}
+            rows={1}
             placeholder="Write a private message"
             aria-label="Write a private message"
             disabled={Boolean(sendDisabledReason)}
             aria-describedby={currentDisabledReason && showDisabledReason ? composerStatusId : undefined}
-            className="chat-input-area max-h-24 min-h-12 w-full resize-none rounded-[var(--chat-radius-pill)] bg-transparent px-5 py-3.5 text-base leading-5 text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] md:text-sm"
+            className="chat-input-area block max-h-24 min-h-12 w-full resize-none rounded-[var(--chat-radius-pill)] bg-transparent px-4 py-3.5 text-base leading-5 text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] md:text-sm"
           />
         </div>
 

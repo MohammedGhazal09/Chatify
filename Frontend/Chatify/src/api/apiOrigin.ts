@@ -44,6 +44,10 @@ export const resolveSocketUrl = (
   env: RuntimeEnv = import.meta.env,
   location = getRuntimeLocation()
 ) => {
+  if (shouldUseSameOriginApi(env, location) && location) {
+    return location.origin;
+  }
+
   const socketUrl = cleanUrl(env.VITE_SOCKET_URL);
 
   if (socketUrl) {
