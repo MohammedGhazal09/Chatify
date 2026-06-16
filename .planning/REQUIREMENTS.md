@@ -79,8 +79,8 @@
 - [ ] **CTRL-03**: Pinned messages, shared files, shared media, and security rows render from server-backed conversation state or disappear when empty.
 - [ ] **BLOCK-01**: User can block and unblock a direct-message participant from the conversation UI.
 - [x] **BLOCK-02**: Blocked state prevents new messages, call attempts, and inappropriate realtime events across HTTP and Socket.IO paths.
-- [ ] **ID-01**: User identity imagery or abstract identity marks can be changed and persist across sidebar, header, message, and detail surfaces.
-- [ ] **ID-02**: Identity imagery upload or customization has validation, privacy controls, and fallback behavior.
+- [x] **ID-01**: User identity imagery or abstract identity marks can be changed and persist across sidebar, header, message, and detail surfaces.
+- [x] **ID-02**: Identity imagery upload or customization has validation, privacy controls, and fallback behavior.
 - [ ] **VOICE-01**: User can record, preview, cancel, send, reload, and play voice messages.
 - [ ] **VOICE-02**: Voice message permission denial, unsupported browsers, network failure, retry, and playback errors are recoverable.
 - [x] **CALL-01**: Audio call controls initiate authenticated one-to-one realtime call sessions.
@@ -175,8 +175,8 @@
 | CTRL-03 | Phase 11 | Pending |
 | BLOCK-01 | Phase 11 | Pending |
 | BLOCK-02 | Phase 11, Phase 13 | Complete |
-| ID-01 | Phase 12 | Pending |
-| ID-02 | Phase 12 | Pending |
+| ID-01 | Phase 12, Phase 16 | Complete |
+| ID-02 | Phase 12, Phase 16 | Complete |
 | VOICE-01 | Phase 12 | Pending |
 | VOICE-02 | Phase 12 | Pending |
 | CALL-01 | Phase 13 | Complete |

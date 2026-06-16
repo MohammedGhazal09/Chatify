@@ -29,7 +29,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons. (completed 2026-06-13)
 - [ ] **Phase 14: Production Live Acceptance Gate** - Prove the deployed Vercel/Render product works with real accounts and no fixture bypass.
 - [ ] **Phase 15: Investigate And Fix Audio And Video Call Reliability** - Make audio and video calls connect, fail honestly, clean up safely, and report readiness with evidence.
-- [ ] **Phase 16: Profile Picture Upload And Shared Avatar Visibility** - Let users upload a profile picture from their own PC and show it consistently to other users.
+- [x] **Phase 16: Profile Picture Upload And Shared Avatar Visibility** - Let users upload a profile picture from their own PC and show it consistently to other users. (completed 2026-06-16)
 
 ## Phase Details
 
@@ -503,7 +503,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
 | 14. Production Live Acceptance Gate | 3/3 | Blocked pending live env | - |
 | 15. Investigate And Fix Audio And Video Call Reliability | 0/4 | Planned | - |
-| 16. Profile Picture Upload And Shared Avatar Visibility | 3/4 | In Progress | - |
+| 16. Profile Picture Upload And Shared Avatar Visibility | 4/4 | Complete    | 2026-06-16 |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
@@ -537,13 +537,13 @@ Plans:
 **Goal:** Authenticated users can upload, preview, replace, and remove a profile picture from Settings, and other authenticated users see it through existing chat identity surfaces with safe fallback behavior.
 **Requirements**: ID-01, ID-02, SEC-01, SEC-02, TEST-01, TEST-04, TEST-05, UI-04, UI-05, UI-06
 **Depends on:** Phase 15
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 Plans:
 
 - [x] 16-01: Backend profile image contract, storage, and security
 - [x] 16-02: Settings profile picture workflow and cache propagation
 - [x] 16-03: Avatar rendering surfaces and fixture guardrails
-- [ ] 16-04: Acceptance evidence, privacy scan, and regression gate
+- [x] 16-04: Acceptance evidence, privacy scan, and regression gate
 
 **Cross-cutting constraints:**
 
