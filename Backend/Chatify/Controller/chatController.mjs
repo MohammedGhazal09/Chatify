@@ -32,6 +32,7 @@ const projectLatestVisibleMessage = async (chatId, requesterId) => {
 };
 
 const DIRECT_CHAT_START_ERROR = "We could not start or continue that chat. Check the email and try again.";
+const PUBLIC_CHAT_MEMBER_SELECT = "username firstName lastName profilePic identityMark identityMarkUpdatedAt";
 
 const buildDirectChatKey = (leftMemberId, rightMemberId) => [leftMemberId.toString(), rightMemberId.toString()]
   .sort()
@@ -46,7 +47,7 @@ const findDirectChat = (directKey, memberIds = []) => Chats.findOne({
     { members: { $all: memberIds } },
   ],
 })
-  .populate("members", "-password")
+  .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
   .populate("latestMessage");
 
 const serializeChatForRequester = async (chat, requesterId, latestMessage = undefined) => {
@@ -91,7 +92,7 @@ const loadChatForRequester = async ({ chatId, requesterId, next }) => {
   }
 
   const chat = await Chats.findById(chatId)
-    .populate("members", "-password")
+    .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
     .populate("latestMessage");
 
   if (!chat) {
@@ -177,7 +178,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
     return respondWithExistingDirectChat(res, duplicateChat, requesterId);
   }
 
-  await newChat.populate("members", "-password");
+  await newChat.populate("members", PUBLIC_CHAT_MEMBER_SELECT);
   await newChat.populate("latestMessage");
 
   const requesterChat = await serializeChatForRequester(newChat, requesterId);
@@ -210,7 +211,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
 
 export const getAllChats = asyncErrHandler(async (req, res, next) => {
   const chats = await Chats.find({ members: { $in: [req.userId] } })
-    .populate("members", "-password")
+    .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
     .sort({ updatedAt: -1 });
   const projectedChats = await Promise.all(chats.map(async (chat) => {
     return serializeChatForRequester(chat, req.userId);

@@ -51,6 +51,14 @@ describe('direct chat continuation', () => {
 
     expect(chat.directKey).toBe(expectedDirectKey);
     expect(response.body.data.chat.members).toHaveLength(2);
+    expect(response.body.data.chat.members).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ username: requester.user.username }),
+        expect.objectContaining({ username: target.user.username }),
+      ])
+    );
+    expect(JSON.stringify(response.body.data.chat)).not.toContain('"email"');
+    expect(JSON.stringify(response.body.data.chat)).not.toContain(target.user.email);
     expect(response.body.data.chat.conversationControls).toMatchObject({
       isDirectChat: true,
       peerId: target.user._id.toString(),
@@ -61,6 +69,8 @@ describe('direct chat continuation', () => {
     expect(emittedUserId.toString()).toBe(target.user._id.toString());
     expect(emittedEvent).toBe('chat:new');
     expect(emittedChat._id.toString()).toBe(response.body.data.chat._id);
+    expect(JSON.stringify(emittedChat)).not.toContain('"email"');
+    expect(JSON.stringify(emittedChat)).not.toContain(requester.user.email);
     expect(emittedChat.conversationControls).toMatchObject({
       isDirectChat: true,
       peerId: requester.user._id.toString(),

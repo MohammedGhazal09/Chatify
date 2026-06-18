@@ -245,6 +245,7 @@ describe('Socket.IO presence and reconnect contract', () => {
       expect.arrayContaining([
         expect.objectContaining({
           userId: memberTwo.user._id.toString(),
+          username: memberTwo.user.username,
           userName: 'Presence Two',
           isOnline: false,
           isCallReachable: false,
@@ -289,6 +290,7 @@ describe('Socket.IO presence and reconnect contract', () => {
       expect.arrayContaining([
         expect.objectContaining({
           _id: memberTwo.user._id.toString(),
+          username: memberTwo.user.username,
           isOnline: true,
           isCallReachable: true,
         }),
@@ -298,6 +300,7 @@ describe('Socket.IO presence and reconnect contract', () => {
       expect.arrayContaining([
         expect.objectContaining({
           _id: memberTwo.user._id.toString(),
+          username: memberTwo.user.username,
           isOnline: true,
           isCallReachable: true,
         }),

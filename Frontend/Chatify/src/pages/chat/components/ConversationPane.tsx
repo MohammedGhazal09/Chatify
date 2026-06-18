@@ -363,7 +363,7 @@ const getMemberDisplayName = (member: User | null) => {
     return 'this user';
   }
 
-  return `${member.firstName} ${member.lastName ?? ''}`.trim() || member.email || 'this user';
+  return `${member.firstName} ${member.lastName ?? ''}`.trim() || member.username || 'this user';
 };
 
 const ConversationBlockNotice = ({

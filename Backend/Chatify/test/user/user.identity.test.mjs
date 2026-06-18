@@ -25,6 +25,10 @@ const expectNoPrivateIdentityFields = (payload) => {
   );
 };
 
+const expectNoPublicEmailFields = (payload) => {
+  expect(JSON.stringify(payload)).not.toMatch(/"email"/i);
+};
+
 const setupIdentityUser = async (overrides = {}) => {
   const signedUp = await signupWithAgent(overrides);
   const csrfToken = await getCsrfForAgent(signedUp.agent);
@@ -76,6 +80,9 @@ describe('user identity marks', () => {
     const onlineUsers = await viewer.agent
       .get('/api/user/online-users')
       .expect(200);
+    const onlineStatus = await viewer.agent
+      .get(`/api/user/online-status/${owner.user._id}`)
+      .expect(200);
     const chats = await viewer.agent
       .get('/api/chat/get-all-chats')
       .expect(200);
@@ -84,14 +91,34 @@ describe('user identity marks', () => {
     const ownerFromContacts = onlineUsers.body.data.allContacts.find((candidate) => candidate._id === owner.user._id.toString());
     const ownerFromChat = chats.body.data.chats[0].members.find((candidate) => candidate._id === owner.user._id.toString());
 
+    expect(loggedUser.body.user.email).toBe(owner.user.email);
+    expect(loggedUser.body.user.username).toBe(owner.user.username);
     expect(loggedUser.body.user.identityMark).toMatchObject({ source: 'custom', label: 'Relay Grid' });
-    expect(ownerFromAllUsers.identityMark).toMatchObject({ source: 'custom', label: 'Relay Grid' });
-    expect(ownerFromContacts.identityMark).toMatchObject({ source: 'custom', label: 'Relay Grid' });
-    expect(ownerFromChat.identityMark).toMatchObject({ source: 'custom', label: 'Relay Grid' });
+    expect(ownerFromAllUsers).toMatchObject({
+      username: owner.user.username,
+      identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),
+    });
+    expect(ownerFromContacts).toMatchObject({
+      username: owner.user.username,
+      identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),
+    });
+    expect(onlineStatus.body.data).toMatchObject({
+      username: owner.user.username,
+      identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),
+    });
+    expect(ownerFromChat).toMatchObject({
+      username: owner.user.username,
+      identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),
+    });
     expectNoPrivateIdentityFields(loggedUser.body);
     expectNoPrivateIdentityFields(allUsers.body);
     expectNoPrivateIdentityFields(onlineUsers.body);
+    expectNoPrivateIdentityFields(onlineStatus.body);
     expectNoPrivateIdentityFields(chats.body);
+    expectNoPublicEmailFields(allUsers.body);
+    expectNoPublicEmailFields(onlineUsers.body);
+    expectNoPublicEmailFields(onlineStatus.body);
+    expectNoPublicEmailFields(chats.body);
   });
 
   it('rejects unsupported preset ids, URL-like values, and living-being identity concepts', async () => {

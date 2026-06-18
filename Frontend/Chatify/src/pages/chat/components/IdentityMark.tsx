@@ -6,7 +6,7 @@ interface IdentityMarkUser {
   _id?: string;
   firstName?: string;
   lastName?: string;
-  email?: string;
+  username?: string;
   identityMark?: IdentityMarkValue;
 }
 
@@ -26,7 +26,7 @@ const getIdentityLabel = (
 ) => {
   const displayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim();
 
-  return identityMark?.label || label || displayName || user?.email || 'Chatify identity';
+  return identityMark?.label || label || displayName || user?.username || 'Chatify identity';
 };
 
 const IdentityMark = ({

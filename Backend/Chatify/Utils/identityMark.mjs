@@ -98,10 +98,10 @@ const ensureAllowedPreset = (value, allowedValues, fieldName) => {
 export const getIdentityDisplayLabel = (user) => {
   const firstName = normalizeString(user?.firstName);
   const lastName = normalizeString(user?.lastName);
-  const emailName = normalizeString(user?.email?.split?.('@')?.[0]);
+  const username = normalizeString(user?.username);
   const displayName = `${firstName} ${lastName}`.trim();
 
-  return displayName || emailName || 'Chatify User';
+  return displayName || username || 'Chatify User';
 };
 
 export const getIdentityInitials = (value) => {
@@ -119,7 +119,7 @@ export const getIdentityInitials = (value) => {
 
 export const buildFallbackIdentityMark = (user) => {
   const label = getIdentityDisplayLabel(user);
-  const seed = user?._id?.toString?.() || user?.id?.toString?.() || user?.email || label;
+  const seed = user?._id?.toString?.() || user?.id?.toString?.() || user?.username || label;
   const paletteIndex = stableIndex(seed, IDENTITY_MARK_PALETTE_IDS.length);
   const patternIndex = stableIndex(`${seed}:pattern`, IDENTITY_MARK_PATTERN_IDS.length);
   const accentIndex = stableIndex(`${seed}:accent`, IDENTITY_MARK_ACCENT_IDS.length);

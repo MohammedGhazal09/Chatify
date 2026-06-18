@@ -519,6 +519,7 @@ const formatUserStatus = (user, isOnline, lastSeen = null) => {
   const isCallReachable = isVisibleOnline && getUserSockets(user._id).size > 0
   const payload = {
     userId: user._id.toString(),
+    username: user.username ?? '',
     userName: `${user.firstName} ${user.lastName || ''}`.trim(),
     isOnline: isVisibleOnline,
     isCallReachable,
@@ -560,7 +561,7 @@ const getAuthorizedPresenceSnapshot = async (userId) => {
 
   const contacts = await User.find({
     _id: { $in: contactIds },
-  }).select('firstName lastName isOnline lastSeen showOnlineStatus showLastSeen')
+  }).select('username firstName lastName isOnline lastSeen showOnlineStatus showLastSeen')
 
   return contacts.map(contact => formatUserStatus(
     contact,
@@ -572,7 +573,7 @@ const getAuthorizedPresenceSnapshot = async (userId) => {
 // Helper to broadcast user status to authorized contacts only.
 const broadcastUserStatus = async (userId, isOnline, lastSeen = null) => {
   try {
-    const user = await User.findById(userId).select('firstName lastName showOnlineStatus')
+    const user = await User.findById(userId).select('username firstName lastName showOnlineStatus')
     
     if (!user || !user.showOnlineStatus) {
       return // User has privacy enabled, don't broadcast
@@ -1002,12 +1003,13 @@ export const initSocket = (server) => {
           chat,
           actorId: socket.data.userId,
         })
-        const user = await User.findById(socket.data.userId).select('firstName lastName')
+        const user = await User.findById(socket.data.userId).select('username firstName lastName')
         if (!user) return
 
         socket.to(chat._id.toString()).emit('user:typing', {
           chatId: chat._id.toString(),
           userId: socket.data.userId,
+          username: user.username ?? '',
           userName: `${user.firstName} ${user.lastName || ''}`.trim(),
           isTyping: true,
         })
@@ -1029,12 +1031,13 @@ export const initSocket = (server) => {
           chat,
           actorId: socket.data.userId,
         })
-        const user = await User.findById(socket.data.userId).select('firstName lastName')
+        const user = await User.findById(socket.data.userId).select('username firstName lastName')
         if (!user) return
 
         socket.to(chat._id.toString()).emit('user:typing', {
           chatId: chat._id.toString(),
           userId: socket.data.userId,
+          username: user.username ?? '',
           userName: `${user.firstName} ${user.lastName || ''}`.trim(),
           isTyping: false,
         })

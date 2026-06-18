@@ -130,6 +130,7 @@ describe('Socket.IO voice and identity room contract', () => {
       userId: memberOne.user._id.toString(),
       user: {
         _id: memberOne.user._id.toString(),
+        username: memberOne.user.username,
         identityMark: {
           source: 'custom',
           label: 'Signal Grid',
@@ -139,6 +140,8 @@ describe('Socket.IO voice and identity room contract', () => {
       chatIds: expect.any(Array),
     });
     expect(memberEvent.user.identityMark).toEqual(response.body.data.user.identityMark);
+    expect(memberEvent.user).not.toHaveProperty('email');
+    expect(JSON.stringify(memberEvent)).not.toContain(memberOne.user.email);
     expect(nonMemberEvent).toBeUndefined();
   });
 });

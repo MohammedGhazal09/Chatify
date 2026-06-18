@@ -6,6 +6,7 @@ interface OnlineStatusResponse {
   status: string;
   data: {
     _id: string;
+    username?: string;
     firstName: string;
     lastName?: string;
     isOnline?: boolean;
@@ -18,6 +19,7 @@ interface OnlineUsersResponse {
   data: {
     onlineUsers: Array<{
       _id: string;
+      username?: string;
       firstName: string;
       lastName?: string;
       profilePic?: string;
@@ -26,6 +28,7 @@ interface OnlineUsersResponse {
     }>;
     allContacts: Array<{
       _id: string;
+      username?: string;
       firstName: string;
       lastName?: string;
       profilePic?: string;

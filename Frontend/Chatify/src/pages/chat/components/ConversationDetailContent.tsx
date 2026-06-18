@@ -329,7 +329,7 @@ const ConversationDetailContent = ({
 };
 
 const getMemberDisplayName = (member: User) => (
-  `${member.firstName} ${member.lastName ?? ''}`.trim() || member.email || 'Unknown user'
+  `${member.firstName} ${member.lastName ?? ''}`.trim() || member.username || 'Unknown user'
 );
 
 const BlockedPeopleSection = ({

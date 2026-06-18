@@ -5,7 +5,7 @@ export const makeUser = (overrides: Partial<User> = {}): User => ({
   _id: 'user-1',
   firstName: 'Ada',
   lastName: 'Lovelace',
-  email: 'ada@example.com',
+  username: 'ada.lovelace',
   authProvider: 'local',
   isVerified: true,
   ...overrides,
@@ -18,7 +18,7 @@ export const makeCodedUser = (label: string, overrides: Partial<User> = {}): Use
     _id: `fixture-${slug}`,
     firstName: label,
     lastName: '',
-    email: `${slug}@chatify.invalid`,
+    username: slug.replace(/-/g, '.'),
     profilePic: `/api/user/fixture-${slug}/profile-image?v=fixture`,
     ...overrides,
   });
@@ -89,8 +89,8 @@ export const makePinnedMessage = (overrides: Partial<PinnedMessage> = {}): Pinne
 export const makeChat = (overrides: Partial<Chat> = {}): Chat => ({
   _id: 'chat-1',
   members: [
-    makeUser({ _id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com' }),
-    makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.com' }),
+    makeUser({ _id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', username: 'ada.lovelace' }),
+    makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper', username: 'grace.hopper' }),
   ],
   unReadMessages: 0,
   chatName: undefined,

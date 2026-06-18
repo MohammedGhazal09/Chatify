@@ -82,18 +82,22 @@ const loadProfileImageUser = (userId) => User.findById(userId)
 
 const serializeProfileImageUser = (user) => user.toJSON();
 
-const serializeIdentityEventUser = (user) => {
+const serializePublicIdentityUser = (user) => {
   const serializedUser = serializeIdentityUser(user);
 
   return {
     _id: serializedUser._id?.toString?.() ?? serializedUser._id,
+    username: serializedUser.username ?? '',
     firstName: serializedUser.firstName,
     lastName: serializedUser.lastName,
-    email: serializedUser.email,
     profilePic: serializedUser.profilePic ?? '',
     identityMark: serializedUser.identityMark,
     identityMarkUpdatedAt: serializedUser.identityMarkUpdatedAt ?? null,
   };
+};
+
+const serializeIdentityEventUser = (user) => {
+  return serializePublicIdentityUser(user);
 };
 
 const getIdentityPayload = (req) => {
@@ -208,9 +212,11 @@ export const setUsername = asyncErrHandler(async (req, res, next) => {
 
 export const getAllUsers = asyncErrHandler(async (req, res, next) => {
   const users = await User.find({_id: {$ne: req.userId}})
+    .select('username firstName lastName profilePic identityMark identityMarkUpdatedAt')
+
   res.status(200).json({
     status: 'success',
-    users
+    users: users.map(serializePublicIdentityUser),
   });
 })
 
@@ -222,7 +228,7 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError('Invalid user id', 400));
   }
 
-  const user = await User.findById(userId).select('isOnline lastSeen showOnlineStatus showLastSeen firstName lastName profilePic identityMark identityMarkUpdatedAt');
+  const user = await User.findById(userId).select('username isOnline lastSeen showOnlineStatus showLastSeen firstName lastName profilePic identityMark identityMarkUpdatedAt');
 
   if (!user) {
     return next(new CustomError('User not found', 404));
@@ -231,6 +237,7 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
   // Respect privacy settings
   const response = {
     _id: user._id,
+    username: user.username ?? '',
     firstName: user.firstName,
     lastName: user.lastName,
     profilePic: user.profilePic,
@@ -272,12 +279,13 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
   // Get online status for all contacts
   const contacts = await User.find({
     _id: { $in: Array.from(contactIds) },
-  }).select('firstName lastName isOnline lastSeen showOnlineStatus showLastSeen profilePic identityMark identityMarkUpdatedAt');
+  }).select('username firstName lastName isOnline lastSeen showOnlineStatus showLastSeen profilePic identityMark identityMarkUpdatedAt');
 
   const onlineUsers = contacts
     .filter(user => user.showOnlineStatus && user.isOnline)
     .map(user => ({
       _id: user._id,
+      username: user.username ?? '',
       firstName: user.firstName,
       lastName: user.lastName,
       profilePic: user.profilePic,
@@ -290,6 +298,7 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
   const usersWithStatus = contacts.map(user => {
     const result = {
       _id: user._id,
+      username: user.username ?? '',
       firstName: user.firstName,
       lastName: user.lastName,
       profilePic: user.profilePic,

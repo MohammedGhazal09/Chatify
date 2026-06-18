@@ -8,7 +8,7 @@ export interface UserAvatarIdentity {
   _id?: string;
   firstName?: string;
   lastName?: string;
-  email?: string;
+  username?: string;
   profilePic?: string | null;
   identityMark?: IdentityMark;
 }
@@ -34,7 +34,7 @@ const sizeClasses: Record<UserAvatarSize, string> = {
 
 const getUserAvatarLabel = (user?: UserAvatarIdentity | null, fallback = 'Chatify user') => {
   const displayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim();
-  return displayName || user?.email || fallback;
+  return displayName || user?.username || fallback;
 };
 
 const resolveAvatarImageSrc = (src?: string | null) => {

@@ -269,6 +269,7 @@ export interface MessagePinEvent {
 // Online/Offline status types
 export interface UserOnlineStatus {
   userId: string;
+  username?: string;
   userName?: string;
   isOnline: boolean;
   isCallReachable?: boolean;
@@ -277,6 +278,7 @@ export interface UserOnlineStatus {
 
 export interface UserStatusChangeEvent {
   userId: string;
+  username?: string;
   userName: string;
   isOnline: boolean;
   isCallReachable?: boolean;
@@ -287,6 +289,7 @@ export interface UserStatusChangeEvent {
 export interface TypingUser {
   chatId: string;
   userId: string;
+  username?: string;
   userName: string;
   isTyping: boolean;
 }

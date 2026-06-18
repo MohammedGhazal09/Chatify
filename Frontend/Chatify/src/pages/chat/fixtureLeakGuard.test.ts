@@ -43,6 +43,7 @@ const blockedPatterns = [
   { label: 'private storage leak', pattern: /sha256/i },
   { label: 'private storage leak', pattern: /public[-_ ]?(storage|asset|media)[-_ ]?(id|url|key)/i },
   { label: 'private storage leak', pattern: /https?:\/\/[^'"\s]+\/api\/message\/attachments\//i },
+  { label: 'public email display fallback', pattern: /\b(?:member|user)\??\.email\b/ },
   { label: 'static profile image fixture', pattern: /profile[-_ ]?(pic|picture|photo)[-_ ]?fixture/i },
   { label: 'static profile image fixture', pattern: /fixture[-_ ]?profile[-_ ]?(pic|picture|photo)/i },
   { label: 'static profile image fixture', pattern: /demo[-_ ]?(avatar|profile[-_ ]?(pic|picture|photo))/i },
@@ -74,6 +75,14 @@ describe('chat runtime fixture leak guard', () => {
     const blockedStorageSource = 'gridfs storageFileId objectKey sha256 private path';
 
     expect(blockedPatterns.some(({ pattern }) => pattern.test(blockedStorageSource))).toBe(true);
+  });
+
+  it('blocks email as a public chat identity fallback while username fallback is allowed', () => {
+    const allowedUsernameFallback = "return displayName || user?.username || 'Chatify identity';";
+    const blockedEmailFallback = "return displayName || member.email || 'Unknown user';";
+
+    expect(blockedPatterns.filter(({ pattern }) => pattern.test(allowedUsernameFallback))).toEqual([]);
+    expect(blockedPatterns.some(({ pattern }) => pattern.test(blockedEmailFallback))).toBe(true);
   });
 
   it('keeps test fixtures, private asset internals, and living visual fixture data out of production chat runtime files', () => {

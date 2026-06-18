@@ -65,6 +65,8 @@ describe('authenticated Socket.IO handshake', () => {
     });
     expect(ready.joinedChats).toBe(0);
     expect(getUserSockets(user._id.toString()).has(socket.id)).toBe(true);
+    expect(ready).not.toHaveProperty('email');
+    expect(JSON.stringify(ready)).not.toContain(user.email);
   });
 
   it('accepts a handshake from the configured frontend origin', async () => {
