@@ -51,6 +51,8 @@ const blockedPatterns = [
   { label: 'direct chat email copy', pattern: /Start(?: or continue)? a (?:direct |private )?chat by (?:exact )?email/i },
   { label: 'direct chat email error copy', pattern: /Check the email/i },
   { label: 'direct chat email validation copy', pattern: /valid email/i },
+  { label: 'group chat email payload', pattern: /memberEmails/ },
+  { label: 'group chat email discovery copy', pattern: /group (member|members).*email/i },
   { label: 'static profile image fixture', pattern: /profile[-_ ]?(pic|picture|photo)[-_ ]?fixture/i },
   { label: 'static profile image fixture', pattern: /fixture[-_ ]?profile[-_ ]?(pic|picture|photo)/i },
   { label: 'static profile image fixture', pattern: /demo[-_ ]?(avatar|profile[-_ ]?(pic|picture|photo))/i },
@@ -98,6 +100,14 @@ describe('chat runtime fixture leak guard', () => {
 
     expect(blockedPatterns.filter(({ pattern }) => pattern.test(allowedUsernameTargeting))).toEqual([]);
     expect(blockedPatterns.some(({ pattern }) => pattern.test(blockedEmailTargeting))).toBe(true);
+  });
+
+  it('blocks email-based group member payloads while username arrays are allowed', () => {
+    const allowedGroupMembers = 'createGroupChat.mutate({ memberUsernames: ["ada.lovelace"] });';
+    const blockedGroupMembers = 'createGroupChat.mutate({ memberEmails: ["ada@example.com"] });';
+
+    expect(blockedPatterns.filter(({ pattern }) => pattern.test(allowedGroupMembers))).toEqual([]);
+    expect(blockedPatterns.some(({ pattern }) => pattern.test(blockedGroupMembers))).toBe(true);
   });
 
   it('keeps test fixtures, private asset internals, and living visual fixture data out of production chat runtime files', () => {
