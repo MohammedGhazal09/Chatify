@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 19: Messenger Product Polish And Notifications** - Add post-readiness messenger polish, notification behavior, and account/session UX refinements without expanding into full platform scope. (completed 2026-06-17)
 - [x] **Phase 20: Username Identity And Privacy Foundation** - Add unique public usernames, signup collection, existing-user username setup, and private-email boundaries. (completed 2026-06-18)
 - [x] **Phase 21: Username-Based Contact Discovery** - Replace email-based direct chat creation and contact discovery with username-based lookup. (completed 2026-06-18)
-- [ ] **Phase 22: Group Conversations With Ten-Member Limit** - Add private group conversations with username-selected members and a server-enforced 10-member cap.
+- [x] **Phase 22: Group Conversations With Ten-Member Limit** - Add private group conversations with username-selected members and a server-enforced 10-member cap. (completed 2026-06-18)
 
 ## Phase Details
 
@@ -515,7 +515,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 19. Messenger Product Polish And Notifications | 5/5 | Complete   | 2026-06-17 |
 | 20. Username Identity And Privacy Foundation | 3/3 | Complete | 2026-06-18 |
 | 21. Username-Based Contact Discovery | 3/3 | Complete | 2026-06-18 |
-| 22. Group Conversations With Ten-Member Limit | 0/4 | Planned | - |
+| 22. Group Conversations With Ten-Member Limit | 4/4 | Complete | 2026-06-18 |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
@@ -771,25 +771,25 @@ Plans:
   5. Group call/video controls remain hidden or honestly disabled until a separate group call phase exists; the group feature must not create dead call controls.
   6. Backend, socket, frontend, and Playwright tests cover max-member enforcement, unauthorized member access, realtime group delivery, username member selection, privacy guardrails, and mobile/desktop group UI states.
 
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 
 **Wave 1**
 
-- [ ] 22-01: Backend Group Chat Contract, Membership Cap, Admin Rules, And Username Resolution
+- [x] 22-01: Backend Group Chat Contract, Membership Cap, Admin Rules, And Username Resolution
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 22-02: Frontend Group Creation, Member Picker, Header, Detail, And Management UI
+- [x] 22-02: Frontend Group Creation, Member Picker, Header, Detail, And Management UI
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 22-03: Group Realtime Messaging, Receipts, Attachments, Notifications, And Cache Convergence
+- [x] 22-03: Group Realtime Messaging, Receipts, Attachments, Notifications, And Cache Convergence
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 22-04: Group Privacy, Security, Accessibility, And End-To-End Acceptance Evidence
+- [x] 22-04: Group Privacy, Security, Accessibility, And End-To-End Acceptance Evidence
 
 **Cross-cutting constraints:**
 
