@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and now remediate production-live gaps that proved fixture-backed tests were not enough, including duplicate sends and missing realtime delivery. After the core reconstruction, the roadmap closes release readiness, operational supportability, and product polish without hiding unresolved production or security blockers.
+Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and now remediate production-live gaps that proved fixture-backed tests were not enough, including duplicate sends and missing realtime delivery. After the core reconstruction, the roadmap closes release readiness, operational supportability, and product polish without hiding unresolved production or security blockers. The next v2 feature chain promotes group messaging by first introducing unique public usernames, then replacing email-based discovery with username-based contact flows, then adding private groups capped at 10 members.
 
 ## Phases
 
@@ -33,6 +33,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 17: V1 Readiness Closure And Release Gate** - Close the remaining security, production, delivery, and call-readiness evidence before any v1 release claim. (blocked 2026-06-17: missing production/local smoke evidence)
 - [x] **Phase 18: Operational Observability And Runbook Hardening** - Make Chatify diagnosable, supportable, and repeatable in local and deployed environments. (completed 2026-06-17)
 - [x] **Phase 19: Messenger Product Polish And Notifications** - Add post-readiness messenger polish, notification behavior, and account/session UX refinements without expanding into full platform scope. (completed 2026-06-17)
+- [ ] **Phase 20: Username Identity And Privacy Foundation** - Add unique public usernames, signup collection, existing-user username setup, and private-email boundaries.
+- [ ] **Phase 21: Username-Based Contact Discovery** - Replace email-based direct chat creation and contact discovery with username-based lookup.
+- [ ] **Phase 22: Group Conversations With Ten-Member Limit** - Add private group conversations with username-selected members and a server-enforced 10-member cap.
 
 ## Phase Details
 
@@ -486,7 +489,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21 -> 22
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -510,6 +513,9 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 17. V1 Readiness Closure And Release Gate | 4/4 | Blocked pending release evidence | - |
 | 18. Operational Observability And Runbook Hardening | 4/4 | Complete | 2026-06-17 |
 | 19. Messenger Product Polish And Notifications | 5/5 | Complete   | 2026-06-17 |
+| 20. Username Identity And Privacy Foundation | 0/3 | Planned | - |
+| 21. Username-Based Contact Discovery | 0/3 | Planned | - |
+| 22. Group Conversations With Ten-Member Limit | 0/4 | Planned | - |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
@@ -643,7 +649,7 @@ Plans:
   2. Account, profile, session, logout, expired-session, and multi-tab edge states are polished consistently across auth pages and the chat surface.
   3. First-run, no-chat, no-results, offline, blocked, unavailable-call, failed-upload, and failed-send states are useful, accessible, and visually consistent on desktop and mobile.
   4. Notification, account/session, and state-polish behavior is covered by focused frontend tests and behavior-first Playwright checks.
-  5. Group chats, moderation/admin tooling, end-to-end encryption, and broad platform expansion remain out of scope unless a separate phase promotes them intentionally.
+  5. Group chats remain out of Phase 19 and are promoted separately in Phase 22; moderation/admin tooling, end-to-end encryption, and broad platform expansion remain out of scope unless a later phase promotes them intentionally.
 
 **Plans:** 5/5 plans complete
 
@@ -676,3 +682,120 @@ Plans:
 - Preserve the existing React/Vite, Express, MongoDB, Socket.IO, TanStack Query, Zustand, and Tailwind stack.
 - Execution must be inline in the current Codex thread; do not use subagents.
 - Browser notifications are limited to the current web app runtime; closed-tab push, service worker delivery, and email notifications remain v2.
+
+### Phase 20: Username Identity And Privacy Foundation
+
+**Goal:** Users get a unique public username that can be used as a privacy-safe discovery handle while email remains private account, login, OAuth, and reset data.
+**Requirements**: V2-USER-01, V2-USER-02, V2-USER-03, V2-PRIV-01, AUTH-01, AUTH-02, SEC-01, SEC-02, TEST-01, TEST-03, TEST-04
+**Depends on:** Phase 19
+**Success Criteria** (what must be TRUE):
+
+  1. The `Users` model has a normalized, unique, indexed `username` field with shared frontend/backend validation for length, characters, reserved words, trimming, casing, and duplicate collisions.
+  2. New local signup requires a unique username and returns clear, non-sensitive duplicate or validation feedback without weakening existing email/password behavior.
+  3. Existing authenticated users, including OAuth-created accounts, must set a unique username before entering chat or using contact/group discovery; the setup flow is recoverable and cannot be skipped by route refresh.
+  4. Auth payloads, Zustand user state, identity display helpers, and profile/identity responses include username where needed while avoiding public email exposure outside auth/reset/account settings.
+  5. Tests cover username normalization, uniqueness races, signup, existing-user setup, CSRF protection for username updates, redacted logging, and session recovery around the mandatory setup gate.
+
+**Plans:** 3 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 20-01: Backend Username Model, Validation, Indexing, And Migration-Safe Contract
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 20-02: Signup Username Field And Existing-User Mandatory Setup Gate
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 20-03: Auth Propagation, Privacy Guardrails, And Username Verification Evidence
+
+**Cross-cutting constraints:**
+
+- Recommendation: keep email login/password reset/OAuth as private account infrastructure; use username only as the public discovery handle unless a later phase explicitly designs username login.
+- Treat usernames as public and stable after setup for this phase; username change workflows are out of scope unless planned separately.
+- Do not log raw emails or username setup payloads; prefer user ids and redacted operational events.
+- Execution must be inline in the current Codex thread; do not use subagents.
+- Preserve unrelated local work, especially `Frontend/Chatify/src/pages/chat/chat.tsx`.
+
+### Phase 21: Username-Based Contact Discovery
+
+**Goal:** Users can start or continue direct conversations by username instead of email, and contact discovery no longer exposes private email addresses.
+**Requirements**: V2-USER-04, V2-PRIV-01, V2-PRIV-02, BASE-01, BASE-04, CTRL-01, SEC-01, SEC-02, TEST-01, TEST-03, TEST-05
+**Depends on:** Phase 20
+**Success Criteria** (what must be TRUE):
+
+  1. Direct chat creation accepts `targetUsername`, normalizes it consistently, rejects invalid handles, and no longer requires or advertises `targetEmail` for user-to-user discovery.
+  2. Username lookup returns the minimum public identity needed to start a chat: user id, username, display name, profile image or identity mark, and availability state where already authorized; it never returns email.
+  3. The chat sidebar and new-chat dialog use username copy, validation, loading, empty, duplicate, self-chat, and failure states without leaking whether an email exists.
+  4. Existing direct chat idempotency remains based on member ids and `directKey`, so repeated username submits continue the same direct conversation without duplicate chat records.
+  5. Backend, frontend, and UI tests migrate from email-based chat start to username-based chat start and include guardrails proving emails are not searchable or rendered in discovery surfaces.
+
+**Plans:** 3 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 21-01: Backend Username Direct-Chat Contract And Privacy-Safe Lookup
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 21-02: Frontend Username Start-Chat Flow, Copy, Validation, And Cache Updates
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 21-03: Contact Discovery Regression Coverage And Email-Leak Guardrails
+
+**Cross-cutting constraints:**
+
+- Username discovery should prefer exact handle lookup for v2 baseline; broad public directory/autocomplete can be added later only with rate limits and enumeration controls.
+- Password reset and account settings may still use email, but chat discovery, group member picking, and public identity surfaces must not expose email.
+- Keep direct-chat blocking behavior intact and continue hiding blocked or unauthorized actions honestly.
+- Execution must be inline in the current Codex thread; do not use subagents.
+- Preserve unrelated local work, especially `Frontend/Chatify/src/pages/chat/chat.tsx`.
+
+### Phase 22: Group Conversations With Ten-Member Limit
+
+**Goal:** Users can create and participate in small private group conversations with members selected by username, server-enforced membership authorization, and a hard 10-member maximum.
+**Requirements**: V2-GRP-01, V2-GRP-02, V2-GRP-03, V2-GRP-04, V2-PRIV-01, V2-PRIV-03, RT-01, RT-02, RT-03, RT-04, MSG-01, MSG-02, MSG-03, MSG-04, MSG-05, TEST-02, TEST-03, TEST-05
+**Depends on:** Phase 21
+**Success Criteria** (what must be TRUE):
+
+  1. Group creation requires a group name and username-selected members, with server enforcement that total membership is 3 to 10 users including the creator; two-person conversations remain direct chats.
+  2. Backend group contracts validate unique members, reject self/duplicate/missing/blocked or unauthorized additions, assign an admin, and enforce membership checks for reads, writes, sockets, attachments, pins, and detail surfaces.
+  3. Group messages, unread counts, delivery/read receipts, typing, reactions, edit/delete behavior, attachments, shared files/media, and notifications continue to use canonical server-truth flows without direct-chat assumptions.
+  4. Frontend group creation, group list items, header, participant detail surfaces, and member management use usernames and identity marks without rendering member emails.
+  5. Group call/video controls remain hidden or honestly disabled until a separate group call phase exists; the group feature must not create dead call controls.
+  6. Backend, socket, frontend, and Playwright tests cover max-member enforcement, unauthorized member access, realtime group delivery, username member selection, privacy guardrails, and mobile/desktop group UI states.
+
+**Plans:** 4 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 22-01: Backend Group Chat Contract, Membership Cap, Admin Rules, And Username Resolution
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 22-02: Frontend Group Creation, Member Picker, Header, Detail, And Management UI
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 22-03: Group Realtime Messaging, Receipts, Attachments, Notifications, And Cache Convergence
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 22-04: Group Privacy, Security, Accessibility, And End-To-End Acceptance Evidence
+
+**Cross-cutting constraints:**
+
+- The 10-member limit includes the creator.
+- Group identity and participant surfaces must use username/display identity only; member emails stay private.
+- Existing direct-message reliability, blocking, and production-live blockers remain valid and cannot be bypassed by group work.
+- Calls/video in group chats remain out of scope for this phase.
+- Execution must be inline in the current Codex thread; do not use subagents.
+- Preserve unrelated local work, especially `Frontend/Chatify/src/pages/chat/chat.tsx`.

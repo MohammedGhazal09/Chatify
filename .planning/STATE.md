@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: blocked
-stopped_at: Phase 19 complete; release readiness blocked pending Phase 14/15/17 evidence
-last_updated: "2026-06-17T12:21:13+03:00"
-last_activity: 2026-06-17 -- Phase 19 completed with product-polish evidence and review artifacts; v1 release remains blocked pending production/call evidence
+stopped_at: Phase 20 planned; release readiness remains blocked pending Phase 14/15/17 evidence
+last_updated: "2026-06-18T09:00:08+03:00"
+last_activity: 2026-06-18 -- Added Phase 20-22 for username identity, username-based discovery, and capped group conversations; v1 release blockers preserved
 progress:
-  total_phases: 20
+  total_phases: 23
   completed_phases: 20
-  total_plans: 65
+  total_plans: 75
   completed_plans: 68
-  percent: 100
+  percent: 87
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 19 — execute messenger product polish and notifications
+**Current focus:** Phase 20 — plan username identity and privacy foundation
 
 ## Current Position
 
-Phase: 19 (messenger-product-polish-and-notifications) — COMPLETE
-Plan: 19-05 Product Polish Verification And Evidence
-Status: Phase 19 complete locally; Phase 14/15/17 release blockers preserved.
-Last activity: 2026-06-17 -- Phase 19 completed with product-polish evidence and review artifacts; v1 release remains blocked pending production/call evidence
+Phase: 20 (username-identity-and-privacy-foundation) — PLANNED
+Plan: Not planned yet
+Status: Phase 20-22 added to promote username discovery and group chats into the roadmap; Phase 14/15/17 release blockers preserved.
+Last activity: 2026-06-18 -- Added Phase 20-22 for username identity, username-based discovery, and capped group conversations; v1 release remains blocked pending production/call evidence
 
-Progress: Phase 19 has 5/5 plans complete; release readiness remains blocked by missing production live, local/prod call, and final v1 evidence.
+Progress: Phase 20 is the next planned phase with 0/3 plans complete; Phase 21 and Phase 22 are planned follow-ups. Release readiness remains blocked by missing production live, local/prod call, and final v1 evidence.
 
 ## Performance Metrics
 
@@ -143,6 +143,10 @@ Recent decisions affecting current work:
 - Phase 18 completed with structured redacted logging, health/readiness endpoints, root quality/smoke scripts, operations runbooks, ops guard checks, and sanitized operations readiness evidence.
 - Phase 19 planned with five sequential waves: notification preference/privacy model, notification UI and realtime alert wiring, account/session and multi-tab polish, empty/offline/blocked/failure state polish, and product-polish verification/evidence.
 - Phase 19 completed with local notification/product-polish evidence, full frontend tests, Playwright checks, lint, build, ops check, and release blockers preserved.
+- Phase 20 added: Username Identity And Privacy Foundation, with unique public usernames, signup collection, existing-user setup, and private-email boundaries.
+- Phase 21 added: Username-Based Contact Discovery, replacing email-based direct chat creation and contact discovery with username lookup.
+- Phase 22 added: Group Conversations With Ten-Member Limit, promoting group chats from deferred v2 scope into a planned feature phase after username discovery.
+- Group chats are no longer deferred, but broader platform expansion such as cross-platform push/email delivery, moderation/admin tooling, end-to-end encryption, channels, bots, integrations, and group calls remains deferred.
 
 ### Pending Todos
 
@@ -154,6 +158,9 @@ Recent decisions affecting current work:
 - Provide production smoke env plus TURN readiness evidence and rerun `cd Frontend/Chatify; npm run test:e2e:prod -- --grep "Phase 15|Phase 14 production live acceptance"` before claiming production call readiness.
 - Plan Phase 17 so final readiness cannot pass until Phase 1, Phase 10, Phase 10.1, Phase 14, and Phase 15 evidence is reconciled.
 - Phase 19 is complete; do not use it to claim release readiness until Phase 14, Phase 15, and Phase 17 blockers are resolved with evidence.
+- Plan and execute Phase 20 before starting username discovery or group work; username uniqueness and mandatory setup are prerequisites.
+- Plan and execute Phase 21 before group creation; group member selection must use username-based discovery, not email lookup.
+- Plan and execute Phase 22 only after Phase 20 and Phase 21 are complete, preserving the 10-member cap and email privacy guardrails.
 
 ### Blockers/Concerns
 
@@ -170,12 +177,13 @@ Recent decisions affecting current work:
 - New Phase 17 must not be used to bypass unresolved Phase 1, Phase 10, Phase 10.1, Phase 14, or Phase 15 blockers; it is a closure gate, not a substitute implementation.
 - Repository hygiene note: unrelated local screenshot/config changes existed before these phase additions and should not be mixed into future focused commits unless intentionally refreshed.
 - Phase 19 execution must not be used to imply release readiness; it is product polish and notification UX only.
+- Username and group phases must not expose email in public discovery, participant lists, realtime events, logs, traces, screenshots, or test fixtures.
 
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Platform | Group chats, cross-platform push/email notification delivery beyond Phase 19 baseline, moderation, admin tooling, end-to-end encryption | Deferred to v2 | Initialization |
+| Platform | Cross-platform push/email notification delivery beyond Phase 19 baseline, moderation, admin tooling, end-to-end encryption, channels, bots, integrations, and group calls | Deferred to later v2 phases | Phase 20-22 planning |
 
 ## Session Continuity
 

@@ -98,9 +98,25 @@
 
 ## v2 Requirements
 
+### Username Identity And Privacy
+
+- **V2-USER-01**: New local signups must choose a unique public username that is normalized, validated, indexed, and stored on the user record.
+- **V2-USER-02**: Existing authenticated users without a username must complete a mandatory username setup gate before entering chat or using discovery features.
+- **V2-USER-03**: Username validation is consistent across database, backend controllers, frontend forms, and tests, including case normalization and duplicate handling.
+- **V2-USER-04**: User can start or continue a direct conversation by username instead of email.
+- **V2-PRIV-01**: Public identity and discovery surfaces expose username, display name, identity mark, and profile image only; email remains private auth/reset/account data.
+- **V2-PRIV-02**: Contact discovery does not expose whether an email exists and does not allow email search.
+- **V2-PRIV-03**: Group participant lists, invites, member management, realtime events, logs, traces, and screenshots do not expose member emails.
+
+### Group Conversations
+
+- **V2-GRP-01**: User can create and participate in private group conversations.
+- **V2-GRP-02**: Group conversations have a server-enforced membership limit of 3 to 10 users including the creator.
+- **V2-GRP-03**: Group admins can manage supported group name, image, description, and membership actions without bypassing authorization or the member cap.
+- **V2-GRP-04**: Group messages, unread counts, receipts, typing, reactions, attachments, shared surfaces, and notifications work through the same server-truth reliability model as direct messages.
+
 ### Platform Expansion
 
-- **V2-GRP-01**: User can create and participate in group conversations.
 - **V2-NOTF-01**: User can receive push or email notifications for new messages.
 - **V2-MOD-01**: User can report another user and route reports into moderation tooling.
 - **V2-ADMIN-01**: Admin can review abuse reports and moderate accounts or content.
@@ -113,7 +129,7 @@
 | Native mobile apps | Web-first reconstruction comes before platform expansion. |
 | End-to-end encryption | Requires a separate message storage and key-management design. |
 | Payments or monetization | Not relevant to the approved messenger reconstruction goal. |
-| Full Slack/Discord feature parity | Groups, channels, voice, bots, and integrations would spread the current milestone too thin. |
+| Full Slack/Discord feature parity | Phase 22 intentionally scopes only private groups up to 10 members; channels, voice rooms, bots, and integrations remain out of scope. |
 | Large admin suite | Moderation/admin work should follow after private DMs are reliable and secure. |
 
 ## Traceability
@@ -184,6 +200,17 @@
 | CALL-03 | Phase 13 | Complete |
 | CALL-04 | Phase 13 | Complete |
 | TEST-05 | Phase 9 | Complete |
+| V2-USER-01 | Phase 20 | Planned |
+| V2-USER-02 | Phase 20 | Planned |
+| V2-USER-03 | Phase 20 | Planned |
+| V2-USER-04 | Phase 21 | Planned |
+| V2-PRIV-01 | Phase 20, Phase 21, Phase 22 | Planned |
+| V2-PRIV-02 | Phase 21 | Planned |
+| V2-PRIV-03 | Phase 22 | Planned |
+| V2-GRP-01 | Phase 22 | Planned |
+| V2-GRP-02 | Phase 22 | Planned |
+| V2-GRP-03 | Phase 22 | Planned |
+| V2-GRP-04 | Phase 22 | Planned |
 
 **Coverage:**
 
@@ -193,4 +220,4 @@
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-13 after Phase 10.1 production delivery reliability insertion*
+*Last updated: 2026-06-18 after username identity and group conversation phase additions*
