@@ -1,5 +1,6 @@
 import OnlineStatus, { OnlineDot } from '../../../components/OnlineStatus';
 import { ArrowLeft, MoreVertical, PanelRightClose, PanelRightOpen, Phone, Search, Video } from 'lucide-react';
+import { useId } from 'react';
 import type { RefObject } from 'react';
 import type { User } from '../../../types/auth';
 import type { Chat, UserOnlineStatus } from '../../../types/chat';
@@ -49,6 +50,8 @@ const ConversationHeader = ({
 }: ConversationHeaderProps) => {
   const isCallDisabled = Boolean(callDisabledReason);
   const isVideoCallDisabled = Boolean(videoCallDisabledReason);
+  const callReasonId = useId();
+  const videoCallReasonId = useId();
   const DetailsIcon = showConversationDetails ? PanelRightClose : PanelRightOpen;
   const detailsLabel = showConversationDetails ? 'Close conversation details' : 'Open conversation details';
 
@@ -100,10 +103,12 @@ const ConversationHeader = ({
         onClick={onStartAudioCall}
         className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] enabled:cursor-pointer enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
         aria-label="Call"
+        aria-describedby={callDisabledReason ? callReasonId : undefined}
         title={callDisabledReason ?? 'Start audio call'}
         disabled={isCallDisabled}
       >
         <Phone aria-hidden="true" className="h-5 w-5" />
+        {callDisabledReason && <span id={callReasonId} className="sr-only">{callDisabledReason}</span>}
       </button>
 
       <button
@@ -111,10 +116,12 @@ const ConversationHeader = ({
         onClick={onStartVideoCall}
         className="hidden h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] enabled:cursor-pointer enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
         aria-label="Video call"
+        aria-describedby={videoCallDisabledReason ? videoCallReasonId : undefined}
         title={videoCallDisabledReason ?? 'Start video call'}
         disabled={isVideoCallDisabled}
       >
         <Video aria-hidden="true" className="h-5 w-5" />
+        {videoCallDisabledReason && <span id={videoCallReasonId} className="sr-only">{videoCallDisabledReason}</span>}
       </button>
 
       <button

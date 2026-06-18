@@ -612,7 +612,14 @@ export const useCallController = ({
   }, [createPeerSession, socketActions]);
 
   const handleCallAnswer = useCallback(async (event: CallSignalEvent) => {
-    if (!peerSessionRef.current || !event.signal) {
+    const session = stateRef.current.session;
+
+    if (
+      !peerSessionRef.current
+      || !session
+      || session.callId !== event.callId
+      || !event.signal
+    ) {
       return;
     }
 

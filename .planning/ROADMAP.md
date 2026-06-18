@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and now remediate production-live gaps that proved fixture-backed tests were not enough, including duplicate sends and missing realtime delivery.
+Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and now remediate production-live gaps that proved fixture-backed tests were not enough, including duplicate sends and missing realtime delivery. After the core reconstruction, the roadmap closes release readiness, operational supportability, and product polish without hiding unresolved production or security blockers.
 
 ## Phases
 
@@ -13,7 +13,7 @@ Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time mes
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Security And Test Foundation** - Establish blocking security controls, test harnesses, and auth/session safety.
+- [x] **Phase 1: Security And Test Foundation** - Establish blocking security controls, test harnesses, and auth/session safety. (completed 2026-06-17)
 - [x] **Phase 2: Authenticated Realtime Contract** - Rebuild Socket.IO identity, membership checks, presence, and reconnect behavior.
 - [x] **Phase 3: Canonical Message State** - Make send, receive, status, delete, edit, reaction, unread, and pagination behavior deterministic. (completed 2026-06-08)
 - [x] **Phase 4: Messenger UI Reconstruction** - Rebuild the chat page into a polished responsive messenger interface. (completed 2026-06-09)
@@ -24,12 +24,15 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence. (completed 2026-06-12)
 - [ ] **Phase 10: Production Messenger Reality Audit And Fixture Removal** - Reproduce the live product failures, remove fixture/static production fallbacks, and make panel/navigation behavior honestly testable.
 - [ ] **Phase 10.1: Production Message Delivery Reliability Repair (INSERTED)** - Fix duplicate sends, false delivered status, and missing realtime receive before new feature work continues.
-- [ ] **Phase 11: Conversation Controls And User Safety Implementation** - Make search, More, blocking, conversation actions, and static detail surfaces real backend-backed behavior.
-- [ ] **Phase 12: Live Media Voice And Identity Implementation** - Make user identity images/marks, attachments, shared media/files, and voice messages real persisted workflows.
+- [x] **Phase 11: Conversation Controls And User Safety Implementation** - Make search, More, blocking, conversation actions, and static detail surfaces real backend-backed behavior. (completed 2026-06-17)
+- [x] **Phase 12: Live Media Voice And Identity Implementation** - Make user identity images/marks, attachments, shared media/files, and voice messages real persisted workflows. (completed 2026-06-17)
 - [x] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons. (completed 2026-06-13)
 - [ ] **Phase 14: Production Live Acceptance Gate** - Prove the deployed Vercel/Render product works with real accounts and no fixture bypass.
-- [ ] **Phase 15: Investigate And Fix Audio And Video Call Reliability** - Make audio and video calls connect, fail honestly, clean up safely, and report readiness with evidence.
+- [ ] **Phase 15: Investigate And Fix Audio And Video Call Reliability** - Make audio and video calls connect, fail honestly, clean up safely, and report readiness with evidence. (blocked pending local/prod smoke env 2026-06-17)
 - [x] **Phase 16: Profile Picture Upload And Shared Avatar Visibility** - Let users upload a profile picture from their own PC and show it consistently to other users. (completed 2026-06-16)
+- [ ] **Phase 17: V1 Readiness Closure And Release Gate** - Close the remaining security, production, delivery, and call-readiness evidence before any v1 release claim. (blocked 2026-06-17: missing production/local smoke evidence)
+- [x] **Phase 18: Operational Observability And Runbook Hardening** - Make Chatify diagnosable, supportable, and repeatable in local and deployed environments. (completed 2026-06-17)
+- [x] **Phase 19: Messenger Product Polish And Notifications** - Add post-readiness messenger polish, notification behavior, and account/session UX refinements without expanding into full platform scope. (completed 2026-06-17)
 
 ## Phase Details
 
@@ -52,15 +55,15 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 **Wave 1**
 
-- [ ] 01-01: Add backend/security test harness and baseline auth/message authorization coverage
+- [x] 01-01: Add backend/security test harness and baseline auth/message authorization coverage
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02: Enforce CSRF, session, reset, OAuth redirect, and environment safety controls
+- [x] 01-02: Enforce CSRF, session, reset, OAuth redirect, and environment safety controls
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03: Replace sensitive debug logging with redacted operational logging
+- [x] 01-03: Replace sensitive debug logging with redacted operational logging
 
 ### Phase 2: Authenticated Realtime Contract
 
@@ -373,15 +376,15 @@ Plans:
 
 **Wave 1**
 
-- [ ] 11-01: Backend Conversation Controls and Block Enforcement
+- [x] 11-01: Backend Conversation Controls and Block Enforcement
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 11-02: Frontend Controls, Search, Detail Data, and Accessibility
+- [x] 11-02: Frontend Controls, Search, Detail Data, and Accessibility
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 11-03: Integrated Verification and Static Fixture Guard
+- [x] 11-03: Integrated Verification and Static Fixture Guard
 
 **Cross-cutting constraints:**
 
@@ -483,40 +486,43 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Security And Test Foundation | 0/3 | Not started | - |
-| 2. Authenticated Realtime Contract | 3/3 | Complete | 2026-06-08 |
-| 3. Canonical Message State | 3/3 | Complete | 2026-06-08 |
-| 4. Messenger UI Reconstruction | 3/3 | Complete | 2026-06-09 |
-| 5. Messenger Baseline Completion | 2/2 | Complete | 2026-06-09 |
-| 6. Messenger Visual Parity | 3/3 | Complete   | 2026-06-12 |
-| 7. Messenger Functional Parity Restoration | 3/3 | Complete   | 2026-06-12 |
-| 8. Media Files And Conversation Detail Implementation | 3/3 | Complete | 2026-06-12 |
-| 9. Messenger Interaction Quality Gate | 3/3 | Complete | 2026-06-12 |
+| 1. Security And Test Foundation | 3/3 | Complete    | 2026-06-17 |
+| 2. Authenticated Realtime Contract | 3/3 | Complete    | 2026-06-17 |
+| 3. Canonical Message State | 3/3 | Complete    | 2026-06-17 |
+| 4. Messenger UI Reconstruction | 3/3 | Complete    | 2026-06-17 |
+| 5. Messenger Baseline Completion | 2/2 | Complete    | 2026-06-17 |
+| 6. Messenger Visual Parity | 3/3 | Complete    | 2026-06-17 |
+| 7. Messenger Functional Parity Restoration | 3/3 | Complete    | 2026-06-17 |
+| 8. Media Files And Conversation Detail Implementation | 3/3 | Complete    | 2026-06-17 |
+| 9. Messenger Interaction Quality Gate | 3/3 | Complete    | 2026-06-17 |
 | 10. Production Messenger Reality Audit And Fixture Removal | 0/0 | Not planned | - |
 | 10.1. Production Message Delivery Reliability Repair | 2/3 | In Progress | 2026-06-13 |
-| 11. Conversation Controls And User Safety Implementation | 0/0 | Not planned | - |
+| 11. Conversation Controls And User Safety Implementation | 3/3 | Complete    | 2026-06-17 |
 | 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
 | 14. Production Live Acceptance Gate | 3/3 | Blocked pending live env | - |
-| 15. Investigate And Fix Audio And Video Call Reliability | 0/4 | Planned | - |
+| 15. Investigate And Fix Audio And Video Call Reliability | 4/4 | Blocked pending local/prod call smoke env | - |
 | 16. Profile Picture Upload And Shared Avatar Visibility | 4/4 | Complete    | 2026-06-16 |
+| 17. V1 Readiness Closure And Release Gate | 4/4 | Blocked pending release evidence | - |
+| 18. Operational Observability And Runbook Hardening | 4/4 | Complete | 2026-06-17 |
+| 19. Messenger Product Polish And Notifications | 5/5 | Complete   | 2026-06-17 |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
 **Goal:** Users can trust Chatify audio and video calls to connect, fail honestly, clean up safely, and report local/production readiness with evidence instead of assumptions.
 **Requirements**: CALL-01, CALL-02, CALL-03, CALL-04, BLOCK-02, RT-01, RT-02, RT-04, RT-05, SEC-02, PROD-01, PROD-03, PROD-04, TEST-02, TEST-03, TEST-05, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, PARITY-02, PARITY-03
 **Depends on:** Phase 14
-**Plans:** 4 plans
+**Plans:** 4/4 plans executed; readiness blocked by external smoke env
 Plans:
 
-- [ ] 15-01: Investigation, failure report, and test harness
-- [ ] 15-02: Backend signaling, session authority, TURN, and privacy hardening
-- [ ] 15-03: Frontend WebRTC controller and call UI repair
-- [ ] 15-04: Acceptance, regression, evidence, and production decision
+- [x] 15-01: Investigation, failure report, and test harness
+- [x] 15-02: Backend signaling, session authority, TURN, and privacy hardening
+- [x] 15-03: Frontend WebRTC controller and call UI repair
+- [x] 15-04: Acceptance, regression, evidence, and production decision
 
 **Cross-cutting constraints:**
 
@@ -555,3 +561,118 @@ Plans:
 - D-37: Production E2E is not required for Phase 16.
 - D-39: Preserve unrelated local work and stage only focused Phase 16 files.
 - D-38: Avoid direct edits to Frontend/Chatify/src/pages/chat/chat.tsx unless integration requires it.
+
+### Phase 17: V1 Readiness Closure And Release Gate
+
+**Goal:** Chatify can only be called v1-ready after the open security foundation, production reality, delivery reliability, live acceptance, and call reliability gates are either passed with evidence or explicitly blocked with release-stopping reasons.
+**Requirements**: SEC-01, SEC-02, SEC-03, SEC-04, AUTH-01, AUTH-02, AUTH-03, DELIV-01, DELIV-02, DELIV-03, DELIV-04, DELIV-05, PROD-01, PROD-02, PROD-03, PROD-04, CALL-01, CALL-02, CALL-03, CALL-04, TEST-01, TEST-04, TEST-05
+**Depends on:** Phase 16 plus closure of Phase 1, Phase 10, Phase 10.1, Phase 14, and Phase 15 readiness blockers
+**Success Criteria** (what must be TRUE):
+
+  1. Phase 1 security foundation requirements are implemented or the release decision remains blocked with exact missing controls.
+  2. Phase 10 and Phase 10.1 production reality and delivery evidence prove no static fixture fallback, no duplicate sends, realtime receive, and honest delivery/read state.
+  3. Phase 14 production live acceptance runs against configured deployed frontend/backend origins and disposable smoke accounts, or records a release-blocking environment gap.
+  4. Phase 15 call reliability records local fake-media acceptance and production TURN/smoke readiness as passed, failed, or blocked without overstating readiness.
+  5. A final v1 readiness artifact lists commands, deploy refs, evidence paths, residual risks, and a release decision of ready, blocked, or failed.
+
+**Plans:** 4/4 plans executed; release blocked
+
+Plans:
+
+- [x] 17-01: Evidence inventory and blocker matrix
+- [x] 17-02: Security foundation and local quality gate reconciliation
+- [x] 17-03: Production, delivery, and call readiness gate
+- [x] 17-04: Final v1 decision, roadmap state, and release recommendation
+
+**Cross-cutting constraints:**
+
+- Do not claim release readiness from local-only evidence.
+- Missing production origins, accounts, deploy refs, or TURN configuration must produce a blocked result, not a pass.
+- This phase closes and reconciles existing readiness gates; it should not create unrelated feature scope.
+- Execution must be inline in the current Codex thread; do not use subagents.
+
+### Phase 18: Operational Observability And Runbook Hardening
+
+**Goal:** Operators and maintainers can diagnose Chatify production behavior without leaking secrets, guessing at deployment state, or manually reconstructing test and rollback procedures.
+**Requirements**: SEC-02, SEC-04, PROD-01, PROD-04, TEST-01, TEST-04
+**Depends on:** Phase 17
+**Success Criteria** (what must be TRUE):
+
+  1. Backend request, auth, socket, message, queue, storage, and call paths emit structured redacted logs with request or correlation ids and no tokens, cookies, reset codes, OAuth payloads, SDP, ICE candidates, or private message content.
+  2. Health and readiness checks report database, required environment, file/profile storage, socket, CORS/cookie, and call/TURN readiness without exposing secrets.
+  3. Root and package scripts provide a repeatable quality gate for backend tests, frontend tests, lint, build, and production smoke commands.
+  4. Runbooks document local startup, deployment verification, production smoke setup, incident triage, rollback, and credential rotation using sanitized examples.
+  5. Tests or scripted checks fail on sensitive log regressions, missing required env documentation, and broken readiness endpoints.
+
+**Plans:** 4/4 plans complete
+
+Plans:
+
+**Wave 1**
+
+- [x] 18-01: Structured Diagnostics And Redaction Layer
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 18-02: Health And Readiness Endpoints
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 18-03: Quality Scripts And Operational Runbooks
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 18-04: Regression Guards And Operational Evidence
+
+**Cross-cutting constraints:**
+
+- Observability must reduce diagnostic guesswork without increasing privacy exposure.
+- Do not quote or commit local `.env` values.
+- Keep operational scripts Windows-friendly because this repo is actively maintained from PowerShell.
+- Execution must be inline in the current Codex thread; do not use subagents.
+- Production/live release blockers from Phase 14, Phase 15, and Phase 17 must remain blocked unless real smoke evidence is supplied.
+
+### Phase 19: Messenger Product Polish And Notifications
+
+**Goal:** After release readiness and operations are credible, Chatify should feel complete in daily use through notification behavior, account/session polish, and refined empty, offline, blocked, and error states.
+**Requirements**: AUTH-02, BASE-01, BASE-02, BASE-03, BASE-04, BASE-05, UI-01, UI-02, UI-03, UI-04, UI-05, TEST-03, TEST-05
+**Depends on:** Phase 18
+**Success Criteria** (what must be TRUE):
+
+  1. Users can opt into, mute, and understand in-app or browser-level message notifications with privacy-safe previews and clear unsupported-permission states.
+  2. Account, profile, session, logout, expired-session, and multi-tab edge states are polished consistently across auth pages and the chat surface.
+  3. First-run, no-chat, no-results, offline, blocked, unavailable-call, failed-upload, and failed-send states are useful, accessible, and visually consistent on desktop and mobile.
+  4. Notification, account/session, and state-polish behavior is covered by focused frontend tests and behavior-first Playwright checks.
+  5. Group chats, moderation/admin tooling, end-to-end encryption, and broad platform expansion remain out of scope unless a separate phase promotes them intentionally.
+
+**Plans:** 5/5 plans complete
+
+Plans:
+
+**Wave 1**
+
+- [x] 19-01: Notification Preference And Privacy Model
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 19-02: Notification UI And Realtime Alert Wiring
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 19-03: Account Session And Multi-Tab Edge-State Polish
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 19-04: Empty Offline Blocked And Failure State Polish
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 19-05: Product Polish Verification And Evidence
+
+**Cross-cutting constraints:**
+
+- Do not start this phase until release-readiness blockers are closed or explicitly accepted as blocked.
+- Notification previews must not expose private message content across accounts, devices, logs, traces, or screenshots.
+- Preserve the existing React/Vite, Express, MongoDB, Socket.IO, TanStack Query, Zustand, and Tailwind stack.
+- Execution must be inline in the current Codex thread; do not use subagents.
+- Browser notifications are limited to the current web app runtime; closed-tab push, service worker delivery, and email notifications remain v2.

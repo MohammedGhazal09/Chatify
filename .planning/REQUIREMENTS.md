@@ -7,35 +7,35 @@
 
 ### Security And Auth
 
-- [ ] **SEC-01**: Unsafe cookie-authenticated HTTP methods require active CSRF protection or an explicitly documented safe exemption.
-- [ ] **SEC-02**: Auth, token, OAuth, reset, socket, and request logs redact secrets and user-identifying data by default.
-- [ ] **SEC-03**: Password reset codes or tokens are stored safely, are single-use, expire, and enforce attempt limits.
-- [ ] **SEC-04**: Environment requirements are documented in sanitized example files without committing secrets.
-- [ ] **AUTH-01**: User can sign up, log in, refresh, and log out with predictable session behavior.
-- [ ] **AUTH-02**: User sees a recoverable state when the session expires or refresh fails.
-- [ ] **AUTH-03**: OAuth callback behavior redirects only to approved frontend origins.
+- [x] **SEC-01**: Unsafe cookie-authenticated HTTP methods require active CSRF protection or an explicitly documented safe exemption.
+- [x] **SEC-02**: Auth, token, OAuth, reset, socket, and request logs redact secrets and user-identifying data by default.
+- [x] **SEC-03**: Password reset codes or tokens are stored safely, are single-use, expire, and enforce attempt limits.
+- [x] **SEC-04**: Environment requirements are documented in sanitized example files without committing secrets.
+- [x] **AUTH-01**: User can sign up, log in, refresh, and log out with predictable session behavior.
+- [x] **AUTH-02**: User sees a recoverable state when the session expires or refresh fails.
+- [x] **AUTH-03**: OAuth callback behavior redirects only to approved frontend origins.
 
 ### Realtime Authorization
 
 - [x] **RT-01**: Socket.IO connections derive user identity from verified session data, not client-supplied user ids.
 - [x] **RT-02**: Server checks chat membership before joining rooms or processing chat-scoped socket events.
-- [ ] **RT-03**: Typing, delivery, read, edit, delete, reaction, and notification events are rejected for unauthorized chats.
+- [x] **RT-03**: Typing, delivery, read, edit, delete, reaction, and notification events are rejected for unauthorized chats.
 - [x] **RT-04**: Socket reconnect reconciles selected chat messages, conversation list state, unread counts, and presence from server truth.
-- [ ] **RT-05**: Presence state handles reconnects and disconnects without trusting stale client claims.
+- [x] **RT-05**: Presence state handles reconnects and disconnects without trusting stale client claims.
 
 ### Message Reliability
 
 - [x] **MSG-01**: User can send a direct message and see it transition through one canonical sending, sent, delivered, and read lifecycle.
 - [x] **MSG-02**: User can receive messages in real time without duplicates from optimistic updates, mutation responses, and socket events.
-- [ ] **MSG-03**: User can reload a chat and see only messages they are authorized to view, excluding messages deleted for that user.
+- [x] **MSG-03**: User can reload a chat and see only messages they are authorized to view, excluding messages deleted for that user.
 - [x] **MSG-04**: User can edit, delete for self, delete for everyone, and react to messages only when authorized.
 - [x] **MSG-05**: Unread counts are derived or synchronized per user and do not drift from read receipt state.
-- [ ] **MSG-06**: Message history loads with scalable pagination that avoids deep offset behavior for large chats.
-- [ ] **MSG-07**: Message validation boundaries are consistent between controller checks, model constraints, and frontend form rules.
-- [ ] **DELIV-01**: One user send action creates exactly one persisted message and one rendered sender bubble.
-- [ ] **DELIV-02**: Optimistic updates, HTTP mutation responses, socket echoes, retries, and refetches merge by `clientMessageId` and durable message id without duplicates.
-- [ ] **DELIV-03**: Recipient browsers receive new messages through Socket.IO without requiring page refresh.
-- [ ] **DELIV-04**: Delivered/read indicators reflect server-confirmed recipient delivery/read state, not only sender-side success.
+- [x] **MSG-06**: Message history loads with scalable pagination that avoids deep offset behavior for large chats.
+- [x] **MSG-07**: Message validation boundaries are consistent between controller checks, model constraints, and frontend form rules.
+- [x] **DELIV-01**: One user send action creates exactly one persisted message and one rendered sender bubble.
+- [x] **DELIV-02**: Optimistic updates, HTTP mutation responses, socket echoes, retries, and refetches merge by `clientMessageId` and durable message id without duplicates.
+- [x] **DELIV-03**: Recipient browsers receive new messages through Socket.IO without requiring page refresh.
+- [x] **DELIV-04**: Delivered/read indicators reflect server-confirmed recipient delivery/read state, not only sender-side success.
 - [ ] **DELIV-05**: Two-account local and deployed smoke tests prove no duplicate sends, instant realtime receive, reconnect reconciliation, and refresh parity.
 
 ### Chat User Experience
@@ -74,10 +74,10 @@
 - [ ] **PROD-02**: Production chat runtime does not ship fixture, screenshot, or static demo content as if it were real conversation data.
 - [ ] **PROD-03**: Desktop rails, mobile drawers, overlays, and panels can be opened, closed, escaped, and restored without trapping the user.
 - [ ] **PROD-04**: Chatify is not called functionally ready until the live deployed product passes the full production acceptance gate.
-- [ ] **CTRL-01**: Header, rail, and mobile message-search controls open real searchable message workflows.
-- [ ] **CTRL-02**: More menus expose implemented conversation actions only, with accessible labels, loading states, and recoverable errors.
-- [ ] **CTRL-03**: Pinned messages, shared files, shared media, and security rows render from server-backed conversation state or disappear when empty.
-- [ ] **BLOCK-01**: User can block and unblock a direct-message participant from the conversation UI.
+- [x] **CTRL-01**: Header, rail, and mobile message-search controls open real searchable message workflows.
+- [x] **CTRL-02**: More menus expose implemented conversation actions only, with accessible labels, loading states, and recoverable errors.
+- [x] **CTRL-03**: Pinned messages, shared files, shared media, and security rows render from server-backed conversation state or disappear when empty.
+- [x] **BLOCK-01**: User can block and unblock a direct-message participant from the conversation UI.
 - [x] **BLOCK-02**: Blocked state prevents new messages, call attempts, and inappropriate realtime events across HTTP and Socket.IO paths.
 - [x] **ID-01**: User identity imagery or abstract identity marks can be changed and persist across sidebar, header, message, and detail surfaces.
 - [x] **ID-02**: Identity imagery upload or customization has validation, privacy controls, and fallback behavior.
@@ -90,10 +90,10 @@
 
 ### Tests And Verification
 
-- [ ] **TEST-01**: Backend request tests cover auth lifecycle, CSRF enforcement, message authorization, validation boundaries, and password reset behavior.
+- [x] **TEST-01**: Backend request tests cover auth lifecycle, CSRF enforcement, message authorization, validation boundaries, and password reset behavior.
 - [x] **TEST-02**: Socket integration tests cover authenticated handshake, unauthorized event rejection, room membership, typing, delivery, read, edit, delete, reaction, and reconnect behavior.
 - [x] **TEST-03**: Frontend tests cover optimistic send, rollback, duplicate merge, unread updates, session-expired state, and core chat UI states.
-- [ ] **TEST-04**: Each auth, socket, and message phase has blocking security acceptance criteria and verification evidence.
+- [x] **TEST-04**: Each auth, socket, and message phase has blocking security acceptance criteria and verification evidence.
 - [x] **TEST-05**: End-to-end UI quality gates cover real messenger workflows across desktop, mobile, light theme, and dark theme after behavior interactions.
 
 ## v2 Requirements
@@ -120,32 +120,32 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEC-01 | Phase 1 | Pending |
-| SEC-02 | Phase 1 | Pending |
-| SEC-03 | Phase 1 | Pending |
-| SEC-04 | Phase 1 | Pending |
-| AUTH-01 | Phase 1 | Pending |
-| AUTH-02 | Phase 1 | Pending |
-| AUTH-03 | Phase 1 | Pending |
-| TEST-01 | Phase 1 | Pending |
-| TEST-04 | Phase 1 | Pending |
+| SEC-01 | Phase 1 | Complete |
+| SEC-02 | Phase 1 | Complete |
+| SEC-03 | Phase 1 | Complete |
+| SEC-04 | Phase 1 | Complete |
+| AUTH-01 | Phase 1 | Complete |
+| AUTH-02 | Phase 1 | Complete |
+| AUTH-03 | Phase 1 | Complete |
+| TEST-01 | Phase 1 | Complete |
+| TEST-04 | Phase 1 | Complete |
 | RT-01 | Phase 2 | Complete |
 | RT-02 | Phase 2 | Complete |
-| RT-03 | Phase 2 | Pending |
+| RT-03 | Phase 2 | Complete |
 | RT-04 | Phase 2 | Complete |
-| RT-05 | Phase 2 | Pending |
+| RT-05 | Phase 2 | Complete |
 | TEST-02 | Phase 2 | Complete |
 | MSG-01 | Phase 3 | Complete |
 | MSG-02 | Phase 3 | Complete |
-| MSG-03 | Phase 3 | Pending |
+| MSG-03 | Phase 3 | Complete |
 | MSG-04 | Phase 3 | Complete |
 | MSG-05 | Phase 3 | Complete |
-| MSG-06 | Phase 3 | Pending |
-| MSG-07 | Phase 3 | Pending |
-| DELIV-01 | Phase 10.1 | Pending |
-| DELIV-02 | Phase 10.1 | Pending |
-| DELIV-03 | Phase 10.1 | Pending |
-| DELIV-04 | Phase 10.1 | Pending |
+| MSG-06 | Phase 3 | Complete |
+| MSG-07 | Phase 3 | Complete |
+| DELIV-01 | Phase 10.1 | Complete |
+| DELIV-02 | Phase 10.1 | Complete |
+| DELIV-03 | Phase 10.1 | Complete |
+| DELIV-04 | Phase 10.1 | Complete |
 | DELIV-05 | Phase 10.1 | Pending |
 | UI-01 | Phase 6 | Complete |
 | UI-02 | Phase 6 | Complete |
@@ -170,10 +170,10 @@
 | PROD-02 | Phase 10, Phase 14 | Pending |
 | PROD-03 | Phase 10 | Pending |
 | PROD-04 | Phase 14 | Pending |
-| CTRL-01 | Phase 11 | Pending |
-| CTRL-02 | Phase 11 | Pending |
-| CTRL-03 | Phase 11 | Pending |
-| BLOCK-01 | Phase 11 | Pending |
+| CTRL-01 | Phase 11 | Complete |
+| CTRL-02 | Phase 11 | Complete |
+| CTRL-03 | Phase 11 | Complete |
+| BLOCK-01 | Phase 11 | Complete |
 | BLOCK-02 | Phase 11, Phase 13 | Complete |
 | ID-01 | Phase 12, Phase 16 | Complete |
 | ID-02 | Phase 12, Phase 16 | Complete |

@@ -17,6 +17,7 @@ vi.mock('../api/userApi', () => ({
   userApi: {
     uploadProfileImage: vi.fn(),
     removeProfileImage: vi.fn(),
+    updateIdentityMark: vi.fn(),
   },
 }));
 
@@ -108,6 +109,54 @@ describe('useProfileImageMutation', () => {
     expect(queryClient.getQueryData(authQueryKey)).toMatchObject({
       profilePic: 'https://provider.test/avatar.png',
     });
+  });
+
+  it('updates the auth store and invalidates identity-dependent queries after identity mark changes', async () => {
+    const updatedUser = makeUser({
+      identityMark: {
+        source: 'custom',
+        label: 'Relay Grid',
+        initials: 'RG',
+        paletteId: 'teal',
+        patternId: 'rings',
+        accentId: 'mint',
+        updatedAt: '2026-06-17T05:00:00.000Z',
+      },
+    });
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
+    const identityMark = {
+      label: 'Relay Grid',
+      initials: 'RG',
+      paletteId: 'teal' as const,
+      patternId: 'rings' as const,
+      accentId: 'mint' as const,
+    };
+
+    vi.mocked(userApi.updateIdentityMark).mockResolvedValue(
+      makeResponse(updatedUser) as Awaited<ReturnType<typeof userApi.updateIdentityMark>>
+    );
+
+    const { result } = renderHook(() => useProfileImageMutation(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.updateIdentityMark.mutateAsync(identityMark);
+    });
+
+    expect(userApi.updateIdentityMark).toHaveBeenCalledWith(identityMark);
+    expect(useAuthStore.getState().user?.identityMark).toMatchObject({
+      source: 'custom',
+      label: 'Relay Grid',
+    });
+    expect(queryClient.getQueryData(authQueryKey)).toMatchObject({
+      identityMark: expect.objectContaining({ label: 'Relay Grid' }),
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: authQueryKey });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: chatsQueryKey });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: onlinePresenceQueryKey });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: usersQueryKey });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: userSearchQueryKey });
   });
 
   it('leaves the previous current user image intact when upload fails', async () => {

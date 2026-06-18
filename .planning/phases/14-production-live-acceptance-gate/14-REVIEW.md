@@ -1,9 +1,10 @@
 ---
 phase: 14-production-live-acceptance-gate
 review: 14
-status: blocked
+status: resolved
 depth: standard
 files_reviewed: 7
+resolved_by: 14-REVIEW-FIX.md
 findings:
   critical: 4
   warning: 1
@@ -12,9 +13,15 @@ findings:
 commands:
   - "git status --short --branch"
   - "rg review across Phase 14 e2e helpers, production config, and phase specification"
+  - "2026-06-17 verification: Frontend/Chatify npm run test:e2e:prod -- --grep \"production smoke config\" -> passed, 9 tests"
+  - "2026-06-17 verification: Frontend/Chatify npm run test:e2e:prod -- --grep \"Phase 14 production live acceptance\" -> passed with expected no-env skip"
 ---
 
 # Phase 14 Code Review
+
+## Resolution Status
+
+Resolved by `14-REVIEW-FIX.md`. Fresh verification on 2026-06-17 passed the production config self-tests and confirmed the live acceptance path still fails closed as `Readiness blocked` when production smoke env is absent.
 
 ## Scope
 

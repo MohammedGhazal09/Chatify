@@ -24,6 +24,8 @@ const requiredEnvVars = [
 type RequiredEnvVar = typeof requiredEnvVars[number];
 type UrlEnvVar = 'CHATIFY_PROD_FRONTEND_URL' | 'CHATIFY_PROD_BACKEND_URL';
 
+const csrfCookieName = 'XSRF-TOKEN';
+const csrfHeaderName = 'X-CSRF-Token';
 const defaultFrontendUrl = 'https://chatify-ten-rho.vercel.app';
 const defaultBackendUrl = 'https://chatify-ckmn.onrender.com';
 
@@ -219,6 +221,44 @@ const getSetCookieHeaders = (response: Response) => {
   return splitSetCookieHeaders(response.headers.get('set-cookie') ?? '');
 };
 
+const getCookieNameValue = (header: string) => {
+  const [nameValue] = header.split(';').map((part) => part.trim());
+  const separatorIndex = nameValue.indexOf('=');
+
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  return {
+    name: nameValue.slice(0, separatorIndex),
+    value: decodeURIComponent(nameValue.slice(separatorIndex + 1)),
+  };
+};
+
+const getCsrfTokenForApiAuth = async (backendUrl: string) => {
+  const response = await fetch(`${backendUrl}/api/csrf-token`);
+
+  if (!response.ok) {
+    throw new Error(`Production smoke CSRF bootstrap failed with HTTP ${response.status}.`);
+  }
+
+  const setCookieHeaders = getSetCookieHeaders(response);
+  const csrfCookieHeader = setCookieHeaders.find((header) => (
+    getCookieNameValue(header)?.name === csrfCookieName
+  ));
+  const csrfCookie = csrfCookieHeader ? getCookieNameValue(csrfCookieHeader) : null;
+
+  if (!csrfCookieHeader || !csrfCookie) {
+    throw new Error('Production smoke CSRF bootstrap did not return an XSRF-TOKEN cookie.');
+  }
+
+  return {
+    cookieHeader: `${csrfCookieName}=${encodeURIComponent(csrfCookie.value)}`,
+    setCookieHeaders,
+    token: csrfCookie.value,
+  };
+};
+
 export const authenticateProductionSmokeContext = async ({
   account,
   backendUrl,
@@ -228,10 +268,13 @@ export const authenticateProductionSmokeContext = async ({
   backendUrl: string;
   context: BrowserContext;
 }) => {
+  const csrf = await getCsrfTokenForApiAuth(backendUrl);
   const response = await fetch(`${backendUrl}/api/auth/login`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      [csrfHeaderName]: csrf.token,
+      cookie: csrf.cookieHeader,
     },
     body: JSON.stringify({
       email: account.email,
@@ -244,7 +287,7 @@ export const authenticateProductionSmokeContext = async ({
     throw new Error(`${account.label} API login failed with HTTP ${response.status}.`);
   }
 
-  const cookies = getSetCookieHeaders(response)
+  const cookies = [...csrf.setCookieHeaders, ...getSetCookieHeaders(response)]
     .map((header) => parseSetCookieHeader(header, backendUrl))
     .filter((cookie): cookie is BrowserCookie => Boolean(cookie));
 

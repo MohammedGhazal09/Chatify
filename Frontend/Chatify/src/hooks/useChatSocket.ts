@@ -5,7 +5,15 @@ import { resolveSocketUrl } from '../api/apiOrigin';
 import { dispatchAuthExpired, refreshAuthSession } from '../api/axios';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { chatsQueryKey, messagesQueryKey, onlinePresenceQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
+import {
+  chatsQueryKey,
+  messagesQueryKey,
+  onlinePresenceQueryKey,
+  pinnedMessagesQueryKey,
+  userSearchQueryKey,
+  usersQueryKey,
+} from './useChatQueries';
+import type { User } from '../types/auth';
 import {
   applyBatchReadInCache,
   applyDeletedMessageInCache,
@@ -18,6 +26,8 @@ import {
   type MessagesCacheData,
 } from './messageCache';
 import { playNotificationSound, playCallEndedSound, isSoundEnabled } from '../utils/sounds';
+import { getBrowserNotificationPermission, getSafeNotificationCopy } from '../utils/notificationPrivacy';
+import type { NotificationPreferences, SafeNotificationCopy } from '../types/notifications';
 import type {
   Chat,
   Message,
@@ -35,6 +45,7 @@ import type {
   SocketErrorEvent,
   SocketReadyEvent,
   ConversationControlsUpdatedEvent,
+  UserIdentityUpdatedEvent,
   CallActionAck,
   CallIceConfig,
   CallMode,
@@ -46,7 +57,9 @@ import type {
 type UseChatSocketOptions = {
   chatId: string | null;
   enabled?: boolean;
+  notificationPreferences?: NotificationPreferences;
   onMessage?: (message: Message) => void;
+  onBackgroundMessageAlert?: (copy: SafeNotificationCopy) => void;
   onMessageStatusUpdate?: (event: MessageStatusUpdateEvent) => void;
   onMessageRead?: (event: MessageReadEvent) => void;
   onBatchRead?: (event: BatchReadEvent) => void;
@@ -83,6 +96,31 @@ const isCallEndedActivity = (message: Message) => (
   message.messageType === 'call' && message.callActivity?.result === 'ended'
 );
 
+const getDefaultNotificationPreferences = (): NotificationPreferences => ({
+  soundEnabled: isSoundEnabled(),
+  browserNotificationsEnabled: false,
+  mutedChatIds: [],
+});
+
+const createBrowserNotification = (copy: SafeNotificationCopy, chatId: string) => {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return;
+  }
+
+  if (getBrowserNotificationPermission() !== 'granted') {
+    return;
+  }
+
+  try {
+    new window.Notification(copy.title, {
+      body: copy.body,
+      tag: `chatify-${chatId}`,
+    });
+  } catch {
+    // Browser notifications are opportunistic; cache, receipts, and in-app state are authoritative.
+  }
+};
+
 const clearTypingTimeoutsForChat = (
   timeouts: Record<string, ReturnType<typeof setTimeout>>,
   chatId: string
@@ -97,10 +135,23 @@ const clearTypingTimeoutsForChat = (
   });
 };
 
+const mergeIdentityUser = (candidate: User, updatedUser: User) => (
+  candidate._id === updatedUser._id
+    ? {
+        ...candidate,
+        ...updatedUser,
+        identityMark: updatedUser.identityMark ?? candidate.identityMark,
+        identityMarkUpdatedAt: updatedUser.identityMarkUpdatedAt ?? candidate.identityMarkUpdatedAt,
+      }
+    : candidate
+);
+
 export const useChatSocket = ({
   chatId,
   enabled = true,
+  notificationPreferences,
   onMessage,
+  onBackgroundMessageAlert,
   onMessageStatusUpdate,
   onMessageRead,
   onBatchRead,
@@ -139,6 +190,7 @@ export const useChatSocket = ({
 
   const callbacksRef = useRef({
     onMessage,
+    onBackgroundMessageAlert,
     onMessageStatusUpdate,
     onMessageRead,
     onBatchRead,
@@ -156,6 +208,7 @@ export const useChatSocket = ({
   });
   callbacksRef.current = {
     onMessage,
+    onBackgroundMessageAlert,
     onMessageStatusUpdate,
     onMessageRead,
     onBatchRead,
@@ -177,6 +230,9 @@ export const useChatSocket = ({
 
   const userIdRef = useRef(user?._id);
   userIdRef.current = user?._id;
+
+  const notificationPreferencesRef = useRef<NotificationPreferences | null>(notificationPreferences ?? null);
+  notificationPreferencesRef.current = notificationPreferences ?? null;
 
   const socketUrl = useMemo(() => resolveSocketUrl(), []);
   const isSocketConnected = socketStatus === 'ready';
@@ -292,6 +348,47 @@ export const useChatSocket = ({
     if (!event.conversationControls.canSendMessage) {
       presenceStoreRef.current.clearAllTypingForChat(event.chatId);
     }
+  }, []);
+
+  const handleUserIdentityUpdated = useCallback((event: UserIdentityUpdatedEvent) => {
+    if (!event?.user?._id) {
+      return;
+    }
+
+    const updatedUser = event.user;
+    const currentUser = useAuthStore.getState().user;
+
+    if (currentUser?._id === updatedUser._id) {
+      useAuthStore.getState().setUser(mergeIdentityUser(currentUser, updatedUser));
+    }
+
+    queryClientRef.current.setQueryData<User | null>(['auth'], (old) => (
+      old ? mergeIdentityUser(old, updatedUser) : old
+    ));
+
+    queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+      if (!old) {
+        return old;
+      }
+
+      return old.map((chat) => ({
+        ...chat,
+        members: chat.members.map((member) => mergeIdentityUser(member, updatedUser)),
+      }));
+    });
+
+    queryClientRef.current.setQueryData<User[]>(usersQueryKey, (old) => (
+      old?.map((candidate) => mergeIdentityUser(candidate, updatedUser)) ?? old
+    ));
+    queryClientRef.current.invalidateQueries({ queryKey: usersQueryKey });
+    queryClientRef.current.invalidateQueries({ queryKey: userSearchQueryKey });
+    queryClientRef.current.invalidateQueries({ queryKey: onlinePresenceQueryKey });
+
+    event.chatIds?.forEach((targetChatId) => {
+      queryClientRef.current.invalidateQueries({ queryKey: messagesQueryKey(targetChatId) });
+      queryClientRef.current.invalidateQueries({ queryKey: ['sharedAssets', targetChatId] });
+      queryClientRef.current.invalidateQueries({ queryKey: pinnedMessagesQueryKey(targetChatId) });
+    });
   }, []);
 
   // Connect socket and set up user connection
@@ -476,11 +573,55 @@ export const useChatSocket = ({
       }
 
       const currentChatId = chatIdRef.current;
+      const isCurrentChat = Boolean(currentChatId && message.chatId === currentChatId);
+      const effectiveNotificationPreferences =
+        notificationPreferencesRef.current ?? getDefaultNotificationPreferences();
+      const hasScopedNotificationPreferences = Boolean(notificationPreferencesRef.current);
+      const isMuted = effectiveNotificationPreferences.mutedChatIds.includes(message.chatId);
+      const shouldAlert = message.sender !== currentUserId && !isCurrentChat && !isMuted;
+
+      if (
+        hasScopedNotificationPreferences &&
+        message.sender !== currentUserId &&
+        isCurrentChat &&
+        isCallEndedActivity(message) &&
+        effectiveNotificationPreferences.soundEnabled
+      ) {
+        playCallEndedSound();
+      }
+
+      if (shouldAlert) {
+        const copy = getSafeNotificationCopy({
+          eventType: isCallEndedActivity(message) ? 'call' : 'message',
+          messageText: message.text,
+          attachmentNames: message.attachments?.map((attachment) => attachment.displayName),
+        });
+
+        if (effectiveNotificationPreferences.soundEnabled) {
+          if (isCallEndedActivity(message)) {
+            playCallEndedSound();
+          } else {
+            playNotificationSound();
+          }
+        }
+
+        if (effectiveNotificationPreferences.browserNotificationsEnabled) {
+          createBrowserNotification(copy, message.chatId);
+        }
+
+        callbacksRef.current.onBackgroundMessageAlert?.(copy);
+      }
+
       if (currentChatId && message.chatId !== currentChatId) {
         return;
       }
 
-      if (message.sender !== currentUserId && isSoundEnabled()) {
+      if (
+        !hasScopedNotificationPreferences &&
+        message.sender !== currentUserId &&
+        isCurrentChat &&
+        isSoundEnabled()
+      ) {
         if (isCallEndedActivity(message)) {
           playCallEndedSound();
         } else {
@@ -699,6 +840,7 @@ export const useChatSocket = ({
     socketInstance.on('message:pinned', handleMessagePinned);
     socketInstance.on('message:unpinned', handleMessageUnpinned);
     socketInstance.on('user:status-change', handleUserStatusChange);
+    socketInstance.on('user:identity-updated', handleUserIdentityUpdated);
     socketInstance.on('chat:new', handleChatNew);
     socketInstance.on('chat:deleted', handleChatDeleted);
     socketInstance.on('conversation:controls-updated', handleConversationControlsUpdated);
@@ -741,6 +883,7 @@ export const useChatSocket = ({
       socketInstance.off('message:pinned', handleMessagePinned);
       socketInstance.off('message:unpinned', handleMessageUnpinned);
       socketInstance.off('user:status-change', handleUserStatusChange);
+      socketInstance.off('user:identity-updated', handleUserIdentityUpdated);
       socketInstance.off('chat:new', handleChatNew);
       socketInstance.off('chat:deleted', handleChatDeleted);
       socketInstance.io.off('reconnect', handleReconnect);
@@ -755,6 +898,7 @@ export const useChatSocket = ({
   }, [
     enabled,
     handleConversationControlsUpdated,
+    handleUserIdentityUpdated,
     invalidateMessageDetailQueries,
     isAuthenticated,
     reconcileRealtimeState,

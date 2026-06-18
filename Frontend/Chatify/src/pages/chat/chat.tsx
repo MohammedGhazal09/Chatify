@@ -7,6 +7,8 @@ import LoadingSpinner from '../../components/loadingSpinner';
 import SettingsModal from '../../components/SettingsModal';
 import { useToast } from '../../components/Toast';
 import useLocalStorage from '../../hooks/useLocalStorage';
+import { useNotificationPreferences } from '../../hooks/useNotificationPreferences';
+import { useSessionBroadcast } from '../../hooks/useSessionBroadcast';
 import { useAuthStore } from '../../store/authstore';
 import { usePresenceStore } from '../../store/presenceStore';
 import { useLogout } from '../../hooks/useAuthQuery';
@@ -34,6 +36,7 @@ import { useCallController } from '../../hooks/useCallController';
 import type {
   BatchReadEvent,
   AttachmentSummary,
+  ComposerAttachmentDraft,
   ComposerSendPayload,
   ConversationControls,
   Message,
@@ -65,6 +68,14 @@ import {
 import { getChatTitle, getOtherMember } from './utils/chatDisplay';
 import { buildSendDraftKey } from './sendDraftGuard';
 import './chat.css';
+
+const DETAIL_RAIL_MEDIA_QUERY = '(min-width: 1280px)';
+
+const isDesktopDetailRailViewport = () => (
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia(DETAIL_RAIL_MEDIA_QUERY).matches
+);
 
 const useDebounce = (callback: () => void, delay: number) => {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,15 +192,17 @@ const ChatPage = () => {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [composerResetToken, setComposerResetToken] = useState(0);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
-  const [isDetailRailOpen, setIsDetailRailOpen] = useState(false);
+  const [isDetailRailOpen, setIsDetailRailOpen] = useState(() => isDesktopDetailRailViewport());
   const [isConversationMoreOpen, setIsConversationMoreOpen] = useState(false);
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
   const [favoriteChatIds, setFavoriteChatIds] = useState<string[]>([]);
   const [attachmentPreview, setAttachmentPreview] = useState<AttachmentPreviewTarget | null>(null);
+  const [activeComposerUploadId, setActiveComposerUploadId] = useState<string | null>(null);
   const favoriteStorageKey = user?._id ? `chatify_favorite_chats_${user._id}` : null;
   const chatTheme = useChatTheme(user?._id);
+  const notificationPreferences = useNotificationPreferences(user?._id);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
   const {
@@ -236,6 +249,7 @@ const ChatPage = () => {
     [chats, selectedChatId]
   );
   const isSelectedChatFavorite = Boolean(selectedChatId && favoriteChatIds.includes(selectedChatId));
+  const isSelectedChatMuted = Boolean(selectedChatId && notificationPreferences.isChatMuted(selectedChatId));
   const conversationControls = selectedChat?.conversationControls;
   const activeConversationDisabledReason = getConversationDisabledReason(conversationControls);
   const isConversationControlPending = blockChatPeerMutation.isPending || unblockChatPeerMutation.isPending;
@@ -246,8 +260,12 @@ const ChatPage = () => {
   const messageSearchResult = useMessageSearch(selectedChatId, messageSearchQuery);
   const sharedFilesQuery = useSharedAssets(selectedChatId, 'file');
   const sharedMediaQuery = useSharedAssets(selectedChatId, 'media');
+  const sharedVoiceQuery = useSharedAssets(selectedChatId, 'voice');
   const pinnedMessagesQuery = usePinnedMessages(selectedChatId);
   const loadedMessageIds = useMemo(() => new Set(allMessages.map((message) => message._id)), [allMessages]);
+  const activeComposerUploadState = activeComposerUploadId
+    ? sendMessage.uploadStates[activeComposerUploadId]
+    : undefined;
 
   const clearHighlightedMessage = useCallback(() => {
     if (messageHighlightTimeoutRef.current) {
@@ -301,11 +319,38 @@ const ChatPage = () => {
       mimeType: attachment.mimeType,
       size: attachment.size,
       kind: attachment.kind,
+      durationSeconds: attachment.durationSeconds ?? null,
       status: 'active',
       localPreviewUrl: attachment.localPreviewUrl,
       createdAt: new Date().toISOString(),
     };
   }), []);
+
+  const buildRetryAttachmentDrafts = useCallback((message: Message): ComposerAttachmentDraft[] | undefined => {
+    if (message.localDrafts?.length) {
+      return message.localDrafts;
+    }
+
+    if (!message.localFiles?.length) {
+      return undefined;
+    }
+
+    return message.localFiles.map((file, index) => {
+      const attachment = message.attachments?.[index];
+      const kind = attachment?.kind ?? (file.type.startsWith('image/') ? 'media' : 'file');
+
+      return {
+        id: `retry-${message.clientMessageId ?? message._id}-${index}`,
+        file,
+        displayName: attachment?.displayName ?? file.name,
+        mimeType: attachment?.mimeType ?? file.type ?? 'application/octet-stream',
+        size: attachment?.size ?? file.size,
+        kind,
+        durationSeconds: attachment?.durationSeconds ?? null,
+        localPreviewUrl: attachment?.localPreviewUrl,
+      };
+    });
+  }, []);
 
   const revokeMessageLocalPreviewUrls = useCallback((message: Message) => {
     message.attachments?.forEach((attachment) => {
@@ -381,6 +426,10 @@ const ChatPage = () => {
   } = useChatSocket({
     chatId: selectedChatId,
     enabled: isAuthenticated,
+    notificationPreferences: notificationPreferences.preferences,
+    onBackgroundMessageAlert: (copy) => {
+      showToast(copy.title, 'info');
+    },
     onMessageStatusUpdate: handleMessageStatusUpdate,
     onBatchRead: handleBatchRead,
     onMessageDeleted: handleMessageDeleted,
@@ -520,24 +569,40 @@ const ChatPage = () => {
     user?._id,
   ]);
 
+  const handleSessionEnded = useCallback((userIdToClear?: string | null) => {
+    clearPrivateChatState(userIdToClear);
+    authLogout();
+    setIsSettingsOpen(false);
+  }, [authLogout, clearPrivateChatState, setIsSettingsOpen]);
+
   useEffect(() => {
     const handleAuthExpired = () => {
       const expiredUserId = useAuthStore.getState().user?._id ?? user?._id ?? null;
-      clearPrivateChatState(expiredUserId);
-      authLogout();
+      handleSessionEnded(expiredUserId);
     };
 
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     return () => {
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     };
-  }, [authLogout, clearPrivateChatState, user?._id]);
+  }, [handleSessionEnded, user?._id]);
+
+  useSessionBroadcast((event) => {
+    const activeUserId = useAuthStore.getState().user?._id ?? user?._id ?? null;
+    handleSessionEnded(activeUserId);
+
+    if (event.type === 'logout') {
+      showToast('Signed out in another tab.', 'info');
+    } else {
+      showToast('Session expired in another tab. Sign in again to continue.', 'info');
+    }
+  });
 
   useEffect(() => {
     clearHighlightedMessage();
     setAttachmentPreview(null);
     setIsDetailDrawerOpen(false);
-    setIsDetailRailOpen(false);
+    setIsDetailRailOpen(isDesktopDetailRailViewport());
     setIsConversationMoreOpen(false);
   }, [clearHighlightedMessage, selectedChatId]);
 
@@ -837,12 +902,16 @@ const ChatPage = () => {
     const clientMessageId = createClientMessageId();
     const optimisticAttachments = payload ? buildOptimisticAttachments(payload, clientMessageId) : [];
 
+    if (attachmentDrafts.length > 0) {
+      setActiveComposerUploadId(clientMessageId);
+    }
+
     sendMessage.mutate(
       {
         chatId: selectedChatId,
         text: sourceText,
         clientMessageId,
-        attachments: attachmentDrafts.map((attachment) => attachment.file),
+        attachments: attachmentDrafts,
         optimisticAttachments,
       },
       {
@@ -852,6 +921,9 @@ const ChatPage = () => {
         },
         onSettled: () => {
           inFlightDraftKeysRef.current.delete(draftKey);
+          setActiveComposerUploadId((currentUploadId) => (
+            currentUploadId === clientMessageId ? null : currentUploadId
+          ));
         },
       }
     );
@@ -1177,6 +1249,21 @@ const ChatPage = () => {
     ));
   }, [persistFavoriteChatIds, selectedChatId]);
 
+  const handleToggleSelectedChatMute = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (notificationPreferences.isChatMuted(selectedChatId)) {
+      notificationPreferences.unmuteChat(selectedChatId);
+      showToast('Conversation unmuted. Alerts are on for this chat.', 'info');
+      return;
+    }
+
+    notificationPreferences.muteChat(selectedChatId);
+    showToast('Conversation muted. Alerts are off for this chat.', 'info');
+  }, [notificationPreferences, selectedChatId, showToast]);
+
   const handleCopyMessage = (message: Message) => {
     navigator.clipboard.writeText(message.text);
     closeContextMenu();
@@ -1192,18 +1279,33 @@ const ChatPage = () => {
       return;
     }
 
-    if ((message.attachments?.length ?? 0) > 0 && !message.localFiles?.length) {
-      showToast('Reattach files to retry this message.', 'error');
+    const retryAttachments = buildRetryAttachmentDrafts(message);
+
+    if ((message.attachments?.length ?? 0) > 0 && !retryAttachments?.length) {
+      showToast('Reattach files or re-record voice to retry this message.', 'error');
       return;
     }
 
-    sendMessage.mutate({
-      chatId: message.chatId,
-      text: message.text,
-      clientMessageId: message.clientMessageId,
-      attachments: message.localFiles,
-      optimisticAttachments: message.attachments,
-    });
+    if (retryAttachments?.length) {
+      setActiveComposerUploadId(message.clientMessageId);
+    }
+
+    sendMessage.mutate(
+      {
+        chatId: message.chatId,
+        text: message.text,
+        clientMessageId: message.clientMessageId,
+        attachments: retryAttachments,
+        optimisticAttachments: message.attachments,
+      },
+      {
+        onSettled: () => {
+          setActiveComposerUploadId((currentUploadId) => (
+            currentUploadId === message.clientMessageId ? null : currentUploadId
+          ));
+        },
+      }
+    );
   };
 
   const handleDismissFailedMessage = (message: Message) => {
@@ -1256,7 +1358,7 @@ const ChatPage = () => {
   }, [focusMoreButton]);
 
   const handleOpenDetails = useCallback(() => {
-    const isDesktopViewport = typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1280px)').matches === true;
+    const isDesktopViewport = isDesktopDetailRailViewport();
     setIsConversationMoreOpen(false);
 
     if (isDesktopViewport) {
@@ -1269,7 +1371,7 @@ const ChatPage = () => {
   }, []);
 
   const handleToggleDetails = useCallback(() => {
-    const isDesktopViewport = typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1280px)').matches === true;
+    const isDesktopViewport = isDesktopDetailRailViewport();
     setIsConversationMoreOpen(false);
 
     if (isDesktopViewport) {
@@ -1394,6 +1496,7 @@ const ChatPage = () => {
             createChatError={createChatError}
             isCreatingChat={createChat.isPending}
             unreadCounts={unreadCounts}
+            mutedChatIds={notificationPreferences.mutedChatIds}
             onlineUsers={onlineUsers}
             newChatButtonRef={newChatButtonRef}
             onSearchChange={setSearchQuery}
@@ -1447,6 +1550,7 @@ const ChatPage = () => {
           isSending={sendMessage.isPending}
           isSendError={sendMessage.isError}
           sendDisabledReason={activeConversationDisabledReason}
+          composerUploadState={activeComposerUploadState}
           isConversationControlPending={isConversationControlPending}
           composerResetToken={composerResetToken}
           isOffline={isOffline}
@@ -1482,6 +1586,7 @@ const ChatPage = () => {
           onSendMessage={handleSendMessage}
           onToggleEmojiPicker={() => setShowEmojiPicker((prev) => !prev)}
           onAppendEmoji={handleAppendEmoji}
+          onCancelComposerUpload={() => sendMessage.cancelUpload(activeComposerUploadId)}
           onUnblockUser={handleUnblockPeer}
           onCancelReply={() => setReplyingTo(null)}
         />
@@ -1497,12 +1602,15 @@ const ChatPage = () => {
           pinnedMessages={pinnedMessagesQuery.data ?? []}
           sharedFiles={sharedFilesQuery.data ?? []}
           sharedMedia={sharedMediaQuery.data ?? []}
+          sharedVoice={sharedVoiceQuery.data ?? []}
           isPinnedLoading={pinnedMessagesQuery.isLoading}
           isSharedFilesLoading={sharedFilesQuery.isLoading}
           isSharedMediaLoading={sharedMediaQuery.isLoading}
+          isSharedVoiceLoading={sharedVoiceQuery.isLoading}
           isPinnedError={pinnedMessagesQuery.isError}
           isSharedFilesError={sharedFilesQuery.isError}
           isSharedMediaError={sharedMediaQuery.isError}
+          isSharedVoiceError={sharedVoiceQuery.isError}
           isAuthenticated={isAuthenticated}
           isSocketConnected={isSocketConnected}
           isReconnecting={isReconnecting}
@@ -1537,12 +1645,15 @@ const ChatPage = () => {
               pinnedMessages={pinnedMessagesQuery.data ?? []}
               sharedFiles={sharedFilesQuery.data ?? []}
               sharedMedia={sharedMediaQuery.data ?? []}
+              sharedVoice={sharedVoiceQuery.data ?? []}
               isPinnedLoading={pinnedMessagesQuery.isLoading}
               isSharedFilesLoading={sharedFilesQuery.isLoading}
               isSharedMediaLoading={sharedMediaQuery.isLoading}
+              isSharedVoiceLoading={sharedVoiceQuery.isLoading}
               isPinnedError={pinnedMessagesQuery.isError}
               isSharedFilesError={sharedFilesQuery.isError}
               isSharedMediaError={sharedMediaQuery.isError}
+              isSharedVoiceError={sharedVoiceQuery.isError}
               isAuthenticated={isAuthenticated}
               isSocketConnected={isSocketConnected}
               isReconnecting={isReconnecting}
@@ -1576,6 +1687,7 @@ const ChatPage = () => {
               anchorRef={moreButtonRef}
               conversationControls={conversationControls}
               canExport={allMessages.length > 0}
+              isMuted={isSelectedChatMuted}
               isActionPending={isConversationControlPending}
               callDisabledReason={audioAvailability.reason}
               videoCallDisabledReason={videoAvailability.reason}
@@ -1584,6 +1696,7 @@ const ChatPage = () => {
               onStartVideoCall={handleStartVideoCall}
               onSearchMessages={handleToggleMessageSearch}
               onExportChat={handleExportChat}
+              onToggleMute={handleToggleSelectedChatMute}
               onBlockUser={handleBlockPeer}
               onUnblockUser={handleUnblockPeer}
               onClose={() => setIsConversationMoreOpen(false)}

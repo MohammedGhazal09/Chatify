@@ -1,6 +1,7 @@
 // Notification sound utility
 let notificationSound: HTMLAudioElement | null = null;
 let callEndedAudioContext: AudioContext | null = null;
+export const LEGACY_SOUND_STORAGE_KEY = 'chatify_sound_enabled';
 
 type WindowWithWebkitAudio = Window & {
   webkitAudioContext?: typeof AudioContext;
@@ -93,9 +94,25 @@ export const playCallEndedSound = () => {
 
 // Check if user has enabled sound notifications
 export const isSoundEnabled = (): boolean => {
-  return localStorage.getItem('chatify_sound_enabled') !== 'false';
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  try {
+    return window.localStorage.getItem(LEGACY_SOUND_STORAGE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
 };
 
 export const setSoundEnabled = (enabled: boolean): void => {
-  localStorage.setItem('chatify_sound_enabled', enabled ? 'true' : 'false');
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(LEGACY_SOUND_STORAGE_KEY, enabled ? 'true' : 'false');
+  } catch {
+    // Ignore localStorage failures; sound preference can still be held by caller state.
+  }
 };

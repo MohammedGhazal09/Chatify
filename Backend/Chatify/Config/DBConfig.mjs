@@ -1,23 +1,27 @@
 import mongoose from "mongoose";
+import { logger } from '../Utils/observabilityLogger.mjs';
 
 mongoose.connect(process.env.MONGODB_URL).catch((err) => {
-  console.error('Database initial connection failed:', {
-    name: err?.name,
-    code: err?.code,
+  logger.error('database.initial_connection_failed', {
+    error: err,
   });
 })
 
 const db = mongoose.connection
 db.on('connected', () => {
-  console.log('Database connected successfully');
+  logger.info('database.connected', {
+    readyState: db.readyState,
+  });
 })
 db.on('error', (error) => {
-  console.error('Database connection error:', {
-    name: error?.name,
-    code: error?.code,
+  logger.error('database.connection_error', {
+    readyState: db.readyState,
+    error,
   });
 })
 db.on('disconnected', () => {
-  console.log('Database disconnected');
+  logger.warn('database.disconnected', {
+    readyState: db.readyState,
+  });
 })
 export default db;

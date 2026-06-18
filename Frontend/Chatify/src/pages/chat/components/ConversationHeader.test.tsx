@@ -158,7 +158,9 @@ describe('ConversationHeader', () => {
 
     expect(screen.getByRole('button', { name: 'Call' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Call' })).toHaveAttribute('title', 'Both users must be online to call.');
+    expect(screen.getByRole('button', { name: 'Call' })).toHaveAccessibleDescription('Both users must be online to call.');
     expect(screen.getByRole('button', { name: 'Video call' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Video call' })).toHaveAttribute('title', 'Camera access is unavailable.');
+    expect(screen.getByRole('button', { name: 'Video call' })).toHaveAccessibleDescription('Camera access is unavailable.');
   });
 });

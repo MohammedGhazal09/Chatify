@@ -58,13 +58,21 @@ const MessageSearchResults = ({
         </button>
       </div>
 
-      {isBelowMinimum ? null : isLoading ? (
-        <p className="inline-flex items-center gap-2 text-sm text-[var(--chat-text-muted)]">
+      {isBelowMinimum ? (
+        <div className="space-y-1 text-sm" role="status">
+          <p className="font-semibold text-[var(--chat-text)]">Keep typing</p>
+          <p className="text-[var(--chat-text-muted)]">Type at least 2 characters to search this conversation.</p>
+        </div>
+      ) : isLoading ? (
+        <p className="inline-flex items-center gap-2 text-sm text-[var(--chat-text-muted)]" role="status">
           <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
           Searching messages...
         </p>
       ) : isError ? (
-        <p className="text-sm text-[var(--chat-danger)]">We could not search messages. Try again.</p>
+        <div className="space-y-1 text-sm" role="alert">
+          <p className="font-semibold text-[var(--chat-danger)]">Search unavailable</p>
+          <p className="text-[var(--chat-danger)]">We could not search messages. Check the connection or clear search to return to the conversation.</p>
+        </div>
       ) : messages.length > 0 ? (
         <ul className="-mx-4 divide-y divide-[var(--chat-border)] border-y border-[var(--chat-border)] md:-mx-8">
           {messages.map((message) => {
@@ -114,7 +122,7 @@ const MessageSearchResults = ({
           })}
         </ul>
       ) : (
-        <div className="space-y-1 text-sm">
+        <div className="space-y-1 text-sm" role="status">
           <p className="font-semibold text-[var(--chat-text)]">No message matches</p>
           <p className="text-[var(--chat-text-muted)]">Try another word or clear search to return to the conversation.</p>
         </div>
@@ -135,7 +143,7 @@ const getSearchStatusText = ({
   count: number;
 }) => {
   if (isBelowMinimum) {
-    return 'Type at least 2 characters to search.';
+    return 'Search needs 2 characters';
   }
 
   if (isLoading) {
@@ -143,7 +151,7 @@ const getSearchStatusText = ({
   }
 
   if (isError) {
-    return 'We could not search messages. Try again.';
+    return 'Search unavailable';
   }
 
   return `${count} result${count === 1 ? '' : 's'}`;

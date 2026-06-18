@@ -17,6 +17,7 @@ import { queueStatus, queueHeavyRequests, addQueueHeaders } from './Middlewares/
 import csrfProtection, { createCsrfToken, getCsrfCookieOptions } from './Middlewares/csrfProtection.mjs';
 import passport from 'passport';
 import './Config/passport.mjs'; // Import passport configuration
+import { buildHealthPayload, buildReadinessPayload, getReadinessHttpStatus } from './Utils/operationalReadiness.mjs';
 import {googleAuth,
   googleCallback,
   githubAuth,
@@ -30,10 +31,7 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-// Request logging (only in development)
-if (process.env.NODE_ENV !== 'production') {
-  app.use(requestLogger);
-}
+app.use(requestLogger);
 
 app.use(helmet());
 
@@ -87,6 +85,15 @@ app.use(sanitization);
 
 app.use(passport.initialize());
 
+app.get('/api/health', (req, res) => {
+  res.status(200).json(buildHealthPayload());
+});
+
+app.get('/api/ready', (req, res) => {
+  const payload = buildReadinessPayload();
+  res.status(getReadinessHttpStatus(payload)).json(payload);
+});
+
 // Queue status endpoint (for monitoring)
 app.get('/api/queue-status', queueStatus);
 
@@ -114,18 +121,14 @@ app.get('/api/csrf-token', (req, res) => {
 
 app.use('/api/auth', csrfProtection, authRouter);
 app.use('/api/user', userRouter);
-app.use('/api/chat', protect, chatRouter);
-app.use('/api/message', protect, messageLimiter, messageRouter);
+app.use('/api/chat', protect, csrfProtection, chatRouter);
+app.use('/api/message', protect, csrfProtection, messageLimiter, messageRouter);
 
 app.use((req, res, next) => {
   const error = new CustomError(`Can't find ${req.originalUrl} on this server`, 404);
   next(error);
 });
 
-// Error request logging (only in development)
-if (process.env.NODE_ENV !== 'production') {
-  app.use(errorRequestLogger);
-}
-
+app.use(errorRequestLogger);
 app.use(errHandler);
 export default app;

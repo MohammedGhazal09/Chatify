@@ -3,8 +3,27 @@ import type { ChangeEvent, KeyboardEventHandler } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MessageUploadState } from '../../../hooks/useChatQueries';
+import type { UseVoiceRecorderResult } from '../../../hooks/useVoiceRecorder';
 import type { ComposerSendPayload } from '../../../types/chat';
-import MessageComposer from './MessageComposer';
+
+const defaultVoiceRecorder = (): UseVoiceRecorderResult => ({
+  status: 'idle',
+  isSupported: true,
+  isRecording: false,
+  canRecord: true,
+  draft: null,
+  durationSeconds: 0,
+  errorMessage: null,
+  startRecording: vi.fn(),
+  stopRecording: vi.fn(),
+  cancelRecording: vi.fn(),
+  clearDraft: vi.fn(),
+});
+
+const voiceRecorderMock = vi.hoisted(() => ({
+  current: null as UseVoiceRecorderResult | null,
+}));
 
 vi.mock('./LazyEmojiPicker', () => ({
   default: ({ height, onEmojiClick, width }: { height: number; onEmojiClick: (emoji: { emoji: string }) => void; width: number }) => (
@@ -14,14 +33,29 @@ vi.mock('./LazyEmojiPicker', () => ({
   ),
 }));
 
+vi.mock('../../../hooks/useVoiceRecorder', () => ({
+  useVoiceRecorder: () => voiceRecorderMock.current,
+}));
+
+import MessageComposer from './MessageComposer';
+
 interface ComposerHarnessProps {
   onSend: (payload: ComposerSendPayload) => void;
   sendDisabledReason?: string | null;
   isSendError?: boolean;
   showEmojiPicker?: boolean;
+  uploadState?: MessageUploadState;
+  onCancelUpload?: () => void;
 }
 
-const ComposerHarness = ({ onSend, sendDisabledReason = null, isSendError = false, showEmojiPicker = false }: ComposerHarnessProps) => {
+const ComposerHarness = ({
+  onSend,
+  sendDisabledReason = null,
+  isSendError = false,
+  showEmojiPicker = false,
+  uploadState,
+  onCancelUpload,
+}: ComposerHarnessProps) => {
   const [value, setValue] = useState('');
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
@@ -44,6 +78,7 @@ const ComposerHarness = ({ onSend, sendDisabledReason = null, isSendError = fals
       isSending={false}
       isSendError={isSendError}
       sendDisabledReason={sendDisabledReason}
+      uploadState={uploadState}
       emojiPickerRef={emojiPickerRef}
       onChange={handleChange}
       onKeyDown={handleKeyDown}
@@ -51,12 +86,14 @@ const ComposerHarness = ({ onSend, sendDisabledReason = null, isSendError = fals
       onToggleEmojiPicker={vi.fn()}
       onAppendEmoji={(emoji) => setValue((currentValue) => `${currentValue}${emoji}`)}
       onCancelReply={vi.fn()}
+      onCancelUpload={onCancelUpload}
     />
   );
 };
 
 describe('MessageComposer', () => {
   beforeEach(() => {
+    voiceRecorderMock.current = defaultVoiceRecorder();
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
       value: vi.fn(() => 'blob:attachment-preview'),
@@ -106,10 +143,38 @@ describe('MessageComposer', () => {
     render(<ComposerHarness onSend={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Attach file' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Voice message unavailable in this phase' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Record voice message' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
     expect(screen.getByText('Authenticated private session')).toBeInTheDocument();
     expect(screen.queryByText('Press Enter to send')).not.toBeInTheDocument();
+  });
+
+  it('disables recording when the browser cannot provide MediaRecorder support', () => {
+    voiceRecorderMock.current = {
+      ...defaultVoiceRecorder(),
+      status: 'unsupported',
+      isSupported: false,
+      canRecord: false,
+    };
+
+    render(<ComposerHarness onSend={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Record voice message' })).toBeDisabled();
+  });
+
+  it('starts voice recording from the composer action', async () => {
+    const user = userEvent.setup();
+    const startRecording = vi.fn().mockResolvedValue(undefined);
+    voiceRecorderMock.current = {
+      ...defaultVoiceRecorder(),
+      startRecording,
+    };
+
+    render(<ComposerHarness onSend={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Record voice message' }));
+
+    expect(startRecording).toHaveBeenCalledTimes(1);
   });
 
   it('stacks the emoji picker above the composer instead of clipping it inside the dock', () => {
@@ -145,15 +210,15 @@ describe('MessageComposer', () => {
     const { rerender } = render(
       <ComposerHarness
         onSend={vi.fn()}
-        sendDisabledReason="You are offline. Reconnect to send new messages."
+        sendDisabledReason="You are offline. New messages will wait until the connection returns."
         isSendError
       />
     );
 
     expect(screen.getByRole('textbox', { name: 'Write a private message' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
-    expect(screen.getByText('You are offline. Reconnect to send new messages.')).toBeInTheDocument();
-    expect(screen.getByText('We could not send your message. Please try again.')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('You are offline. New messages will wait until the connection returns.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Message was not sent. Retry from the failed message or send again when the connection is stable.');
 
     rerender(
       <ComposerHarness
@@ -163,6 +228,43 @@ describe('MessageComposer', () => {
     );
 
     expect(screen.getByText('Your session expired. Sign in again to continue.')).toBeInTheDocument();
+  });
+
+  it('keeps upload progress and failure actions accessible', async () => {
+    const user = userEvent.setup();
+    const onCancelUpload = vi.fn();
+    const { rerender } = render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        onCancelUpload={onCancelUpload}
+        uploadState={{
+          clientMessageId: 'client-message-1',
+          status: 'uploading',
+          progress: 47,
+        }}
+      />
+    );
+
+    const file = new File(['hello'], 'message-states-spec.pdf', { type: 'application/pdf' });
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, file);
+
+    expect(screen.getByText('Uploading 47%')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel upload' }));
+    expect(onCancelUpload).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <ComposerHarness
+        onSend={vi.fn()}
+        uploadState={{
+          clientMessageId: 'client-message-1',
+          status: 'failed',
+          progress: 47,
+          errorMessage: 'Upload failed. Retry before leaving this session.',
+        }}
+      />
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Upload failed. Retry before leaving this session.');
   });
 
   it('selects, removes, and sends attachment-only payloads', async () => {
@@ -192,6 +294,46 @@ describe('MessageComposer', () => {
     await user.click(screen.getByRole('button', { name: 'Remove message-states-spec.pdf' }));
 
     expect(screen.queryByText('message-states-spec.pdf')).not.toBeInTheDocument();
+  });
+
+  it('sends recorded voice drafts as attachment-only payloads', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn();
+    const file = new File(['voice'], 'voice-message.webm', { type: 'audio/webm' });
+    voiceRecorderMock.current = {
+      ...defaultVoiceRecorder(),
+      status: 'preview',
+      draft: {
+        id: 'voice-draft',
+        file,
+        displayName: 'voice-message.webm',
+        mimeType: 'audio/webm',
+        size: file.size,
+        kind: 'voice',
+        durationSeconds: 4,
+        localPreviewUrl: 'blob:voice-preview',
+      },
+      durationSeconds: 4,
+    };
+
+    render(<ComposerHarness onSend={onSend} />);
+
+    expect(screen.getAllByText('voice-message.webm').length).toBeGreaterThan(0);
+    expect(screen.getByText('Voice - 0:04 - 5 B')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(onSend).toHaveBeenCalledWith({
+      text: '',
+      attachments: [
+        expect.objectContaining({
+          displayName: 'voice-message.webm',
+          file,
+          kind: 'voice',
+          durationSeconds: 4,
+        }),
+      ],
+    });
   });
 
   it('blocks invalid attachment types until the selection changes', async () => {

@@ -31,6 +31,55 @@ describe('UserAvatar', () => {
     expect(document.querySelector('img')).not.toBeInTheDocument();
   });
 
+  it('uses a custom abstract identity mark instead of a profile image after customization', () => {
+    render(
+      <UserAvatar
+        user={makeUser({
+          profilePic: '/api/user/user-1/profile-image?v=2',
+          identityMark: {
+            source: 'custom',
+            label: 'Relay Grid',
+            initials: 'RG',
+            paletteId: 'teal',
+            patternId: 'rings',
+            accentId: 'mint',
+            updatedAt: '2026-06-17T05:00:00.000Z',
+          },
+        })}
+        label="Ada Lovelace"
+      />
+    );
+
+    expect(document.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Ada Lovelace profile picture fallback' })).toBeInTheDocument();
+    expect(screen.getByText('RG')).toBeInTheDocument();
+  });
+
+  it('keeps profile images for users with fallback identity metadata', () => {
+    render(
+      <UserAvatar
+        user={makeUser({
+          profilePic: '/api/user/user-1/profile-image?v=2',
+          identityMark: {
+            source: 'fallback',
+            label: 'Ada Lovelace',
+            initials: 'AL',
+            paletteId: 'slate',
+            patternId: 'grid',
+            accentId: 'graphite',
+            updatedAt: null,
+          },
+        })}
+        label="Ada Lovelace"
+      />
+    );
+
+    expect(screen.getByRole('img', { name: 'Ada Lovelace profile picture' })).toHaveAttribute(
+      'src',
+      'https://backend.test/api/user/user-1/profile-image?v=2'
+    );
+  });
+
   it('falls back after a failed image load without retrying the broken source', () => {
     render(
       <UserAvatar

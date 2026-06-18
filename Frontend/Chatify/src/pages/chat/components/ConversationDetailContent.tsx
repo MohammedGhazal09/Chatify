@@ -16,6 +16,7 @@ import {
   Wifi,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useId } from 'react';
 import { messageApi } from '../../../api/messageApi';
 import OnlineStatus from '../../../components/OnlineStatus';
 import type { User } from '../../../types/auth';
@@ -25,6 +26,7 @@ import { getChatTitle } from '../utils/chatDisplay';
 import AttachmentPreview from './AttachmentPreview';
 import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
 import UserAvatar from './UserAvatar';
+import VoiceMessagePlayer from './VoiceMessagePlayer';
 
 export interface ConversationDetailContentProps {
   selectedChat: Chat;
@@ -35,12 +37,15 @@ export interface ConversationDetailContentProps {
   pinnedMessages: PinnedMessage[];
   sharedFiles: SharedAsset[];
   sharedMedia: SharedAsset[];
+  sharedVoice: SharedAsset[];
   isPinnedLoading: boolean;
   isSharedFilesLoading: boolean;
   isSharedMediaLoading: boolean;
+  isSharedVoiceLoading: boolean;
   isPinnedError: boolean;
   isSharedFilesError: boolean;
   isSharedMediaError: boolean;
+  isSharedVoiceError: boolean;
   isAuthenticated: boolean;
   isSocketConnected: boolean;
   isReconnecting: boolean;
@@ -70,12 +75,15 @@ const ConversationDetailContent = ({
   pinnedMessages,
   sharedFiles,
   sharedMedia,
+  sharedVoice,
   isPinnedLoading,
   isSharedFilesLoading,
   isSharedMediaLoading,
+  isSharedVoiceLoading,
   isPinnedError,
   isSharedFilesError,
   isSharedMediaError,
+  isSharedVoiceError,
   isAuthenticated,
   isSocketConnected,
   isReconnecting,
@@ -171,6 +179,10 @@ const ConversationDetailContent = ({
         <ContextAction label="Search messages" icon={<Search aria-hidden="true" className="h-5 w-5" />} onClick={onSearchMessages} />
         <ContextAction label="More conversation actions" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} onClick={onOpenMoreMenu} />
       </div>
+      <CallAvailabilityNotice
+        callDisabledReason={callDisabledReason}
+        videoCallDisabledReason={videoCallDisabledReason}
+      />
 
       <RailSection title="Pinned messages" count={pinnedMessages.length}>
         <DetailState
@@ -240,6 +252,31 @@ const ConversationDetailContent = ({
               </div>
             ))}
           </div>
+        </DetailState>
+      </RailSection>
+
+      <RailSection title="Voice messages" count={sharedVoice.length}>
+        <DetailState
+          isLoading={isSharedVoiceLoading}
+          isError={isSharedVoiceError}
+          isEmpty={sharedVoice.length === 0}
+          loadingCopy="Loading voice messages"
+          errorCopy="Voice messages unavailable"
+          emptyCopy="No voice messages"
+        >
+          {sharedVoice.map((asset) => (
+            <div key={asset.attachmentId} className="min-w-0">
+              <VoiceMessagePlayer attachment={asset} compact />
+              <button
+                type="button"
+                onClick={() => onJumpToMessage(asset.messageId)}
+                className="mt-1 w-full truncate rounded-[var(--chat-radius-md)] px-1 py-1 text-xs text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                aria-label={`Jump to ${asset.displayName}`}
+              >
+                Jump
+              </button>
+            </div>
+          ))}
         </DetailState>
       </RailSection>
 
@@ -360,19 +397,52 @@ const ContextAction = ({
   icon: ReactNode;
   disabledReason?: string | null;
   onClick?: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={disabledReason ? undefined : onClick}
-    aria-label={label}
-    title={disabledReason ?? title}
-    disabled={Boolean(disabledReason) || !onClick}
-    className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-xs font-medium text-[var(--chat-text-muted)] transition enabled:cursor-pointer enabled:hover:border-[var(--chat-border-strong)] enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-  >
-    {icon}
-    <span>{label.replace(' conversation actions', '')}</span>
-  </button>
-);
+}) => {
+  const reasonId = useId();
+  const isDisabled = Boolean(disabledReason) || !onClick;
+
+  return (
+    <button
+      type="button"
+      onClick={disabledReason ? undefined : onClick}
+      aria-label={label}
+      aria-describedby={disabledReason ? reasonId : undefined}
+      title={disabledReason ?? title}
+      disabled={isDisabled}
+      className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-xs font-medium text-[var(--chat-text-muted)] transition enabled:cursor-pointer enabled:hover:border-[var(--chat-border-strong)] enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+    >
+      {icon}
+      <span>{label.replace(' conversation actions', '')}</span>
+      {disabledReason && <span id={reasonId} className="sr-only">{disabledReason}</span>}
+    </button>
+  );
+};
+
+const CallAvailabilityNotice = ({
+  callDisabledReason,
+  videoCallDisabledReason,
+}: {
+  callDisabledReason?: string | null;
+  videoCallDisabledReason?: string | null;
+}) => {
+  if (!callDisabledReason && !videoCallDisabledReason) {
+    return null;
+  }
+
+  const copy = callDisabledReason && videoCallDisabledReason && callDisabledReason === videoCallDisabledReason
+    ? `Calls unavailable: ${callDisabledReason}`
+    : [
+        callDisabledReason ? `Call unavailable: ${callDisabledReason}` : null,
+        videoCallDisabledReason ? `Video unavailable: ${videoCallDisabledReason}` : null,
+      ].filter(Boolean).join(' ');
+
+  return (
+    <div className="mt-3 flex items-start gap-2 rounded-[var(--chat-radius-md)] border border-[color-mix(in_srgb,var(--chat-warning)_35%,var(--chat-border))] bg-[color-mix(in_srgb,var(--chat-warning)_10%,var(--chat-panel))] px-3 py-2 text-sm text-[var(--chat-text-muted)]">
+      <Wifi aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--chat-warning)]" />
+      <p>{copy}</p>
+    </div>
+  );
+};
 
 const DetailState = ({
   isLoading,

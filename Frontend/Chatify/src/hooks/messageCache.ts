@@ -1,5 +1,6 @@
 import type {
   BatchReadEvent,
+  ComposerAttachmentDraft,
   CursorPaginationInfo,
   Message,
   MessageDeletedEvent,
@@ -26,6 +27,7 @@ export type CreateOptimisticMessageInput = {
   clientMessageId: string;
   attachments?: Message['attachments'];
   localFiles?: File[];
+  localDrafts?: ComposerAttachmentDraft[];
   createdAt?: string;
 };
 
@@ -180,6 +182,7 @@ export const mergeCanonicalMessage = (existing: Message | undefined, incoming: M
       ? attachments.map((attachment) => ({ ...attachment, status: 'deleted' as const }))
       : attachments,
     localFiles: existing?.localFiles ?? incoming.localFiles,
+    localDrafts: existing?.localDrafts ?? incoming.localDrafts,
     isEdited: Boolean(existing?.isEdited || incoming.isEdited),
     editedAt: existing?.editedAt ?? incoming.editedAt ?? null,
     deletedFor: mergedDeletedFor,
@@ -285,6 +288,7 @@ export const createOptimisticMessage = ({
   clientMessageId,
   attachments = [],
   localFiles = [],
+  localDrafts = [],
   createdAt = new Date().toISOString(),
 }: CreateOptimisticMessageInput): Message => ({
   _id: `optimistic-${clientMessageId}`,
@@ -298,6 +302,7 @@ export const createOptimisticMessage = ({
   reactions: [],
   attachments,
   localFiles,
+  localDrafts,
   deletedFor: [],
   deletedForEveryone: false,
   pinned: false,

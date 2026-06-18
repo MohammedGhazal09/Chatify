@@ -2,6 +2,12 @@ import mongoose from 'mongoose'
 import validator from 'validator'
 import { verify, hash } from 'argon2'
 import {CustomError} from '../Utils/customError.mjs'
+import {
+  IDENTITY_MARK_ACCENT_IDS,
+  IDENTITY_MARK_PALETTE_IDS,
+  IDENTITY_MARK_PATTERN_IDS,
+  attachSerializedIdentityMark,
+} from '../Utils/identityMark.mjs'
 
 export const buildUploadedProfileImageUrl = ({ userId, version }) => {
   const safeVersion = encodeURIComponent(version || '1');
@@ -16,7 +22,7 @@ const isUploadedProfileImageUrl = (value) => (
 const hideProfileImageInternals = (ret) => {
   delete ret.providerProfilePic;
   delete ret.uploadedProfileImage;
-  return ret;
+  return attachSerializedIdentityMark(ret);
 };
 
 const uploadedProfileImageSchema = new mongoose.Schema({
@@ -35,6 +41,44 @@ const uploadedProfileImageSchema = new mongoose.Schema({
   version: {
     type: String,
     required: true,
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
+const identityMarkSchema = new mongoose.Schema({
+  label: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 32,
+  },
+  initials: {
+    type: String,
+    required: true,
+    trim: true,
+    uppercase: true,
+    maxlength: 3,
+  },
+  paletteId: {
+    type: String,
+    required: true,
+    enum: IDENTITY_MARK_PALETTE_IDS,
+  },
+  patternId: {
+    type: String,
+    required: true,
+    enum: IDENTITY_MARK_PATTERN_IDS,
+  },
+  accentId: {
+    type: String,
+    required: true,
+    enum: IDENTITY_MARK_ACCENT_IDS,
   },
   updatedAt: {
     type: Date,
@@ -85,6 +129,14 @@ const userSchema = new mongoose.Schema({
         type: uploadedProfileImageSchema,
         required: false,
         select: false,
+    },
+    identityMark: {
+        type: identityMarkSchema,
+        required: false,
+    },
+    identityMarkUpdatedAt: {
+        type: Date,
+        required: false,
     },
     authProvider: {
         type: String,
@@ -199,6 +251,11 @@ const userSchema = new mongoose.Schema({
 
     this.uploadedProfileImage = undefined;
     this.profilePic = fallbackProfilePic;
+  }
+
+  userSchema.methods.setIdentityMark = function(identityMark) {
+    this.identityMark = identityMark;
+    this.identityMarkUpdatedAt = identityMark.updatedAt ?? new Date();
   }
 
   const User = mongoose.model('Users', userSchema)

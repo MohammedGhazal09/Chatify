@@ -66,7 +66,29 @@ describe('ConversationMoreMenu', () => {
 
     expect(screen.getByRole('menuitem', { name: 'Call' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Call' })).toHaveAttribute('title', 'Realtime connection is unavailable.');
+    expect(screen.getByRole('menuitem', { name: 'Call' })).toHaveAccessibleDescription('Realtime connection is unavailable.');
     expect(screen.getByRole('menuitem', { name: 'Video call' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Video call' })).toHaveAttribute('title', 'Both users must be online to call.');
+    expect(screen.getByRole('menuitem', { name: 'Video call' })).toHaveAccessibleDescription('Both users must be online to call.');
+  });
+
+  it('toggles conversation mute from the overflow menu', async () => {
+    const user = userEvent.setup();
+    const onToggleMute = vi.fn();
+    const props = renderMenu({ onToggleMute });
+
+    await user.click(screen.getByRole('menuitem', { name: 'Mute conversation' }));
+
+    expect(onToggleMute).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows unmute copy when the conversation is muted', () => {
+    renderMenu({ isMuted: true });
+
+    expect(screen.getByRole('menuitem', { name: 'Unmute conversation' })).toHaveAttribute(
+      'title',
+      'Restore sound and browser alerts for this conversation'
+    );
   });
 });

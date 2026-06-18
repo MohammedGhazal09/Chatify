@@ -1,6 +1,6 @@
 import axiosInstance from './axios';
 import type { AxiosResponse } from 'axios';
-import type { User } from '../types/auth';
+import type { IdentityMarkInput, User } from '../types/auth';
 
 interface OnlineStatusResponse {
   status: string;
@@ -56,6 +56,8 @@ interface ProfileImageResponse {
   };
 }
 
+type IdentityMarkResponse = ProfileImageResponse;
+
 export const userApi = {
   getOnlineStatus: (userId: string): Promise<AxiosResponse<OnlineStatusResponse>> =>
     axiosInstance.get(`/api/user/online-status/${userId}`),
@@ -81,4 +83,7 @@ export const userApi = {
 
   removeProfileImage: (): Promise<AxiosResponse<ProfileImageResponse>> =>
     axiosInstance.delete('/api/user/profile-image'),
+
+  updateIdentityMark: (identityMark: IdentityMarkInput): Promise<AxiosResponse<IdentityMarkResponse>> =>
+    axiosInstance.patch('/api/user/identity', identityMark),
 };

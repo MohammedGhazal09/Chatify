@@ -43,6 +43,7 @@ import {
   toObjectId,
 } from '../Utils/messageState.mjs';
 import { assertConversationActivityAllowed } from '../Utils/conversationControls.mjs';
+import { logger } from '../Utils/observabilityLogger.mjs';
 
 const PINNED_MESSAGES_LIMIT = 50;
 const SHARED_ASSET_CURSOR_SORT_DESC = Object.freeze({ createdAt: -1, _id: -1 });
@@ -62,6 +63,33 @@ const attachmentUpload = multer({
     files: MAX_ATTACHMENTS_PER_MESSAGE,
   },
 });
+
+const parseAttachmentMetadata = (rawMetadata) => {
+  if (Array.isArray(rawMetadata)) {
+    return rawMetadata.map((entry) => {
+      if (typeof entry !== 'string') {
+        return entry;
+      }
+
+      try {
+        return JSON.parse(entry);
+      } catch {
+        return {};
+      }
+    });
+  }
+
+  if (typeof rawMetadata !== 'string' || !rawMetadata.trim()) {
+    return [];
+  }
+
+  try {
+    const parsedMetadata = JSON.parse(rawMetadata);
+    return Array.isArray(parsedMetadata) ? parsedMetadata : [];
+  } catch {
+    return [];
+  }
+};
 
 export const parseMessageAttachments = (req, res, next) => {
   attachmentUpload.array('attachments', MAX_ATTACHMENTS_PER_MESSAGE)(req, res, (error) => {
@@ -163,6 +191,7 @@ const createAttachmentSummary = (attachment) => serializeAttachmentSummary({
   mimeType: attachment.mimeType,
   size: attachment.size,
   kind: attachment.kind,
+  durationSeconds: attachment.durationSeconds,
   status: attachment.status,
   createdAt: attachment.createdAt,
 });
@@ -198,6 +227,7 @@ const storeMessageAttachments = async ({
           messageId: messageId.toString(),
           uploader: uploader.toString(),
           kind: attachment.kind,
+          durationSeconds: attachment.durationSeconds ?? null,
         },
       });
       const storedAttachment = { storageFileId };
@@ -214,6 +244,7 @@ const storeMessageAttachments = async ({
         mimeType: attachment.mimeType,
         size: attachment.size,
         kind: attachment.kind,
+        durationSeconds: attachment.durationSeconds,
         hash: attachment.hash,
         status: 'active',
       });
@@ -240,7 +271,7 @@ const logDeliveryLifecycle = (stage, metadata = {}) => {
     return;
   }
 
-  console.info('[chatify.delivery]', { stage, ...metadata });
+  logger.info('message.delivery.lifecycle', { stage, ...metadata });
 };
 
 const compareLatestCandidate = (candidate, current) => {
@@ -309,7 +340,12 @@ const finalizeMessageCreate = async ({
     io.in(chat._id.toString()).emit('message:new', serializedMessage);
     await emitUnreadCountsForRecipients(chat, senderId);
   } catch (err) {
-    console.error("Message sent but failed to emit via socket.io:", err);
+    logger.error('message.socket_emit_failed', {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      clientMessageId,
+      error: err,
+    });
   }
 
   return serializedMessage;
@@ -391,6 +427,9 @@ const serializeSharedAsset = (attachment) => ({
   mimeType: attachment.mimeType,
   size: attachment.size,
   kind: attachment.kind,
+  durationSeconds: Number.isFinite(Number(attachment.durationSeconds))
+    ? Number(attachment.durationSeconds)
+    : null,
   status: attachment.status,
   createdAt: attachment.createdAt?.toISOString?.() ?? null,
 });
@@ -439,7 +478,12 @@ const emitPinEvent = async ({ chat, eventName, message }) => {
       pinnedMessage: serializePinnedMessage(message),
     });
   } catch (err) {
-    console.error(`Failed to emit ${eventName}:`, err);
+    logger.error('message.pin_emit_failed', {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      eventName,
+      error: err,
+    });
   }
 };
 
@@ -485,6 +529,7 @@ const promoteMessageReadState = async ({ message, chat, userObjectId }) => {
 export const newMessage = asyncErrorHandler(async (req, res) => {
   const { chatId, text, clientMessageId } = req.body ?? {};
   const incomingFiles = Array.isArray(req.files) ? req.files : [];
+  const attachmentMetadata = parseAttachmentMetadata(req.body?.attachmentMetadata);
 
   if (!req.userId) {
     respondWithChatAccessError(res, 401, 'Authentication required');
@@ -510,7 +555,9 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  const validatedAttachments = await validateIncomingAttachments(incomingFiles);
+  const validatedAttachments = await validateIncomingAttachments(incomingFiles, {
+    metadata: attachmentMetadata,
+  });
 
   if (!validatedAttachments.ok) {
     res.status(validatedAttachments.statusCode).json({
@@ -1245,7 +1292,12 @@ export const markMessageAsRead = asyncErrorHandler(async (req, res) => {
       io.in(chat._id.toString()).emit('message:status-update', patch);
       await emitUnreadCountToUser(chat._id, userObjectId);
     } catch (err) {
-      console.error('Failed to emit read receipt:', err);
+      logger.error('message.read_receipt_emit_failed', {
+        chatId: chat._id.toString(),
+        messageId: message._id.toString(),
+        userId: userObjectId.toString(),
+        error: err,
+      });
     }
   }
 
@@ -1335,7 +1387,12 @@ export const markMessagesAsRead = asyncErrorHandler(async (req, res) => {
       });
       await emitUnreadCountToUser(chat._id, userObjectId);
     } catch (err) {
-      console.error('Failed to emit batch read receipt:', err);
+      logger.error('message.batch_read_receipt_emit_failed', {
+        chatId: chat._id.toString(),
+        userId: userObjectId.toString(),
+        updatedCount: updatedMessages.length,
+        error: err,
+      });
     }
   }
 
@@ -1544,7 +1601,11 @@ export const deleteMessage = asyncErrorHandler(async (req, res) => {
         });
         await Promise.all(chat.members.map((memberId) => emitUnreadCountToUser(chat._id, memberId)));
       } catch (err) {
-        console.error('Failed to emit message deletion:', err);
+        logger.error('message.delete_everyone_emit_failed', {
+          chatId: chat._id.toString(),
+          messageId: message._id.toString(),
+          error: err,
+        });
       }
     }
 
@@ -1579,7 +1640,12 @@ export const deleteMessage = asyncErrorHandler(async (req, res) => {
         });
         await emitUnreadCountToUser(chat._id, userObjectId);
       } catch (err) {
-        console.error('Failed to emit self message deletion:', err);
+        logger.error('message.delete_self_emit_failed', {
+          chatId: chat._id.toString(),
+          messageId: message._id.toString(),
+          userId: userObjectId.toString(),
+          error: err,
+        });
       }
     }
 
@@ -1690,7 +1756,11 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
       editedAt: serializedMessage.editedAt,
     });
   } catch (err) {
-    console.error('Failed to emit message edit:', err);
+    logger.error('message.edit_emit_failed', {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      error: err,
+    });
   }
 
   res.status(200).json({
@@ -1792,7 +1862,13 @@ export const toggleReaction = asyncErrorHandler(async (req, res) => {
       emoji: normalizedEmoji.emoji,
     });
   } catch (err) {
-    console.error('Failed to emit reaction update:', err);
+    logger.error('message.reaction_emit_failed', {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      userId: userObjectId.toString(),
+      action: reactionResult.action,
+      error: err,
+    });
   }
 
   res.status(200).json({

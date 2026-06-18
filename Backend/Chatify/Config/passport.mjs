@@ -4,6 +4,7 @@ import { Strategy as GitHubStrategy } from 'passport-github2';
 import {Strategy as DiscordStrategy} from 'passport-discord'
 import User from '../Models/userModel.mjs';
 import { resolveOAuthCallbackBaseURL } from '../Utils/oauthConfig.mjs';
+import { logger } from '../Utils/observabilityLogger.mjs';
 
 // Helper function to create or find OAuth user
 const handleOAuthUser = async (profile, provider) => {
@@ -81,9 +82,9 @@ const handleOAuthUser = async (profile, provider) => {
 
         return newUser;
     } catch (error) {
-        console.error(`${provider} OAuth user handling failed:`, {
-            name: error?.name,
-            code: error?.code,
+        logger.error('oauth.user_handling_failed', {
+            provider,
+            error,
         });
         throw error;
     }

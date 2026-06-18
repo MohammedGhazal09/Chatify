@@ -106,6 +106,35 @@
   opacity: 0.42;
 }
 
+.abstract-identity-tile--pattern-rings .abstract-identity-tile__grid {
+  background-image:
+    radial-gradient(circle at center, transparent 0 24%, color-mix(in srgb, var(--tile-soft) 34%, transparent) 25% 27%, transparent 28% 44%, color-mix(in srgb, var(--tile-accent) 34%, transparent) 45% 48%, transparent 49%),
+    radial-gradient(circle at 74% 28%, color-mix(in srgb, var(--tile-soft) 24%, transparent) 0 10%, transparent 11%);
+  background-size: 100% 100%, 44px 44px;
+}
+
+.abstract-identity-tile--pattern-diagonal .abstract-identity-tile__grid {
+  background-image:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--tile-soft) 32%, transparent) 0 2px, transparent 2px 10px),
+    linear-gradient(45deg, color-mix(in srgb, var(--tile-accent) 28%, transparent), transparent);
+  background-size: auto, 100% 100%;
+}
+
+.abstract-identity-tile--pattern-orbit .abstract-identity-tile__grid {
+  background-image:
+    radial-gradient(circle at 28% 32%, color-mix(in srgb, var(--tile-accent) 44%, transparent) 0 12%, transparent 13%),
+    radial-gradient(circle at 70% 70%, color-mix(in srgb, var(--tile-soft) 34%, transparent) 0 16%, transparent 17%),
+    linear-gradient(145deg, transparent 0 46%, color-mix(in srgb, var(--tile-soft) 26%, transparent) 47% 49%, transparent 50%);
+  background-size: 100% 100%;
+}
+
+.abstract-identity-tile--pattern-mono .abstract-identity-tile__grid {
+  background-image:
+    linear-gradient(135deg, color-mix(in srgb, var(--tile-soft) 12%, transparent), transparent),
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--tile-accent) 36%, transparent) 0 34%, transparent 35%);
+  background-size: 100% 100%;
+}
+
 .abstract-identity-tile__diamond {
   position: absolute;
   border: 2px solid var(--tile-soft);

@@ -4,7 +4,16 @@
   "description": "Live Chat app using MERN stack",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run quality",
+    "quality": "npm run quality:backend && npm run quality:frontend",
+    "quality:backend": "npm --prefix Backend/Chatify test -- --run",
+    "quality:frontend": "npm run quality:frontend:test && npm run quality:frontend:lint && npm run quality:frontend:build",
+    "quality:frontend:test": "npm --prefix Frontend/Chatify test -- --run",
+    "quality:frontend:lint": "npm --prefix Frontend/Chatify run lint",
+    "quality:frontend:build": "npm --prefix Frontend/Chatify run build",
+    "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
+    "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
+    "ops:check": "node scripts/ops-check.mjs"
   },
   "author": "Mohammed Ghazal",
   "license": "ISC"

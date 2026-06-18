@@ -11,23 +11,27 @@ completed: 2026-06-13
 - Backend call authority: committed in `4973172`.
 - Frontend call UI, lifecycle cleanup, call activity rendering, fixture guards, and browser smoke: committed in `334b427`.
 - Call controls now route through one shared frontend controller from header, detail rail/drawer, and More menu.
+- Disabled call controls expose visible unavailable reasons in the detail rail/drawer and More menu after the UI review fix.
 - Incoming, outgoing, connecting, connected, reconnecting, failed, rejected, missed, busy, and permission-denied call states render through route-level `CallOverlay`.
 - Call activity history renders as centered system timeline rows, not normal user message bubbles.
 - WebRTC signaling payloads remain transient socket events. Persisted call activity stores only call id, participants, mode, result, timestamps, and duration.
 
 ## Verification Commands
 
-- `cd Frontend/Chatify; npm test -- --run` - passed, 28 files / 112 tests.
+- `cd Frontend/Chatify; npm test -- --run` - passed, 39 files / 202 tests after the UI review fix.
 - `cd Frontend/Chatify; npm run lint` - passed.
 - `cd Frontend/Chatify; npm run build` - passed.
 - `cd Backend/Chatify; npm test -- --run test/socket/socket.calls.test.mjs test/socket/socket.call-auth.test.mjs test/socket/socket.call-blocking.test.mjs test/message/message.call-activity.test.mjs test/message/message.idempotency.test.mjs test/socket/socket.message-state.test.mjs` - passed, 6 files / 26 tests.
 - `cd Backend/Chatify; npm test -- --run` - passed, 24 files / 112 tests.
-- `cd Frontend/Chatify; npm run test:ui -- --grep "Phase 13 call"` - passed with 1 smoke test passed and 1 live two-party smoke skipped.
+- `cd Frontend/Chatify; npm run test:ui -- --grep "Phase 13 call"` - passed with 2 local browser checks passed and 1 live two-party smoke skipped.
 
 ## Browser Smoke
 
 - Passing smoke: `Phase 13 call visible control reports unavailable realtime honestly`.
+- Passing smoke: `Phase 13 mobile call controls explain unavailable realtime`.
 - Captured artifact: `13-call-unavailable-smoke.png`.
+- Captured artifact: `13-ui-review-mobile-menu-call-unavailable.png`.
+- Captured artifact: `13-ui-review-mobile-details-call-unavailable.png`.
 - Skipped smoke: `Phase 13 call live two-party fake-media happy path requires explicit smoke environment`.
 - Skip reason: `CHATIFY_CALL_SMOKE=1` was not provided with a live backend, two authenticated accounts, and socket/TURN configuration. This is recorded as a Phase 14 production-live boundary, not a Phase 13 completion claim.
 

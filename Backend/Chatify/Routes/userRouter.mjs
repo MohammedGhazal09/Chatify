@@ -8,6 +8,7 @@ import {
   parseProfileImageUpload,
   removeProfileImage,
   uploadProfileImage,
+  updateIdentityMark,
   updatePrivacySettings,
 } from "../Controller/userController.mjs";
 import protect from "../Middlewares/protectRoutes.mjs";
@@ -24,6 +25,7 @@ router.route('/profile-image')
   .patch(protect, csrfProtection, profileImageUploadLimiter, parseProfileImageUpload, uploadProfileImage)
   .delete(protect, csrfProtection, removeProfileImage)
 router.route('/:userId/profile-image').get(protect, getProfileImage)
+router.route('/identity').patch(protect, csrfProtection, updateIdentityMark)
 router.route('/privacy-settings').patch(protect, csrfProtection, updatePrivacySettings)
 
 export default router;

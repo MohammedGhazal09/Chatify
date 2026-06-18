@@ -9,93 +9,102 @@ import ConversationPane from './ConversationPane';
 
 type ConversationPaneProps = ComponentProps<typeof ConversationPane>;
 
+const makeConversationPaneProps = (overrides: Partial<ConversationPaneProps> = {}): ConversationPaneProps => ({
+  selectedChat: null,
+  selectedChatId: null,
+  currentUserId: 'user-1',
+  otherMember: null,
+  otherMemberStatus: null,
+  messages: [],
+  isMessagesLoading: false,
+  messagesError: false,
+  hasMore: false,
+  isLoadingMore: false,
+  highlightedMessageId: null,
+  showScrollButton: false,
+  showMessageSearch: false,
+  showConversationMoreMenu: false,
+  showConversationDetails: false,
+  conversationControls: undefined,
+  messageSearch: '',
+  messageSearchInputRef: createRef<HTMLInputElement>(),
+  messageSearchButtonRef: createRef<HTMLButtonElement>(),
+  moreButtonRef: createRef<HTMLButtonElement>(),
+  messageSearchResults: [],
+  messageSearchNormalizedQuery: '',
+  isMessageSearchLoading: false,
+  isMessageSearchError: false,
+  isMessageSearchBelowMinimum: false,
+  loadedMessageIds: new Set(),
+  editingMessageId: null,
+  editText: '',
+  isSavingEdit: false,
+  messageInput: '',
+  replyingTo: null,
+  showEmojiPicker: false,
+  isSending: false,
+  isSendError: false,
+  sendDisabledReason: null,
+  isConversationControlPending: false,
+  composerResetToken: 0,
+  isOffline: false,
+  isSessionExpired: false,
+  isReconnecting: false,
+  messagesContainerRef: createRef<HTMLDivElement>(),
+  messagesEndRef: createRef<HTMLDivElement>(),
+  emojiPickerRef: createRef<HTMLDivElement>(),
+  onOpenSidebar: vi.fn(),
+  onStartAudioCall: vi.fn(),
+  onStartVideoCall: vi.fn(),
+  onToggleConversationMoreMenu: vi.fn(),
+  onToggleConversationDetails: vi.fn(),
+  onToggleMessageSearch: vi.fn(),
+  onMessageSearchChange: vi.fn(),
+  onClearMessageSearch: vi.fn(),
+  onSelectMessageSearchResult: vi.fn(),
+  onExportChat: vi.fn(),
+  onLoadMore: vi.fn(),
+  onRetryLoad: vi.fn(),
+  onScrollToBottom: vi.fn(),
+  onMessageContextMenu: vi.fn(),
+  onOpenMessageActions: vi.fn(),
+  onOpenAttachmentPreview: vi.fn(),
+  onStartEdit: vi.fn(),
+  onRetryFailed: vi.fn(),
+  onDismissFailed: vi.fn(),
+  onEditTextChange: vi.fn(),
+  onSaveEdit: vi.fn(),
+  onCancelEdit: vi.fn(),
+  onComposerChange: vi.fn(),
+  onComposerKeyDown: vi.fn(),
+  onSendMessage: vi.fn(),
+  onToggleEmojiPicker: vi.fn(),
+  onAppendEmoji: vi.fn(),
+  onUnblockUser: vi.fn(),
+  onCancelReply: vi.fn(),
+  ...overrides,
+});
+
 const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) => {
-  const props: ConversationPaneProps = {
-    selectedChat: null,
-    selectedChatId: null,
-    currentUserId: 'user-1',
-    otherMember: null,
-    otherMemberStatus: null,
-    messages: [],
-    isMessagesLoading: false,
-    messagesError: false,
-    hasMore: false,
-    isLoadingMore: false,
-    highlightedMessageId: null,
-    showScrollButton: false,
-    showMessageSearch: false,
-    showConversationMoreMenu: false,
-    showConversationDetails: false,
-    conversationControls: undefined,
-    messageSearch: '',
-    messageSearchInputRef: createRef<HTMLInputElement>(),
-    messageSearchButtonRef: createRef<HTMLButtonElement>(),
-    moreButtonRef: createRef<HTMLButtonElement>(),
-    messageSearchResults: [],
-    messageSearchNormalizedQuery: '',
-    isMessageSearchLoading: false,
-    isMessageSearchError: false,
-    isMessageSearchBelowMinimum: false,
-    loadedMessageIds: new Set(),
-    editingMessageId: null,
-    editText: '',
-    isSavingEdit: false,
-    messageInput: '',
-    replyingTo: null,
-    showEmojiPicker: false,
-    isSending: false,
-    isSendError: false,
-    sendDisabledReason: null,
-    isConversationControlPending: false,
-    composerResetToken: 0,
-    isOffline: false,
-    isSessionExpired: false,
-    isReconnecting: false,
-    messagesContainerRef: createRef<HTMLDivElement>(),
-    messagesEndRef: createRef<HTMLDivElement>(),
-    emojiPickerRef: createRef<HTMLDivElement>(),
-    onOpenSidebar: vi.fn(),
-    onStartAudioCall: vi.fn(),
-    onStartVideoCall: vi.fn(),
-    onToggleConversationMoreMenu: vi.fn(),
-    onToggleConversationDetails: vi.fn(),
-    onToggleMessageSearch: vi.fn(),
-    onMessageSearchChange: vi.fn(),
-    onClearMessageSearch: vi.fn(),
-    onSelectMessageSearchResult: vi.fn(),
-    onExportChat: vi.fn(),
-    onLoadMore: vi.fn(),
-    onRetryLoad: vi.fn(),
-    onScrollToBottom: vi.fn(),
-    onMessageContextMenu: vi.fn(),
-    onOpenMessageActions: vi.fn(),
-    onOpenAttachmentPreview: vi.fn(),
-    onStartEdit: vi.fn(),
-    onRetryFailed: vi.fn(),
-    onDismissFailed: vi.fn(),
-    onEditTextChange: vi.fn(),
-    onSaveEdit: vi.fn(),
-    onCancelEdit: vi.fn(),
-    onComposerChange: vi.fn(),
-    onComposerKeyDown: vi.fn(),
-    onSendMessage: vi.fn(),
-    onToggleEmojiPicker: vi.fn(),
-    onAppendEmoji: vi.fn(),
-    onUnblockUser: vi.fn(),
-    onCancelReply: vi.fn(),
-    ...overrides,
-  };
+  const props = makeConversationPaneProps(overrides);
 
   render(<ConversationPane {...props} />);
   return props;
 };
 
 describe('ConversationPane', () => {
-  it('renders the no selected chat state', () => {
-    renderConversationPane();
+  it('renders the no selected chat state with a sidebar recovery action', async () => {
+    const user = userEvent.setup();
+    const onOpenSidebar = vi.fn();
+
+    renderConversationPane({ onOpenSidebar });
 
     expect(screen.getByRole('heading', { name: 'Select a conversation' })).toBeInTheDocument();
-    expect(screen.getByText('Choose a chat from the sidebar or start a new one.')).toBeInTheDocument();
+    expect(screen.getByText('Open conversations and choose a chat, or start a new one from the sidebar.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open conversations' }));
+
+    expect(onOpenSidebar).toHaveBeenCalledTimes(1);
   });
 
   it('renders the session-expired blocked state with a sign-in action', () => {
@@ -106,6 +115,7 @@ describe('ConversationPane', () => {
     });
 
     expect(screen.getByRole('heading', { name: 'Your session expired' })).toBeInTheDocument();
+    expect(screen.getByText('Your private chat is hidden. Sign in again to continue.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   });
 
@@ -132,6 +142,33 @@ describe('ConversationPane', () => {
     });
 
     expect(screen.getByRole('textbox', { name: 'Search this conversation' })).toHaveValue('state');
+  });
+
+  it('announces offline and reconnecting state without hiding the timeline', () => {
+    const { rerender } = render(
+      <ConversationPane
+        {...makeConversationPaneProps()}
+        selectedChat={makeChat()}
+        selectedChatId="chat-1"
+        messages={[makeMessage({ text: 'Visible history' })]}
+        isOffline
+      />
+    );
+
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('You are offline. New messages will wait until the connection returns.');
+    expect(screen.getByText('Visible history')).toBeInTheDocument();
+
+    rerender(
+      <ConversationPane
+        {...makeConversationPaneProps()}
+        selectedChat={makeChat()}
+        selectedChatId="chat-1"
+        messages={[makeMessage({ text: 'Visible history' })]}
+        isReconnecting
+      />
+    );
+
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('Reconnecting. The timeline will refresh when the connection returns.');
   });
 
   it('closes the active conversation search from the input row', async () => {
@@ -209,7 +246,7 @@ describe('ConversationPane', () => {
       isMessageSearchBelowMinimum: true,
     });
 
-    expect(screen.getByText('Type at least 2 characters to search.')).toBeInTheDocument();
+    expect(screen.getByText('Type at least 2 characters to search this conversation.')).toBeInTheDocument();
     expect(screen.queryByText('Durable history stays visible only outside result mode')).not.toBeInTheDocument();
   });
 

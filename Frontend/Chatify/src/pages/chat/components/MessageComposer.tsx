@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent, KeyboardEventHandler, RefObject } from 'react';
-import { LoaderCircle, Lock, Mic, Paperclip, Send, SmilePlus, X } from 'lucide-react';
+import { LoaderCircle, Lock, Mic, Paperclip, Send, SmilePlus, Square, X } from 'lucide-react';
+import type { MessageUploadState } from '../../../hooks/useChatQueries';
 import type { AttachmentKind, ComposerAttachmentDraft, ComposerSendPayload, Message } from '../../../types/chat';
 import { MAX_MESSAGE_TEXT_LENGTH } from '../../../hooks/messageCache';
+import { useVoiceRecorder } from '../../../hooks/useVoiceRecorder';
 import AttachmentTray from './AttachmentTray';
 import LazyEmojiPicker from './LazyEmojiPicker';
+import VoiceRecorderTray from './VoiceRecorderTray';
 
 interface MessageComposerProps {
   value: string;
@@ -13,6 +16,7 @@ interface MessageComposerProps {
   isSending: boolean;
   isSendError: boolean;
   sendDisabledReason?: string | null;
+  uploadState?: MessageUploadState;
   showDisabledReason?: boolean;
   resetToken?: number;
   emojiPickerRef: RefObject<HTMLDivElement | null>;
@@ -22,6 +26,7 @@ interface MessageComposerProps {
   onToggleEmojiPicker: () => void;
   onAppendEmoji: (emoji: string) => void;
   onCancelReply: () => void;
+  onCancelUpload?: () => void;
 }
 
 const MAX_ATTACHMENTS_PER_MESSAGE = 5;
@@ -73,6 +78,7 @@ const MessageComposer = ({
   isSending,
   isSendError,
   sendDisabledReason,
+  uploadState,
   showDisabledReason = true,
   resetToken = 0,
   emojiPickerRef,
@@ -82,24 +88,37 @@ const MessageComposer = ({
   onToggleEmojiPicker,
   onAppendEmoji,
   onCancelReply,
+  onCancelUpload,
 }: MessageComposerProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const voiceRecorder = useVoiceRecorder();
+  const clearVoiceDraft = voiceRecorder.clearDraft;
   const [attachments, setAttachments] = useState<ComposerAttachmentDraft[]>([]);
   const attachmentsRef = useRef<ComposerAttachmentDraft[]>([]);
   const [attachmentErrors, setAttachmentErrors] = useState<string[]>([]);
   const trimmedValue = value.trim();
   const isMessageTooLong = trimmedValue.length > MAX_MESSAGE_TEXT_LENGTH;
-  const hasValidAttachments = attachments.length > 0 && attachmentErrors.length === 0;
+  const allAttachments = useMemo(() => (
+    voiceRecorder.draft ? [...attachments, voiceRecorder.draft] : attachments
+  ), [attachments, voiceRecorder.draft]);
+  const hasValidAttachments = allAttachments.length > 0 && attachmentErrors.length === 0;
   const composerStatusId = 'composer-status-message';
   const currentDisabledReason = sendDisabledReason ??
     (isMessageTooLong ? `Message exceeds maximum length of ${MAX_MESSAGE_TEXT_LENGTH} characters.` : null);
   const isDisabledByState = Boolean(sendDisabledReason) || isSending;
-  const canSend = !isDisabledByState && !isMessageTooLong && attachmentErrors.length === 0 && (Boolean(trimmedValue) || hasValidAttachments);
+  const isRecordingVoice = voiceRecorder.isRecording;
+  const canStartVoice = !isDisabledByState && voiceRecorder.isSupported && !voiceRecorder.draft && attachments.length < MAX_ATTACHMENTS_PER_MESSAGE;
+  const canSend = !isDisabledByState && !isRecordingVoice && !isMessageTooLong && attachmentErrors.length === 0 && (Boolean(trimmedValue) || hasValidAttachments);
+  const uploadFailureCopy = uploadState?.status === 'failed'
+    ? uploadState.errorMessage ?? 'Upload failed. Retry before leaving this session.'
+    : uploadState?.status === 'aborted'
+      ? 'Upload canceled. Attach the file again if you still want to send it.'
+      : null;
 
   const payload = useMemo<ComposerSendPayload>(() => ({
     text: value,
-    attachments,
-  }), [attachments, value]);
+    attachments: allAttachments,
+  }), [allAttachments, value]);
 
   useEffect(() => {
     attachmentsRef.current = attachments;
@@ -125,11 +144,12 @@ const MessageComposer = ({
       return [];
     });
     setAttachmentErrors([]);
-  }, [resetToken]);
+    clearVoiceDraft();
+  }, [resetToken, clearVoiceDraft]);
 
   const validateAndAddFiles = (files: File[]) => {
     const nextErrors: string[] = [];
-    const remainingSlots = MAX_ATTACHMENTS_PER_MESSAGE - attachments.length;
+    const remainingSlots = MAX_ATTACHMENTS_PER_MESSAGE - allAttachments.length;
 
     if (files.length > remainingSlots) {
       nextErrors.push(`Maximum ${MAX_ATTACHMENTS_PER_MESSAGE} attachments allowed per message.`);
@@ -189,6 +209,12 @@ const MessageComposer = ({
   };
 
   const handleRemoveAttachment = (id: string) => {
+    if (voiceRecorder.draft?.id === id) {
+      voiceRecorder.clearDraft();
+      setAttachmentErrors([]);
+      return;
+    }
+
     setAttachments((currentAttachments) => {
       const target = currentAttachments.find((attachment) => attachment.id === id);
       if (target?.localPreviewUrl) {
@@ -232,10 +258,17 @@ const MessageComposer = ({
       )}
 
       <AttachmentTray
-        attachments={attachments}
+        attachments={allAttachments}
         errors={attachmentErrors}
         disabled={isDisabledByState}
+        uploadState={uploadState}
+        onCancelUpload={onCancelUpload}
         onRemove={handleRemoveAttachment}
+      />
+
+      <VoiceRecorderTray
+        recorder={voiceRecorder}
+        disabled={isDisabledByState}
       />
 
       <div className="mx-auto flex max-w-[880px] items-center gap-3">
@@ -299,12 +332,24 @@ const MessageComposer = ({
 
         <button
           type="button"
-          className="hidden h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:grid"
-          aria-label="Voice message unavailable in this phase"
-          disabled
-          title="Voice message unavailable in this phase"
+          className="hidden h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:grid"
+          aria-label={voiceRecorder.isRecording ? 'Stop recording voice message' : 'Record voice message'}
+          disabled={voiceRecorder.isRecording ? isDisabledByState : !canStartVoice}
+          title={voiceRecorder.isSupported ? 'Record voice message' : 'Voice recording unavailable'}
+          onClick={() => {
+            if (voiceRecorder.isRecording) {
+              voiceRecorder.stopRecording();
+              return;
+            }
+
+            void voiceRecorder.startRecording();
+          }}
         >
-          <Mic aria-hidden="true" className="h-5 w-5" />
+          {voiceRecorder.isRecording ? (
+            <Square aria-hidden="true" className="h-4 w-4 fill-current" />
+          ) : (
+            <Mic aria-hidden="true" className="h-5 w-5" />
+          )}
         </button>
 
         <button
@@ -327,12 +372,19 @@ const MessageComposer = ({
         <span>Authenticated private session</span>
       </div>
       {currentDisabledReason && showDisabledReason && (
-        <p id={composerStatusId} className="mx-auto mt-2 max-w-[880px] text-sm text-[var(--chat-warning)]" aria-live="polite">
+        <p id={composerStatusId} className="mx-auto mt-2 max-w-[880px] text-sm text-[var(--chat-warning)]" role="status" aria-live="polite">
           {currentDisabledReason}
         </p>
       )}
+      {uploadFailureCopy && (
+        <p className="mx-auto mt-2 max-w-[880px] text-sm text-[var(--chat-danger)]" role="alert" aria-live="assertive">
+          {uploadFailureCopy}
+        </p>
+      )}
       {isSendError && (
-        <p className="mx-auto mt-2 max-w-[880px] text-sm text-[var(--chat-danger)]" aria-live="polite">We could not send your message. Please try again.</p>
+        <p className="mx-auto mt-2 max-w-[880px] text-sm text-[var(--chat-danger)]" role="alert" aria-live="assertive">
+          Message was not sent. Retry from the failed message or send again when the connection is stable.
+        </p>
       )}
     </div>
   );

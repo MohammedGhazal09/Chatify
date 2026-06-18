@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '../api/authApi'
 import { useAuthStore } from '../store/authstore'
 import { usePresenceStore } from '../store/presenceStore'
+import { broadcastSessionEvent } from './useSessionBroadcast'
 import type { LoginData, SignupData } from '../types/auth'
 import { useEffect } from 'react'
 
@@ -82,12 +83,14 @@ export const useLogout = () => {
       logout()
       queryClient.clear() // Clear all cached queries
       queryClient.invalidateQueries({ queryKey: ['auth'] })
+      broadcastSessionEvent('logout', 'user')
     },
     onError: (error) => {
       console.error('Logout failed:', error)
       clearPresenceState()
       logout()
       queryClient.clear()
+      broadcastSessionEvent('logout', 'user')
     }
   })
 }

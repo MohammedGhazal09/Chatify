@@ -49,12 +49,25 @@ describe('MessageList', () => {
     const { rerender, props } = renderMessageList();
 
     expect(screen.getByRole('heading', { name: 'No messages yet' })).toBeInTheDocument();
-    expect(screen.getByText('Send the first message when you are ready.')).toBeInTheDocument();
+    expect(screen.getByText('Send the first message or attach a file when you are ready.')).toBeInTheDocument();
 
     rerender(<MessageList {...props} isSearchActive />);
 
     expect(screen.getByRole('heading', { name: 'No matches found' })).toBeInTheDocument();
-    expect(screen.getByText('Try a different name or message term.')).toBeInTheDocument();
+    expect(screen.getByText('Clear search or try a different message term.')).toBeInTheDocument();
+  });
+
+  it('renders a recoverable message-load error state', async () => {
+    const user = userEvent.setup();
+    const onRetryLoad = vi.fn();
+
+    renderMessageList({ isError: true, onRetryLoad });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Conversation unavailable');
+    expect(screen.getByText('We could not load messages for this conversation. Try again to refresh the private timeline.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetryLoad).toHaveBeenCalledTimes(1);
   });
 
   it('renders stable skeleton rows while loading messages', () => {

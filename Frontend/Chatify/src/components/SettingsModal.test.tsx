@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useProfileImageMutation } from '../hooks/useProfileImageMutation';
+import { getNotificationPreferencesStorageKey } from '../hooks/useNotificationPreferences';
 import { useAuthStore } from '../store/authstore';
 import { makeUser } from '../test/chatFixtures';
 import SettingsModal from './SettingsModal';
@@ -26,6 +27,11 @@ const removeProfileImage = {
   isPending: false,
 };
 
+const updateIdentityMark = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+};
+
 const renderSettings = () => render(
   <SettingsModal
     isOpen
@@ -33,8 +39,28 @@ const renderSettings = () => render(
   />
 );
 
+const originalNotification = window.Notification;
+
+const installNotificationMock = (
+  permission: NotificationPermission,
+  requestPermission = vi.fn<() => Promise<NotificationPermission>>()
+) => {
+  const NotificationMock = {
+    permission,
+    requestPermission,
+  } as unknown as typeof Notification;
+
+  Object.defineProperty(window, 'Notification', {
+    configurable: true,
+    value: NotificationMock,
+  });
+
+  return requestPermission;
+};
+
 describe('SettingsModal profile picture workflow', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
       value: vi.fn(() => 'blob:profile-preview'),
@@ -48,9 +74,22 @@ describe('SettingsModal profile picture workflow', () => {
     uploadProfileImage.isPending = false;
     removeProfileImage.mutateAsync.mockResolvedValue(makeUser({ profilePic: '' }));
     removeProfileImage.isPending = false;
+    updateIdentityMark.mutateAsync.mockResolvedValue(makeUser({
+      identityMark: {
+        source: 'custom',
+        label: 'Relay Grid',
+        initials: 'RG',
+        paletteId: 'teal',
+        patternId: 'rings',
+        accentId: 'mint',
+        updatedAt: '2026-06-17T05:00:00.000Z',
+      },
+    }));
+    updateIdentityMark.isPending = false;
     mockUseProfileImageMutation.mockReturnValue({
       uploadProfileImage,
       removeProfileImage,
+      updateIdentityMark,
       isPending: false,
     } as unknown as ReturnType<typeof useProfileImageMutation>);
     useAuthStore.setState({
@@ -59,6 +98,13 @@ describe('SettingsModal profile picture workflow', () => {
       isLoading: false,
     });
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      value: originalNotification,
+    });
   });
 
   it('previews a selected image before upload and saves it through the profile image mutation', async () => {
@@ -184,5 +230,113 @@ describe('SettingsModal profile picture workflow', () => {
 
     expect(screen.queryByAltText('Selected profile picture preview for Ada Lovelace')).not.toBeInTheDocument();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:profile-preview');
+  });
+
+  it('opens the identity editor and saves a custom abstract identity mark', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /edit/i }));
+    await user.clear(screen.getByLabelText('Identity label'));
+    await user.type(screen.getByLabelText('Identity label'), 'Relay Grid');
+    await user.clear(screen.getByLabelText('Initials'));
+    await user.type(screen.getByLabelText('Initials'), 'rg');
+    await user.click(screen.getByRole('button', { name: 'Rings' }));
+    await user.click(screen.getByRole('button', { name: 'Mint' }));
+    await user.click(screen.getByRole('button', { name: /save identity/i }));
+
+    expect(updateIdentityMark.mutateAsync).toHaveBeenCalledWith({
+      label: 'Relay Grid',
+      initials: 'RG',
+      paletteId: 'teal',
+      patternId: 'rings',
+      accentId: 'mint',
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('Identity updated');
+    });
+  });
+
+  it('rejects unsafe identity labels before calling the mutation', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /edit/i }));
+    await user.clear(screen.getByLabelText('Identity label'));
+    await user.type(screen.getByLabelText('Identity label'), 'Cat face');
+    await user.click(screen.getByRole('button', { name: /save identity/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Identity label cannot use URLs or living-being avatar concepts.');
+    expect(updateIdentityMark.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('shows browser notification permission without prompting on render', () => {
+    const requestPermission = installNotificationMock('default');
+
+    renderSettings();
+
+    expect(screen.getByText('Permission: Ask first')).toBeInTheDocument();
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('requests browser notification permission from the explicit enable action', async () => {
+    const user = userEvent.setup();
+    const requestPermission = installNotificationMock(
+      'default',
+      vi.fn(async () => 'granted' as NotificationPermission)
+    );
+
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: 'Enable' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Permission: Allowed')).toBeInTheDocument();
+    });
+    expect(requestPermission).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Disable' })).toHaveAttribute('aria-pressed', 'true');
+
+    const storedPreferences = JSON.parse(
+      window.localStorage.getItem(getNotificationPreferencesStorageKey('user-1')) ?? '{}'
+    ) as { browserNotificationsEnabled?: boolean };
+    expect(storedPreferences.browserNotificationsEnabled).toBe(true);
+  });
+
+  it('shows blocked browser notification guidance without prompting', () => {
+    const requestPermission = installNotificationMock('denied');
+
+    renderSettings();
+
+    expect(screen.getByText('Permission: Blocked')).toBeInTheDocument();
+    expect(screen.getByText('Browser alerts are blocked in site permissions.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enable' })).toBeDisabled();
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('allows disabling browser alerts when site permission becomes blocked', async () => {
+    const user = userEvent.setup();
+    installNotificationMock('denied');
+    window.localStorage.setItem(
+      getNotificationPreferencesStorageKey('user-1'),
+      JSON.stringify({
+        version: 1,
+        soundEnabled: true,
+        browserNotificationsEnabled: true,
+        mutedChatIds: [],
+      })
+    );
+
+    renderSettings();
+
+    const disableButton = screen.getByRole('button', { name: 'Disable' });
+    expect(disableButton).toBeEnabled();
+
+    await user.click(disableButton);
+
+    expect(screen.getByRole('button', { name: 'Enable' })).toBeDisabled();
+    const storedPreferences = JSON.parse(
+      window.localStorage.getItem(getNotificationPreferencesStorageKey('user-1')) ?? '{}'
+    ) as { browserNotificationsEnabled?: boolean };
+    expect(storedPreferences.browserNotificationsEnabled).toBe(false);
   });
 });

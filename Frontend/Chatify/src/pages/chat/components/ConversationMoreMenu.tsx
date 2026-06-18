@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { Ban, Download, Info, Phone, Search, ShieldCheck, Video } from 'lucide-react';
+import { Ban, Bell, BellOff, Download, Info, Phone, Search, ShieldCheck, Video } from 'lucide-react';
 import type { ConversationControls } from '../../../types/chat';
 
 interface ConversationMoreMenuProps {
@@ -8,6 +8,7 @@ interface ConversationMoreMenuProps {
   anchorRef: RefObject<HTMLElement | null>;
   conversationControls?: ConversationControls;
   canExport: boolean;
+  isMuted?: boolean;
   isActionPending: boolean;
   callDisabledReason?: string | null;
   videoCallDisabledReason?: string | null;
@@ -16,6 +17,7 @@ interface ConversationMoreMenuProps {
   onStartVideoCall: () => void;
   onSearchMessages: () => void;
   onExportChat: () => void;
+  onToggleMute?: () => void;
   onBlockUser: () => void;
   onUnblockUser: () => void;
   onClose: () => void;
@@ -46,6 +48,7 @@ const ConversationMoreMenu = ({
   anchorRef,
   conversationControls,
   canExport,
+  isMuted = false,
   isActionPending,
   callDisabledReason,
   videoCallDisabledReason,
@@ -54,6 +57,7 @@ const ConversationMoreMenu = ({
   onStartVideoCall,
   onSearchMessages,
   onExportChat,
+  onToggleMute,
   onBlockUser,
   onUnblockUser,
   onClose,
@@ -151,6 +155,12 @@ const ConversationMoreMenu = ({
         title={canExport ? undefined : 'No messages to export'}
         onSelect={() => runAndClose(onExportChat)}
       />
+      <MenuItem
+        icon={isMuted ? <Bell aria-hidden="true" className="h-4 w-4" /> : <BellOff aria-hidden="true" className="h-4 w-4" />}
+        label={isMuted ? 'Unmute conversation' : 'Mute conversation'}
+        title={isMuted ? 'Restore sound and browser alerts for this conversation' : 'Suppress sound and browser alerts for this conversation'}
+        onSelect={() => runAndClose(onToggleMute ?? (() => undefined))}
+      />
       <MenuDivider />
       <MenuItem
         icon={<Phone aria-hidden="true" className="h-4 w-4" />}
@@ -208,6 +218,8 @@ const MenuItem = ({
   title?: string;
   onSelect?: () => void;
 }) => {
+  const descriptionId = useId();
+  const hasDisabledDescription = disabled && Boolean(title);
   const toneClass = tone === 'danger'
     ? 'text-[var(--chat-danger)] enabled:hover:bg-[color-mix(in_srgb,var(--chat-danger)_10%,var(--chat-panel-subtle))]'
     : tone === 'success'
@@ -218,13 +230,22 @@ const MenuItem = ({
     <button
       type="button"
       role="menuitem"
+      aria-label={label}
       disabled={disabled}
       title={title}
+      aria-describedby={hasDisabledDescription ? descriptionId : undefined}
       onClick={onSelect}
       className={`flex min-h-10 w-full items-center gap-3 px-3 py-2 text-left font-medium disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:bg-[var(--chat-panel-subtle)] ${toneClass}`}
     >
       <span className="grid h-6 w-6 shrink-0 place-items-center">{icon}</span>
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">{label}</span>
+        {hasDisabledDescription && (
+          <span id={descriptionId} className="mt-0.5 block whitespace-normal text-xs font-normal leading-4 text-[var(--chat-text-soft)]">
+            {title}
+          </span>
+        )}
+      </span>
     </button>
   );
 };

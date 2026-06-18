@@ -1,3 +1,5 @@
+import { logger } from './observabilityLogger.mjs';
+
 class RequestQueue {
   constructor(maxConcurrent = 10, requestDelay = 10) {
     this.queue = [];
@@ -57,12 +59,12 @@ class RequestQueue {
 
   pause() {
     this.isPaused = true;
-    console.log('⏸️ Queue paused');
+    logger.warn('queue.paused', this.getStatus());
   }
 
   resume() {
     this.isPaused = false;
-    console.log('▶️ Queue resumed');
+    logger.info('queue.resumed', this.getStatus());
     this.processQueue();
   }
 
@@ -72,7 +74,10 @@ class RequestQueue {
       request.reject(new Error('Queue cleared'));
     });
     this.queue = [];
-    console.log(`🗑️ Queue cleared. Removed ${count} requests`);
+    logger.warn('queue.cleared', {
+      clearedCount: count,
+      ...this.getStatus(),
+    });
   }
 
   getStatus() {

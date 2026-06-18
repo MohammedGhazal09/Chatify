@@ -5,7 +5,10 @@ import { CustomError } from '../Utils/customError.mjs'
 import mongoose from 'mongoose'
 import multer from 'multer'
 import { randomUUID } from 'node:crypto'
-import { isUserOnline as hasActiveSocket } from '../Config/socket.mjs'
+import {
+  emitToUserSockets,
+  isUserOnline as hasActiveSocket,
+} from '../Config/socket.mjs'
 import {
   deleteProfileImageFile,
   openProfileImageDownloadStream,
@@ -16,6 +19,12 @@ import {
   PROFILE_IMAGE_ERROR_CODES,
   validateIncomingProfileImage,
 } from '../Utils/profileImageValidation.mjs'
+import {
+  serializeIdentityMark,
+  serializeIdentityUser,
+  validateIdentityMarkPayload,
+} from '../Utils/identityMark.mjs'
+import { logger } from '../Utils/observabilityLogger.mjs'
 
 const PROFILE_IMAGE_NOT_FOUND = 'Profile image not found';
 
@@ -68,6 +77,53 @@ const loadProfileImageUser = (userId) => User.findById(userId)
 
 const serializeProfileImageUser = (user) => user.toJSON();
 
+const serializeIdentityEventUser = (user) => {
+  const serializedUser = serializeIdentityUser(user);
+
+  return {
+    _id: serializedUser._id?.toString?.() ?? serializedUser._id,
+    firstName: serializedUser.firstName,
+    lastName: serializedUser.lastName,
+    email: serializedUser.email,
+    profilePic: serializedUser.profilePic ?? '',
+    identityMark: serializedUser.identityMark,
+    identityMarkUpdatedAt: serializedUser.identityMarkUpdatedAt ?? null,
+  };
+};
+
+const getIdentityPayload = (req) => {
+  if (
+    req.body?.identityMark &&
+    typeof req.body.identityMark === 'object' &&
+    !Array.isArray(req.body.identityMark)
+  ) {
+    return req.body.identityMark;
+  }
+
+  return req.body;
+};
+
+const emitIdentityUpdated = async (user) => {
+  const chats = await Chats.find({ members: user._id }).select('_id members');
+  const recipientIds = new Set([user._id.toString()]);
+  const chatIds = chats.map((chat) => {
+    chat.members.forEach((memberId) => {
+      recipientIds.add(memberId.toString());
+    });
+
+    return chat._id.toString();
+  });
+  const payload = {
+    userId: user._id.toString(),
+    user: serializeIdentityEventUser(user),
+    chatIds,
+  };
+
+  recipientIds.forEach((recipientId) => {
+    emitToUserSockets(recipientId, 'user:identity-updated', payload);
+  });
+};
+
 const cleanupProfileImage = async (storageFileId) => {
   if (!storageFileId) {
     return;
@@ -76,9 +132,8 @@ const cleanupProfileImage = async (storageFileId) => {
   try {
     await deleteProfileImageFile(storageFileId);
   } catch (error) {
-    console.warn('Profile image cleanup skipped:', {
-      code: error?.code,
-      name: error?.name,
+    logger.warn('profile_image.cleanup_skipped', {
+      error,
     });
   }
 };
@@ -112,7 +167,7 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError('Invalid user id', 400));
   }
 
-  const user = await User.findById(userId).select('isOnline lastSeen showOnlineStatus showLastSeen firstName lastName');
+  const user = await User.findById(userId).select('isOnline lastSeen showOnlineStatus showLastSeen firstName lastName profilePic identityMark identityMarkUpdatedAt');
 
   if (!user) {
     return next(new CustomError('User not found', 404));
@@ -123,6 +178,9 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
     _id: user._id,
     firstName: user.firstName,
     lastName: user.lastName,
+    profilePic: user.profilePic,
+    identityMark: serializeIdentityMark(user),
+    identityMarkUpdatedAt: serializeIdentityMark(user).updatedAt,
   };
 
   if (user.showOnlineStatus) {
@@ -159,7 +217,7 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
   // Get online status for all contacts
   const contacts = await User.find({
     _id: { $in: Array.from(contactIds) },
-  }).select('firstName lastName isOnline lastSeen showOnlineStatus showLastSeen profilePic');
+  }).select('firstName lastName isOnline lastSeen showOnlineStatus showLastSeen profilePic identityMark identityMarkUpdatedAt');
 
   const onlineUsers = contacts
     .filter(user => user.showOnlineStatus && user.isOnline)
@@ -168,6 +226,8 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       profilePic: user.profilePic,
+      identityMark: serializeIdentityMark(user),
+      identityMarkUpdatedAt: serializeIdentityMark(user).updatedAt,
       isOnline: true,
       isCallReachable: user.isOnline && hasActiveSocket(user._id),
     }));
@@ -178,6 +238,8 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       profilePic: user.profilePic,
+      identityMark: serializeIdentityMark(user),
+      identityMarkUpdatedAt: serializeIdentityMark(user).updatedAt,
     };
 
     if (user.showOnlineStatus) {
@@ -228,6 +290,35 @@ export const updatePrivacySettings = asyncErrHandler(async (req, res, next) => {
     data: {
       showOnlineStatus: user.showOnlineStatus,
       showLastSeen: user.showLastSeen,
+    },
+  });
+});
+
+export const updateIdentityMark = asyncErrHandler(async (req, res, next) => {
+  const user = await User.findById(req.userId);
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  const validation = validateIdentityMarkPayload(getIdentityPayload(req), user);
+
+  if (!validation.ok) {
+    return res.status(validation.statusCode).json({
+      status: 'fail',
+      code: validation.code,
+      message: validation.message,
+    });
+  }
+
+  user.setIdentityMark(validation.value);
+  await user.save();
+  await emitIdentityUpdated(user);
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      user: serializeIdentityUser(user),
     },
   });
 });

@@ -22,6 +22,12 @@ type LocalSmokeConfig =
     blockedReason: string;
   };
 
+type CsrfToken = {
+  token: string;
+  cookieHeader: string;
+};
+
+const CSRF_COOKIE_NAME = 'XSRF-TOKEN';
 const makePassword = () => `Phase101!${Date.now()}Aa`;
 
 const makeGeneratedAccount = (slot: 'a' | 'b'): LocalSmokeAccount => {
@@ -160,6 +166,46 @@ const assertBackendAvailable = async (request: APIRequestContext, backendUrl: st
   }
 };
 
+const readCsrfTokenFromResponse = (response: Awaited<ReturnType<APIRequestContext['get']>>): CsrfToken | null => {
+  const setCookie = response.headers()['set-cookie'] ?? '';
+  const csrfCookie = setCookie
+    .split(/,(?=\s*[^;=]+=[^;]+)/)
+    .map((header) => header.trim())
+    .find((header) => header.startsWith(`${CSRF_COOKIE_NAME}=`));
+
+  if (!csrfCookie) {
+    return null;
+  }
+
+  const [nameValue] = csrfCookie.split(';');
+  const separatorIndex = nameValue.indexOf('=');
+
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  const token = decodeURIComponent(nameValue.slice(separatorIndex + 1));
+
+  return {
+    token,
+    cookieHeader: `${CSRF_COOKIE_NAME}=${encodeURIComponent(token)}`,
+  };
+};
+
+const fetchCsrfToken = async (request: APIRequestContext, backendUrl: string) => {
+  try {
+    const response = await request.get(`${backendUrl}/api/csrf-token`, { timeout: 5000 });
+
+    if (!response.ok()) {
+      return null;
+    }
+
+    return readCsrfTokenFromResponse(response);
+  } catch {
+    return null;
+  }
+};
+
 const readResponseMessage = async (response: Awaited<ReturnType<APIRequestContext['post']>>) => {
   try {
     const body = await response.json();
@@ -172,13 +218,18 @@ const readResponseMessage = async (response: Awaited<ReturnType<APIRequestContex
 const provisionAccount = async (
   request: APIRequestContext,
   backendUrl: string,
-  account: LocalSmokeAccount
+  account: LocalSmokeAccount,
+  csrf: CsrfToken
 ) => {
   if (!account.provision) {
     return null;
   }
 
   const response = await request.post(`${backendUrl}/api/auth/signup`, {
+    headers: {
+      Cookie: csrf.cookieHeader,
+      'X-CSRF-Token': csrf.token,
+    },
     data: {
       firstName: account.firstName,
       lastName: account.lastName,
@@ -260,13 +311,19 @@ test.describe('Phase 10.1 local delivery reliability', () => {
       return;
     }
 
-    const senderProvisionBlocked = await provisionAccount(request, config.backendUrl, config.accounts.sender);
+    const csrf = await fetchCsrfToken(request, config.backendUrl);
+    if (!csrf) {
+      test.skip(true, `Local backend did not return a usable CSRF token at ${config.backendUrl}.`);
+      return;
+    }
+
+    const senderProvisionBlocked = await provisionAccount(request, config.backendUrl, config.accounts.sender, csrf);
     if (senderProvisionBlocked) {
       test.skip(true, senderProvisionBlocked);
       return;
     }
 
-    const recipientProvisionBlocked = await provisionAccount(request, config.backendUrl, config.accounts.recipient);
+    const recipientProvisionBlocked = await provisionAccount(request, config.backendUrl, config.accounts.recipient, csrf);
     if (recipientProvisionBlocked) {
       test.skip(true, recipientProvisionBlocked);
       return;

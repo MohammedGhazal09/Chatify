@@ -5,6 +5,8 @@ const attachmentIdentityPart = (attachment: ComposerAttachmentDraft, index: numb
   return [
     index,
     attachment.displayName,
+    attachment.kind,
+    attachment.durationSeconds ?? '',
     file.name,
     file.size,
     file.type,

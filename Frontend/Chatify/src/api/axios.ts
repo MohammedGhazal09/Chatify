@@ -2,12 +2,14 @@ import axios from "axios";
 import { requestQueue, authQueue } from "../utils/requestQueue";
 import { resolveApiBaseUrl } from "./apiOrigin";
 import type { AxiosRequestConfig } from "axios";
+import { broadcastSessionEvent } from "../hooks/useSessionBroadcast";
 
 export const AUTH_EXPIRED_EVENT = 'chatify:auth-expired';
 
 export const dispatchAuthExpired = () => {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    broadcastSessionEvent('auth-expired', 'refresh_failed');
   }
 };
 

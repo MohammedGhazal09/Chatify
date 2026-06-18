@@ -24,12 +24,15 @@ describe('ChatContextRail', () => {
       pinnedMessages: [makePinnedMessage({ messageId: 'message-pin', text: 'Retry logic note' })],
       sharedFiles: [makeSharedAsset({ attachmentId: 'file-1', messageId: 'message-file', displayName: 'message-states-spec.pdf' })],
       sharedMedia: [makeSharedAsset({ attachmentId: 'media-1', messageId: 'message-media', displayName: 'diagram.png', mimeType: 'image/png', kind: 'media' })],
+      sharedVoice: [makeSharedAsset({ attachmentId: 'voice-1', messageId: 'message-voice', displayName: 'voice-message.webm', mimeType: 'audio/webm', kind: 'voice', size: 5, durationSeconds: 4 })],
       isPinnedLoading: false,
       isSharedFilesLoading: false,
       isSharedMediaLoading: false,
+      isSharedVoiceLoading: false,
       isPinnedError: false,
       isSharedFilesError: false,
       isSharedMediaError: false,
+      isSharedVoiceError: false,
       isAuthenticated: true,
       isSocketConnected: true,
       isReconnecting: false,
@@ -94,12 +97,14 @@ describe('ChatContextRail', () => {
     expect(screen.getByText('Pinned messages')).toBeInTheDocument();
     expect(screen.getByText('Shared files')).toBeInTheDocument();
     expect(screen.getByText('Shared media')).toBeInTheDocument();
+    expect(screen.getByText('Voice messages')).toBeInTheDocument();
     expect(screen.getByText('Blocked people')).toBeInTheDocument();
     expect(screen.getByText('No blocked people in this conversation.')).toBeInTheDocument();
     expect(screen.getByText('Conversation security')).toBeInTheDocument();
     expect(screen.getByText('Retry logic note')).toBeInTheDocument();
     expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'diagram.png' })).toBeInTheDocument();
+    expect(screen.getByText('voice-message.webm')).toBeInTheDocument();
     expect(screen.queryByText('Pinning is not available in this phase.')).not.toBeInTheDocument();
     expect(screen.queryByText('File sharing is planned for Phase 08.')).not.toBeInTheDocument();
     expect(screen.queryByText('Media sharing is planned for Phase 08.')).not.toBeInTheDocument();
@@ -221,12 +226,15 @@ describe('ChatContextRail', () => {
         pinnedMessages={[]}
         sharedFiles={[]}
         sharedMedia={[]}
+        sharedVoice={[]}
         isPinnedLoading={false}
         isSharedFilesLoading={false}
         isSharedMediaLoading={false}
+        isSharedVoiceLoading={false}
         isPinnedError={false}
         isSharedFilesError={false}
         isSharedMediaError={false}
+        isSharedVoiceError={false}
         isAuthenticated={false}
         isSocketConnected={false}
         isReconnecting={false}
@@ -249,6 +257,8 @@ describe('ChatContextRail', () => {
     expect(screen.getByText('No pinned messages')).toBeInTheDocument();
     expect(screen.getByText('No shared files')).toBeInTheDocument();
     expect(screen.getByText('No shared media')).toBeInTheDocument();
+    expect(screen.getByText('No voice messages')).toBeInTheDocument();
+    expect(screen.getByText('Calls unavailable: Realtime connection is unavailable.')).toBeInTheDocument();
     expect(screen.getAllByText('Unavailable')).toHaveLength(3);
     expect(screen.getAllByText('Offline').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Verified')).not.toBeInTheDocument();

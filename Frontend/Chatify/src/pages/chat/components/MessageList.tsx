@@ -76,7 +76,7 @@ const MessageList = ({
       ) : isError ? (
         <ChatStateView
           heading="Conversation unavailable"
-          body="We could not load this conversation."
+          body="We could not load messages for this conversation. Try again to refresh the private timeline."
           tone="danger"
           primaryAction={{ label: 'Try again', onClick: onRetryLoad }}
         />
@@ -177,7 +177,7 @@ const MessageList = ({
       ) : (
         <ChatStateView
           heading={isSearchActive ? 'No matches found' : 'No messages yet'}
-          body={isSearchActive ? 'Try a different name or message term.' : 'Send the first message when you are ready.'}
+          body={isSearchActive ? 'Clear search or try a different message term.' : 'Send the first message or attach a file when you are ready.'}
         />
       )}
 

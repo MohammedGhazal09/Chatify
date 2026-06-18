@@ -1,4 +1,5 @@
 import { dbQueue, messageQueue } from '../Utils/requestQueue.mjs';
+import { logger } from '../Utils/observabilityLogger.mjs';
 
 /**
  * Get queue status endpoint
@@ -42,7 +43,12 @@ export const queueHeavyRequests = (req, res, next) => {
     }).then(() => {
       next();
     }).catch((error) => {
-      console.error('Queue error:', error);
+      logger.error('queue.heavy_route_failed', {
+        requestId: req.requestId,
+        method: req.method,
+        path: req.path,
+        error,
+      });
       res.status(503).json({
         status: 'error',
         message: 'Server is busy. Please try again.',

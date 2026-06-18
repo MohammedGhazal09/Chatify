@@ -1,119 +1,97 @@
-# Phase 01: security-and-test-foundation - Context
+# Phase 01: Security And Test Foundation - Context
 
 **Gathered:** 2026-06-08
-**Status:** Ready for planning
+**Updated:** 2026-06-17
+**Status:** Ready for execution refresh
 
 <domain>
 ## Phase Boundary
 
-Phase 1 delivers the security and test foundation for Chatify: deterministic backend/security tests, CSRF enforcement, predictable auth/session behavior, hardened password reset handling, OAuth redirect safety, redacted logging, sanitized environment examples, and CI verification. It does not rebuild Socket.IO identity, canonical message state, the chat UI, or baseline messenger search features.
+Phase 1 closes the security/test foundation gaps that remain in the current Chatify repo: CSRF on unsafe protected REST mutations, password reset storage/attempt safety, sanitized env examples, redacted reset/error logging, and removal of generated profile data. It preserves the existing MERN stack, test harness, CI workflow, and current refresh-session architecture.
 
 </domain>
 
 <spec_lock>
-## Requirements (locked via SPEC.md)
+## Requirements Locked By SPEC.md
 
-**10 requirements are locked.** See `01-SPEC.md` for full requirements, boundaries, and acceptance criteria.
-
-Downstream agents MUST read `01-SPEC.md` before planning or implementing. Requirements are not duplicated here.
-
-**In scope (from SPEC.md):**
-- Add backend test dependencies, scripts, setup files, fixtures, and deterministic security regression tests.
-- Add or update package scripts and GitHub Actions workflow needed to run the Phase 1 verification gate.
-- Enforce REST CSRF policy for unsafe cookie-authenticated methods with documented exemptions.
-- Update the shared frontend request path so unsafe mutations send CSRF headers.
-- Stabilize and test signup, login, logout, session check, refresh failure, expired-token, and remember-me cookie behavior.
-- Harden password reset code storage, expiry, single-use behavior, and attempt limits.
-- Restrict OAuth callback redirects to approved frontend origins.
-- Replace sensitive backend and frontend auth/reset debug logs with redacted operational logging.
-- Add sanitized backend and frontend environment example files.
-- Add HTTP message authorization regression coverage as a safety fence for later message phases.
-
-**Out of scope (from SPEC.md):**
-- Socket.IO handshake authentication and server-derived socket identity - Phase 2 owns the authenticated realtime contract.
-- Socket room membership checks and socket event authorization - Phase 2 owns realtime authorization.
-- Message send/receive lifecycle, duplicate merging, unread reconciliation, edit/delete/reaction semantics, and pagination redesign - Phase 3 owns canonical message state.
-- Chat page visual reconstruction or component split - Phase 4 owns messenger UI reconstruction.
-- Conversation/message search and baseline messenger polish - Phase 5 owns final baseline features.
-- Group chats, attachments, notifications, moderation/admin tooling, native apps, and end-to-end encryption - deferred to v2 or later roadmap work.
-- Introducing a full refresh-token persistence architecture - keep existing remember-me behavior and test it unless a later phase explicitly replaces the session model.
-- Editing `Frontend/Chatify/src/pages/chat/chat.tsx` - existing local work in that file must not be overwritten in Phase 1.
+Requirements are locked in `.planning/phases/01-security-and-test-foundation/01-SPEC.md`. Downstream work must read that file before planning or implementation. This context captures implementation decisions only.
 
 </spec_lock>
 
 <decisions>
 ## Implementation Decisions
 
-### Backend Test Harness
-- **D-01:** Use a dedicated `Backend/Chatify/test/` tree with `setup`, `fixtures`, and route test suites.
-- **D-02:** Test HTTP behavior by importing `Backend/Chatify/app.mjs` with Supertest. Do not start `Backend/Chatify/server.mjs` in Phase 1 tests.
-- **D-03:** Use hybrid fixtures: direct Mongoose factories for precise users/chats/messages, and API flows for public auth lifecycle behavior.
-- **D-04:** Keep Phase 1 message authorization coverage at HTTP route boundaries; do not add socket integration tests in this phase.
+### Test Foundation
+- **D-01:** Keep the existing backend Vitest/Supertest/memory-Mongo harness and add focused regression files instead of rebuilding the harness.
+- **D-02:** Keep HTTP message authorization coverage at REST route boundaries in Phase 1; deeper message lifecycle behavior stays in later phases.
+- **D-03:** Use route helpers only where they reduce test churn. Auto-CSRF in tests is allowed only for `/api/chat` and `/api/message` unsafe methods so profile-image negative CSRF tests remain meaningful.
 
 ### CSRF Enforcement
-- **D-05:** Implement CSRF with a signed double-submit helper tied to authenticated session data, using a readable CSRF cookie plus an `X-XSRF-TOKEN` request header.
-- **D-06:** Do not build new Phase 1 CSRF enforcement on `csurf`. It can be removed or left unused depending on planner impact, but active enforcement should be the signed helper.
-- **D-07:** Exempt only `GET /api/csrf-token`, OAuth GET initiators/callbacks, and read-only GET requests. Unsafe login, logout, refresh, reset, chat, and message methods require CSRF unless a future plan documents a narrow exemption.
-- **D-08:** Attach CSRF headers in the shared frontend Axios request path for unsafe methods, not per page or per API method.
+- **D-04:** Use a signed double-submit token issued as readable `XSRF-TOKEN` cookie and echoed through `X-CSRF-Token` or `X-XSRF-Token`.
+- **D-05:** Mount CSRF after `protect` on `/api/chat` and `/api/message` so unauthenticated requests still fail as auth failures and authenticated unsafe requests require CSRF.
+- **D-06:** Keep `GET /api/csrf-token`, OAuth GET initiators/callbacks, and read-only GET requests exempt.
+- **D-07:** Keep frontend CSRF behavior centralized in `Frontend/Chatify/src/api/axios.ts`; do not add page-level transport logic.
 
-### Auth and Session Behavior
-- **D-09:** Renew only valid access tokens. Expired or invalid access tokens return `401` and should clear frontend auth state.
-- **D-10:** Do not introduce a persisted refresh-token architecture in Phase 1.
-- **D-11:** Keep existing remember-me behavior, but test cookie max age and cookie options.
-- **D-12:** Implement minimal session-expired UX as a login-page message via route/search state plus a cleared auth store, avoiding edits to the dirty chat page.
+### Auth And Session
+- **D-08:** Preserve the current persisted opaque refresh-token session model with rotation and replay detection. Do not revert to the older access-token-only refresh decision from the stale June context.
+- **D-09:** Keep remember-me semantics in refresh-token max age and rely on existing auth lifecycle tests for coverage.
 
-### Password Reset Hardening
-- **D-13:** Store reset codes using HMAC-SHA256 with a new `PASSWORD_RESET_SECRET`, not plaintext.
-- **D-14:** Allow 5 failed attempts per active reset code. After that, invalidate the reset record.
-- **D-15:** Keep one active reset record per user, preserve 5-minute expiry, prevent account enumeration, and delete the reset record after successful password reset.
+### Password Reset
+- **D-10:** Store reset codes as HMAC-SHA256 digests using `PASSWORD_RESET_SECRET`; never persist raw six-digit codes.
+- **D-11:** Keep one active reset record per user, preserve the 5-minute TTL, delete a used record after successful reset, and invalidate/delete after 5 failed attempts.
+- **D-12:** Keep forgot-password responses non-enumerating. Existing accounts may trigger email delivery; missing accounts still receive the same public success response.
 
-### OAuth Redirect Safety
-- **D-16:** Use a strict frontend origin allowlist derived from `FRONTEND_ORIGIN` and `FRONTEND_ORIGIN_DEV`.
-- **D-17:** Ignore user-provided redirect targets in Phase 1 OAuth callbacks.
+### Logging And Privacy Hygiene
+- **D-13:** Remove `Backend/Chatify/profile.json` because it is a generated profile-shaped artifact, and ignore future dumps at that path.
+- **D-14:** Do not log reset email recipients, raw reset codes, token previews, cookie metadata, OAuth profile payloads, or raw request bodies containing auth fields.
+- **D-15:** Sanitize development error bodies for `password`, `confirmPassword`, `token`, `code`, `newPassword`, `email`, `refreshToken`, and `accessToken`.
 
-### Redacted Logging
-- **D-18:** Add small local redaction helpers for backend and frontend auth/reset logging instead of adding a full logging library.
-- **D-19:** Replace direct sensitive auth/reset/token logs rather than only hiding them behind `NODE_ENV`.
-- **D-20:** Add a lightweight regex/script or test gate that fails on known forbidden auth/reset/token log patterns.
+### Environment Documentation
+- **D-16:** Add backend and frontend `.env.example` files with placeholders only. Do not read, copy, quote, or transform local `.env` values.
+- **D-17:** Include current backend auth/session/CSRF/reset/OAuth/email/socket/call variables and frontend API/socket variables.
 
-### CI and Verification
-- **D-21:** Add GitHub Actions that runs backend tests plus frontend lint/build on every PR/push.
-- **D-22:** Use Node 22 as the single CI Node version.
-- **D-23:** Keep the roadmap's 3-plan split for Phase 1: test harness/coverage, security controls, redacted logging.
-
-### Repository Hygiene
-- **D-24:** Inspect `Backend/Chatify/profile.json` and remove or ignore it if it is generated OAuth/profile data.
-- **D-25:** Keep frontend Phase 1 test scope narrow: one focused axios/AuthStore-style verification for CSRF header attachment or session-expired behavior.
-- **D-26:** Do not edit or overwrite `Frontend/Chatify/src/pages/chat/chat.tsx` in Phase 1.
-
-### Agent Discretion
-- Planners may choose exact file names under `Backend/Chatify/test/` as long as the test tree has clear setup, fixtures, and route-focused suites.
-- Planners may decide whether the sensitive log gate is a Vitest test or an npm script, as long as it is part of the blocking verification path.
-- Planners may decide whether to remove unused `csurf` dependency in Phase 1 or defer dependency cleanup, as long as active CSRF enforcement does not rely on it.
+### Repository Safety
+- **D-18:** Do not edit `Frontend/Chatify/src/pages/chat/chat.tsx` in this phase.
+- **D-19:** Do not use subagents for this project; perform GSD research, planning, execution, and review inline.
 
 </decisions>
+
+<specifics>
+## Specific Ideas
+
+- Treat the current repo as source of truth when it conflicts with stale June 2026 Phase 1 planning text.
+- Keep tests deterministic and independent of real MongoDB, Brevo, OAuth providers, Render, Vercel, or local `.env` files.
+- Prefer focused security gap closure over broad logging/observability refactors.
+
+</specifics>
 
 <canonical_refs>
 ## Canonical References
 
 **Downstream agents MUST read these before planning or implementing.**
 
-### Locked Phase Requirements
-- `.planning/phases/01-security-and-test-foundation/01-SPEC.md` - locked Phase 1 requirements, boundaries, constraints, and acceptance criteria.
-- `.planning/ROADMAP.md` - Phase 1 plan split and phase order.
-- `.planning/REQUIREMENTS.md` - SEC, AUTH, and TEST requirement traceability.
-- `.planning/PROJECT.md` - project core value, constraints, and security posture.
-- `.planning/STATE.md` - current GSD state and known dirty chat page concern.
+### Phase Requirements
+- `.planning/phases/01-security-and-test-foundation/01-SPEC.md` - locked Phase 1 requirements and boundaries.
+- `.planning/ROADMAP.md` - phase order, success criteria, and plan split.
+- `.planning/REQUIREMENTS.md` - SEC, AUTH, and TEST requirement IDs.
+- `.planning/PROJECT.md` - stack, delivery, and protected chat-page constraints.
+- `.planning/STATE.md` - current project status.
 
-### Codebase Maps
-- `.planning/codebase/TESTING.md` - existing absence of test runner, scripts, and test organization.
-- `.planning/codebase/CONVENTIONS.md` - naming, error handling, import, logging, and lint/build conventions.
-- `.planning/codebase/STRUCTURE.md` - where backend, frontend, test, route, model, and workflow files belong.
-- `.planning/codebase/CONCERNS.md` - security concerns, known auth/session issues, CSRF gap, log leakage, and test gaps.
+### Current Code Surfaces
+- `Backend/Chatify/app.mjs` - Express middleware order and route mounts.
+- `Backend/Chatify/Middlewares/csrfProtection.mjs` - CSRF token creation and validation.
+- `Backend/Chatify/Controller/authController.mjs` - auth, OAuth handoff, and password reset behavior.
+- `Backend/Chatify/Models/passwordResetModel.mjs` - reset record storage contract.
+- `Backend/Chatify/Utils/tokenCookieGenerator.mjs` - current refresh-token session architecture.
+- `Frontend/Chatify/src/api/axios.ts` - shared frontend CSRF/header/session transport path.
 
-### External Guidance Considered
-- OWASP CSRF Prevention Cheat Sheet - supports signed double-submit CSRF recommendation for stateless CSRF validation.
-- Express 2025 legacy package cleanup note - supports avoiding new active reliance on `csurf`.
+### Verification Surfaces
+- `Backend/Chatify/test/security/csrf.test.mjs` - CSRF coverage.
+- `Backend/Chatify/test/auth/reset.security.test.mjs` - password reset safety coverage.
+- `Backend/Chatify/test/auth/auth.lifecycle.test.mjs` - auth/session/OAuth lifecycle coverage.
+- `Backend/Chatify/test/message/message.authorization.test.mjs` - HTTP message authorization coverage.
+- `Frontend/Chatify/src/api/axios.test.ts` - shared frontend CSRF/header behavior.
+- `.github/workflows/security-and-test-foundation.yml` - CI gate.
 
 </canonical_refs>
 
@@ -121,47 +99,36 @@ Downstream agents MUST read `01-SPEC.md` before planning or implementing. Requir
 ## Existing Code Insights
 
 ### Reusable Assets
-- `Backend/Chatify/app.mjs`: Express app export is the right Supertest target for HTTP integration tests.
-- `Backend/Chatify/Routes/authRouter.mjs`: Central route list for signup, login, logout, refresh, and reset route coverage.
-- `Backend/Chatify/Routes/messageRouter.mjs`: Representative HTTP message authorization route surface.
-- `Backend/Chatify/Models/userModel.mjs`, `chatModel.mjs`, `messageModel.mjs`, `passwordResetModel.mjs`: Fixture factories should mirror these Mongoose schemas.
-- `Backend/Chatify/Utils/tokenCookieGenerator.mjs`: Cookie option behavior and sensitive logging replacement point.
-- `Frontend/Chatify/src/api/axios.ts`: Shared request/response interceptor path for CSRF header attachment and session-expired handling.
-- `Frontend/Chatify/src/store/authstore.ts`: Auth state clearing target for expired/invalid session behavior.
+- `Backend/Chatify/test/helpers/authAgent.mjs`: Supertest agents, CSRF token retrieval, signup/login helpers.
+- `Backend/Chatify/test/fixtures/*.mjs`: user/chat/message fixtures for deterministic route tests.
+- `Backend/Chatify/Models/sessionModel.mjs`: current persisted refresh-session model.
+- `Frontend/Chatify/src/api/axios.ts`: single client-side place for CSRF and refresh handling.
 
 ### Established Patterns
-- Backend uses ESM `.mjs`, named controller exports, `asyncErrHandler`, and `CustomError`.
-- Backend models use Mongoose defaults/indexes and should be exercised against in-memory MongoDB rather than fully mocked for route coverage.
-- Frontend API calls should use the shared `axiosInstance`; do not create per-page transport clients.
-- Frontend quality checks already exist as `npm run lint` and `npm run build`; Phase 1 should reuse those in CI.
+- Backend route behavior is tested by importing `app.mjs`, not starting `server.mjs`.
+- Backend tests use real Mongoose models against memory Mongo.
+- Frontend tests stay focused on shared transport/client behavior for Phase 1.
+- Backend ESM imports include `.mjs`; frontend imports omit extensions.
 
 ### Integration Points
-- CSRF middleware/helper should be mounted after cookie parsing and before unsafe route handling in `Backend/Chatify/app.mjs`.
-- Password reset hashing and attempt limits connect `Backend/Chatify/Controller/authController.mjs` with `Backend/Chatify/Models/passwordResetModel.mjs`.
-- OAuth redirect allowlist connects `Backend/Chatify/Controller/authController.mjs`, `Backend/Chatify/Config/passport.mjs`, and environment examples.
-- Redacted logging touches `Backend/Chatify/Middlewares/protectRoutes.mjs`, `Backend/Chatify/Utils/tokenCookieGenerator.mjs`, `Backend/Chatify/Controller/authController.mjs`, `Backend/Chatify/Services/emailService.mjs`, `Backend/Chatify/Config/passport.mjs`, `Frontend/Chatify/src/pages/login/login.tsx`, and `Frontend/Chatify/src/pages/forgotPassword/forgotPassword.tsx`.
-- CI should be added under `.github/workflows/`.
+- CSRF must run after `cookieParser()` and before unsafe route handlers.
+- Chat/message CSRF must compose with existing `protect` middleware and rate limiters.
+- Password reset hashing connects `authController.mjs`, `passwordResetModel.mjs`, and mocked `emailService.mjs`.
+- Env examples must track variables actually referenced by backend/frontend code.
 
 </code_context>
-
-<specifics>
-## Specific Ideas
-
-- User approved every recommended implementation decision from the one-shot questionnaire.
-- Keep Phase 1 narrow and security-first; later phases own realtime identity, message lifecycle, UI reconstruction, and baseline search/polish.
-- Use deterministic tests with no real MongoDB, OAuth provider, Brevo, Render, Vercel, or local `.env` dependency.
-- Install/copy support skills found during discussion: `vitest`, `node`, `csrf-protection`, and `ci-cd`.
-
-</specifics>
 
 <deferred>
 ## Deferred Ideas
 
-None - discussion stayed within phase scope.
+- Socket.IO identity, room authorization, and reconnect behavior remain later realtime phases.
+- Canonical message lifecycle, unread reconciliation, edit/delete/reaction details, and pagination remain later message phases.
+- Chat UI reconstruction and visual polish remain later UI/product phases.
+- Broader structured observability belongs in the operational observability phase, not Phase 1.
 
 </deferred>
 
 ---
 
 *Phase: 01-security-and-test-foundation*
-*Context gathered: 2026-06-08*
+*Context updated: 2026-06-17*

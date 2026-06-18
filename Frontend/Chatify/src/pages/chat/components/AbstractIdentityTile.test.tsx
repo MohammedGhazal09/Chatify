@@ -21,4 +21,27 @@ describe('AbstractIdentityTile', () => {
 
     expect(screen.getAllByTestId('abstract-identity-tile')).toHaveLength(2);
   });
+
+  it('applies persisted palette and pattern metadata', () => {
+    render(
+      <AbstractIdentityTile
+        id="identity-1"
+        label="Relay Grid"
+        identityMark={{
+          source: 'custom',
+          label: 'Relay Grid',
+          initials: 'RG',
+          paletteId: 'indigo',
+          patternId: 'orbit',
+          accentId: 'sky',
+          updatedAt: '2026-06-17T05:00:00.000Z',
+        }}
+      />
+    );
+
+    const tile = screen.getByTestId('abstract-identity-tile');
+
+    expect(tile).toHaveClass('abstract-identity-tile--pattern-orbit');
+    expect(screen.getByText('RG')).toBeInTheDocument();
+  });
 });

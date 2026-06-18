@@ -44,6 +44,17 @@ const behaviorMessage = (overrides: Partial<Message>): Message => makeMessage({
   ...overrides,
 });
 
+const directConversationControls = (peerId: string) => ({
+  isDirectChat: true,
+  peerId,
+  canSendMessage: true,
+  canBlockUser: true,
+  canUnblockUser: false,
+  blockedByMe: false,
+  blockedMe: false,
+  messagingDisabledReason: null,
+});
+
 export const phase07PrimaryMessages: Message[] = [
   behaviorMessage({
     _id: 'behavior-message-live-data',
@@ -101,6 +112,7 @@ export const phase07Chats: Chat[] = [
   makeChat({
     _id: PHASE07_PRIMARY_CHAT_ID,
     members: [phase07CurrentUser, relayNode],
+    conversationControls: directConversationControls(relayNode._id),
     latestMessage: phase07PrimaryMessages[1],
     unReadMessages: 2,
     createdAt: '2025-06-03T10:00:00.000Z',
@@ -109,6 +121,7 @@ export const phase07Chats: Chat[] = [
   makeChat({
     _id: PHASE07_SECONDARY_CHAT_ID,
     members: [phase07CurrentUser, matrixSync],
+    conversationControls: directConversationControls(matrixSync._id),
     latestMessage: secondaryMessage,
     createdAt: '2025-06-03T09:00:00.000Z',
     updatedAt: '2025-06-03T10:10:00.000Z',
@@ -116,6 +129,7 @@ export const phase07Chats: Chat[] = [
   makeChat({
     _id: 'behavior-chat-signal-dock',
     members: [phase07CurrentUser, signalDock],
+    conversationControls: directConversationControls(signalDock._id),
     latestMessage: makeMessage({
       _id: 'behavior-message-signal-dock',
       chatId: 'behavior-chat-signal-dock',

@@ -1,31 +1,38 @@
-// Request logging middleware for monitoring and debugging
+import { createRequestId, logger } from '../Utils/observabilityLogger.mjs';
 
 const requestLogger = (req, res, next) => {
   const startTime = Date.now();
-
-  // Generate unique request ID
-  const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = createRequestId(req.get('x-request-id'));
   req.requestId = requestId;
+  res.setHeader('X-Request-Id', requestId);
 
-  // Log incoming request
-  console.log(`📨 [${requestId}] ${req.method} ${req.originalUrl}`);
+  logger.info('http.request.started', {
+    requestId,
+    method: req.method,
+    path: req.path,
+  });
 
-  // Capture response when it finishes
   res.on('finish', () => {
     const duration = Date.now() - startTime;
-    const statusColor = res.statusCode >= 400 ? '🔴' : res.statusCode >= 300 ? '🟡' : '🟢';
-    
-    console.log(`${statusColor} [${requestId}] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
+
+    logger.info('http.request.finished', {
+      requestId,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs: duration,
+    });
   });
 
   next();
 };
 
-// Error request logger - logs failed requests with more detail
 const errorRequestLogger = (err, req, res, next) => {
-  console.error(`❌ [${req.requestId || 'unknown'}] Error:`, {
+  logger.error('http.request.error', {
+    requestId: req.requestId || 'unknown',
     method: req.method,
-    url: req.originalUrl,
+    path: req.path,
+    statusCode: err.statusCode,
     error: err.message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });

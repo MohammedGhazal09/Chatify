@@ -160,6 +160,37 @@ describe('MessageBubble', () => {
     expect(screen.getByRole('img', { name: 'diagram.png' })).toHaveAttribute('crossorigin', 'use-credentials');
   });
 
+  it('renders voice attachments with protected playback controls', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          text: '',
+          attachments: [
+            makeAttachment({
+              attachmentId: 'attachment-voice',
+              displayName: 'voice-message.webm',
+              mimeType: 'audio/webm',
+              kind: 'voice',
+              size: 5,
+              durationSeconds: 4,
+            }),
+          ],
+        })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    expect(screen.getByText('voice-message.webm')).toBeInTheDocument();
+    expect(screen.getByText('0:04 - 5 B')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play voice-message.webm' })).toBeDisabled();
+    expect(screen.getByRole('link', { name: 'Download voice-message.webm' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/api/message/attachments/attachment-voice/download')
+    );
+  });
+
   it('keeps local sender-side media previews as same-document blob images', () => {
     render(
       <MessageBubble

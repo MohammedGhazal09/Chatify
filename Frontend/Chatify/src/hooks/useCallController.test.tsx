@@ -355,6 +355,56 @@ describe('useCallController', () => {
     expect(result.current.state.status).toBe('ended');
   });
 
+  it('ignores answers for a different active call id', async () => {
+    const { result } = renderController();
+    const answer = {
+      type: 'answer',
+      sdp: 'mock-answer',
+    } as RTCSessionDescriptionInit;
+
+    await act(async () => {
+      await result.current.startCall('audio');
+    });
+
+    await act(async () => {
+      await result.current.socketHandlers.handleCallSync(makeCallSession({
+        status: 'connected',
+        answeredAt: '2026-06-13T10:00:05.000Z',
+      }));
+    });
+
+    await waitFor(() => {
+      expect(getMockPeerConnections()).toHaveLength(1);
+    });
+
+    const peerConnection = getMockPeerConnections()[0];
+    if (!peerConnection) {
+      throw new Error('Expected a peer connection to be created.');
+    }
+
+    await act(async () => {
+      await result.current.socketHandlers.handleCallAnswer({
+        callId: 'stale-call',
+        chatId: 'chat-1',
+        fromUserId: 'user-2',
+        signal: answer,
+      });
+    });
+
+    expect(peerConnection.setRemoteDescription).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.socketHandlers.handleCallAnswer({
+        callId: 'call-1',
+        chatId: 'chat-1',
+        fromUserId: 'user-2',
+        signal: answer,
+      });
+    });
+
+    expect(peerConnection.setRemoteDescription).toHaveBeenCalledWith(answer);
+  });
+
   it('accepts an incoming call by session chat id when no conversation is selected', async () => {
     const session = makeCallSession({ callerId: 'user-2', calleeId: 'user-1', mode: 'audio' });
     const { result, actions } = renderController({

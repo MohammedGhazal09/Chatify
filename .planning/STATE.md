@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 16 complete
-last_updated: "2026-06-16T05:24:26.563Z"
-last_activity: 2026-06-16 -- Phase 16 completed; local two-account profile-image E2E blocked pending env/accounts
+status: blocked
+stopped_at: Phase 19 complete; release readiness blocked pending Phase 14/15/17 evidence
+last_updated: "2026-06-17T12:21:13+03:00"
+last_activity: 2026-06-17 -- Phase 19 completed with product-polish evidence and review artifacts; v1 release remains blocked pending production/call evidence
 progress:
-  total_phases: 17
-  completed_phases: 13
-  total_plans: 52
-  completed_plans: 41
-  percent: 79
+  total_phases: 20
+  completed_phases: 20
+  total_plans: 65
+  completed_plans: 68
+  percent: 100
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 16 — profile-picture-upload-and-shared-avatar-visibility
+**Current focus:** Phase 19 — execute messenger product polish and notifications
 
 ## Current Position
 
-Phase: 16 (profile-picture-upload-and-shared-avatar-visibility) — COMPLETE
-Plan: 4 of 4
-Status: Complete with local two-account E2E blocked pending env/accounts.
-Last activity: 2026-06-16 -- Phase 16 completed; local two-account profile-image E2E blocked pending env/accounts
+Phase: 19 (messenger-product-polish-and-notifications) — COMPLETE
+Plan: 19-05 Product Polish Verification And Evidence
+Status: Phase 19 complete locally; Phase 14/15/17 release blockers preserved.
+Last activity: 2026-06-17 -- Phase 19 completed with product-polish evidence and review artifacts; v1 release remains blocked pending production/call evidence
 
-Progress: 79%
+Progress: Phase 19 has 5/5 plans complete; release readiness remains blocked by missing production live, local/prod call, and final v1 evidence.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 27
+- Total plans completed: 69
 - Average duration: 34 min
 - Total execution time: 5h 10m
 
@@ -49,6 +49,17 @@ Progress: 79%
 | 04-messenger-ui-reconstruction | 3 | 2h 05m | 42m |
 | 05 | 2 | - | - |
 | 16 | 4 | - | - |
+| 1 | 3 | - | - |
+| 2 | 3 | - | - |
+| 3 | 3 | - | - |
+| 4 | 3 | - | - |
+| 5 | 2 | - | - |
+| 6 | 3 | - | - |
+| 7 | 3 | - | - |
+| 8 | 3 | - | - |
+| 9 | 3 | - | - |
+| 11 | 3 | - | - |
+| 19 | 5 | - | - |
 
 **Recent Trend:**
 
@@ -107,6 +118,8 @@ Recent decisions affecting current work:
 - Phase 10 added: Production Messenger Reality Audit And Fixture Removal.
 - Phase 11 added: Conversation Controls And User Safety Implementation.
 - Phase 12 added: Live Media Voice And Identity Implementation.
+- Phase 12 completed local implementation, verification, UI review, and code review with Phase 14 production-live acceptance still deferred.
+- Phase 13 completed local implementation, verification, UI review/fix, and resolved code review; live deployed two-party call acceptance remains a Phase 14/15 production-readiness boundary.
 - Phase 13 added: Realtime Call And Video Implementation.
 - Phase 14 added: Production Live Acceptance Gate.
 - Production-live correction: Phase 9 evidence was not sufficient to claim the deployed messenger is fully functional because the live UI still exposes a non-closable right rail, dead call/video/search/more controls, static shared files/media/pinned surfaces, and static voice/media interactions.
@@ -118,9 +131,18 @@ Recent decisions affecting current work:
 - Phase 14 plan 14-01 completed with a production-only Playwright config, strict Phase 14 env validator, sanitized acceptance artifact writer, no-env blocked report, and setup guide.
 - Phase 14 plan 14-02 completed with the main production live acceptance spec for two-account messaging, controls, generated attachments, shared surfaces, static-content denial, blocked no-env reporting, and behavior-backed screenshot capture when smoke env is configured.
 - Phase 14 plan 14-03 completed with call/video fake-media acceptance paths, deployment-origin/cookie/socket/file evidence, optional deployed commit metadata, final readiness decision reporting, and local quality gates passing.
+- Phase 14 review gap resolved with HTTPS-to-WSS backend evidence, no-env artifact preservation, server-backed pinned/security detail checks, logout/session recovery, and call cleanup coverage; production readiness remains blocked without smoke env.
 - Phase 15 added: Investigate and fix audio and video call reliability.
+- Phase 15 executed locally with failure report, local two-account fake-media harness, frontend call repairs verified, backend call authority verified, and acceptance artifact recording local/prod smoke env blockers.
 - Phase 16 added: Profile Picture Upload And Shared Avatar Visibility.
 - Phase 16 planned with 4 plans across 3 waves: backend profile image contract/storage/security, Settings workflow and cache propagation, avatar rendering surfaces with fixture guardrails, and acceptance evidence with local two-account verification.
+- Phase 17 added: V1 Readiness Closure And Release Gate.
+- Phase 18 added: Operational Observability And Runbook Hardening.
+- Phase 19 added: Messenger Product Polish And Notifications.
+- Phase 18 planned with four sequential operations plans: structured diagnostics/redaction, health/readiness, quality scripts/runbooks, and regression/evidence.
+- Phase 18 completed with structured redacted logging, health/readiness endpoints, root quality/smoke scripts, operations runbooks, ops guard checks, and sanitized operations readiness evidence.
+- Phase 19 planned with five sequential waves: notification preference/privacy model, notification UI and realtime alert wiring, account/session and multi-tab polish, empty/offline/blocked/failure state polish, and product-polish verification/evidence.
+- Phase 19 completed with local notification/product-polish evidence, full frontend tests, Playwright checks, lint, build, ops check, and release blockers preserved.
 
 ### Pending Todos
 
@@ -128,6 +150,10 @@ Recent decisions affecting current work:
 - Plan and execute Phase 10 before continuing feature claims; it must reproduce the production failures and remove fixture/static fallbacks.
 - Provide production smoke credentials and run Phase 10.1 production delivery reliability before claiming deployed delivery reliability complete.
 - Provide Phase 14 production smoke environment and rerun `cd Frontend/Chatify; npm run test:e2e:prod -- --grep "Phase 14 production live acceptance"` to move readiness from blocked to allowed.
+- Provide Phase 15 local call smoke environment (`CHATIFY_LOCAL_CALL_SMOKE=1`, local frontend/backend URLs, and two disposable local accounts) and rerun `cd Frontend/Chatify; npm run test:ui -- --grep "Phase 15"` to prove local audio/video fake-media acceptance.
+- Provide production smoke env plus TURN readiness evidence and rerun `cd Frontend/Chatify; npm run test:e2e:prod -- --grep "Phase 15|Phase 14 production live acceptance"` before claiming production call readiness.
+- Plan Phase 17 so final readiness cannot pass until Phase 1, Phase 10, Phase 10.1, Phase 14, and Phase 15 evidence is reconciled.
+- Phase 19 is complete; do not use it to claim release readiness until Phase 14, Phase 15, and Phase 17 blockers are resolved with evidence.
 
 ### Blockers/Concerns
 
@@ -137,14 +163,19 @@ Recent decisions affecting current work:
 - Phase 10.1 local delivery reliability is proven, but production delivery reliability is still blocked pending live smoke credentials and deploy identifiers.
 - Phase 14 production acceptance will remain blocked until deployed frontend/backend origins and two disposable production-safe accounts are configured through env vars.
 - Phase 14 implementation is complete, but `14-LIVE-ACCEPTANCE.md` records readiness blocked because the production smoke environment was not configured in this run.
+- Phase 15 call readiness remains blocked until local two-account fake-media smoke env and production smoke/TURN prerequisites are configured; current code/unit/backend/lint/build gates pass, but browser call acceptance is not proven in this environment.
+- Phase 17 planned with four release-gate plans for evidence inventory, security/local quality reconciliation, production/call readiness gating, and final v1 decision.
+- Phase 17 executed with green local backend/frontend quality gates but final v1 readiness blocked by missing production live, delivery, local call, and production TURN/smoke evidence.
 - Remaining concern: Phase 01 security/test foundation requirements are still pending in the roadmap.
+- New Phase 17 must not be used to bypass unresolved Phase 1, Phase 10, Phase 10.1, Phase 14, or Phase 15 blockers; it is a closure gate, not a substitute implementation.
 - Repository hygiene note: unrelated local screenshot/config changes existed before these phase additions and should not be mixed into future focused commits unless intentionally refreshed.
+- Phase 19 execution must not be used to imply release readiness; it is product polish and notification UX only.
 
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Platform | Group chats, notifications, moderation, admin tooling, end-to-end encryption | Deferred to v2 | Initialization |
+| Platform | Group chats, cross-platform push/email notification delivery beyond Phase 19 baseline, moderation, admin tooling, end-to-end encryption | Deferred to v2 | Initialization |
 
 ## Session Continuity
 

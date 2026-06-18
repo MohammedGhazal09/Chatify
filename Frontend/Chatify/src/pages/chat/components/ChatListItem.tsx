@@ -1,4 +1,5 @@
 import OnlineStatus from '../../../components/OnlineStatus';
+import { BellOff } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
@@ -10,11 +11,12 @@ interface ChatListItemProps {
   avatarUser?: User | null;
   isActive: boolean;
   isOnline: boolean;
+  isMuted?: boolean;
   unreadCount: number;
   onSelect: () => void;
 }
 
-const ChatListItem = ({ chat, title, avatarUser, isActive, isOnline, unreadCount, onSelect }: ChatListItemProps) => {
+const ChatListItem = ({ chat, title, avatarUser, isActive, isOnline, isMuted = false, unreadCount, onSelect }: ChatListItemProps) => {
   const timestamp = chat.latestMessage
     ? formatTimestamp(chat.latestMessage.updatedAt)
     : formatTimestamp(chat.updatedAt);
@@ -39,6 +41,16 @@ const ChatListItem = ({ chat, title, avatarUser, isActive, isOnline, unreadCount
             <span className="flex items-center gap-2 text-sm font-semibold leading-5">
               <span className="truncate">{title}</span>
               {!chat.isGroupChat && isOnline && <OnlineStatus isOnline size="sm" />}
+              {isMuted && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--chat-panel-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--chat-text-muted)]"
+                  title="Muted"
+                  aria-label="Conversation muted"
+                >
+                  <BellOff aria-hidden="true" className="h-3 w-3" />
+                  <span className="sr-only">Muted</span>
+                </span>
+              )}
             </span>
             <span className="mt-1 block truncate text-xs text-[var(--chat-text-muted)]">
               {chat.latestMessage ? chat.latestMessage.text : 'No messages yet'}

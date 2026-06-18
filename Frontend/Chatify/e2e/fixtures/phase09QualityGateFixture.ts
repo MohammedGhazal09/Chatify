@@ -92,6 +92,18 @@ export const phase09SharedMediaAttachment = {
   createdAt: '2026-06-12T09:36:00.000Z',
 };
 
+export const phase09SharedVoiceAttachment = {
+  _id: 'phase12-attachment-relay-voice',
+  attachmentId: 'phase12-attachment-relay-voice',
+  displayName: 'phase12-relay-check-in.webm',
+  mimeType: 'audio/webm',
+  size: 28 * 1024,
+  kind: 'voice' as const,
+  durationSeconds: 12,
+  status: 'active' as const,
+  createdAt: '2026-06-12T09:37:30.000Z',
+};
+
 const phase09UploadAttachment = {
   _id: 'phase09-attachment-upload-sample',
   attachmentId: 'phase09-attachment-upload-sample',
@@ -270,6 +282,15 @@ export const phase09SharedMedia: SharedAsset[] = [
   },
 ];
 
+export const phase09SharedVoice: SharedAsset[] = [
+  {
+    ...phase09SharedVoiceAttachment,
+    messageId: 'phase09-message-shared-assets',
+    chatId: PHASE09_PRIMARY_CHAT_ID,
+    uploader: relayGrid._id,
+  },
+];
+
 export const phase09PinnedMessages: PinnedMessage[] = [
   {
     messageId: 'phase09-message-delivery-read',
@@ -385,5 +406,6 @@ export const phase09QualityGateFixture = {
   typingUsers: phase09TypingUsers,
   sharedFiles: phase09SharedFiles,
   sharedMedia: phase09SharedMedia,
+  sharedVoice: phase09SharedVoice,
   pinnedMessages: phase09PinnedMessages,
 } as const;

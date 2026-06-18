@@ -1,10 +1,11 @@
 import axiosInstance from './axios';
-import type { AxiosResponse } from 'axios';
+import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { resolveApiBaseUrl } from './apiOrigin';
 import type {
   CursorPaginationInfo,
   Message,
   MessageReceiptPatch,
+  MessageUploadAttachment,
   NewMessagePayload,
   PaginationInfo,
   PinnedMessage,
@@ -131,7 +132,17 @@ type SharedAssetsOptions = {
   limit?: number;
 };
 
+type CreateMessageOptions = Pick<AxiosRequestConfig, 'signal' | 'onUploadProgress'>;
+
 const hasAttachments = (payload: NewMessagePayload) => Boolean(payload.attachments?.length);
+
+const isComposerDraft = (attachment: MessageUploadAttachment): attachment is Exclude<MessageUploadAttachment, File> => {
+  return !(typeof File !== 'undefined' && attachment instanceof File);
+};
+
+const getAttachmentFile = (attachment: MessageUploadAttachment) => (
+  isComposerDraft(attachment) ? attachment.file : attachment
+);
 
 const buildCreateMessageBody = (payload: NewMessagePayload) => {
   if (!hasAttachments(payload)) {
@@ -142,9 +153,24 @@ const buildCreateMessageBody = (payload: NewMessagePayload) => {
   formData.append('chatId', payload.chatId);
   formData.append('text', payload.text);
   formData.append('clientMessageId', payload.clientMessageId);
-  payload.attachments?.forEach((file) => {
-    formData.append('attachments', file);
+  const attachmentMetadata = payload.attachments?.map((attachment) => {
+    if (!isComposerDraft(attachment)) {
+      return {};
+    }
+
+    return {
+      kind: attachment.kind,
+      durationSeconds: attachment.durationSeconds ?? null,
+    };
+  }) ?? [];
+
+  payload.attachments?.forEach((attachment) => {
+    formData.append('attachments', getAttachmentFile(attachment));
   });
+
+  if (attachmentMetadata.some((metadata) => Object.keys(metadata).length > 0)) {
+    formData.append('attachmentMetadata', JSON.stringify(attachmentMetadata));
+  }
 
   return formData;
 };
@@ -154,8 +180,12 @@ const buildProtectedAssetUrl = (attachmentId: string, action: 'preview' | 'downl
 };
 
 export const messageApi = {
-  createMessage: (payload: NewMessagePayload): Promise<AxiosResponse<MessageResponse>> =>
-    axiosInstance.post('/api/message/new-message', buildCreateMessageBody(payload)),
+  createMessage: (payload: NewMessagePayload, options?: CreateMessageOptions): Promise<AxiosResponse<MessageResponse>> => {
+    const config = options && Object.keys(options).length > 0 ? options : undefined;
+    return config
+      ? axiosInstance.post('/api/message/new-message', buildCreateMessageBody(payload), config)
+      : axiosInstance.post('/api/message/new-message', buildCreateMessageBody(payload));
+  },
 
   getAllMessages: (chatId: string, options: GetMessagesOptions = {}): Promise<AxiosResponse<MessagesResponse>> => {
     const params = new URLSearchParams();

@@ -57,6 +57,46 @@ describe('messageApi', () => {
     expect(body.getAll('attachments')).toEqual([file]);
   });
 
+  it('includes voice metadata and upload options for voice drafts', () => {
+    const file = new File(['voice'], 'voice-message.webm', { type: 'audio/webm' });
+    const abortController = new AbortController();
+    const onUploadProgress = vi.fn();
+
+    messageApi.createMessage({
+      chatId: 'chat-1',
+      text: '',
+      clientMessageId: 'client-voice',
+      attachments: [{
+        id: 'voice-draft',
+        file,
+        displayName: 'voice-message.webm',
+        mimeType: 'audio/webm',
+        size: file.size,
+        kind: 'voice',
+        durationSeconds: 3.2,
+      }],
+    }, {
+      signal: abortController.signal,
+      onUploadProgress,
+    });
+
+    expect(axiosMock.post).toHaveBeenCalledTimes(1);
+    const [, body, config] = axiosMock.post.mock.calls[0];
+
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.getAll('attachments')).toEqual([file]);
+    expect(JSON.parse(String(body.get('attachmentMetadata')))).toEqual([
+      {
+        kind: 'voice',
+        durationSeconds: 3.2,
+      },
+    ]);
+    expect(config).toMatchObject({
+      signal: abortController.signal,
+      onUploadProgress,
+    });
+  });
+
   it('builds shared asset, pin, and protected attachment routes', () => {
     messageApi.getSharedAssets('chat-1', { kind: 'media', cursor: 'cursor-1', limit: 6 });
     messageApi.getPinnedMessages('chat-1');

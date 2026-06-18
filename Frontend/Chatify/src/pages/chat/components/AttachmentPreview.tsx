@@ -4,6 +4,7 @@ import { messageApi } from '../../../api/messageApi';
 import type { AttachmentStatus, SharedAssetKind } from '../../../types/chat';
 import { formatFileSize } from '../utils/attachmentDisplay';
 import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
+import VoiceMessagePlayer from './VoiceMessagePlayer';
 
 type AttachmentRenderable = {
   attachmentId: string;
@@ -42,6 +43,10 @@ const AttachmentPreview = ({ attachment, compact = false, onOpenPreview }: Attac
   const downloadUrl = isUnavailable ? null : messageApi.getAttachmentDownloadUrl(attachment.attachmentId);
   const isProtectedRemotePreview = Boolean(previewUrl && !attachment.localPreviewUrl);
   const fileTypeLabel = getFileTypeLabel(attachment.mimeType, attachment.displayName);
+
+  if (attachment.kind === 'voice') {
+    return <VoiceMessagePlayer attachment={attachment} compact={compact} />;
+  }
 
   if (attachment.kind === 'media') {
     return (

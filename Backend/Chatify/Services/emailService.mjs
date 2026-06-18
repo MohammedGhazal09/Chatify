@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { HTMLTemplate } from '../Utils/emailmsg.mjs';
+import { logger } from '../Utils/observabilityLogger.mjs';
 
 export const sendPasswordResetEmail = async (email, resetCode) => {
   
@@ -28,7 +29,11 @@ export const sendPasswordResetEmail = async (email, resetCode) => {
     
     return response.data;
   } catch (error) {
-    console.error('❌ Error message:', error.message);
+    logger.error('email.password_reset_delivery_failed', {
+      code: error?.code,
+      status: error?.response?.status,
+      error,
+    });
     throw error;
   }
 };

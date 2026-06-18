@@ -63,4 +63,22 @@ describe('ChatListItem', () => {
 
     expect(screen.getByRole('img', { name: 'Grace Hopper profile picture fallback' })).toBeInTheDocument();
   });
+
+  it('shows a muted conversation indicator without hiding unread counts', () => {
+    render(
+      <ChatListItem
+        chat={makeChat()}
+        title="Grace Hopper"
+        avatarUser={makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper' })}
+        isActive={false}
+        isOnline={false}
+        isMuted
+        unreadCount={4}
+        onSelect={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Conversation muted')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
+  });
 });

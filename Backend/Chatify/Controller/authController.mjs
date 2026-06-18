@@ -2,7 +2,7 @@ import User from '../Models/userModel.mjs';
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import {CustomError} from '../Utils/customError.mjs';
 import jsonwebtoken from 'jsonwebtoken'
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import {
   clearSessionCookies,
   issueSessionCookies,
@@ -16,6 +16,7 @@ import PasswordReset from '../Models/passwordResetModel.mjs';
 import OAuthHandoff from '../Models/oauthHandoffModel.mjs';
 import {sendPasswordResetEmail} from '../Services/emailService.mjs';
 import { resolveOAuthFinalizeBaseURL } from '../Utils/oauthConfig.mjs';
+import { logger } from '../Utils/observabilityLogger.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 const FRONTEND_URL = isProd 
@@ -25,6 +26,7 @@ const OAUTH_STATE_COOKIE = 'chatify_oauth_state';
 const OAUTH_HANDOFF_PURPOSE = 'oauth_handoff';
 const OAUTH_HANDOFF_EXPIRES_IN = '60s';
 const OAUTH_HANDOFF_TTL_MS = 60 * 1000;
+const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 
 const hashOAuthState = (state) => createHash('sha256').update(state).digest('base64url');
 
@@ -307,6 +309,61 @@ const generateResetCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit code
 }
 
+const getPasswordResetSecret = () => {
+  const secret = process.env.PASSWORD_RESET_SECRET;
+
+  if (!secret) {
+    throw new CustomError('Password reset is temporarily unavailable', 500);
+  }
+
+  return secret;
+};
+
+const hashPasswordResetCode = (code) => createHmac('sha256', getPasswordResetSecret())
+  .update(String(code))
+  .digest('base64url');
+
+const safeHashEqual = (left, right) => {
+  const leftBuffer = Buffer.from(left ?? '');
+  const rightBuffer = Buffer.from(right ?? '');
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
+};
+
+const recordFailedResetAttempt = async (resetToken) => {
+  const nextAttempts = (resetToken.attempts ?? 0) + 1;
+
+  if (nextAttempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
+    await PasswordReset.deleteOne({ _id: resetToken._id });
+    return;
+  }
+
+  resetToken.attempts = nextAttempts;
+  await resetToken.save();
+};
+
+const findValidPasswordReset = async ({ email, code }) => {
+  const resetToken = await PasswordReset
+    .findOne({ email, expiresAt: { $gt: new Date() } })
+    .sort({ createdAt: -1 });
+
+  if (!resetToken) {
+    return null;
+  }
+
+  const codeHash = hashPasswordResetCode(code);
+  if (!safeHashEqual(resetToken.tokenHash, codeHash)) {
+    await recordFailedResetAttempt(resetToken);
+    return null;
+  }
+
+  return resetToken;
+};
+
 export const forgotPassword = asyncErrHandler(async (req, res, next) => {
   const { email } = req.body;
   if (!email) {
@@ -327,15 +384,18 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
     await PasswordReset.create({
       userId: user._id,
       email: user.email,
-      token: resetCode,
+      tokenHash: hashPasswordResetCode(resetCode),
+      attempts: 0,
     })
     
     try {
       await sendPasswordResetEmail(user.email, resetCode);
     } catch (err) {
-      console.error('Auth notification delivery failed:', {
+      logger.error('auth.password_reset_notification_failed', {
+        userId: user._id.toString(),
         code: err?.code,
         status: err?.response?.status,
+        error: err,
       });
       
       return next(new CustomError('Failed to send reset email. Please try again.', 500));
@@ -352,7 +412,7 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
     if (!email || !code) {
       return next(new CustomError('Please provide email and reset code', 400));
     }
-    const resetToken = await PasswordReset.findOne({email, token: code, expiresAt: { $gt: new Date()}})
+    const resetToken = await findValidPasswordReset({ email, code });
     
     if (!resetToken) {
       return next(new CustomError('Invalid or expired reset code', 400));
@@ -370,7 +430,7 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
       return next(new CustomError('Please provide email, reset code and new password', 400));
     }
     
-    const resetToken = await PasswordReset.findOne({email, token: code, expiresAt: { $gt: new Date()}})
+    const resetToken = await findValidPasswordReset({ email, code });
     
     if (!resetToken) {
       return next(new CustomError('Invalid or expired reset code', 400));

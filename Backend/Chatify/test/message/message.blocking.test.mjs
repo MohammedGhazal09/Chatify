@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import Message from '../../Models/messageModel.mjs';
 import UserBlock from '../../Models/userBlockModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
+import { attachVoice } from '../fixtures/attachments.mjs';
 import { createMessage } from '../fixtures/messages.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 
@@ -49,6 +50,14 @@ describe('HTTP message blocking contract', () => {
         clientMessageId: 'blocker-send-after-block',
       })
       .expect(403);
+
+    await attachVoice(
+      memberTwo.agent
+        .post('/api/message/new-message')
+        .field('chatId', chat._id.toString())
+        .field('text', '')
+        .field('clientMessageId', 'blocked-peer-voice-send')
+    ).expect(403);
 
     await expect(Message.countDocuments({ chatId: chat._id })).resolves.toBe(1);
 

@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '../api/chatApi';
 import { messageApi } from '../api/messageApi';
 import { userApi } from '../api/userApi';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import type { AttachmentSummary, Chat, Message, MessageStatus, SharedAssetKind, UserOnlineStatus } from '../types/chat';
+import type {
+  AttachmentSummary,
+  Chat,
+  ComposerAttachmentDraft,
+  Message,
+  MessageStatus,
+  SharedAssetKind,
+  UserOnlineStatus,
+} from '../types/chat';
 import {
   applyBatchReadInCache,
   applyReceiptPatchInCache,
@@ -34,7 +42,7 @@ type SendMessageVariables = {
   chatId: string;
   text: string;
   clientMessageId?: string;
-  attachments?: File[];
+  attachments?: ComposerAttachmentDraft[];
   optimisticAttachments?: AttachmentSummary[];
 };
 
@@ -46,6 +54,17 @@ type SendMessageContext = {
 };
 
 type MessagesQueryData = MessagesCacheData;
+
+export type MessageUploadStatus = 'uploading' | 'completed' | 'failed' | 'aborted';
+
+export interface MessageUploadState {
+  clientMessageId: string;
+  status: MessageUploadStatus;
+  progress: number;
+  loaded?: number;
+  total?: number;
+  errorMessage?: string;
+}
 
 const ensureSendClientMessageId = (variables: SendMessageVariables) => {
   variables.clientMessageId = variables.clientMessageId ?? createClientMessageId();
@@ -62,7 +81,7 @@ const MIN_MESSAGE_SEARCH_LENGTH = 2;
 
 const normalizeSearchText = (query: string) => query.trim();
 
-const hasAttachmentFiles = (attachments?: File[]) => Boolean(attachments?.length);
+const hasAttachmentFiles = (attachments?: ComposerAttachmentDraft[]) => Boolean(attachments?.length);
 
 const getPresenceName = (user: { firstName?: string; lastName?: string }) => (
   `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim()
@@ -387,8 +406,35 @@ export const useMessageSearch = (chatId: string | null, query: string) => {
 export const useSendMessage = () => {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
+  const uploadControllersRef = useRef(new Map<string, AbortController>());
+  const [uploadStates, setUploadStates] = useState<Record<string, MessageUploadState>>({});
 
-  return useMutation<Message, unknown, SendMessageVariables, SendMessageContext>({
+  const patchUploadState = useCallback((clientMessageId: string, patch: Partial<MessageUploadState>) => {
+    setUploadStates((currentStates) => ({
+      ...currentStates,
+      [clientMessageId]: {
+        clientMessageId,
+        status: currentStates[clientMessageId]?.status ?? 'uploading',
+        progress: currentStates[clientMessageId]?.progress ?? 0,
+        ...patch,
+      },
+    }));
+  }, []);
+
+  const cancelUpload = useCallback((clientMessageId?: string | null) => {
+    if (!clientMessageId) {
+      return;
+    }
+
+    const controller = uploadControllersRef.current.get(clientMessageId);
+    controller?.abort();
+    patchUploadState(clientMessageId, {
+      status: 'aborted',
+      errorMessage: 'Upload canceled',
+    });
+  }, [patchUploadState]);
+
+  const mutation = useMutation<Message, unknown, SendMessageVariables, SendMessageContext>({
     mutationFn: async (variables) => {
       if (!user?._id) {
         throw new Error('You must be logged in to send messages.');
@@ -403,13 +449,66 @@ export const useSendMessage = () => {
         throw new Error(normalizedText.message);
       }
 
-      const response = await messageApi.createMessage({
-        chatId: variables.chatId,
-        text: normalizedText.text,
-        clientMessageId,
-        attachments: variables.attachments,
-      });
-      return response.data.data.message;
+      const hasAttachments = hasAttachmentFiles(variables.attachments);
+      const abortController = hasAttachments ? new AbortController() : null;
+
+      if (abortController) {
+        uploadControllersRef.current.set(clientMessageId, abortController);
+        patchUploadState(clientMessageId, {
+          status: 'uploading',
+          progress: 0,
+          loaded: 0,
+          total: undefined,
+          errorMessage: undefined,
+        });
+      }
+
+      try {
+        const response = await messageApi.createMessage({
+          chatId: variables.chatId,
+          text: normalizedText.text,
+          clientMessageId,
+          attachments: variables.attachments,
+        }, hasAttachments ? {
+          signal: abortController?.signal,
+          onUploadProgress: (event) => {
+            const total = Number(event.total);
+            const loaded = Number(event.loaded);
+            const progress = Number.isFinite(total) && total > 0
+              ? Math.min(100, Math.max(0, Math.round((loaded / total) * 100)))
+              : 0;
+
+            patchUploadState(clientMessageId, {
+              status: 'uploading',
+              progress,
+              loaded: Number.isFinite(loaded) ? loaded : undefined,
+              total: Number.isFinite(total) && total > 0 ? total : undefined,
+            });
+          },
+        } : undefined);
+
+        if (hasAttachments) {
+          patchUploadState(clientMessageId, {
+            status: 'completed',
+            progress: 100,
+          });
+        }
+
+        return response.data.data.message;
+      } catch (error) {
+        if (hasAttachments) {
+          patchUploadState(clientMessageId, {
+            status: abortController?.signal.aborted ? 'aborted' : 'failed',
+            errorMessage: abortController?.signal.aborted ? 'Upload canceled' : 'Upload failed',
+          });
+        }
+
+        throw error;
+      } finally {
+        if (abortController) {
+          uploadControllersRef.current.delete(clientMessageId);
+        }
+      }
     },
     onMutate: async (variables) => {
       if (!user?._id) {
@@ -436,7 +535,8 @@ export const useSendMessage = () => {
         text: normalizedText.text,
         clientMessageId,
         attachments: variables.optimisticAttachments,
-        localFiles: variables.attachments,
+        localFiles: variables.attachments?.map((attachment) => attachment.file),
+        localDrafts: variables.attachments,
       });
 
       queryClient.setQueryData<MessagesQueryData>(
@@ -467,7 +567,9 @@ export const useSendMessage = () => {
       if (clientMessageId) {
         queryClient.setQueryData<MessagesQueryData>(
           messagesQueryKey(variables.chatId),
-          (old) => markOptimisticMessageFailed(old, clientMessageId)
+          (old) => markOptimisticMessageFailed(old, clientMessageId, hasAttachmentFiles(variables.attachments)
+            ? 'Upload failed. Retry before leaving this session.'
+            : 'Message failed to send')
         );
       }
     },
@@ -482,6 +584,12 @@ export const useSendMessage = () => {
       }
     },
   });
+
+  return {
+    ...mutation,
+    uploadStates,
+    cancelUpload,
+  };
 };
 
 export const useSharedAssets = (chatId: string | null, kind?: SharedAssetKind) => {

@@ -1,5 +1,6 @@
 import type { ChangeEvent, KeyboardEventHandler, RefObject } from 'react';
 import { Ban, ShieldCheck, X } from 'lucide-react';
+import type { MessageUploadState } from '../../../hooks/useChatQueries';
 import type { Chat, ComposerSendPayload, ConversationControls, Message, UserOnlineStatus } from '../../../types/chat';
 import type { User } from '../../../types/auth';
 import TypingIndicator from '../../../components/TypingIndicator';
@@ -50,6 +51,7 @@ interface ConversationPaneProps {
   isSending: boolean;
   isSendError: boolean;
   sendDisabledReason?: string | null;
+  composerUploadState?: MessageUploadState;
   isConversationControlPending: boolean;
   composerResetToken: number;
   isOffline: boolean;
@@ -87,6 +89,7 @@ interface ConversationPaneProps {
   onAppendEmoji: (emoji: string) => void;
   onUnblockUser: () => void;
   onCancelReply: () => void;
+  onCancelComposerUpload?: () => void;
 }
 
 type MessageListProps = Parameters<typeof MessageList>[0];
@@ -130,6 +133,7 @@ const ConversationPane = ({
   isSending,
   isSendError,
   sendDisabledReason,
+  composerUploadState,
   isConversationControlPending,
   composerResetToken,
   isOffline,
@@ -167,6 +171,7 @@ const ConversationPane = ({
   onAppendEmoji,
   onUnblockUser,
   onCancelReply,
+  onCancelComposerUpload,
 }: ConversationPaneProps) => {
   const isMessageSearchActive = showMessageSearch && Boolean(messageSearch.trim());
   const isConversationBlocked = conversationControls?.canSendMessage === false;
@@ -175,8 +180,12 @@ const ConversationPane = ({
     return (
       <ChatStateView
         heading="Select a conversation"
-        body="Choose a chat from the sidebar or start a new one."
+        body="Open conversations and choose a chat, or start a new one from the sidebar."
         className="bg-[var(--chat-bg)]"
+        primaryAction={{
+          label: 'Open conversations',
+          onClick: onOpenSidebar,
+        }}
       />
     );
   }
@@ -185,7 +194,7 @@ const ConversationPane = ({
     return (
       <ChatStateView
         heading="Your session expired"
-        body="Sign in again to continue."
+        body="Your private chat is hidden. Sign in again to continue."
         tone="danger"
         className="bg-[var(--chat-bg)]"
         primaryAction={{
@@ -255,11 +264,12 @@ const ConversationPane = ({
           className={`border-b border-[var(--chat-border)] px-4 py-2 text-sm ${
             isOffline ? 'bg-[color-mix(in_srgb,var(--chat-danger)_12%,var(--chat-panel))] text-[var(--chat-danger)]' : 'bg-[color-mix(in_srgb,var(--chat-warning)_14%,var(--chat-panel))] text-[var(--chat-warning)]'
           }`}
+          role="status"
           aria-live="polite"
         >
           {isOffline
-            ? 'You are offline. Reconnect to send new messages.'
-            : 'Reconnecting. Messages will update when the connection returns.'}
+            ? 'You are offline. New messages will wait until the connection returns.'
+            : 'Reconnecting. The timeline will refresh when the connection returns.'}
         </div>
       )}
 
@@ -323,10 +333,11 @@ const ConversationPane = ({
         showEmojiPicker={showEmojiPicker}
         isSending={isSending}
         isSendError={isSendError}
+        uploadState={composerUploadState}
         resetToken={composerResetToken}
         sendDisabledReason={
           isOffline
-            ? 'You are offline. Reconnect to send new messages.'
+            ? 'You are offline. New messages will wait until the connection returns.'
             : isSessionExpired
               ? 'Your session expired. Sign in again to continue.'
               : conversationControls?.canSendMessage === false
@@ -341,6 +352,7 @@ const ConversationPane = ({
         onToggleEmojiPicker={onToggleEmojiPicker}
         onAppendEmoji={onAppendEmoji}
         onCancelReply={onCancelReply}
+        onCancelUpload={onCancelComposerUpload}
       />
     </>
   );

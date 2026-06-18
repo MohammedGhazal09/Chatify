@@ -276,3 +276,4 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .github/copilot-instructions.md
+Backend/Chatify/profile.json

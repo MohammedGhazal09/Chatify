@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { userApi } from '../api/userApi';
 import { useAuthStore } from '../store/authstore';
-import type { User } from '../types/auth';
+import type { IdentityMarkInput, User } from '../types/auth';
 import {
   chatsQueryKey,
   onlinePresenceQueryKey,
@@ -54,9 +54,21 @@ export const useProfileImageMutation = () => {
     },
   });
 
+  const updateIdentityMark = useMutation({
+    mutationFn: async (identityMark: IdentityMarkInput) => {
+      const response = await userApi.updateIdentityMark(identityMark);
+      return response.data.data.user;
+    },
+    onSuccess: (user) => {
+      updateCurrentUser(queryClient, setUser, user);
+      invalidateProfileImageDependents(queryClient);
+    },
+  });
+
   return {
     uploadProfileImage,
     removeProfileImage,
-    isPending: uploadProfileImage.isPending || removeProfileImage.isPending,
+    updateIdentityMark,
+    isPending: uploadProfileImage.isPending || removeProfileImage.isPending || updateIdentityMark.isPending,
   };
 };

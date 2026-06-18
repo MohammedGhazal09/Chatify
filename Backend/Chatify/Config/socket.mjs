@@ -6,6 +6,7 @@ import Chats from '../Models/chatModel.mjs'
 import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
 import { assertChatMember, assertMessageChatMember, normalizeObjectId } from '../Utils/chatAccess.mjs'
 import { getCallIceConfig } from '../Utils/callIceConfig.mjs'
+import { logger } from '../Utils/observabilityLogger.mjs'
 import {
   CALL_SOCKET_EVENTS,
   buildCallSessionPayload,
@@ -59,10 +60,9 @@ const MAX_SIGNAL_SDP_LENGTH = 128_000
 const MAX_ICE_CANDIDATE_LENGTH = 8_000
 const MAX_ICE_TOKEN_LENGTH = 256
 
-// Debug logging helper - only logs in development
-const debugLog = (...args) => {
+const debugLog = (event, metadata = {}) => {
   if (!isProductionRuntime()) {
-    console.log(...args)
+    logger.debug(event, metadata)
   }
 }
 
@@ -112,7 +112,7 @@ const logDeliveryLifecycle = (stage, metadata = {}) => {
     return
   }
 
-  console.info('[chatify.delivery]', { stage, ...metadata })
+  logger.info('socket.delivery.lifecycle', { stage, ...metadata })
 }
 
 const getAllowedSocketOrigins = () => {
@@ -288,7 +288,7 @@ const scheduleCallTimeout = (session) => {
         await emitCallActivity(timedOutSession)
       }
     } catch (error) {
-      debugLog('Call timeout failed', { callId: session.callId, code: error?.code })
+      logger.error('call.timeout_failed', { callId: session.callId, error })
     }
   }, 30_000)
 
@@ -324,9 +324,9 @@ const scheduleCallDisconnectCleanup = (userId) => {
       emitCallSyncToParticipants(failedSession)
       await emitCallActivity(failedSession)
     } catch (error) {
-      debugLog('Call disconnect cleanup failed', {
+      logger.error('call.disconnect_cleanup_failed', {
         userId: normalizedUserId,
-        code: error?.code,
+        error,
       })
     }
   }, getCallDisconnectGraceMs())
@@ -506,7 +506,10 @@ const getUserChatRooms = async (userId) => {
     const chats = await Chats.find({ members: userId }).select('_id members')
     return chats
   } catch (err) {
-    console.error('📛 Error getting user chats:', err)
+    logger.error('socket.user_chats_load_failed', {
+      userId,
+      error: err,
+    })
     return []
   }
 }
@@ -582,9 +585,17 @@ const broadcastUserStatus = async (userId, isOnline, lastSeen = null) => {
       emitToUserSockets(contactId, 'user:status-change', statusPayload)
     })
 
-    debugLog(`📡 Broadcasted status for ${user.firstName}: ${isOnline ? 'online' : 'offline'}`)
+    debugLog('socket.presence_broadcasted', {
+      userId: user._id.toString(),
+      isOnline,
+      contactCount: contactIds.length,
+    })
   } catch (err) {
-    console.error('📛 Error broadcasting user status:', err)
+    logger.error('socket.presence_broadcast_failed', {
+      userId,
+      isOnline,
+      error: err,
+    })
   }
 }
 
@@ -598,7 +609,11 @@ const setUserOnline = async (userId, isOnline) => {
     await User.findByIdAndUpdate(userId, updateData)
     return updateData.lastSeen ?? null
   } catch (err) {
-    console.error('📛 Error updating user online status:', err)
+    logger.error('socket.user_online_update_failed', {
+      userId,
+      isOnline,
+      error: err,
+    })
     return null
   }
 }
@@ -631,7 +646,7 @@ export const initSocket = (server) => {
   io.use(authenticateSocket)
 
   io.on('connection', async (socket) => {
-    debugLog(`🔌 Socket connected: ${socket.id}`)
+    debugLog('socket.connected', { socketId: socket.id })
 
     const userId = socket.data.userId
     const userHadSockets = getUserSockets(userId).size > 0
@@ -647,7 +662,10 @@ export const initSocket = (server) => {
     const userChats = await getUserChatRooms(userId)
     userChats.forEach(chat => {
       socket.join(chat._id.toString())
-      debugLog(`📥 Auto-joined socket ${socket.id} to chat: ${chat._id}`)
+      debugLog('socket.auto_joined_chat', {
+        socketId: socket.id,
+        chatId: chat._id.toString(),
+      })
     })
 
     await setUserOnline(userId, true)
@@ -687,7 +705,10 @@ export const initSocket = (server) => {
       try {
         const chat = await assertChatMember({ chatId, userId: socket.data.userId })
         const roomId = chat._id.toString()
-        debugLog(`📥 Socket ${socket.id} joining chat: ${roomId}`)
+        debugLog('socket.joining_chat', {
+          socketId: socket.id,
+          chatId: roomId,
+        })
         socket.join(roomId)
 
         await markMessagesAsDelivered(roomId, socket.data.userId)
@@ -707,7 +728,10 @@ export const initSocket = (server) => {
         const roomId = normalizeObjectId(chatId).toString()
 
         if (socket.rooms.has(roomId)) {
-          debugLog(`📤 Socket ${socket.id} leaving chat: ${roomId}`)
+          debugLog('socket.leaving_chat', {
+            socketId: socket.id,
+            chatId: roomId,
+          })
           socket.leave(roomId)
         }
 
@@ -1024,7 +1048,10 @@ export const initSocket = (server) => {
     })
 
     socket.on('disconnect', async (reason) => {
-      debugLog(`🔌 Socket disconnected (${socket.id}): ${reason}`)
+      debugLog('socket.disconnected', {
+        socketId: socket.id,
+        reason,
+      })
       clearSocketEventWindows(socket)
       
       const userId = socketToUser.get(socket.id)
@@ -1098,7 +1125,11 @@ const markMessagesAsDelivered = async (chatId, userId) => {
       }
     }
   } catch (err) {
-    console.error('Error marking messages as delivered:', err)
+    logger.error('socket.mark_messages_delivered_failed', {
+      chatId: chatId?.toString?.() ?? chatId,
+      userId: userId?.toString?.() ?? userId,
+      error: err,
+    })
   }
 }
 
@@ -1123,6 +1154,14 @@ export const isUserOnline = (userId) => {
 export const getOnlineUsers = () => {
   return Array.from(userToSockets.keys())
 }
+
+export const getSocketOperationalStatus = () => ({
+  initialized: Boolean(io),
+  connectedUsers: userToSockets.size,
+  connectedSockets: socketToUser.size,
+  pendingCallTimeouts: callTimeoutTimers.size,
+  pendingCallDisconnectCleanups: callDisconnectTimers.size,
+})
 
 // Get all sockets for a specific user
 export const getUserSockets = (userId) => {
@@ -1169,7 +1208,11 @@ export const joinUserToChat = (userId, chatId) => {
       const socket = io.sockets.sockets.get(socketId)
       if (socket) {
         socket.join(chatId.toString())
-        debugLog(`📥 Joined user ${userId} (socket ${socketId}) to new chat: ${chatId}`)
+        debugLog('socket.join_user_to_chat', {
+          userId: userId.toString(),
+          socketId,
+          chatId: chatId.toString(),
+        })
       }
     })
     return true
@@ -1185,7 +1228,11 @@ export const removeUserFromChat = (userId, chatId) => {
       const socket = io.sockets.sockets.get(socketId)
       if (socket) {
         socket.leave(chatId.toString())
-        debugLog(`📤 Removed user ${userId} (socket ${socketId}) from chat: ${chatId}`)
+        debugLog('socket.remove_user_from_chat', {
+          userId: userId.toString(),
+          socketId,
+          chatId: chatId.toString(),
+        })
       }
     })
     return true

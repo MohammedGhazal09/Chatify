@@ -24,7 +24,8 @@ describe('MessageSearchResults', () => {
       />
     );
 
-    expect(screen.getByText('Type at least 2 characters to search.')).toBeInTheDocument();
+    expect(screen.getByText('Search needs 2 characters')).toBeInTheDocument();
+    expect(screen.getByText('Type at least 2 characters to search this conversation.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Clear search' }));
     expect(onClear).toHaveBeenCalledTimes(1);
@@ -79,7 +80,8 @@ describe('MessageSearchResults', () => {
     expect(screen.getAllByText('Searching messages...')).toHaveLength(2);
 
     rerender(<MessageSearchResults {...baseProps} isLoading={false} isError />);
-    expect(screen.getAllByText('We could not search messages. Try again.')).toHaveLength(2);
+    expect(screen.getAllByText('Search unavailable')).toHaveLength(2);
+    expect(screen.getByRole('alert')).toHaveTextContent('We could not search messages. Check the connection or clear search to return to the conversation.');
 
     rerender(<MessageSearchResults {...baseProps} isLoading={false} isError={false} />);
     expect(screen.getByText('No message matches')).toBeInTheDocument();

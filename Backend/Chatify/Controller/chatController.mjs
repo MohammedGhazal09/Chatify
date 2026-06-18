@@ -21,6 +21,7 @@ import {
   MESSAGE_CURSOR_SORT_DESC,
   serializeMessage,
 } from "../Utils/messageState.mjs";
+import { logger } from "../Utils/observabilityLogger.mjs";
 
 const projectLatestVisibleMessage = async (chatId, requesterId) => {
   const latestVisibleMessage = await Message.findOne(
@@ -191,8 +192,12 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
     // Notify the target user about the new chat so they can see it without refreshing
     emitToUserSockets(targetUser._id, 'chat:new', targetChat);
   } catch (err) {
-    // Log but don't fail the request if socket notification fails
-    console.error('Failed to notify users about new chat:', err);
+    logger.error('chat.new_notification_failed', {
+      chatId: newChat._id.toString(),
+      requesterId,
+      targetUserId: targetUser._id.toString(),
+      error: err,
+    });
   }
 
   res.status(201).json({
@@ -323,7 +328,11 @@ export const deleteChat = asyncErrHandler(async (req, res, next) => {
       emitToUserSockets(memberId, "chat:deleted", { chatId });
     });
   } catch (err) {
-    console.error("Failed to notify users about chat deletion:", err);
+    logger.error('chat.delete_notification_failed', {
+      chatId,
+      memberCount: memberIds.length,
+      error: err,
+    });
   }
 
   res.status(200).json({

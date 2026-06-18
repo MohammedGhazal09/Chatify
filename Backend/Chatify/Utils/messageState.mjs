@@ -114,6 +114,8 @@ export const serializeReactions = (reactions = []) => reactions.map((reaction) =
 
 export const serializeAttachmentSummary = (attachment = {}) => {
   const attachmentId = toIdString(attachment.attachmentId ?? attachment._id);
+  const kind = ['media', 'file', 'voice'].includes(attachment.kind) ? attachment.kind : 'file';
+  const durationSeconds = Number(attachment.durationSeconds);
 
   return {
     _id: attachmentId,
@@ -121,7 +123,8 @@ export const serializeAttachmentSummary = (attachment = {}) => {
     displayName: attachment.displayName ?? 'attachment',
     mimeType: attachment.mimeType ?? 'application/octet-stream',
     size: Number.isFinite(Number(attachment.size)) ? Number(attachment.size) : 0,
-    kind: attachment.kind === 'media' ? 'media' : 'file',
+    kind,
+    durationSeconds: kind === 'voice' && Number.isFinite(durationSeconds) ? durationSeconds : null,
     status: attachment.status ?? 'active',
     createdAt: serializeDate(attachment.createdAt),
   };

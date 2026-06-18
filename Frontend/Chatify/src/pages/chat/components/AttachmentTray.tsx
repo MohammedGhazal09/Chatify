@@ -1,18 +1,30 @@
-import { AlertCircle, FileText, Image as ImageIcon, X } from 'lucide-react';
+import { AlertCircle, FileText, Image as ImageIcon, Mic, X } from 'lucide-react';
+import type { MessageUploadState } from '../../../hooks/useChatQueries';
 import type { ComposerAttachmentDraft } from '../../../types/chat';
-import { formatFileSize } from '../utils/attachmentDisplay';
+import { formatDurationSeconds, formatFileSize } from '../utils/attachmentDisplay';
 
 interface AttachmentTrayProps {
   attachments: ComposerAttachmentDraft[];
   errors: string[];
   disabled?: boolean;
+  uploadState?: MessageUploadState;
+  onCancelUpload?: () => void;
   onRemove: (id: string) => void;
 }
 
-const AttachmentTray = ({ attachments, errors, disabled = false, onRemove }: AttachmentTrayProps) => {
+const AttachmentTray = ({
+  attachments,
+  errors,
+  disabled = false,
+  uploadState,
+  onCancelUpload,
+  onRemove,
+}: AttachmentTrayProps) => {
   if (!attachments.length && !errors.length) {
     return null;
   }
+
+  const isUploading = uploadState?.status === 'uploading';
 
   return (
     <div className="mx-auto mb-3 max-w-[880px] space-y-2" data-testid="attachment-tray">
@@ -30,6 +42,8 @@ const AttachmentTray = ({ attachments, errors, disabled = false, onRemove }: Att
                     alt=""
                     className="h-full w-full object-cover"
                   />
+                ) : attachment.kind === 'voice' ? (
+                  <Mic aria-hidden="true" className="h-5 w-5" />
                 ) : attachment.kind === 'media' ? (
                   <ImageIcon aria-hidden="true" className="h-5 w-5" />
                 ) : (
@@ -39,13 +53,15 @@ const AttachmentTray = ({ attachments, errors, disabled = false, onRemove }: Att
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-[var(--chat-text)]">{attachment.displayName}</span>
                 <span className="block truncate text-xs text-[var(--chat-text-muted)]">
-                  {attachment.mimeType || 'application/octet-stream'} - {formatFileSize(attachment.size)}
+                  {attachment.kind === 'voice'
+                    ? `Voice - ${formatDurationSeconds(attachment.durationSeconds)} - ${formatFileSize(attachment.size)}`
+                    : `${attachment.mimeType || 'application/octet-stream'} - ${formatFileSize(attachment.size)}`}
                 </span>
               </span>
               <button
                 type="button"
                 onClick={() => onRemove(attachment.id)}
-                disabled={disabled}
+                disabled={disabled || isUploading}
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-danger)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
                 aria-label={`Remove ${attachment.displayName}`}
               >
@@ -53,6 +69,28 @@ const AttachmentTray = ({ attachments, errors, disabled = false, onRemove }: Att
               </button>
             </div>
           ))}
+        </div>
+      )}
+      {isUploading && (
+        <div className="rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-2">
+          <div className="flex items-center justify-between gap-3 text-xs text-[var(--chat-text-muted)]">
+            <span>Uploading {uploadState.progress}%</span>
+            {onCancelUpload && (
+              <button
+                type="button"
+                onClick={onCancelUpload}
+                className="min-h-8 rounded-[var(--chat-radius-md)] px-2 font-semibold text-[var(--chat-danger)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+              >
+                Cancel upload
+              </button>
+            )}
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--chat-panel-subtle)]">
+            <div
+              className="h-full rounded-full bg-[var(--chat-accent)] transition-[width]"
+              style={{ width: `${uploadState.progress}%` }}
+            />
+          </div>
         </div>
       )}
       {errors.length > 0 && (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDirectChat } from '../fixtures/chats.mjs';
-import { attachPdf, attachText } from '../fixtures/attachments.mjs';
+import { attachPdf, attachText, attachVoice } from '../fixtures/attachments.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 
 const createAttachmentMessage = (agent, chatId, clientMessageId, attachFn) => (
@@ -58,5 +58,43 @@ describe('shared attachment assets', () => {
     expect(response.body.data.assets.map((asset) => asset.messageId)).toEqual([
       visible.body.data.message._id,
     ]);
+  });
+
+  it('lists voice assets with duration metadata and delete visibility rules', async () => {
+    const memberOne = await signupWithAgent({ firstName: 'Voice', lastName: 'Shared' });
+    const memberTwo = await signupWithAgent({ firstName: 'Voice', lastName: 'Viewer' });
+    const chat = await createDirectChat([memberOne.user, memberTwo.user]);
+    const voiceMessage = await createAttachmentMessage(
+      memberOne.agent,
+      chat._id.toString(),
+      'shared-voice-1',
+      (request) => attachVoice(request, { durationSeconds: 8.5 })
+    ).expect(201);
+
+    const listed = await memberTwo.agent
+      .get(`/api/message/${chat._id}/shared-assets?kind=voice`)
+      .expect(200);
+
+    expect(listed.body.data.assets).toHaveLength(1);
+    expect(listed.body.data.assets[0]).toMatchObject({
+      messageId: voiceMessage.body.data.message._id,
+      kind: 'voice',
+      durationSeconds: 8.5,
+      mimeType: 'audio/webm',
+      status: 'active',
+    });
+    expect(listed.body.data.assets[0]).not.toHaveProperty('storageFileId');
+    expect(listed.body.data.assets[0]).not.toHaveProperty('hash');
+
+    await memberOne.agent
+      .delete(`/api/message/${voiceMessage.body.data.message._id}`)
+      .send({ deleteForEveryone: true })
+      .expect(200);
+
+    const afterDelete = await memberTwo.agent
+      .get(`/api/message/${chat._id}/shared-assets?kind=voice`)
+      .expect(200);
+
+    expect(afterDelete.body.data.assets).toEqual([]);
   });
 });

@@ -7,17 +7,17 @@ const splitEnvList = (value) => (typeof value === 'string'
     .filter(Boolean)
   : []);
 
-const parseStunServers = () => {
-  const stunUrls = splitEnvList(process.env.CALL_STUN_URLS);
+const parseStunServers = (env = process.env) => {
+  const stunUrls = splitEnvList(env.CALL_STUN_URLS);
   const urls = stunUrls.length > 0 ? stunUrls : DEFAULT_STUN_URLS;
 
   return urls.map((url) => ({ urls: url }));
 };
 
-const parseTurnServers = () => {
-  const turnUrls = splitEnvList(process.env.CALL_TURN_URLS);
-  const username = process.env.CALL_TURN_USERNAME;
-  const credential = process.env.CALL_TURN_CREDENTIAL;
+const parseTurnServers = (env = process.env) => {
+  const turnUrls = splitEnvList(env.CALL_TURN_URLS);
+  const username = env.CALL_TURN_USERNAME;
+  const credential = env.CALL_TURN_CREDENTIAL;
 
   if (turnUrls.length === 0 || !username || !credential) {
     return [];
@@ -30,11 +30,11 @@ const parseTurnServers = () => {
   }));
 };
 
-export const getCallIceConfig = () => {
-  const stunServers = parseStunServers();
-  const turnServers = parseTurnServers();
+export const getCallIceConfig = (env = process.env) => {
+  const stunServers = parseStunServers(env);
+  const turnServers = parseTurnServers(env);
   const turnReady = turnServers.length > 0;
-  const productionReady = process.env.NODE_ENV !== 'production' || turnReady;
+  const productionReady = env.NODE_ENV !== 'production' || turnReady;
   const warnings = [];
 
   if (!turnReady) {

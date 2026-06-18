@@ -20,11 +20,24 @@ describe('ChatStateView', () => {
 
     expect(screen.getByRole('heading', { name: 'Your session expired' })).toBeInTheDocument();
     expect(screen.getByText('Sign in again to continue.')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Your session expired');
 
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));
 
     expect(onPrimary).toHaveBeenCalledTimes(1);
     expect(onSecondary).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses alert semantics for danger states', () => {
+    render(
+      <ChatStateView
+        heading="Conversation unavailable"
+        body="Try again to refresh the private timeline."
+        tone="danger"
+      />
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Conversation unavailable');
   });
 });

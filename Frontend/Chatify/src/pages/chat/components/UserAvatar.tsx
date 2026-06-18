@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { resolveApiBaseUrl } from '../../../api/apiOrigin';
+import type { IdentityMark } from '../../../types/auth';
 import type { AbstractIdentityTileVariant } from './AbstractIdentityTile';
-import AbstractIdentityTile from './AbstractIdentityTile';
+import IdentityMarkTile from './IdentityMark';
 
 export interface UserAvatarIdentity {
   _id?: string;
@@ -9,6 +10,7 @@ export interface UserAvatarIdentity {
   lastName?: string;
   email?: string;
   profilePic?: string | null;
+  identityMark?: IdentityMark;
 }
 
 export type UserAvatarSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -63,7 +65,8 @@ const UserAvatar = ({
   fallbackAriaLabel,
 }: UserAvatarProps) => {
   const displayLabel = label || getUserAvatarLabel(user);
-  const imageSrc = resolveAvatarImageSrc(user?.profilePic);
+  const hasCustomIdentityMark = user?.identityMark?.source === 'custom';
+  const imageSrc = hasCustomIdentityMark ? null : resolveAvatarImageSrc(user?.profilePic);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
   const shouldShowImage = Boolean(imageSrc && failedImageSrc !== imageSrc);
 
@@ -84,8 +87,8 @@ const UserAvatar = ({
           onError={() => setFailedImageSrc(imageSrc)}
         />
       ) : (
-        <AbstractIdentityTile
-          id={user?._id}
+        <IdentityMarkTile
+          user={user}
           label={displayLabel}
           variant={variant}
           className="h-full w-full"

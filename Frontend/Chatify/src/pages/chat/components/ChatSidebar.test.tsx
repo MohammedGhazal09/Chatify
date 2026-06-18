@@ -56,14 +56,18 @@ describe('ChatSidebar', () => {
   it('renders the empty sidebar state and close control', async () => {
     const user = userEvent.setup();
     const onCloseSidebar = vi.fn();
+    const onToggleNewChat = vi.fn();
 
-    renderSidebar({ onCloseSidebar });
+    renderSidebar({ onCloseSidebar, onToggleNewChat });
 
     expect(screen.getByText('No conversations yet')).toBeInTheDocument();
-    expect(screen.getByText('Start a chat to begin messaging.')).toBeInTheDocument();
+    expect(screen.getByText('Start a direct chat by email when you are ready to message.')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument();
     expect(screen.getByText('Authenticated private chat')).toBeInTheDocument();
     expect(screen.queryByText('End-to-end encrypted')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Start a new conversation' }));
+    expect(onToggleNewChat).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Close conversations' }));
     expect(onCloseSidebar).toHaveBeenCalledTimes(1);
@@ -74,6 +78,19 @@ describe('ChatSidebar', () => {
 
     expect(screen.getByLabelText('Loading chats')).toBeInTheDocument();
     expect(screen.queryByText('No conversations yet')).not.toBeInTheDocument();
+  });
+
+  it('renders a recoverable chat-list error state', async () => {
+    const user = userEvent.setup();
+    const onRefetchChats = vi.fn();
+
+    renderSidebar({ isError: true, onRefetchChats });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Conversations unavailable');
+    expect(screen.getByRole('alert')).toHaveTextContent('We could not load your private chat list.');
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRefetchChats).toHaveBeenCalledTimes(1);
   });
 
   it('renders a compact logout button and triggers logout', async () => {
@@ -111,6 +128,21 @@ describe('ChatSidebar', () => {
     expect(onSelectChat).toHaveBeenCalledWith('chat-1');
   });
 
+  it('passes muted conversations through to the visible chat row', () => {
+    const chat = makeChat({
+      latestMessage: makeMessage({ text: 'Visible latest message' }),
+    });
+
+    renderSidebar({
+      chats: [chat],
+      mutedChatIds: [chat._id],
+      unreadCounts: new Map([[chat._id, 2]]),
+    });
+
+    expect(screen.getByLabelText('Conversation muted')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
   it('filters conversations by title and latest visible snippet without matching member email', () => {
     const launchChat = makeChat({
       _id: 'chat-launch',
@@ -145,6 +177,17 @@ describe('ChatSidebar', () => {
 
     expect(screen.queryByText('Nora Stone')).not.toBeInTheDocument();
     expect(screen.getByText('No matching conversations')).toBeInTheDocument();
-    expect(screen.getByText('Try a different name or latest message, or use New chat to start by email.')).toBeInTheDocument();
+    expect(screen.getByText('Try another name or message preview, or clear search to see every conversation.')).toBeInTheDocument();
+  });
+
+  it('clears conversation search from the no-results state', async () => {
+    const user = userEvent.setup();
+    const onSearchChange = vi.fn();
+
+    renderSidebar({ searchQuery: 'not-found', onSearchChange });
+
+    await user.click(screen.getByRole('button', { name: 'Clear conversation search' }));
+
+    expect(onSearchChange).toHaveBeenCalledWith('');
   });
 });

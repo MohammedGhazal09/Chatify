@@ -36,5 +36,6 @@ describe('buildSendDraftKey', () => {
     expect(buildSendDraftKey('chat-2', 'hello', [makeDraft()])).not.toBe(base);
     expect(buildSendDraftKey('chat-1', 'hello again', [makeDraft()])).not.toBe(base);
     expect(buildSendDraftKey('chat-1', 'hello', [makeDraft({ displayName: 'delivery-metrics.xlsx' })])).not.toBe(base);
+    expect(buildSendDraftKey('chat-1', 'hello', [makeDraft({ kind: 'voice', durationSeconds: 2 })])).not.toBe(base);
   });
 });

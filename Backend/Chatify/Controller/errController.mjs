@@ -5,6 +5,15 @@ const developmentErrors = (error, req, res) => {
   delete sanitizedBody.password;
   delete sanitizedBody.confirmPassword;
   delete sanitizedBody.token;
+  delete sanitizedBody.code;
+  delete sanitizedBody.newPassword;
+  delete sanitizedBody.email;
+  delete sanitizedBody.refreshToken;
+  delete sanitizedBody.accessToken;
+  delete sanitizedBody.identityMark;
+  delete sanitizedBody.identity;
+  delete sanitizedBody.profilePic;
+  delete sanitizedBody.profileImage;
 
   return res.status(error.statusCode).json({
     status: error.status || (error.statusCode >= 500 ? "error" : "fail"),
@@ -17,7 +26,7 @@ const developmentErrors = (error, req, res) => {
     url: req.originalUrl,
     timestamp: new Date().toISOString(),
     requestId: req.requestId || null,
-    user: req.user ? { id: req.user.id, email: req.user.email } : null,
+    user: req.user ? { id: req.user.id } : null,
     headers: {
       "User-Agent": req.headers["user-agent"],
       "Content-Type": req.headers["content-type"],
@@ -44,7 +53,8 @@ const productionErrors = (error, req, res) => {
 };
 
 const handleDuplicateKeyError = (error) => {
-  const message = `Duplicate field value: ${error.keyValue}. Please use another value!`;
+  const fields = Object.keys(error.keyValue ?? {}).join(', ') || 'field';
+  const message = `Duplicate value for ${fields}. Please use another value!`;
   return new CustomError(message, 400);
 }
 

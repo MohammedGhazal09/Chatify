@@ -46,8 +46,12 @@ const attachmentSchema = new mongoose.Schema({
   },
   kind: {
     type: String,
-    enum: ["media", "file"],
+    enum: ["media", "file", "voice"],
     required: true,
+  },
+  durationSeconds: {
+    type: Number,
+    min: 0,
   },
   hash: {
     type: String,

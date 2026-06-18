@@ -21,6 +21,7 @@ interface ChatSidebarProps {
   createChatError: string | null;
   isCreatingChat: boolean;
   unreadCounts?: Map<string, number>;
+  mutedChatIds?: string[];
   onlineUsers: Map<string, { isOnline: boolean }>;
   newChatButtonRef: RefObject<HTMLButtonElement | null>;
   onSearchChange: (value: string) => void;
@@ -49,6 +50,7 @@ const ChatSidebar = ({
   createChatError,
   isCreatingChat,
   unreadCounts,
+  mutedChatIds = [],
   onlineUsers,
   newChatButtonRef,
   onSearchChange,
@@ -122,7 +124,7 @@ const ChatSidebar = ({
             type="button"
             onClick={onLogout}
             className="chat-logout-button inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-            title="Logout"
+            title="Logout from Chatify and sync open tabs"
             aria-label="Logout"
           >
             <LogOut aria-hidden="true" className="h-4 w-4" />
@@ -177,12 +179,15 @@ const ChatSidebar = ({
         {isLoading ? (
           <ChatListSkeleton />
         ) : isError ? (
-          <div className="space-y-2 p-4 text-sm text-[var(--chat-danger)]">
-            <p>We could not load your chats.</p>
+          <div className="space-y-3 p-4 text-sm text-[var(--chat-danger)]" role="alert">
+            <div>
+              <p className="font-semibold text-[var(--chat-text)]">Conversations unavailable</p>
+              <p className="mt-1 text-[var(--chat-danger)]">We could not load your private chat list.</p>
+            </div>
             <button
               type="button"
               onClick={onRefetchChats}
-              className="cursor-pointer rounded-[var(--chat-radius-md)] bg-[var(--chat-accent-soft)] px-3 py-1 text-[var(--chat-accent)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+              className="min-h-9 cursor-pointer rounded-[var(--chat-radius-md)] bg-[var(--chat-accent-soft)] px-3 py-1 text-sm font-semibold text-[var(--chat-accent)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
             >
               Try again
             </button>
@@ -201,6 +206,7 @@ const ChatSidebar = ({
                   avatarUser={otherMember}
                   isActive={chat._id === selectedChatId}
                   isOnline={memberStatus?.isOnline ?? false}
+                  isMuted={mutedChatIds.includes(chat._id)}
                   unreadCount={unreadCounts?.get(chat._id) ?? 0}
                   onSelect={() => onSelectChat(chat._id)}
                 />
@@ -208,9 +214,29 @@ const ChatSidebar = ({
             })}
           </ul>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-[var(--chat-text-muted)]">
-            <p className="font-semibold text-[var(--chat-text)]">{searchQuery.trim() ? 'No matching conversations' : 'No conversations yet'}</p>
-            <p>{searchQuery.trim() ? 'Try a different name or latest message, or use New chat to start by email.' : 'Start a chat to begin messaging.'}</p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center text-sm text-[var(--chat-text-muted)]" role="status">
+            <div className="space-y-1">
+              <p className="font-semibold text-[var(--chat-text)]">{searchQuery.trim() ? 'No matching conversations' : 'No conversations yet'}</p>
+              <p className="max-w-[240px]">
+                {searchQuery.trim()
+                  ? 'Try another name or message preview, or clear search to see every conversation.'
+                  : 'Start a direct chat by email when you are ready to message.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (searchQuery.trim()) {
+                  onSearchChange('');
+                  return;
+                }
+
+                onToggleNewChat();
+              }}
+              className="min-h-9 cursor-pointer rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-1.5 text-sm font-semibold text-[var(--chat-accent)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            >
+              {searchQuery.trim() ? 'Clear conversation search' : 'Start a new conversation'}
+            </button>
           </div>
         )}
       </div>

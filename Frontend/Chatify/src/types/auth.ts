@@ -1,9 +1,34 @@
+export type IdentityMarkSource = 'custom' | 'fallback';
+export type IdentityMarkPaletteId = 'teal' | 'indigo' | 'amber' | 'slate' | 'rose';
+export type IdentityMarkPatternId = 'rings' | 'grid' | 'diagonal' | 'orbit' | 'mono';
+export type IdentityMarkAccentId = 'mint' | 'sky' | 'gold' | 'coral' | 'graphite';
+
+export interface IdentityMark {
+  source?: IdentityMarkSource;
+  label: string;
+  initials: string;
+  paletteId: IdentityMarkPaletteId;
+  patternId: IdentityMarkPatternId;
+  accentId: IdentityMarkAccentId;
+  updatedAt?: string | null;
+}
+
+export interface IdentityMarkInput {
+  label: string;
+  initials: string;
+  paletteId: IdentityMarkPaletteId;
+  patternId: IdentityMarkPatternId;
+  accentId: IdentityMarkAccentId;
+}
+
 export interface User {
   _id: string;
   firstName: string;
   lastName: string;
   email: string;
   profilePic?: string;
+  identityMark?: IdentityMark;
+  identityMarkUpdatedAt?: string | null;
   authProvider: 'local' | 'google' | 'github' | 'discord';
   isVerified: boolean;
   // Online status fields

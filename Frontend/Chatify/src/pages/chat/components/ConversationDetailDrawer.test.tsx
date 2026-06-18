@@ -12,12 +12,15 @@ const baseProps = {
   pinnedMessages: [makePinnedMessage({ messageId: 'message-pin', text: 'Pinned retry note' })],
   sharedFiles: [makeSharedAsset({ attachmentId: 'file-1', messageId: 'message-file', displayName: 'delivery-matrix.xlsx' })],
   sharedMedia: [makeSharedAsset({ attachmentId: 'media-1', messageId: 'message-media', displayName: 'diagram.png', mimeType: 'image/png', kind: 'media' })],
+  sharedVoice: [makeSharedAsset({ attachmentId: 'voice-1', messageId: 'message-voice', displayName: 'voice-message.webm', mimeType: 'audio/webm', kind: 'voice', size: 5, durationSeconds: 4 })],
   isPinnedLoading: false,
   isSharedFilesLoading: false,
   isSharedMediaLoading: false,
+  isSharedVoiceLoading: false,
   isPinnedError: false,
   isSharedFilesError: false,
   isSharedMediaError: false,
+  isSharedVoiceError: false,
   isAuthenticated: true,
   isSocketConnected: true,
   isReconnecting: false,
@@ -63,6 +66,7 @@ describe('ConversationDetailDrawer', () => {
     expect(screen.getByText('Pinned retry note')).toBeInTheDocument();
     expect(screen.getByText('delivery-matrix.xlsx')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'diagram.png' })).toBeInTheDocument();
+    expect(screen.getByText('voice-message.webm')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Call' }));
     await user.click(screen.getByRole('button', { name: 'Video call' }));

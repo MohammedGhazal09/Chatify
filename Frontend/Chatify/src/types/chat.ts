@@ -108,7 +108,7 @@ export interface Reaction {
   emoji: string;
 }
 
-export type AttachmentKind = 'media' | 'file';
+export type AttachmentKind = 'media' | 'file' | 'voice';
 export type AttachmentStatus = 'active' | 'deleted';
 export type SharedAssetKind = AttachmentKind;
 
@@ -119,6 +119,7 @@ export interface AttachmentSummary {
   mimeType: string;
   size: number;
   kind: AttachmentKind;
+  durationSeconds?: number | null;
   status: AttachmentStatus;
   createdAt?: string | null;
   localPreviewUrl?: string;
@@ -131,8 +132,11 @@ export interface ComposerAttachmentDraft {
   mimeType: string;
   size: number;
   kind: AttachmentKind;
+  durationSeconds?: number | null;
   localPreviewUrl?: string;
 }
+
+export type MessageUploadAttachment = File | ComposerAttachmentDraft;
 
 export interface ComposerSendPayload {
   text: string;
@@ -155,6 +159,7 @@ export interface Message {
   reactions?: Reaction[];
   attachments?: AttachmentSummary[];
   localFiles?: File[];
+  localDrafts?: ComposerAttachmentDraft[];
   isEdited?: boolean;
   editedAt?: string | null;
   deletedFor?: string[];
@@ -222,7 +227,7 @@ export interface NewMessagePayload {
   chatId: string;
   text: string;
   clientMessageId: string;
-  attachments?: File[];
+  attachments?: MessageUploadAttachment[];
 }
 
 export interface SharedAsset {
@@ -235,6 +240,7 @@ export interface SharedAsset {
   mimeType: string;
   size: number;
   kind: SharedAssetKind;
+  durationSeconds?: number | null;
   status: AttachmentStatus;
   createdAt?: string | null;
 }
@@ -368,4 +374,10 @@ export interface SocketErrorEvent {
 export interface ConversationControlsUpdatedEvent {
   chatId: string;
   conversationControls: ConversationControls;
+}
+
+export interface UserIdentityUpdatedEvent {
+  userId: string;
+  user: User;
+  chatIds?: string[];
 }

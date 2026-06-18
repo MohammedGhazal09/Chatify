@@ -14,6 +14,10 @@ import {
   phase09QualityGateFixture,
   type CreatePhase09MessageInput,
 } from '../fixtures/phase09QualityGateFixture';
+import {
+  PHASE19_PRIMARY_CHAT_ID,
+  phase19ProductPolishFixture,
+} from '../fixtures/phase19ProductPolishFixture';
 
 export const phase07ArtifactPath = (fileName: string) => path.resolve(
   process.cwd(),
@@ -24,6 +28,12 @@ export const phase07ArtifactPath = (fileName: string) => path.resolve(
 export const phase09ArtifactPath = (fileName: string) => path.resolve(
   process.cwd(),
   '../../.planning/phases/09-messenger-interaction-quality-gate',
+  fileName
+);
+
+export const phase19ArtifactPath = (fileName: string) => path.resolve(
+  process.cwd(),
+  '../../.planning/phases/19-messenger-product-polish-and-notifications',
   fileName
 );
 
@@ -253,7 +263,13 @@ export const installPhase09ApiMocks = async (page: Page) => {
       ? phase09QualityGateFixture.sharedMedia
       : kind === 'file'
         ? phase09QualityGateFixture.sharedFiles
-        : [...phase09QualityGateFixture.sharedFiles, ...phase09QualityGateFixture.sharedMedia];
+        : kind === 'voice'
+          ? phase09QualityGateFixture.sharedVoice
+          : [
+              ...phase09QualityGateFixture.sharedFiles,
+              ...phase09QualityGateFixture.sharedMedia,
+              ...phase09QualityGateFixture.sharedVoice,
+            ];
 
     fulfillJson(route, {
       status: 'success',
@@ -273,11 +289,13 @@ export const installPhase09ApiMocks = async (page: Page) => {
     },
   }));
   await page.route('**/api/message/attachments/*/preview', (route) => {
-    const isMedia = route.request().url().includes('circuit-grid') || route.request().url().includes('signal-tiles');
+    const requestUrl = route.request().url();
+    const isVoice = requestUrl.includes('relay-voice');
+    const isMedia = requestUrl.includes('circuit-grid') || requestUrl.includes('signal-tiles');
     route.fulfill({
       status: 200,
-      contentType: isMedia ? 'image/png' : 'application/pdf',
-      body: isMedia ? transparentPng : 'phase09 protected preview',
+      contentType: isVoice ? 'audio/webm' : isMedia ? 'image/png' : 'application/pdf',
+      body: isVoice ? 'phase12 protected voice preview' : isMedia ? transparentPng : 'phase09 protected preview',
     });
   });
   await page.route('**/api/message/attachments/*/download', (route) => {
@@ -319,6 +337,97 @@ export const installPhase09ApiMocks = async (page: Page) => {
   }));
 };
 
+type Phase19ApiOptions = {
+  chats?: readonly unknown[];
+  messagesByChatId?: Record<string, readonly unknown[]>;
+  searchMessages?: readonly unknown[];
+  unreadCounts?: Record<string, number>;
+};
+
+export const installPhase19ApiMocks = async (page: Page, options: Phase19ApiOptions = {}) => {
+  const chats = options.chats ?? phase19ProductPolishFixture.chats;
+  const messagesByChatId = options.messagesByChatId ?? phase19ProductPolishFixture.messagesByChatId;
+  const searchMessages = options.searchMessages ?? phase19ProductPolishFixture.searchMessages;
+  const unreadCounts = options.unreadCounts ?? phase19ProductPolishFixture.unreadCounts;
+
+  await page.route('**/socket.io/**', (route) => route.abort());
+  await page.route('**/api/csrf-token', (route) => fulfillJson(route, { csrfToken: 'phase19-csrf' }));
+  await page.route('**/api/auth/is-authenticated', (route) => fulfillJson(route, { token: true }));
+  await page.route('**/api/user/get-logged-user', (route) => fulfillJson(route, {
+    status: 'success',
+    user: phase19ProductPolishFixture.currentUser,
+  }));
+  await page.route('**/api/user/online-users', (route) => fulfillJson(
+    route,
+    createPresenceSnapshot(phase19ProductPolishFixture.presence)
+  ));
+  await page.route('**/api/auth/logout', (route) => fulfillJson(route, { status: 'success' }));
+  await page.route('**/api/chat/get-all-chats', (route) => fulfillJson(route, {
+    status: 'success',
+    data: { chats },
+  }));
+  await page.route('**/api/chat/create-new-chat', (route) => fulfillJson(route, {
+    status: 'success',
+    data: {
+      chat: phase19ProductPolishFixture.chats.find((chat) => chat._id === phase19ProductPolishFixture.secondaryChatId),
+    },
+  }));
+  await page.route('**/api/message/get-all-messages/**', (route) => {
+    const url = new URL(route.request().url());
+    const chatId = url.pathname.split('/').at(-1) ?? '';
+
+    fulfillJson(route, {
+      status: 'success',
+      data: {
+        messages: messagesByChatId[chatId] ?? [],
+        cursor: { nextCursor: null, hasMore: false, limit: 50 },
+      },
+    });
+  });
+  await page.route('**/api/message/search/*', (route) => {
+    const url = new URL(route.request().url());
+    const query = url.searchParams.get('q') ?? '';
+
+    fulfillJson(route, {
+      status: 'messages searched successfully',
+      data: {
+        messages: query.trim().length >= 2 ? searchMessages : [],
+        query,
+        limit: 25,
+      },
+    });
+  });
+  await page.route('**/api/message/*/shared-assets**', (route) => {
+    const url = new URL(route.request().url());
+    const kind = url.searchParams.get('kind');
+
+    fulfillJson(route, {
+      status: 'success',
+      data: {
+        assets: [],
+        sharedAssets: [],
+        kind,
+        cursor: { nextCursor: null, hasMore: false, limit: 12 },
+      },
+    });
+  });
+  await page.route('**/api/message/*/pinned', (route) => fulfillJson(route, {
+    status: 'success',
+    data: {
+      pinnedMessages: [],
+      limit: 20,
+    },
+  }));
+  await page.route('**/api/message/batch/unread-counts', (route) => fulfillJson(route, {
+    status: 'success',
+    data: { counts: unreadCounts },
+  }));
+  await page.route('**/api/message/*/mark-read', (route) => fulfillJson(route, {
+    status: 'success',
+    data: { unreadCount: 0, receipts: [] },
+  }));
+};
+
 export const openPhase07Chat = async (
   page: Page,
   {
@@ -348,6 +457,27 @@ export const openPhase09Chat = async (
   await page.goto(`/?chatId=${chatId}&chatTheme=${theme}`);
   await expect(page.getByTestId('chat-root')).toHaveAttribute('data-chat-theme', theme, { timeout: 15000 });
   await expect(page.getByTestId('conversation-pane').getByRole('heading')).toBeVisible();
+};
+
+export const openPhase19Chat = async (
+  page: Page,
+  {
+    theme = 'light',
+    chatId = phase19ProductPolishFixture.selectedChatId,
+    apiOptions,
+  }: {
+    theme?: 'light' | 'dark';
+    chatId?: string;
+    apiOptions?: Phase19ApiOptions;
+  } = {}
+) => {
+  await installPhase19ApiMocks(page, apiOptions);
+  await page.goto(`/?chatId=${chatId}&chatTheme=${theme}`);
+  await expect(page.getByTestId('chat-root')).toHaveAttribute('data-chat-theme', theme, { timeout: 15000 });
+
+  if (chatId === PHASE19_PRIMARY_CHAT_ID && (apiOptions?.chats?.length ?? phase19ProductPolishFixture.chats.length) > 0) {
+    await expect(page.getByTestId('conversation-pane').getByRole('heading', { name: phase19ProductPolishFixture.selectedTitle })).toBeVisible();
+  }
 };
 
 export const expectNoHorizontalOverflow = async (page: Page) => {

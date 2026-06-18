@@ -14,6 +14,7 @@ verification:
   - "Frontend/Chatify: npm run build -> passed"
   - "Frontend/Chatify: npm test -- --run -> passed"
   - "Backend/Chatify: npm test -- --run -> passed"
+  - "2026-06-17 Backend/Chatify: npm test -- --run test/socket/socket.calls.test.mjs test/socket/socket.call-auth.test.mjs test/socket/socket.call-blocking.test.mjs -> passed"
 ---
 
 # Phase 13 Review Fix
@@ -91,3 +92,10 @@ npm test -- --run
 ```
 
 Result: passed, 24 test files, 114 tests.
+
+```powershell
+cd Backend/Chatify
+npm test -- --run test/socket/socket.calls.test.mjs test/socket/socket.call-auth.test.mjs test/socket/socket.call-blocking.test.mjs
+```
+
+Result on 2026-06-17: passed, 3 test files, 12 tests.

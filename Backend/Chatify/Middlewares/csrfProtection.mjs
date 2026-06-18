@@ -1,4 +1,4 @@
-import { timingSafeEqual, randomBytes } from 'crypto';
+import { createHmac, timingSafeEqual, randomBytes } from 'crypto';
 import { CustomError } from '../Utils/customError.mjs';
 
 const CSRF_COOKIE = 'XSRF-TOKEN';
@@ -7,7 +7,16 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const isProd = () => process.env.NODE_ENV === 'production';
 
-export const createCsrfToken = () => randomBytes(32).toString('base64url');
+const getCsrfSecret = () => process.env.CSRF_SECRET || process.env.SECRET_JWT_KEY;
+
+const signCsrfValue = (value) => createHmac('sha256', getCsrfSecret())
+  .update(value)
+  .digest('base64url');
+
+export const createCsrfToken = () => {
+  const value = randomBytes(32).toString('base64url');
+  return `${value}.${signCsrfValue(value)}`;
+};
 
 export const getCsrfCookieOptions = () => ({
   httpOnly: false,
@@ -27,6 +36,16 @@ const constantTimeEqual = (left, right) => {
   return timingSafeEqual(leftBuffer, rightBuffer);
 };
 
+const isValidSignedToken = (token) => {
+  const [value, signature, extra] = token.split('.');
+
+  if (!value || !signature || extra !== undefined || !getCsrfSecret()) {
+    return false;
+  }
+
+  return constantTimeEqual(signature, signCsrfValue(value));
+};
+
 export const csrfProtection = (req, res, next) => {
   if (SAFE_METHODS.has(req.method)) {
     next();
@@ -41,6 +60,7 @@ export const csrfProtection = (req, res, next) => {
     typeof headerToken !== 'string' ||
     !cookieToken ||
     !headerToken ||
+    !isValidSignedToken(cookieToken) ||
     !constantTimeEqual(cookieToken, headerToken)
   ) {
     next(new CustomError('CSRF token invalid or missing', 403));

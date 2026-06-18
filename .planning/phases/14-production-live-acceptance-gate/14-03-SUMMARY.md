@@ -8,6 +8,8 @@ files_changed:
   - Frontend/Chatify/e2e/chat-production-live-acceptance.spec.ts
   - Frontend/Chatify/e2e/pages/phase14ProductionAcceptance.ts
   - .planning/phases/14-production-live-acceptance-gate/14-LIVE-ACCEPTANCE.md
+  - .planning/phases/14-production-live-acceptance-gate/14-REVIEW.md
+  - .planning/phases/14-production-live-acceptance-gate/14-REVIEW-FIX.md
   - .planning/ROADMAP.md
   - .planning/STATE.md
 verification:
@@ -42,11 +44,17 @@ The gate remains live-readiness blocked in this run because the required product
 ## Verification
 
 - `cd Frontend/Chatify; npm run test:e2e:prod -- --grep "Phase 14 production live acceptance"` - passed with 1 skipped because production env is missing; `14-LIVE-ACCEPTANCE.md` records 3 setup blockers and `Readiness blocked`.
-- `cd Frontend/Chatify; npm run test:e2e:prod -- --grep "production smoke config"` - 6 passed.
-- `cd Frontend/Chatify; npm test` - 28 files, 113 tests passed.
+- `cd Frontend/Chatify; npm run test:e2e:prod -- --grep "production smoke config"` - 9 passed.
+- `cd Frontend/Chatify; npm test -- --run` - 39 files, 202 tests passed.
 - `cd Frontend/Chatify; npm run lint` - passed.
 - `cd Frontend/Chatify; npm run build` - passed.
 - Targeted redaction scan found no raw secret/header/token matches in `14-LIVE-ACCEPTANCE.md`.
+
+## Review Resolution
+
+`14-REVIEW.md` is resolved by `14-REVIEW-FIX.md`. The harness now preserves HTTPS-to-WSS backend evidence, keeps no-env config output out of the canonical live artifact, verifies pinned/security detail rows against live server state, exercises logout/session recovery, and cleans up failed call attempts with `try/finally` around call-mode acceptance.
+
+The production gate remains readiness-blocked when the required smoke environment is absent. The review resolution only fixes the local acceptance harness quality issues; it does not replace a zero-blocker production run.
 
 ## Remaining Blocker
 

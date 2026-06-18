@@ -5,10 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io } from 'socket.io-client';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { makeChat, makeMessage, makeUser } from '../test/chatFixtures';
+import { makeAttachment, makeChat, makeMessage, makeUser } from '../test/chatFixtures';
 import { isSoundEnabled, playCallEndedSound, playNotificationSound } from '../utils/sounds';
 import type { CallSessionPayload, Chat, ConversationControls, UserOnlineStatus } from '../types/chat';
-import { chatsQueryKey, messagesQueryKey, onlinePresenceQueryKey, pinnedMessagesQueryKey } from './useChatQueries';
+import {
+  chatsQueryKey,
+  messagesQueryKey,
+  onlinePresenceQueryKey,
+  pinnedMessagesQueryKey,
+  userSearchQueryKey,
+  usersQueryKey,
+} from './useChatQueries';
 import type { MessagesCacheData } from './messageCache';
 import { useChatSocket } from './useChatSocket';
 
@@ -176,6 +183,31 @@ vi.mock('../utils/sounds', () => ({
   playNotificationSound: vi.fn(),
 }));
 
+const originalNotification = window.Notification;
+
+const installNotificationMock = (permission: NotificationPermission = 'granted') => {
+  const notifications: Array<{ title: string; options?: NotificationOptions }> = [];
+
+  function NotificationMock(title: string, options?: NotificationOptions) {
+    notifications.push({ title, options });
+  }
+
+  Object.defineProperty(NotificationMock, 'permission', {
+    configurable: true,
+    value: permission,
+  });
+  Object.defineProperty(NotificationMock, 'requestPermission', {
+    configurable: true,
+    value: vi.fn(),
+  });
+  Object.defineProperty(window, 'Notification', {
+    configurable: true,
+    value: NotificationMock,
+  });
+
+  return notifications;
+};
+
 const createWrapper = (queryClient: QueryClient) => {
   return ({ children }: PropsWithChildren) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -211,6 +243,10 @@ describe('useChatSocket', () => {
 
   afterEach(() => {
     queryClient.clear();
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      value: originalNotification,
+    });
     vi.clearAllMocks();
   });
 
@@ -497,6 +533,65 @@ describe('useChatSocket', () => {
     });
   });
 
+  it('applies realtime identity updates to chat member and user caches', async () => {
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const updatedPeer = makeUser({
+      _id: 'user-2',
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      email: 'grace@example.com',
+      profilePic: '',
+      identityMark: {
+        source: 'custom',
+        label: 'Relay Grid',
+        initials: 'RG',
+        paletteId: 'teal',
+        patternId: 'rings',
+        accentId: 'mint',
+        updatedAt: '2026-06-17T05:00:00.000Z',
+      },
+    });
+
+    queryClient.setQueryData(chatsQueryKey, [makeChat()]);
+    queryClient.setQueryData(usersQueryKey, [makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper' })]);
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('user:identity-updated', {
+        userId: 'user-2',
+        user: updatedPeer,
+        chatIds: ['chat-1'],
+      });
+    });
+
+    expect(queryClient.getQueryData<Chat[]>(chatsQueryKey)?.[0]?.members[1]).toMatchObject({
+      _id: 'user-2',
+      identityMark: expect.objectContaining({
+        source: 'custom',
+        label: 'Relay Grid',
+      }),
+    });
+    expect(queryClient.getQueryData<ReturnType<typeof makeUser>[]>(usersQueryKey)?.[0]).toMatchObject({
+      _id: 'user-2',
+      identityMark: expect.objectContaining({
+        initials: 'RG',
+      }),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: usersQueryKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: userSearchQueryKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: onlinePresenceQueryKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: messagesQueryKey('chat-1') });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['sharedAssets', 'chat-1'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: pinnedMessagesQueryKey('chat-1') });
+  });
+
   it('acknowledges incoming delivery only after the message is cached', async () => {
     queryClient.setQueryData<MessagesCacheData>(messagesQueryKey('chat-1'), { messages: [] });
     const setQueryDataSpy = vi.spyOn(queryClient, 'setQueryData');
@@ -601,6 +696,141 @@ describe('useChatSocket', () => {
 
     expect(playCallEndedSound).toHaveBeenCalledTimes(1);
     expect(playNotificationSound).not.toHaveBeenCalled();
+  });
+
+  it('routes eligible background messages through generic sound, browser, and in-app alerts', async () => {
+    const notifications = installNotificationMock('granted');
+    const onBackgroundMessageAlert = vi.fn();
+
+    renderHook(() => useChatSocket({
+      chatId: 'chat-1',
+      notificationPreferences: {
+        soundEnabled: true,
+        browserNotificationsEnabled: true,
+        mutedChatIds: [],
+      },
+      onBackgroundMessageAlert,
+    }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+    const incoming = makeMessage({
+      _id: 'message-background-alert',
+      chatId: 'chat-2',
+      sender: 'user-2',
+      text: 'INPUT_MESSAGE_MARKER',
+      attachments: [makeAttachment({ displayName: 'INPUT_ATTACHMENT_MARKER' })],
+    });
+
+    act(() => {
+      socket.trigger('message:new', incoming);
+    });
+
+    expect(queryClient.getQueryData<MessagesCacheData>(messagesQueryKey('chat-2'))?.messages).toEqual([
+      expect.objectContaining({ _id: 'message-background-alert' }),
+    ]);
+    expect(socket.emit).toHaveBeenCalledWith('message:delivered', {
+      messageId: 'message-background-alert',
+      chatId: 'chat-2',
+    });
+    expect(playNotificationSound).toHaveBeenCalledTimes(1);
+    expect(onBackgroundMessageAlert).toHaveBeenCalledWith({
+      title: 'New Chatify message',
+      body: 'Open Chatify to read it.',
+    });
+    expect(notifications).toEqual([
+      {
+        title: 'New Chatify message',
+        options: {
+          body: 'Open Chatify to read it.',
+          tag: 'chatify-chat-2',
+        },
+      },
+    ]);
+    expect(`${notifications[0]?.title} ${notifications[0]?.options?.body}`).not.toContain('INPUT_MESSAGE_MARKER');
+    expect(`${notifications[0]?.title} ${notifications[0]?.options?.body}`).not.toContain('INPUT_ATTACHMENT_MARKER');
+  });
+
+  it('suppresses muted conversation alerts while preserving cache updates and delivery receipts', async () => {
+    const notifications = installNotificationMock('granted');
+    const onBackgroundMessageAlert = vi.fn();
+
+    renderHook(() => useChatSocket({
+      chatId: 'chat-1',
+      notificationPreferences: {
+        soundEnabled: true,
+        browserNotificationsEnabled: true,
+        mutedChatIds: ['chat-2'],
+      },
+      onBackgroundMessageAlert,
+    }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    const socket = socketMockState.sockets[0];
+
+    act(() => {
+      socket.trigger('message:new', makeMessage({
+        _id: 'message-muted-background',
+        chatId: 'chat-2',
+        sender: 'user-2',
+        text: 'Muted background message',
+      }));
+    });
+
+    expect(queryClient.getQueryData<MessagesCacheData>(messagesQueryKey('chat-2'))?.messages).toEqual([
+      expect.objectContaining({ _id: 'message-muted-background' }),
+    ]);
+    expect(socket.emit).toHaveBeenCalledWith('message:delivered', {
+      messageId: 'message-muted-background',
+      chatId: 'chat-2',
+    });
+    expect(playNotificationSound).not.toHaveBeenCalled();
+    expect(onBackgroundMessageAlert).not.toHaveBeenCalled();
+    expect(notifications).toEqual([]);
+  });
+
+  it('does not create duplicate message alerts for the current foreground chat', async () => {
+    const notifications = installNotificationMock('granted');
+    const onBackgroundMessageAlert = vi.fn();
+
+    renderHook(() => useChatSocket({
+      chatId: 'chat-1',
+      notificationPreferences: {
+        soundEnabled: true,
+        browserNotificationsEnabled: true,
+        mutedChatIds: [],
+      },
+      onBackgroundMessageAlert,
+    }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('message:new', makeMessage({
+        _id: 'message-foreground',
+        chatId: 'chat-1',
+        sender: 'user-2',
+        text: 'Foreground message',
+      }));
+    });
+
+    expect(playNotificationSound).not.toHaveBeenCalled();
+    expect(onBackgroundMessageAlert).not.toHaveBeenCalled();
+    expect(notifications).toEqual([]);
   });
 
   it('reconciles attachment messages and pin events while invalidating detail queries', async () => {

@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import type { AxiosProgressEvent } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { messageApi } from '../api/messageApi';
 import { userApi } from '../api/userApi';
@@ -15,11 +16,13 @@ import {
   useMessageSearch,
   useOnlinePresence,
   usePinnedMessages,
+  useSendMessage,
   useSharedAssets,
 } from './useChatQueries';
 
 vi.mock('../api/messageApi', () => ({
   messageApi: {
+    createMessage: vi.fn(),
     searchMessages: vi.fn(),
     getSharedAssets: vi.fn(),
     getPinnedMessages: vi.fn(),
@@ -288,6 +291,178 @@ describe('useMessageSearch', () => {
       userName: 'Realtime Contact',
       isOnline: true,
       isCallReachable: true,
+    });
+  });
+});
+
+describe('useSendMessage', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: {
+          retry: false,
+        },
+        queries: {
+          retry: false,
+        },
+      },
+    });
+    useAuthStore.setState({
+      user: makeUser({ _id: 'user-1' }),
+      isAuthenticated: true,
+      isLoading: false,
+    });
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+  });
+
+  it('tracks upload progress and keeps local drafts on optimistic messages', async () => {
+    const file = new File(['voice'], 'voice-message.webm', { type: 'audio/webm' });
+    const draft = {
+      id: 'voice-draft',
+      file,
+      displayName: 'voice-message.webm',
+      mimeType: 'audio/webm',
+      size: file.size,
+      kind: 'voice' as const,
+      durationSeconds: 2.5,
+    };
+    vi.mocked(messageApi.createMessage).mockImplementation((_payload, options) => {
+      options?.onUploadProgress?.({ loaded: 5, total: 10 } as AxiosProgressEvent);
+      return Promise.resolve({
+        data: {
+          status: 'message created successfully',
+          data: {
+            message: makeMessage({
+              _id: 'message-voice',
+              chatId: 'chat-1',
+              sender: 'user-1',
+              text: '',
+              clientMessageId: 'client-voice',
+              attachments: [{
+                _id: 'attachment-1',
+                attachmentId: 'attachment-1',
+                displayName: 'voice-message.webm',
+                mimeType: 'audio/webm',
+                size: file.size,
+                kind: 'voice',
+                durationSeconds: 2.5,
+                status: 'active',
+              }],
+            }),
+          },
+        },
+      } as Awaited<ReturnType<typeof messageApi.createMessage>>);
+    });
+
+    const { result } = renderHook(() => useSendMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        chatId: 'chat-1',
+        text: '',
+        clientMessageId: 'client-voice',
+        attachments: [draft],
+        optimisticAttachments: [{
+          _id: 'optimistic-attachment-1',
+          attachmentId: 'optimistic-attachment-1',
+          displayName: 'voice-message.webm',
+          mimeType: 'audio/webm',
+          size: file.size,
+          kind: 'voice',
+          durationSeconds: 2.5,
+          status: 'active',
+        }],
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.uploadStates['client-voice']).toMatchObject({
+        status: 'completed',
+        progress: 100,
+      });
+    });
+
+    expect(messageApi.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachments: [draft],
+      }),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        onUploadProgress: expect.any(Function),
+      })
+    );
+    expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toMatchObject({
+      messages: [
+        expect.objectContaining({
+          _id: 'message-voice',
+          attachments: [
+            expect.objectContaining({
+              kind: 'voice',
+              durationSeconds: 2.5,
+            }),
+          ],
+        }),
+      ],
+    });
+  });
+
+  it('aborts in-flight attachment uploads by client message id', async () => {
+    let capturedSignal: { aborted?: boolean } | undefined;
+    const file = new File(['hello'], 'message-states-spec.pdf', { type: 'application/pdf' });
+    const draft = {
+      id: 'file-draft',
+      file,
+      displayName: 'message-states-spec.pdf',
+      mimeType: 'application/pdf',
+      size: file.size,
+      kind: 'file' as const,
+    };
+
+    vi.mocked(messageApi.createMessage).mockImplementation((_payload, options) => {
+      const signal = options?.signal as AbortSignal | undefined;
+      capturedSignal = signal;
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          reject(new DOMException('Upload canceled', 'AbortError'));
+        });
+      }) as ReturnType<typeof messageApi.createMessage>;
+    });
+
+    const { result } = renderHook(() => useSendMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        chatId: 'chat-1',
+        text: '',
+        clientMessageId: 'client-abort',
+        attachments: [draft],
+        optimisticAttachments: [],
+      });
+    });
+
+    await waitFor(() => {
+      expect(messageApi.createMessage).toHaveBeenCalled();
+    });
+    act(() => {
+      result.current.cancelUpload('client-abort');
+    });
+
+    await waitFor(() => {
+      expect(capturedSignal?.aborted).toBe(true);
+      expect(result.current.uploadStates['client-abort']).toMatchObject({
+        status: 'aborted',
+        errorMessage: 'Upload canceled',
+      });
     });
   });
 });
