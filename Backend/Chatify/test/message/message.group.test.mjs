@@ -63,6 +63,56 @@ describe('group message access', () => {
     expect(JSON.stringify(search.body)).not.toContain('"email"');
   });
 
+  it('lets a group member hide another member message only for themselves', async () => {
+    const { owner, memberTwo, memberThree, outsider, chatId } = await setupGroupMessageScenario();
+
+    const created = await memberTwo.agent
+      .post('/api/message/new-message')
+      .send({
+        chatId,
+        text: 'Group private delete note',
+        clientMessageId: 'group-private-delete-note',
+      })
+      .expect(201);
+
+    const messageId = created.body.data.message._id;
+
+    await memberThree.agent
+      .get(`/api/message/${chatId}/unread-count`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.data.unreadCount).toBe(1);
+      });
+
+    const deleteResponse = await memberThree.agent
+      .delete(`/api/message/${messageId}`)
+      .send({ deleteForEveryone: false })
+      .expect(200);
+    const hiddenMemberHistory = await memberThree.agent
+      .get(`/api/message/get-all-messages/${chatId}`)
+      .expect(200);
+    const senderHistory = await memberTwo.agent
+      .get(`/api/message/get-all-messages/${chatId}`)
+      .expect(200);
+    const otherMemberHistory = await owner.agent
+      .get(`/api/message/get-all-messages/${chatId}`)
+      .expect(200);
+    const unreadAfterDelete = await memberThree.agent
+      .get(`/api/message/${chatId}/unread-count`)
+      .expect(200);
+
+    await outsider.agent
+      .delete(`/api/message/${messageId}`)
+      .send({ deleteForEveryone: false })
+      .expect(403);
+
+    expect(deleteResponse.body.data.message.deletedFor).toEqual([memberThree.user._id.toString()]);
+    expect(hiddenMemberHistory.body.data.messages.map((message) => message._id)).not.toContain(messageId);
+    expect(senderHistory.body.data.messages.map((message) => message._id)).toContain(messageId);
+    expect(otherMemberHistory.body.data.messages.map((message) => message._id)).toContain(messageId);
+    expect(unreadAfterDelete.body.data.unreadCount).toBe(0);
+  });
+
   it('returns group chats through the existing chat list cache shape', async () => {
     const { owner, memberTwo, chatId } = await setupGroupMessageScenario();
 

@@ -26,6 +26,7 @@ import {
   findActiveCallForUserInChat,
   getCallPeerForParticipant,
   getCallPeerId,
+  getGroupCallRecipientIds,
   loadCallSessionForAction,
   normalizeCallMode,
   rejectCallSession,
@@ -268,9 +269,17 @@ const emitCallActivity = async (session) => {
 
 const emitCallSyncToParticipants = (session, extra = {}) => {
   const payload = buildCallSessionPayload(session, extra)
+  const participantIds = new Set([
+    session.callerId?.toString(),
+    session.calleeId?.toString(),
+    session.acceptedBy?.toString(),
+    ...(session.participantIds ?? []).map((userId) => userId.toString()),
+    ...(session.deliveredTo ?? []).map((userId) => userId.toString()),
+  ].filter(Boolean))
 
-  emitToUserSockets(session.callerId, CALL_SOCKET_EVENTS.SYNC, payload)
-  emitToUserSockets(session.calleeId, CALL_SOCKET_EVENTS.SYNC, payload)
+  participantIds.forEach((participantId) => {
+    emitToUserSockets(participantId, CALL_SOCKET_EVENTS.SYNC, payload)
+  })
   return payload
 }
 
@@ -760,10 +769,14 @@ export const initSocket = (server) => {
       try {
         const chat = await assertChatMember({ chatId, userId: socket.data.userId })
         const normalizedMode = normalizeCallMode(mode)
-        const calleeId = getCallPeerId({ chat, userId: socket.data.userId })
-        const reachableCalleeSockets = getUserSockets(calleeId)
+        const recipientIds = chat.isGroupChat
+          ? getGroupCallRecipientIds({ chat, userId: socket.data.userId })
+          : [getCallPeerId({ chat, userId: socket.data.userId })]
+        const reachableRecipientIds = recipientIds.filter((recipientId) => (
+          getUserSockets(recipientId).size > 0
+        ))
 
-        if (reachableCalleeSockets.size === 0) {
+        if (reachableRecipientIds.length === 0) {
           emitCallError(socket, event, { code: 'callee_unavailable' }, ack)
           return
         }
@@ -772,13 +785,16 @@ export const initSocket = (server) => {
           chat,
           callerId: socket.data.userId,
           mode: normalizedMode,
-          deliveredTo: [calleeId],
+          recipientIds: reachableRecipientIds,
+          deliveredTo: reachableRecipientIds,
         })
         const incomingPayload = buildCallSessionPayload(session, {
           fromUserId: socket.data.userId,
           callConfig: getCallIceConfig(),
         })
-        const emittedCount = emitToUserSockets(calleeId, CALL_SOCKET_EVENTS.INCOMING, incomingPayload)
+        const emittedCount = reachableRecipientIds.reduce((count, recipientId) => (
+          count + emitToUserSockets(recipientId, CALL_SOCKET_EVENTS.INCOMING, incomingPayload)
+        ), 0)
 
         if (emittedCount === 0) {
           const failedSession = await endCallSession({

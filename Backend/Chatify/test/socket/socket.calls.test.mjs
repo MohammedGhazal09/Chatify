@@ -132,18 +132,102 @@ describe('Socket.IO call lifecycle', () => {
     })).resolves.toBe(1);
   });
 
-  it('rejects group chats, non-members, duplicate calls, and stale transitions', async () => {
-    const { caller, callee, outsider, chatId } = await setupCallScenario();
+  it('starts a group-originated call, rings reachable members, and connects the first accepted peer', async () => {
+    const { caller, callee, outsider } = await setupCallScenario();
     const groupChat = await createDirectChat([caller.user, callee.user, outsider.user], {
-      chatName: 'Group call not supported',
+      chatName: 'Group call supported',
       isGroupChat: true,
     });
+    const groupChatId = groupChat._id.toString();
+    const calleeIncomingPromise = waitForSocketEvent(callee.socket, 'call:incoming');
+    const outsiderIncomingPromise = waitForSocketEvent(outsider.socket, 'call:incoming');
 
-    await emitWithAck(caller.socket, 'chat:join', groupChat._id.toString());
+    await emitWithAck(caller.socket, 'chat:join', groupChatId);
+    await emitWithAck(callee.socket, 'chat:join', groupChatId);
+    await emitWithAck(outsider.socket, 'chat:join', groupChatId);
     const groupAck = await emitWithAck(caller.socket, 'call:start', {
-      chatId: groupChat._id.toString(),
+      chatId: groupChatId,
       mode: 'audio',
     });
+    const calleeIncoming = await calleeIncomingPromise;
+    const outsiderIncoming = await outsiderIncomingPromise;
+    const callerAcceptedPromise = waitForSocketEvent(caller.socket, 'call:accept');
+    const callerSyncPromise = waitForSocketEvent(caller.socket, 'call:sync');
+
+    expect(groupAck).toMatchObject({
+      ok: true,
+      event: 'call:start',
+      chatId: groupChatId,
+      callerId: caller.user._id.toString(),
+      calleeId: null,
+      recipientIds: expect.arrayContaining([
+        callee.user._id.toString(),
+        outsider.user._id.toString(),
+      ]),
+      isGroupCall: true,
+      status: 'ringing',
+    });
+    expect(calleeIncoming).toMatchObject({
+      callId: groupAck.callId,
+      chatId: groupChatId,
+      callerId: caller.user._id.toString(),
+      isGroupCall: true,
+      status: 'ringing',
+    });
+    expect(outsiderIncoming).toMatchObject({
+      callId: groupAck.callId,
+      chatId: groupChatId,
+      isGroupCall: true,
+      status: 'ringing',
+    });
+
+    const acceptAck = await emitWithAck(callee.socket, 'call:accept', {
+      chatId: groupChatId,
+      callId: groupAck.callId,
+    });
+    const callerAccepted = await callerAcceptedPromise;
+    const callerSync = await callerSyncPromise;
+
+    expect(acceptAck).toMatchObject({
+      ok: true,
+      event: 'call:accept',
+      callId: groupAck.callId,
+      calleeId: callee.user._id.toString(),
+      acceptedBy: callee.user._id.toString(),
+      isGroupCall: true,
+      status: 'connected',
+    });
+    expect(callerAccepted).toMatchObject({
+      callId: groupAck.callId,
+      fromUserId: callee.user._id.toString(),
+      acceptedBy: callee.user._id.toString(),
+      status: 'connected',
+    });
+    expect(callerSync).toMatchObject({
+      callId: groupAck.callId,
+      status: 'connected',
+      acceptedBy: callee.user._id.toString(),
+    });
+    const storedSession = await CallSession.findOne({
+      callId: groupAck.callId,
+      status: 'connected',
+      acceptedBy: callee.user._id,
+    }).lean();
+    expect(storedSession).toBeTruthy();
+    expect(storedSession.participantIds.map((id) => id.toString()).sort()).toEqual([
+      callee.user._id.toString(),
+      caller.user._id.toString(),
+    ].sort());
+
+    await emitWithAck(callee.socket, 'call:end', {
+      chatId: groupChatId,
+      callId: groupAck.callId,
+    });
+
+  });
+
+  it('rejects non-members, duplicate calls, and stale transitions', async () => {
+    const { caller, callee, outsider, chatId } = await setupCallScenario();
     const outsiderAck = await emitWithAck(outsider.socket, 'call:start', {
       chatId,
       mode: 'audio',
@@ -162,7 +246,6 @@ describe('Socket.IO call lifecycle', () => {
       callId: ack.callId,
     });
 
-    expect(groupAck).toMatchObject({ ok: false, event: 'call:start', code: 'not_direct_chat' });
     expect(outsiderAck).toMatchObject({ ok: false, event: 'call:start', code: 'forbidden_or_not_found' });
     expect(duplicateAck).toMatchObject({ ok: false, event: 'call:start', code: 'call_busy' });
     expect(staleAcceptAck).toMatchObject({ ok: false, event: 'call:accept', code: 'stale_call' });

@@ -56,6 +56,17 @@ describe('ChatSidebar', () => {
     );
   });
 
+  it('opens settings from the current account profile picture', async () => {
+    const user = userEvent.setup();
+    const onOpenSettings = vi.fn();
+
+    renderSidebar({ onOpenSettings });
+
+    await user.click(screen.getByRole('button', { name: 'Open account settings' }));
+
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
   it('renders the empty sidebar state and close control', async () => {
     const user = userEvent.setup();
     const onCloseSidebar = vi.fn();

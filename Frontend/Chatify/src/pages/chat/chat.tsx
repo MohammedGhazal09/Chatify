@@ -502,6 +502,7 @@ const ChatPage = () => {
     currentUserId: user?._id,
     otherMember,
     otherMemberStatus,
+    onlineUsers,
     isPresenceChecking,
     conversationControls,
     isAuthenticated,

@@ -146,7 +146,8 @@ describe('ConversationDetailContent', () => {
 
     expect(screen.getByText('Voice messages')).toBeInTheDocument();
     expect(screen.getByText('voice-message.webm')).toBeInTheDocument();
-    expect(screen.getByText('0:04 - 5 B')).toBeInTheDocument();
+    expect(screen.getByText('0:04')).toBeInTheDocument();
+    expect(screen.getByText('5 B')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Play voice-message.webm' })).toBeDisabled();
     expect(screen.getByRole('link', { name: 'Download voice-message.webm' })).toHaveAttribute(
       'href',

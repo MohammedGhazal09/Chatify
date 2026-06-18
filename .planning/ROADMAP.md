@@ -36,6 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 20: Username Identity And Privacy Foundation** - Add unique public usernames, signup collection, existing-user username setup, and private-email boundaries. (completed 2026-06-18)
 - [x] **Phase 21: Username-Based Contact Discovery** - Replace email-based direct chat creation and contact discovery with username-based lookup. (completed 2026-06-18)
 - [x] **Phase 22: Group Conversations With Ten-Member Limit** - Add private group conversations with username-selected members and a server-enforced 10-member cap. (completed 2026-06-18)
+- [ ] **Phase 23: Per-User Message Deletion For Received And Group Messages** - Let users hide any visible message for themselves in direct and group chats without deleting it for other participants.
 
 ## Phase Details
 
@@ -489,7 +490,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21 -> 22
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -516,6 +517,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 20. Username Identity And Privacy Foundation | 3/3 | Complete | 2026-06-18 |
 | 21. Username-Based Contact Discovery | 3/3 | Complete | 2026-06-18 |
 | 22. Group Conversations With Ten-Member Limit | 4/4 | Complete | 2026-06-18 |
+| 23. Per-User Message Deletion For Received And Group Messages | 0/0 | Not planned | - |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
@@ -799,3 +801,31 @@ Plans:
 - Calls/video in group chats remain out of scope for this phase.
 - Execution must be inline in the current Codex thread; do not use subagents.
 - Preserve unrelated local work, especially `Frontend/Chatify/src/pages/chat/chat.tsx`.
+
+### Phase 23: Per-User Message Deletion For Received And Group Messages
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 22
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 23 to break down)
+
+### Phase 24: Group message sender names and group voice/video calls
+
+**Goal:** Group conversations show sender names above messages and expose authenticated, honest audio/video call entry points for reachable group members.
+**Requirements**: CALL-01, CALL-02, CALL-03, CALL-04, V2-GRP-04, TEST-02
+**Depends on:** Phase 23
+**Plans:** 2/2 plans complete
+
+Plans:
+
+**Wave 1**
+
+- [x] 24-01: Group Message Sender Labels And Frontend Group Call Availability
+
+**Wave 2 *(blocked on Wave 1 completion)***
+
+- [x] 24-02: Backend Group-Originated Call Signaling And Single-Peer Session Bridge

@@ -58,7 +58,10 @@ export interface CallSessionPayload {
   callId: string;
   chatId: string;
   callerId: string;
-  calleeId: string;
+  calleeId: string | null;
+  recipientIds?: string[];
+  acceptedBy?: string | null;
+  isGroupCall?: boolean;
   mode: CallMode;
   status: CallStatus;
   startedAt?: string | null;

@@ -1,4 +1,5 @@
-import { AlertCircle, FileText, Image as ImageIcon, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { AlertCircle, FileText, Image as ImageIcon, Pause, Play, X } from 'lucide-react';
 import type { MessageUploadState } from '../../../hooks/useChatQueries';
 import type { ComposerAttachmentDraft } from '../../../types/chat';
 import { formatDurationSeconds, formatFileSize } from '../utils/attachmentDisplay';
@@ -13,6 +14,95 @@ interface AttachmentTrayProps {
 }
 
 const VOICE_DRAFT_WAVEFORM_BARS = [12, 20, 14, 28, 18, 24, 12, 30, 16, 22, 14, 26];
+
+interface VoiceDraftPreviewProps {
+  attachment: ComposerAttachmentDraft;
+  disabled: boolean;
+  isUploading: boolean;
+  onRemove: (id: string) => void;
+}
+
+const VoiceDraftPreview = ({
+  attachment,
+  disabled,
+  isUploading,
+  onRemove,
+}: VoiceDraftPreviewProps) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const canPlayPreview = Boolean(attachment.localPreviewUrl) && !disabled && !isUploading;
+
+  const handleTogglePreview = () => {
+    const audio = audioRef.current;
+
+    if (!audio || !canPlayPreview) {
+      return;
+    }
+
+    if (isPlaying) {
+      audio.pause();
+      return;
+    }
+
+    void audio.play().catch(() => {
+      setIsPlaying(false);
+    });
+  };
+
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-2 sm:col-span-2">
+      {attachment.localPreviewUrl && (
+        <audio
+          ref={audioRef}
+          src={attachment.localPreviewUrl}
+          preload="metadata"
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => setIsPlaying(false)}
+          onError={() => setIsPlaying(false)}
+        />
+      )}
+      <button
+        type="button"
+        onClick={handleTogglePreview}
+        disabled={!canPlayPreview}
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[var(--chat-accent)] text-[var(--chat-own-text)] shadow-sm transition hover:bg-[var(--chat-accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--chat-panel-subtle)] disabled:text-[var(--chat-text-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        aria-label={isPlaying ? `Pause ${attachment.displayName}` : `Play ${attachment.displayName}`}
+        aria-pressed={isPlaying}
+      >
+        {isPlaying ? (
+          <Pause aria-hidden="true" className="h-4 w-4" />
+        ) : (
+          <Play aria-hidden="true" className="h-4 w-4" />
+        )}
+      </button>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-[var(--chat-text)]">{attachment.displayName}</span>
+        <span className="block truncate text-xs text-[var(--chat-text-muted)]">
+          Voice message - {formatDurationSeconds(attachment.durationSeconds)} - {formatFileSize(attachment.size)}
+        </span>
+        <span className="mt-2 flex h-7 items-center gap-1" aria-hidden="true">
+          {VOICE_DRAFT_WAVEFORM_BARS.map((height, index) => (
+            <span
+              key={`${height}-${index}`}
+              className={`w-1 rounded-full ${isPlaying ? 'bg-[var(--chat-accent)]' : 'bg-[color-mix(in_srgb,var(--chat-accent)_62%,var(--chat-panel-subtle))]'}`}
+              style={{ height }}
+            />
+          ))}
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={() => onRemove(attachment.id)}
+        disabled={disabled || isUploading}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-danger)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        aria-label={`Remove ${attachment.displayName}`}
+      >
+        <X aria-hidden="true" className="h-4 w-4" />
+      </button>
+    </div>
+  );
+};
 
 const AttachmentTray = ({
   attachments,
@@ -35,45 +125,42 @@ const AttachmentTray = ({
           {attachments.map((attachment) => {
             const isVoiceDraft = attachment.kind === 'voice';
 
+            if (isVoiceDraft) {
+              return (
+                <VoiceDraftPreview
+                  key={attachment.id}
+                  attachment={attachment}
+                  disabled={disabled}
+                  isUploading={isUploading}
+                  onRemove={onRemove}
+                />
+              );
+            }
+
             return (
               <div
                 key={attachment.id}
-                className={`flex min-w-0 items-center gap-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-2 ${isVoiceDraft ? 'sm:col-span-2' : ''}`}
+                className="flex min-w-0 items-center gap-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-2"
               >
-                {!isVoiceDraft && (
-                  <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[var(--chat-radius-md)] bg-[var(--chat-panel-subtle)] text-[var(--chat-accent)]">
-                    {attachment.kind === 'media' && attachment.localPreviewUrl ? (
-                      <img
-                        src={attachment.localPreviewUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : attachment.kind === 'media' ? (
-                      <ImageIcon aria-hidden="true" className="h-5 w-5" />
-                    ) : (
-                      <FileText aria-hidden="true" className="h-5 w-5" />
-                    )}
-                  </span>
-                )}
+                <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[var(--chat-radius-md)] bg-[var(--chat-panel-subtle)] text-[var(--chat-accent)]">
+                  {attachment.kind === 'media' && attachment.localPreviewUrl ? (
+                    <img
+                      src={attachment.localPreviewUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : attachment.kind === 'media' ? (
+                    <ImageIcon aria-hidden="true" className="h-5 w-5" />
+                  ) : (
+                    <FileText aria-hidden="true" className="h-5 w-5" />
+                  )}
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-[var(--chat-text)]">{attachment.displayName}</span>
                   <span className="block truncate text-xs text-[var(--chat-text-muted)]">
-                    {isVoiceDraft
-                      ? `Voice message - ${formatDurationSeconds(attachment.durationSeconds)} - ${formatFileSize(attachment.size)}`
-                      : `${attachment.mimeType || 'application/octet-stream'} - ${formatFileSize(attachment.size)}`}
+                    {attachment.mimeType || 'application/octet-stream'} - {formatFileSize(attachment.size)}
                   </span>
                 </span>
-                {isVoiceDraft && (
-                  <span className="hidden h-8 w-28 shrink-0 items-center gap-1 sm:flex" aria-hidden="true">
-                    {VOICE_DRAFT_WAVEFORM_BARS.map((height, index) => (
-                      <span
-                        key={`${height}-${index}`}
-                        className="w-1 rounded-full bg-[color-mix(in_srgb,var(--chat-accent)_62%,var(--chat-panel-subtle))]"
-                        style={{ height }}
-                      />
-                    ))}
-                  </span>
-                )}
                 <button
                   type="button"
                   onClick={() => onRemove(attachment.id)}

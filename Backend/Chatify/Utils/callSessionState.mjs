@@ -78,6 +78,23 @@ const idsEqual = (left, right) => {
   return Boolean(leftId && rightId && leftId === rightId);
 };
 
+const uniqueObjectIds = (values = []) => {
+  const seen = new Set();
+  const ids = [];
+
+  values.forEach((value) => {
+    const normalized = normalizeParticipantId(value);
+    const id = toIdString(normalized);
+
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      ids.push(normalized);
+    }
+  });
+
+  return ids;
+};
+
 const serializeDate = (value) => {
   if (!value) {
     return null;
@@ -102,7 +119,10 @@ export const serializeCallSession = (session) => {
     callId: plainSession.callId ?? null,
     chatId: toIdString(plainSession.chatId),
     callerId: toIdString(plainSession.callerId),
-    calleeId: toIdString(plainSession.calleeId),
+    calleeId: toIdString(plainSession.calleeId) ?? null,
+    recipientIds: (plainSession.recipientIds ?? []).map((userId) => toIdString(userId)).filter(Boolean),
+    acceptedBy: toIdString(plainSession.acceptedBy) ?? null,
+    isGroupCall: plainSession.isGroupCall === true,
     mode: plainSession.mode ?? CALL_MODE.AUDIO,
     status: plainSession.status ?? CALL_STATUS.FAILED,
     startedAt: serializeDate(plainSession.startedAt),
@@ -130,10 +150,22 @@ export const getCallPeerId = ({ chat, userId }) => {
   return getDirectChatPeerId(chat, userId);
 };
 
+export const getGroupCallRecipientIds = ({ chat, userId }) => {
+  if (!chat?.isGroupChat) {
+    return [getCallPeerId({ chat, userId })];
+  }
+
+  const callerObjectId = normalizeParticipantId(userId);
+  return uniqueObjectIds(chat.members ?? []).filter((memberId) => !idsEqual(memberId, callerObjectId));
+};
+
 export const assertCallParticipant = (session, userId) => {
   const userObjectId = normalizeParticipantId(userId);
+  const participantIds = session?.participantIds?.length
+    ? session.participantIds
+    : [session?.callerId, session?.calleeId, ...(session?.recipientIds ?? []), ...(session?.deliveredTo ?? [])];
 
-  if (!idsEqual(session?.callerId, userObjectId) && !idsEqual(session?.calleeId, userObjectId)) {
+  if (!participantIds.some((participantId) => idsEqual(participantId, userObjectId))) {
     throw new CallSessionError('call_forbidden', 'Call not found');
   }
 
@@ -142,6 +174,23 @@ export const assertCallParticipant = (session, userId) => {
 
 export const getCallPeerForParticipant = (session, userId) => {
   const userObjectId = assertCallParticipant(session, userId);
+
+  if (session.isGroupCall) {
+    if (idsEqual(session.callerId, userObjectId)) {
+      if (!session.acceptedBy && !session.calleeId) {
+        throw new CallSessionError('stale_call', 'Call is not connected yet', 409);
+      }
+
+      return session.acceptedBy ?? session.calleeId;
+    }
+
+    if (idsEqual(session.acceptedBy ?? session.calleeId, userObjectId)) {
+      return session.callerId;
+    }
+
+    throw new CallSessionError('call_forbidden', 'Only the connected group call participant can signal', 403);
+  }
+
   return idsEqual(session.callerId, userObjectId) ? session.calleeId : session.callerId;
 };
 
@@ -155,6 +204,7 @@ export const findActiveCallForUser = (userId) => {
     $or: [
       { callerId: userObjectId },
       { calleeId: userObjectId },
+      { participantIds: userObjectId },
     ],
   }).sort({ createdAt: -1 });
 };
@@ -175,20 +225,19 @@ export const findActiveCallForUserInChat = (userId, chatId) => {
     $or: [
       { callerId: userObjectId },
       { calleeId: userObjectId },
+      { participantIds: userObjectId },
     ],
   }).sort({ createdAt: -1 });
 };
 
-const assertNoActiveUserCall = async ({ callerId, calleeId }) => {
-  const callerObjectId = normalizeParticipantId(callerId);
-  const calleeObjectId = normalizeParticipantId(calleeId);
+const assertNoActiveParticipantCall = async (participantIds) => {
+  const normalizedIds = uniqueObjectIds(participantIds);
   const activeCall = await CallSession.findOne({
     status: { $in: CALL_ACTIVE_STATUSES },
     $or: [
-      { callerId: callerObjectId },
-      { calleeId: callerObjectId },
-      { callerId: calleeObjectId },
-      { calleeId: calleeObjectId },
+      { callerId: { $in: normalizedIds } },
+      { calleeId: { $in: normalizedIds } },
+      { participantIds: { $in: normalizedIds } },
     ],
   }).lean();
 
@@ -201,23 +250,32 @@ export const startCallSession = async ({
   chat,
   callerId,
   mode,
+  recipientIds,
   deliveredTo = [],
   now = new Date(),
 }) => {
-  assertDirectCallChat(chat);
   await assertConversationActivityAllowed({ chat, actorId: callerId });
 
   const callerObjectId = normalizeParticipantId(callerId);
-  const calleeId = getCallPeerId({ chat, userId: callerObjectId });
+  const isGroupCall = chat?.isGroupChat === true;
+  const normalizedRecipientIds = uniqueObjectIds(recipientIds ?? getGroupCallRecipientIds({ chat, userId: callerObjectId }));
+  const calleeId = isGroupCall ? null : normalizedRecipientIds[0];
   const normalizedMode = normalizeCallMode(mode);
 
-  await assertNoActiveUserCall({ callerId: callerObjectId, calleeId });
+  if (normalizedRecipientIds.length === 0) {
+    throw new CallSessionError('callee_unavailable', 'No call recipients are available', 404);
+  }
+
+  await assertNoActiveParticipantCall([callerObjectId, ...normalizedRecipientIds]);
 
   return CallSession.create({
     callId: randomUUID(),
     chatId: chat._id,
     callerId: callerObjectId,
     calleeId,
+    recipientIds: normalizedRecipientIds,
+    participantIds: uniqueObjectIds([callerObjectId, ...normalizedRecipientIds]),
+    isGroupCall,
     mode: normalizedMode,
     status: CALL_STATUS.RINGING,
     startedAt: now,
@@ -268,10 +326,15 @@ const terminalPatchForStatus = ({ status, reason, now, session }) => {
 export const acceptCallSession = async ({ callId, chatId, actorId, now = new Date() }) => {
   const session = await loadCallSessionForAction({ callId, chatId, actorId });
 
-  if (!idsEqual(session.calleeId, actorId)) {
+  if (session.isGroupCall) {
+    if (!(session.deliveredTo ?? []).some((userId) => idsEqual(userId, actorId))) {
+      throw new CallSessionError('call_forbidden', 'Only a called group member can accept this call', 403);
+    }
+  } else if (!idsEqual(session.calleeId, actorId)) {
     throw new CallSessionError('call_forbidden', 'Only the callee can accept this call', 403);
   }
 
+  const actorObjectId = normalizeParticipantId(actorId);
   const updatedSession = await CallSession.findOneAndUpdate(
     {
       _id: session._id,
@@ -281,6 +344,9 @@ export const acceptCallSession = async ({ callId, chatId, actorId, now = new Dat
       $set: {
         status: CALL_STATUS.CONNECTED,
         answeredAt: now,
+        acceptedBy: actorObjectId,
+        participantIds: uniqueObjectIds([session.callerId, actorObjectId]),
+        ...(session.isGroupCall ? { calleeId: actorObjectId } : {}),
       },
     },
     { new: true }
@@ -296,7 +362,11 @@ export const acceptCallSession = async ({ callId, chatId, actorId, now = new Dat
 export const rejectCallSession = async ({ callId, chatId, actorId, now = new Date() }) => {
   const session = await loadCallSessionForAction({ callId, chatId, actorId });
 
-  if (!idsEqual(session.calleeId, actorId)) {
+  if (session.isGroupCall) {
+    if (!(session.deliveredTo ?? []).some((userId) => idsEqual(userId, actorId))) {
+      throw new CallSessionError('call_forbidden', 'Only a called group member can reject this call', 403);
+    }
+  } else if (!idsEqual(session.calleeId, actorId)) {
     throw new CallSessionError('call_forbidden', 'Only the callee can reject this call', 403);
   }
 
@@ -463,6 +533,7 @@ export const createCallActivityForSession = async (session) => {
   }
 
   const shouldCreateMissed = result !== CALL_ACTIVITY_RESULT.MISSED
+    || (session.isGroupCall && (session.deliveredTo ?? []).length > 0)
     || (session.deliveredTo ?? []).some((userId) => idsEqual(userId, session.calleeId));
 
   if (!shouldCreateMissed) {

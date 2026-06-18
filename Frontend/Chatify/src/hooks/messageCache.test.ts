@@ -538,6 +538,31 @@ describe('message cache helpers', () => {
     });
   });
 
+  it('removes per-user delete events even when the server includes the updated message', () => {
+    const existing = makeMessage({
+      _id: 'message-delete-for-me',
+      text: 'Hide this locally',
+    });
+    const serverMessage = makeMessage({
+      _id: 'message-delete-for-me',
+      text: 'Hide this locally',
+      deletedFor: ['user-2'],
+      updatedAt: '2026-06-08T10:00:05.000Z',
+    });
+
+    const cache = applyDeletedMessageInCache(
+      { messages: [existing] },
+      {
+        messageId: 'message-delete-for-me',
+        chatId: 'chat-1',
+        deleteForEveryone: false,
+        message: serverMessage,
+      }
+    );
+
+    expect(cache?.messages).toEqual([]);
+  });
+
   it('marks existing attachment summaries as deleted when a tombstone does not carry them back', () => {
     const existing = makeMessage({
       _id: 'message-delete-attachment',

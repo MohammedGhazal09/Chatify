@@ -92,14 +92,22 @@ const ChatSidebar = ({
       }`}
     >
       <div className="flex min-h-16 items-center gap-3 border-b border-[var(--chat-border)] p-4">
-        <UserAvatar
-          user={user}
-          label={user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}
-          variant="account"
-          className="h-11 w-11"
-          imageAlt="Current account profile picture"
-          fallbackAriaLabel="Current account profile picture fallback"
-        />
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="group grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+          title="Open account settings"
+          aria-label="Open account settings"
+        >
+          <UserAvatar
+            user={user}
+            label={user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}
+            variant="account"
+            className="h-11 w-11 transition group-hover:ring-2 group-hover:ring-[var(--chat-accent)]"
+            imageAlt="Current account profile picture"
+            fallbackAriaLabel="Current account profile picture fallback"
+          />
+        </button>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-[var(--chat-text-soft)]">Chatify</p>
           <p className="truncate text-sm font-semibold text-[var(--chat-text)]">{user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}</p>

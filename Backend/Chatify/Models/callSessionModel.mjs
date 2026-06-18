@@ -21,7 +21,22 @@ const callSessionSchema = new mongoose.Schema(
     calleeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Users',
-      required: true,
+    },
+    recipientIds: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Users',
+    }],
+    participantIds: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Users',
+    }],
+    acceptedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Users',
+    },
+    isGroupCall: {
+      type: Boolean,
+      default: false,
     },
     mode: {
       type: String,
@@ -70,6 +85,7 @@ const callSessionSchema = new mongoose.Schema(
 callSessionSchema.index({ chatId: 1, createdAt: -1 });
 callSessionSchema.index({ callerId: 1, status: 1, createdAt: -1 });
 callSessionSchema.index({ calleeId: 1, status: 1, createdAt: -1 });
+callSessionSchema.index({ participantIds: 1, status: 1, createdAt: -1 });
 callSessionSchema.index({ chatId: 1, status: 1, createdAt: -1 });
 
 const CallSession = mongoose.model('CallSessions', callSessionSchema);

@@ -177,6 +177,33 @@ describe('MessageComposer', () => {
     expect(startRecording).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps only the lower composer button as the stop recording action', async () => {
+    const user = userEvent.setup();
+    const stopRecording = vi.fn();
+    const cancelRecording = vi.fn();
+    voiceRecorderMock.current = {
+      ...defaultVoiceRecorder(),
+      status: 'recording',
+      isRecording: true,
+      durationSeconds: 2,
+      stopRecording,
+      cancelRecording,
+    };
+
+    render(<ComposerHarness onSend={vi.fn()} />);
+
+    const stopButtons = screen.getAllByRole('button', { name: 'Stop recording voice message' });
+
+    expect(stopButtons).toHaveLength(1);
+    expect(screen.getByText('Recording 0:02')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel voice recording' })).toBeEnabled();
+
+    await user.click(stopButtons[0]);
+
+    expect(stopRecording).toHaveBeenCalledTimes(1);
+    expect(cancelRecording).not.toHaveBeenCalled();
+  });
+
   it('stacks the emoji picker above the composer instead of clipping it inside the dock', () => {
     const { container } = render(<ComposerHarness onSend={vi.fn()} showEmojiPicker />);
 
@@ -296,9 +323,16 @@ describe('MessageComposer', () => {
     expect(screen.queryByText('message-states-spec.pdf')).not.toBeInTheDocument();
   });
 
-  it('sends recorded voice drafts as attachment-only payloads', async () => {
+  it('previews recorded voice drafts before sending attachment-only payloads', async () => {
     const user = userEvent.setup();
     const onSend = vi.fn();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function playMock(this: HTMLMediaElement) {
+      this.dispatchEvent(new Event('play'));
+      return Promise.resolve();
+    });
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(function pauseMock(this: HTMLMediaElement) {
+      this.dispatchEvent(new Event('pause'));
+    });
     const file = new File(['voice'], 'voice-message.webm', { type: 'audio/webm' });
     voiceRecorderMock.current = {
       ...defaultVoiceRecorder(),
@@ -321,6 +355,16 @@ describe('MessageComposer', () => {
     expect(screen.getAllByText('voice-message.webm').length).toBeGreaterThan(0);
     expect(screen.getByText('Voice message - 0:04 - 5 B')).toBeInTheDocument();
     expect(container.querySelector('img[src="blob:voice-preview"]')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Play voice-message.webm' }));
+
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Pause voice-message.webm' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Pause voice-message.webm' }));
+
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Play voice-message.webm' })).toHaveAttribute('aria-pressed', 'false');
 
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 

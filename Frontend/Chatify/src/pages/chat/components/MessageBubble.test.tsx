@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { makeAttachment, makeChat, makeMessage } from '../../../test/chatFixtures';
+import { makeAttachment, makeChat, makeMessage, makeUser } from '../../../test/chatFixtures';
 import MessageBubble from './MessageBubble';
 
 describe('MessageBubble', () => {
@@ -74,6 +74,32 @@ describe('MessageBubble', () => {
     expect(screen.getByText('sending')).toBeInTheDocument();
     expect(screen.getByText('edited')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Message read' })).toBeInTheDocument();
+  });
+
+  it('shows the sender name above group messages', () => {
+    const groupChat = makeChat({
+      isGroupChat: true,
+      members: [
+        makeUser({ _id: 'user-1', firstName: 'Ada', lastName: 'Lovelace' }),
+        makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper' }),
+        makeUser({ _id: 'user-3', firstName: 'Linus', lastName: 'Torvalds' }),
+      ],
+    });
+
+    render(
+      <MessageBubble
+        message={makeMessage({
+          sender: 'user-2',
+          text: 'Group context matters',
+        })}
+        isOwnMessage={false}
+        isGroupChat
+        members={groupChat.members}
+      />
+    );
+
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    expect(screen.getByText('Group context matters')).toBeInTheDocument();
   });
 
   it('marks a loaded search result with the temporary highlight class', () => {
@@ -183,7 +209,8 @@ describe('MessageBubble', () => {
     );
 
     expect(screen.getByText('voice-message.webm')).toBeInTheDocument();
-    expect(screen.getByText('0:04 - 5 B')).toBeInTheDocument();
+    expect(screen.getByText('0:04')).toBeInTheDocument();
+    expect(screen.getByText('5 B')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Play voice-message.webm' })).toBeDisabled();
     expect(screen.getByRole('link', { name: 'Download voice-message.webm' })).toHaveAttribute(
       'href',

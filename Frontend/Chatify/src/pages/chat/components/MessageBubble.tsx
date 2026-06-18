@@ -100,6 +100,16 @@ const CallActivityRow = ({ message }: { message: Message }) => {
   );
 };
 
+const getMemberDisplayName = (members: Chat['members'], senderId: string) => {
+  const member = members.find((candidate) => candidate._id === senderId);
+
+  if (!member) {
+    return 'Unknown member';
+  }
+
+  return `${member.firstName} ${member.lastName}`.trim() || member.username || 'Unknown member';
+};
+
 const MessageBubble = memo(({
   message,
   isOwnMessage,
@@ -157,6 +167,7 @@ const MessageBubble = memo(({
     : isOwnMessage
       ? 'text-white/90'
       : 'text-[var(--chat-text-soft)]';
+  const senderDisplayName = isGroupChat ? getMemberDisplayName(members, message.sender) : null;
 
   return (
     <div
@@ -166,6 +177,16 @@ const MessageBubble = memo(({
       onDoubleClick={onDoubleClick && isOwnMessage ? () => onDoubleClick(message) : undefined}
     >
       <div className={`message-bubble-wrap group flex max-w-[calc(100vw-32px)] flex-col ${isOwnMessage ? 'message-bubble-wrap--own' : 'message-bubble-wrap--received'}`}>
+        {senderDisplayName && (
+          <p
+            className={`mb-1 max-w-full truncate px-2 text-xs font-semibold text-[var(--chat-text-muted)] ${
+              isOwnMessage ? 'text-right' : 'text-left'
+            }`}
+            title={senderDisplayName}
+          >
+            {senderDisplayName}
+          </p>
+        )}
         <div
           className={`message-bubble relative rounded-[var(--chat-radius-xl)] border px-4 py-3 pr-11 text-base leading-6 shadow-sm cursor-pointer md:rounded-[var(--chat-radius-lg)] md:text-sm md:leading-5 ${bubbleTone}`}
         >

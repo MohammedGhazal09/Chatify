@@ -450,6 +450,13 @@ export const applyDeletedMessageInCache = (
     return cache;
   }
 
+  if (!event.deleteForEveryone) {
+    return {
+      ...cache,
+      messages: cache.messages.filter((message) => message._id !== event.messageId),
+    };
+  }
+
   if (event.message) {
     return upsertMessageInCache(cache, event.message);
   }

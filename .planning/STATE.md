@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 22 completed
-last_updated: "2026-06-18T10:31:09.000+03:00"
+status: completed
+stopped_at: Phase 24 executed, reviewed, and locally verified
+last_updated: "2026-06-18T15:19:54.327Z"
 last_activity: 2026-06-18 -- Phase 22 completed
 progress:
-  total_phases: 23
-  completed_phases: 22
-  total_plans: 72
-  completed_plans: 71
+  total_phases: 25
+  completed_phases: 24
+  total_plans: 77
+  completed_plans: 80
   percent: 96
 ---
 
@@ -147,6 +147,8 @@ Recent decisions affecting current work:
 - Phase 21 completed: Username-Based Contact Discovery replaced email-based direct chat creation with `targetUsername`, added exact protected username lookup, updated chat start UI to username copy/validation, and added email-start-chat leak guards.
 - Phase 22 completed: Group Conversations With Ten-Member Limit added backend group creation, 3-to-10 member validation, username member selection, group creation UI, group message/socket regression coverage, and group email leak guards.
 - Group chats are no longer deferred, but broader platform expansion such as cross-platform push/email delivery, moderation/admin tooling, end-to-end encryption, channels, bots, integrations, and group calls remains deferred.
+- Phase 23 added: Per-User Message Deletion For Received And Group Messages.
+- Phase 24 added: Group message sender names and group voice/video calls.
 
 ### Pending Todos
 
@@ -160,6 +162,7 @@ Recent decisions affecting current work:
 - Phase 19 is complete; do not use it to claim release readiness until Phase 14, Phase 15, and Phase 17 blockers are resolved with evidence.
 - Plan and execute Phase 20 before starting username discovery or group work; username uniqueness and mandatory setup are prerequisites.
 - Phase 22 is complete locally; group member selection uses username-based discovery, not email lookup.
+- Phase 23 is added for per-user deletion of received and group messages using the existing `deletedFor` visibility model.
 - Keep production readiness blockers separate from the completed local username/group feature chain.
 
 ### Blockers/Concerns
@@ -187,6 +190,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-18T10:31:09.000+03:00
-Stopped at: Phase 22 completed
-Resume file: .planning/phases/22-group-conversations-with-ten-member-limit/22-VERIFICATION.md
+Last session: 2026-06-18T15:19:54.311Z
+Stopped at: Phase 24 executed, reviewed, and locally verified
+Resume file: .planning/phases/24-group-message-sender-names-and-group-voice-video-calls/24-VERIFICATION.md

@@ -51,6 +51,7 @@ const MessageActionMenu = ({
   }
 
   const message = messages.find((item) => item._id === contextMenu.messageId);
+  const canDeleteForMe = Boolean(message && !message.optimisticState);
 
   return (
     <div
@@ -147,7 +148,7 @@ const MessageActionMenu = ({
           {message.pinned ? 'Unpin message' : 'Pin message'}
         </button>
       )}
-      {contextMenu.isOwn && (
+      {canDeleteForMe && (
         <button
           type="button"
           onClick={() => onDelete(false)}

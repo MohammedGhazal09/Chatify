@@ -126,6 +126,42 @@ describe('SettingsModal profile picture workflow', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:profile-preview');
   });
 
+  it('shows the current account display name, username, and email', () => {
+    useAuthStore.setState({
+      user: makeUser({
+        firstName: 'Grace',
+        lastName: 'Hopper',
+        username: 'grace.hopper',
+        email: 'grace@example.com',
+      }),
+      isAuthenticated: true,
+      isLoading: false,
+    });
+
+    renderSettings();
+
+    expect(screen.getByRole('heading', { name: 'Account' })).toBeInTheDocument();
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    expect(screen.getByText('grace.hopper')).toBeInTheDocument();
+    expect(screen.getByText('grace@example.com')).toBeInTheDocument();
+  });
+
+  it('uses account identity fallbacks when username or email is missing', () => {
+    useAuthStore.setState({
+      user: makeUser({
+        username: undefined,
+        email: undefined,
+      }),
+      isAuthenticated: true,
+      isLoading: false,
+    });
+
+    renderSettings();
+
+    expect(screen.getByText('Not set')).toBeInTheDocument();
+    expect(screen.getByText('Not available')).toBeInTheDocument();
+  });
+
   it('keeps the file chooser focus ring on the visible control for keyboard users', async () => {
     const user = userEvent.setup();
     renderSettings();

@@ -16,6 +16,7 @@ interface MenuHarnessProps {
   onToggleReactionPicker?: () => void;
   activeActionsDisabled?: boolean;
   activeActionsDisabledReason?: string | null;
+  isOwn?: boolean;
 }
 
 const MenuHarness = ({
@@ -28,6 +29,7 @@ const MenuHarness = ({
   onToggleReactionPicker = vi.fn(),
   activeActionsDisabled = false,
   activeActionsDisabledReason = null,
+  isOwn = true,
 }: MenuHarnessProps) => {
   const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -44,7 +46,7 @@ const MenuHarness = ({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setContextMenu({ messageId: 'message-1', x: 8, y: 12, isOwn: true })}
+        onClick={() => setContextMenu({ messageId: 'message-1', x: 8, y: 12, isOwn })}
       >
         Open message actions
       </button>
@@ -166,5 +168,29 @@ describe('MessageActionMenu', () => {
     expect(onDelete).toHaveBeenCalledWith(false);
     expect(onReaction).not.toHaveBeenCalled();
     expect(onReply).not.toHaveBeenCalled();
+  });
+
+  it('lets received messages be deleted only for the current user', async () => {
+    const user = userEvent.setup();
+    const onReaction = vi.fn();
+    const onDelete = vi.fn();
+
+    render(
+      <MenuHarness
+        isOwn={false}
+        onReaction={onReaction}
+        onDelete={onDelete}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Open message actions' }));
+
+    expect(screen.getByRole('button', { name: 'Delete for me' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete for everyone' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Delete for me' }));
+
+    expect(onDelete).toHaveBeenCalledWith(false);
   });
 });

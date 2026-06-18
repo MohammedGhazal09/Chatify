@@ -57,6 +57,7 @@ export interface UseCallControllerOptions {
   currentUserId?: string;
   otherMember: User | null;
   otherMemberStatus: UserOnlineStatus | null;
+  onlineUsers?: Map<string, UserOnlineStatus>;
   isPresenceChecking?: boolean;
   conversationControls?: ConversationControls;
   isAuthenticated: boolean;
@@ -92,6 +93,7 @@ const terminalStatusMap: Partial<Record<string, CallUiStatus>> = {
 const CALL_DISCONNECT_GRACE_MS = 15_000;
 const CALL_SETUP_TIMEOUT_MS = 20_000;
 const CALL_ONLINE_REQUIREMENT_REASON = 'Both users must be online to call.';
+const GROUP_CALL_ONLINE_REQUIREMENT_REASON = 'No group members are available for a call right now.';
 const CALL_SOCKET_NOT_READY_REASON = 'Realtime connection is not ready for calls.';
 const CALL_PEER_UNREACHABLE_REASON = 'This person is online but not reachable for calls yet.';
 const activeCallStatuses = new Set<CallUiStatus>([
@@ -157,11 +159,25 @@ const getMediaErrorStatus = (error: unknown, mode: CallMode): Pick<CallControlle
   };
 };
 
+const isReachableForCall = (status?: UserOnlineStatus | null) => (
+  Boolean(status?.isOnline) && status?.isCallReachable !== false
+);
+
+const createGroupCallPeer = (chat: Chat): User => ({
+  _id: chat._id,
+  firstName: chat.chatName || 'Group call',
+  lastName: '',
+  username: chat.chatName || 'group-call',
+  authProvider: 'local',
+  isVerified: true,
+});
+
 export const useCallController = ({
   selectedChat,
   currentUserId,
   otherMember,
   otherMemberStatus,
+  onlineUsers,
   isPresenceChecking = false,
   conversationControls,
   isAuthenticated,
@@ -236,6 +252,53 @@ export const useCallController = ({
     });
   }, [resetPeer]);
 
+  const groupCallPeer = useMemo(() => (
+    selectedChat?.isGroupChat ? createGroupCallPeer(selectedChat) : null
+  ), [selectedChat]);
+
+  const reachableGroupMembers = useMemo(() => {
+    if (!selectedChat?.isGroupChat || !currentUserId) {
+      return [];
+    }
+
+    return selectedChat.members.filter((member) => (
+      member._id !== currentUserId && isReachableForCall(onlineUsers?.get(member._id))
+    ));
+  }, [currentUserId, onlineUsers, selectedChat]);
+
+  const findChatMember = useCallback((userId?: string | null) => {
+    if (!userId || !selectedChat) {
+      return null;
+    }
+
+    return selectedChat.members.find((member) => member._id === userId) ?? null;
+  }, [selectedChat]);
+
+  const isCurrentUserInGroupSession = useCallback((session: CallSessionPayload) => {
+    if (!currentUserId) {
+      return false;
+    }
+
+    return session.callerId === currentUserId
+      || session.calleeId === currentUserId
+      || session.acceptedBy === currentUserId
+      || session.deliveredTo?.includes(currentUserId)
+      || session.recipientIds?.includes(currentUserId)
+      || false;
+  }, [currentUserId]);
+
+  const resolveSessionPeer = useCallback((session: CallSessionPayload) => {
+    if (session.isGroupCall || selectedChat?.isGroupChat) {
+      if (currentUserId === session.callerId) {
+        return findChatMember(session.acceptedBy ?? session.calleeId ?? session.fromUserId) ?? groupCallPeer;
+      }
+
+      return findChatMember(session.callerId) ?? groupCallPeer;
+    }
+
+    return otherMember;
+  }, [currentUserId, findChatMember, groupCallPeer, otherMember, selectedChat?.isGroupChat]);
+
   const getAvailability = useCallback((mode: CallMode): CallAvailability => {
     if (!selectedChat) {
       return { available: false, reason: 'Select a conversation first.' };
@@ -245,7 +308,7 @@ export const useCallController = ({
       return { available: false, reason: 'Sign in to start calls.' };
     }
 
-    if (selectedChat.isGroupChat || !conversationControls?.isDirectChat) {
+    if (!selectedChat.isGroupChat && !conversationControls?.isDirectChat) {
       return { available: false, reason: 'Calls are available only in direct chats.' };
     }
 
@@ -257,15 +320,25 @@ export const useCallController = ({
       return { available: false, reason: CALL_SOCKET_NOT_READY_REASON };
     }
 
-    if (!otherMember) {
+    if (selectedChat.isGroupChat) {
+      if (isPresenceChecking && reachableGroupMembers.length === 0) {
+        return { available: false, reason: 'Checking availability.' };
+      }
+
+      if (reachableGroupMembers.length === 0) {
+        return { available: false, reason: GROUP_CALL_ONLINE_REQUIREMENT_REASON };
+      }
+    }
+
+    if (!selectedChat.isGroupChat && !otherMember) {
       return { available: false, reason: 'Call recipient is unavailable.' };
     }
 
-    if (isPresenceChecking && !otherMemberStatus) {
+    if (!selectedChat.isGroupChat && isPresenceChecking && !otherMemberStatus) {
       return { available: false, reason: 'Checking availability.' };
     }
 
-    if (!otherMemberStatus?.isOnline) {
+    if (!selectedChat.isGroupChat && !otherMemberStatus?.isOnline) {
       return { available: false, reason: CALL_ONLINE_REQUIREMENT_REASON };
     }
 
@@ -290,6 +363,7 @@ export const useCallController = ({
     isPresenceChecking,
     otherMember,
     otherMemberStatus,
+    reachableGroupMembers.length,
     selectedChat,
   ]);
 
@@ -383,8 +457,9 @@ export const useCallController = ({
 
   const startCall = useCallback(async (mode: CallMode) => {
     const availability = getAvailability(mode);
+    const callPeer = selectedChat?.isGroupChat ? groupCallPeer : otherMember;
 
-    if (!availability.available || !selectedChat || !otherMember) {
+    if (!availability.available || !selectedChat || !callPeer) {
       setState((current) => ({
         ...current,
         status: 'failed',
@@ -398,7 +473,7 @@ export const useCallController = ({
         ...idleState,
         status: 'connecting',
         mode,
-        peer: otherMember,
+        peer: callPeer,
         startedAt: new Date().toISOString(),
       });
       const media = await requestMediaForCall(mode);
@@ -407,7 +482,7 @@ export const useCallController = ({
         mode: media.mode,
       });
 
-      if (!ack.ok || !ack.callId || !ack.chatId || !ack.callerId || !ack.calleeId || !ack.mode || !ack.status) {
+      if (!ack.ok || !ack.callId || !ack.chatId || !ack.callerId || !ack.mode || !ack.status) {
         resetPeer();
         setState((current) => ({
           ...current,
@@ -424,7 +499,7 @@ export const useCallController = ({
         status: 'outgoing',
         session,
         mode: session.mode,
-        peer: otherMember,
+        peer: resolveSessionPeer(session) ?? callPeer,
         startedAt: session.startedAt ?? current.startedAt,
         error: null,
       }));
@@ -435,7 +510,7 @@ export const useCallController = ({
         ...getMediaErrorStatus(error, mode),
       }));
     }
-  }, [getAvailability, otherMember, requestMediaForCall, resetPeer, selectedChat, socketActions]);
+  }, [getAvailability, groupCallPeer, otherMember, requestMediaForCall, resetPeer, resolveSessionPeer, selectedChat, socketActions]);
 
   const acceptCall = useCallback(async () => {
     const session = stateRef.current.session;
@@ -523,7 +598,13 @@ export const useCallController = ({
   }, []);
 
   const handleIncomingCall = useCallback((event: CallSessionPayload) => {
-    if (currentUserId && event.calleeId !== currentUserId) {
+    const isGroupEvent = event.isGroupCall || selectedChat?.isGroupChat;
+
+    if (currentUserId && isGroupEvent && !isCurrentUserInGroupSession(event)) {
+      return;
+    }
+
+    if (currentUserId && !isGroupEvent && event.calleeId !== currentUserId) {
       return;
     }
 
@@ -532,11 +613,11 @@ export const useCallController = ({
       status: 'incoming',
       session: event,
       mode: event.mode,
-      peer: otherMember,
+      peer: resolveSessionPeer(event),
       startedAt: event.startedAt ?? null,
     });
     activeCallIdRef.current = event.callId;
-  }, [currentUserId, otherMember]);
+  }, [currentUserId, isCurrentUserInGroupSession, resolveSessionPeer, selectedChat?.isGroupChat]);
 
   const handleCallSync = useCallback(async (event: CallSessionPayload) => {
     const current = stateRef.current;
@@ -556,10 +637,27 @@ export const useCallController = ({
     }
 
     if (event.status === 'connected') {
+      if (
+        (event.isGroupCall || selectedChat?.isGroupChat)
+        && currentUserId
+        && currentUserId !== event.callerId
+        && currentUserId !== event.acceptedBy
+      ) {
+        resetPeer();
+        setState((existing) => ({
+          ...existing,
+          status: 'ended',
+          session: event,
+          peer: resolveSessionPeer(event),
+        }));
+        return;
+      }
+
       activeCallIdRef.current = event.callId;
       setState((existing) => ({
         ...existing,
         session: event,
+        peer: resolveSessionPeer(event) ?? existing.peer,
         status: existing.status === 'connected' ? 'connected' : 'connecting',
         connectedAt: event.answeredAt ?? existing.connectedAt,
       }));
@@ -592,7 +690,7 @@ export const useCallController = ({
         error: event.endedReason === 'blocked' ? 'The call ended because the conversation was blocked.' : existing.error,
       }));
     }
-  }, [createPeerSession, currentUserId, resetPeer, socketActions]);
+  }, [createPeerSession, currentUserId, resetPeer, resolveSessionPeer, selectedChat?.isGroupChat, socketActions]);
 
   const handleCallOffer = useCallback(async (event: CallSignalEvent) => {
     const session = stateRef.current.session;

@@ -128,6 +128,68 @@ describe('useCallController', () => {
     });
   });
 
+  it('allows group calls when at least one other member is reachable', () => {
+    const groupChat = makeChat({
+      isGroupChat: true,
+      chatName: 'Launch team',
+      conversationControls: {
+        ...conversationControls,
+        isDirectChat: false,
+        peerId: null,
+        canBlockUser: false,
+      },
+    });
+    const { result } = renderController({
+      selectedChat: groupChat,
+      otherMember: null,
+      otherMemberStatus: null,
+      conversationControls: groupChat.conversationControls,
+      onlineUsers: new Map([
+        ['user-2', { userId: 'user-2', isOnline: true, isCallReachable: true }],
+      ]),
+    });
+
+    expect(result.current.audioAvailability).toEqual({
+      available: true,
+      reason: null,
+    });
+    expect(result.current.videoAvailability).toEqual({
+      available: true,
+      reason: null,
+    });
+  });
+
+  it('blocks group calls with a concrete reason when no members are reachable', () => {
+    const groupChat = makeChat({
+      isGroupChat: true,
+      chatName: 'Launch team',
+      conversationControls: {
+        ...conversationControls,
+        isDirectChat: false,
+        peerId: null,
+        canBlockUser: false,
+      },
+    });
+    const { result } = renderController({
+      selectedChat: groupChat,
+      otherMember: null,
+      otherMemberStatus: null,
+      conversationControls: groupChat.conversationControls,
+      onlineUsers: new Map([
+        ['user-2', { userId: 'user-2', isOnline: false, isCallReachable: false }],
+      ]),
+    });
+
+    expect(result.current.audioAvailability).toEqual({
+      available: false,
+      reason: 'No group members are available for a call right now.',
+    });
+    expect(result.current.videoAvailability).toEqual({
+      available: false,
+      reason: 'No group members are available for a call right now.',
+    });
+  });
+
   it('allows calls when the peer is online and reachability is missing from presence', () => {
     const { result } = renderController({
       otherMemberStatus: { userId: 'user-2', isOnline: true },

@@ -1,4 +1,4 @@
-import { Mic, Square, X } from 'lucide-react';
+import { Mic, X } from 'lucide-react';
 import type { UseVoiceRecorderResult } from '../../../hooks/useVoiceRecorder';
 import { formatDurationSeconds } from '../utils/attachmentDisplay';
 
@@ -33,28 +33,16 @@ const VoiceRecorderTray = ({ recorder, disabled = false }: VoiceRecorderTrayProp
           </p>
         </div>
         {recorder.isRecording ? (
-          <span className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={recorder.stopRecording}
-              disabled={disabled}
-              className="grid h-9 w-9 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-danger)] hover:bg-[var(--chat-panel-subtle)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-              aria-label="Stop recording voice message"
-              title="Stop recording"
-            >
-              <Square aria-hidden="true" className="h-4 w-4 fill-current" />
-            </button>
-            <button
-              type="button"
-              onClick={recorder.cancelRecording}
-              disabled={disabled}
-              className="grid h-9 w-9 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-danger)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-              aria-label="Cancel voice recording"
-              title="Cancel recording"
-            >
-              <X aria-hidden="true" className="h-4 w-4" />
-            </button>
-          </span>
+          <button
+            type="button"
+            onClick={recorder.cancelRecording}
+            disabled={disabled}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-danger)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            aria-label="Cancel voice recording"
+            title="Cancel recording"
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </button>
         ) : (
           <button
             type="button"
