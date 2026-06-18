@@ -10,6 +10,7 @@ const developmentErrors = (error, req, res) => {
   delete sanitizedBody.email;
   delete sanitizedBody.refreshToken;
   delete sanitizedBody.accessToken;
+  delete sanitizedBody.username;
   delete sanitizedBody.identityMark;
   delete sanitizedBody.identity;
   delete sanitizedBody.profilePic;
@@ -53,7 +54,15 @@ const productionErrors = (error, req, res) => {
 };
 
 const handleDuplicateKeyError = (error) => {
-  const fields = Object.keys(error.keyValue ?? {}).join(', ') || 'field';
+  const fieldsList = Object.keys(error.keyValue ?? {});
+  const fields = fieldsList.join(', ') || 'field';
+
+  if (fieldsList.includes('username')) {
+    const usernameError = new CustomError('That username is taken. Try another one.', 409);
+    usernameError.code = 'USERNAME_TAKEN';
+    return usernameError;
+  }
+
   const message = `Duplicate value for ${fields}. Please use another value!`;
   return new CustomError(message, 400);
 }
@@ -65,14 +74,15 @@ const handleValidationError = (error) => {
 }
 
 const errHandler = (err, req, res, next) => {
+  if (err.code === 11000) err = handleDuplicateKeyError(err);
+  if (err.name === 'ValidationError') err = handleValidationError(err);
+
   err.statusCode = err.statusCode || 500;
 
   if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
     return developmentErrors(err, req, res);
   }
 
-  if (err.code === 11000) err = handleDuplicateKeyError(err);
-  if (err.name === 'ValidationError') err = handleValidationError(err);
   return productionErrors(err, req, res);
 };
 export default errHandler

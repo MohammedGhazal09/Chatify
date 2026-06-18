@@ -17,6 +17,10 @@ import OAuthHandoff from '../Models/oauthHandoffModel.mjs';
 import {sendPasswordResetEmail} from '../Services/emailService.mjs';
 import { resolveOAuthFinalizeBaseURL } from '../Utils/oauthConfig.mjs';
 import { logger } from '../Utils/observabilityLogger.mjs';
+import {
+  buildUsernameConflict,
+  validateUsername,
+} from '../Utils/usernameValidation.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 const FRONTEND_URL = isProd 
@@ -86,10 +90,19 @@ const redirectOAuthFailure = (res) => {
 };
 
 export const signup =asyncErrHandler( async (req, res, next) => {
-  let { firstName, lastName, email, password } = req.body;
+  let { firstName, lastName, email, password, username } = req.body;
 
-  if (!firstName || !lastName || !email || !password) {
+  if (!firstName || !lastName || !email || !password || !username) {
     return next(new CustomError('Please provide all the required fields', 400));
+  }
+
+  const usernameValidation = validateUsername(username);
+  if (!usernameValidation.ok) {
+    return res.status(400).json({
+      status: 'fail',
+      code: usernameValidation.code,
+      message: usernameValidation.message,
+    });
   }
 
   const exUser = await User.findOne({email:email})
@@ -97,10 +110,21 @@ export const signup =asyncErrHandler( async (req, res, next) => {
     return next(new CustomError('User already exists with this email', 400));
   }
 
+  const usernameExists = await User.exists({ username: usernameValidation.value });
+  if (usernameExists) {
+    const conflict = buildUsernameConflict();
+    return res.status(409).json({
+      status: 'fail',
+      code: conflict.code,
+      message: conflict.message,
+    });
+  }
+
   const user = await User.create({
     firstName,
     lastName,
     email,
+    username: usernameValidation.value,
     password,
     profilePic: '',
     authProvider: 'local',
@@ -110,6 +134,7 @@ export const signup =asyncErrHandler( async (req, res, next) => {
   return res.status(201).json({
     success: true,
     message: 'User created successfully',
+    user: user.toJSON(),
   });
 }
 )

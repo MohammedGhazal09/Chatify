@@ -25,6 +25,11 @@ import {
   validateIdentityMarkPayload,
 } from '../Utils/identityMark.mjs'
 import { logger } from '../Utils/observabilityLogger.mjs'
+import {
+  USERNAME_ERROR_CODES,
+  buildUsernameConflict,
+  validateUsername,
+} from '../Utils/usernameValidation.mjs'
 
 const PROFILE_IMAGE_NOT_FOUND = 'Profile image not found';
 
@@ -150,6 +155,56 @@ export const getLoggedUser = asyncErrHandler(async (req, res, next) => {
     user
   });
 })
+
+export const setUsername = asyncErrHandler(async (req, res, next) => {
+  const validation = validateUsername(req.body?.username);
+
+  if (!validation.ok) {
+    return res.status(400).json({
+      status: 'fail',
+      code: validation.code,
+      message: validation.message,
+    });
+  }
+
+  const user = await User.findById(req.userId);
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  if (user.username) {
+    return res.status(409).json({
+      status: 'fail',
+      code: USERNAME_ERROR_CODES.ALREADY_SET,
+      message: 'This account already has a username',
+    });
+  }
+
+  const usernameExists = await User.exists({
+    _id: { $ne: user._id },
+    username: validation.value,
+  });
+
+  if (usernameExists) {
+    const conflict = buildUsernameConflict();
+    return res.status(409).json({
+      status: 'fail',
+      code: conflict.code,
+      message: conflict.message,
+    });
+  }
+
+  user.username = validation.value;
+  await user.save();
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      user: user.toJSON(),
+    },
+  });
+});
 
 export const getAllUsers = asyncErrHandler(async (req, res, next) => {
   const users = await User.find({_id: {$ne: req.userId}})

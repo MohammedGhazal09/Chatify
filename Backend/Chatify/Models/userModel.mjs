@@ -8,6 +8,10 @@ import {
   IDENTITY_MARK_PATTERN_IDS,
   attachSerializedIdentityMark,
 } from '../Utils/identityMark.mjs'
+import {
+  normalizeUsername,
+  validateUsername,
+} from '../Utils/usernameValidation.mjs'
 
 export const buildUploadedProfileImageUrl = ({ userId, version }) => {
   const safeVersion = encodeURIComponent(version || '1');
@@ -105,6 +109,19 @@ const userSchema = new mongoose.Schema({
         unique: true,
         trim: true,
         validate: [validator.isEmail, 'Please provide a valid email address'],
+    },
+    username: {
+        type: String,
+        required: false,
+        trim: true,
+        lowercase: true,
+        set: normalizeUsername,
+        validate: {
+          validator(value) {
+            return !value || validateUsername(value).ok;
+          },
+          message: 'Username must be 3-24 letters, numbers, dots, or underscores',
+        },
     },
     password: {
         type: String,
@@ -206,6 +223,13 @@ const userSchema = new mongoose.Schema({
   userSchema.index({ googleId: 1, authProvider: 1})
   userSchema.index({ discordId: 1, authProvider: 1})
   userSchema.index({ githubId: 1, authProvider: 1})
+  userSchema.index(
+    { username: 1 },
+    {
+      unique: true,
+      partialFilterExpression: { username: { $type: 'string' } },
+    }
+  )
 
   // Hashing Password before saving
   userSchema.pre('save', async function(next) {
