@@ -1,6 +1,6 @@
 import axiosInstance from './axios';
 import type { AxiosResponse } from 'axios';
-import type { Chat, CreateChatPayload } from '../types/chat';
+import type { Chat, CreateChatPayload, CreateGroupChatPayload } from '../types/chat';
 
 interface ChatResponse {
   status: string;
@@ -20,6 +20,9 @@ interface ChatsResponse {
 export const chatApi = {
   createChat: (payload: CreateChatPayload): Promise<AxiosResponse<ChatResponse>> =>
     axiosInstance.post('/api/chat/create-new-chat', payload),
+
+  createGroupChat: (payload: CreateGroupChatPayload): Promise<AxiosResponse<ChatResponse>> =>
+    axiosInstance.post('/api/chat/create-group-chat', payload),
 
   getAllChats: (): Promise<AxiosResponse<ChatsResponse>> =>
     axiosInstance.get('/api/chat/get-all-chats'),

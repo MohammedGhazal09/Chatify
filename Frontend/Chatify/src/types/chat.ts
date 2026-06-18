@@ -223,6 +223,11 @@ export interface CreateChatPayload {
   chatName?: string;
 }
 
+export interface CreateGroupChatPayload {
+  chatName: string;
+  memberUsernames: string[];
+}
+
 export interface NewMessagePayload {
   chatId: string;
   text: string;

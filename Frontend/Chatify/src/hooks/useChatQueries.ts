@@ -9,6 +9,7 @@ import type {
   AttachmentSummary,
   Chat,
   ComposerAttachmentDraft,
+  CreateGroupChatPayload,
   Message,
   MessageStatus,
   SharedAssetKind,
@@ -648,6 +649,29 @@ export const useCreateChat = () => {
         }
 
         return [chat, ...old];
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+};
+
+export const useCreateGroupChat = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<Chat, unknown, CreateGroupChatPayload>({
+    mutationFn: async (payload) => {
+      const response = await chatApi.createGroupChat(payload);
+      return response.data.data.chat;
+    },
+    onSuccess: (chat) => {
+      queryClient.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+        if (!old) {
+          return [chat];
+        }
+
+        return [chat, ...old.filter((existingChat) => existingChat._id !== chat._id)];
       });
     },
     onSettled: () => {

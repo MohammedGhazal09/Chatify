@@ -20,6 +20,7 @@ interface ChatSidebarProps {
   newChatUsername: string;
   createChatError: string | null;
   isCreatingChat: boolean;
+  isCreatingGroupChat: boolean;
   unreadCounts?: Map<string, number>;
   mutedChatIds?: string[];
   onlineUsers: Map<string, { isOnline: boolean }>;
@@ -32,6 +33,8 @@ interface ChatSidebarProps {
   onToggleNewChat: () => void;
   onNewChatUsernameChange: (value: string) => void;
   onCreateChatSubmit: NewChatDialogProps['onSubmit'];
+  onCreateGroupSubmit: NewChatDialogProps['onCreateGroupSubmit'];
+  onClearCreateChatError: () => void;
   onRefetchChats: () => void;
 }
 
@@ -49,6 +52,7 @@ const ChatSidebar = ({
   newChatUsername,
   createChatError,
   isCreatingChat,
+  isCreatingGroupChat,
   unreadCounts,
   mutedChatIds = [],
   onlineUsers,
@@ -61,6 +65,8 @@ const ChatSidebar = ({
   onToggleNewChat,
   onNewChatUsernameChange,
   onCreateChatSubmit,
+  onCreateGroupSubmit,
+  onClearCreateChatError,
   onRefetchChats,
 }: ChatSidebarProps) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -169,9 +175,12 @@ const ChatSidebar = ({
         username={newChatUsername}
         error={createChatError}
         isSubmitting={isCreatingChat}
+        isGroupSubmitting={isCreatingGroupChat}
         openerRef={newChatButtonRef}
         onUsernameChange={onNewChatUsernameChange}
         onSubmit={onCreateChatSubmit}
+        onCreateGroupSubmit={onCreateGroupSubmit}
+        onClearError={onClearCreateChatError}
         onClose={onToggleNewChat}
       />
 

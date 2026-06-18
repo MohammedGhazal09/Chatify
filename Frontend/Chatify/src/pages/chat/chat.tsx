@@ -15,6 +15,7 @@ import { useLogout } from '../../hooks/useAuthQuery';
 import {
   useChats,
   useCreateChat,
+  useCreateGroupChat,
   useMessages,
   useSendMessage,
   useMarkMessagesAsRead,
@@ -39,6 +40,7 @@ import type {
   ComposerAttachmentDraft,
   ComposerSendPayload,
   ConversationControls,
+  CreateGroupChatPayload,
   Message,
   MessageDeletedEvent,
   MessageEditedEvent,
@@ -102,6 +104,7 @@ const useDebounce = (callback: () => void, delay: number) => {
 
 const INVALID_USERNAME_COPY = 'Enter a valid username.';
 const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the username and try again.';
+const GENERIC_GROUP_CHAT_ERROR_COPY = 'We could not create that group. Check the usernames and try again.';
 
 const getConversationDisabledReason = (controls?: ConversationControls) => {
   if (!controls || controls.canSendMessage) {
@@ -221,6 +224,7 @@ const ChatPage = () => {
   } = useMessages(selectedChatId);
   const sendMessage = useSendMessage();
   const createChat = useCreateChat();
+  const createGroupChat = useCreateGroupChat();
   const markMessagesAsReadMutation = useMarkMessagesAsRead();
   const deleteMessageMutation = useDeleteMessage();
   const editMessageMutation = useEditMessage();
@@ -1151,6 +1155,22 @@ const ChatPage = () => {
     );
   };
 
+  const handleCreateGroupSubmit = (payload: CreateGroupChatPayload) => {
+    setCreateChatError(null);
+
+    createGroupChat.mutate(payload, {
+      onSuccess: (chat) => {
+        setSelectedChatId(chat._id);
+        setIsNewChatOpen(false);
+        setNewChatUsername('');
+        setCreateChatError(null);
+      },
+      onError: (error) => {
+        setCreateChatError(getRequestErrorMessage(error, GENERIC_GROUP_CHAT_ERROR_COPY));
+      },
+    });
+  };
+
   const [enterToSend] = useLocalStorage('chatify_enter_to_send', true);
 
   const handleComposerKeyDown = (event: Parameters<KeyboardEventHandler<HTMLTextAreaElement>>[0], payload: ComposerSendPayload) => {
@@ -1495,6 +1515,7 @@ const ChatPage = () => {
             newChatUsername={newChatUsername}
             createChatError={createChatError}
             isCreatingChat={createChat.isPending}
+            isCreatingGroupChat={createGroupChat.isPending}
             unreadCounts={unreadCounts}
             mutedChatIds={notificationPreferences.mutedChatIds}
             onlineUsers={onlineUsers}
@@ -1507,6 +1528,8 @@ const ChatPage = () => {
             onToggleNewChat={handleToggleNewChat}
             onNewChatUsernameChange={setNewChatUsername}
             onCreateChatSubmit={handleCreateChatSubmit}
+            onCreateGroupSubmit={handleCreateGroupSubmit}
+            onClearCreateChatError={() => setCreateChatError(null)}
             onRefetchChats={() => refetchChats()}
           />
         )}

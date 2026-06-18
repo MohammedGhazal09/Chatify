@@ -20,6 +20,7 @@ const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSideba
     newChatUsername: '',
     createChatError: null,
     isCreatingChat: false,
+    isCreatingGroupChat: false,
     unreadCounts: new Map(),
     onlineUsers: new Map(),
     newChatButtonRef: createRef<HTMLButtonElement>(),
@@ -31,6 +32,8 @@ const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSideba
     onToggleNewChat: vi.fn(),
     onNewChatUsernameChange: vi.fn(),
     onCreateChatSubmit: vi.fn(),
+    onCreateGroupSubmit: vi.fn(),
+    onClearCreateChatError: vi.fn(),
     onRefetchChats: vi.fn(),
     ...overrides,
 });

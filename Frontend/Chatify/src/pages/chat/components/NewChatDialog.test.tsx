@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { ComponentProps, FormEvent } from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -7,9 +7,10 @@ import NewChatDialog from './NewChatDialog';
 
 interface DialogHarnessProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onCreateGroupSubmit?: ComponentProps<typeof NewChatDialog>['onCreateGroupSubmit'];
 }
 
-const DialogHarness = ({ onSubmit }: DialogHarnessProps) => {
+const DialogHarness = ({ onSubmit, onCreateGroupSubmit = vi.fn() }: DialogHarnessProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [username, setUsername] = useState('');
   const openerRef = useRef<HTMLButtonElement>(null);
@@ -24,9 +25,12 @@ const DialogHarness = ({ onSubmit }: DialogHarnessProps) => {
         username={username}
         error={null}
         isSubmitting={false}
+        isGroupSubmitting={false}
         openerRef={openerRef}
         onUsernameChange={setUsername}
         onSubmit={onSubmit}
+        onCreateGroupSubmit={onCreateGroupSubmit}
+        onClearError={vi.fn()}
         onClose={() => setIsOpen(false)}
       />
     </>
@@ -56,13 +60,16 @@ describe('NewChatDialog', () => {
 
     await user.click(usernameInput);
     await user.keyboard('{Shift>}{Tab}{/Shift}');
-    expect(within(dialog).getByRole('button', { name: 'Close new chat dialog' })).toHaveFocus();
+    expect(within(dialog).getByRole('button', { name: 'Group' })).toHaveFocus();
 
     await user.keyboard('{Shift>}{Tab}{/Shift}');
-    expect(within(dialog).getByRole('button', { name: 'Start or continue chat' })).toHaveFocus();
+    expect(within(dialog).getByRole('button', { name: 'Direct' })).toHaveFocus();
+
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(within(dialog).getByRole('button', { name: 'Close new chat dialog' })).toHaveFocus();
 
     await user.keyboard('{Tab}');
-    expect(within(dialog).getByRole('button', { name: 'Close new chat dialog' })).toHaveFocus();
+    expect(within(dialog).getByRole('button', { name: 'Direct' })).toHaveFocus();
 
     await user.keyboard('{Escape}');
 
@@ -79,14 +86,49 @@ describe('NewChatDialog', () => {
         username="missing.user"
         error="We could not start that chat. Check the username and try again."
         isSubmitting
+        isGroupSubmitting={false}
         openerRef={openerRef}
         onUsernameChange={vi.fn()}
         onSubmit={vi.fn()}
+        onCreateGroupSubmit={vi.fn()}
+        onClearError={vi.fn()}
         onClose={vi.fn()}
       />
     );
 
     expect(screen.getByRole('button', { name: /Starting/ })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('We could not start that chat. Check the username and try again.');
+  });
+
+  it('adds username chips and submits a group conversation payload', async () => {
+    const user = userEvent.setup();
+    const onCreateGroupSubmit = vi.fn();
+
+    render(
+      <DialogHarness
+        onSubmit={vi.fn((event: FormEvent<HTMLFormElement>) => event.preventDefault())}
+        onCreateGroupSubmit={onCreateGroupSubmit}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'New chat' }));
+    await user.click(screen.getByRole('button', { name: 'Group' }));
+
+    await user.type(screen.getByLabelText('Group name'), 'Project Relay');
+    await user.type(screen.getByLabelText('Member username'), 'grace.hopper');
+    await user.click(screen.getByRole('button', { name: 'Add group member' }));
+    await user.type(screen.getByLabelText('Member username'), 'alan.turing');
+    await user.keyboard('{Enter}');
+
+    expect(screen.getByText('3/10 members')).toBeInTheDocument();
+    expect(screen.getByText('grace.hopper')).toBeInTheDocument();
+    expect(screen.getByText('alan.turing')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Create group' }));
+
+    expect(onCreateGroupSubmit).toHaveBeenCalledWith({
+      chatName: 'Project Relay',
+      memberUsernames: ['grace.hopper', 'alan.turing'],
+    });
   });
 });
