@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 20 planned
-last_updated: "2026-06-18T06:53:03.829Z"
-last_activity: 2026-06-18 -- Phase 20 completed
+stopped_at: Phase 21 completed
+last_updated: "2026-06-18T10:13:55.786+03:00"
+last_activity: 2026-06-18 -- Phase 21 completed
 progress:
   total_phases: 23
-  completed_phases: 20
-  total_plans: 68
-  completed_plans: 69
-  percent: 87
+  completed_phases: 21
+  total_plans: 72
+  completed_plans: 67
+  percent: 91
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 21 — username-based-contact-discovery
+**Current focus:** Phase 22 — group-conversations-with-ten-member-limit
 
 ## Current Position
 
-Phase: 21 (username-based-contact-discovery) — READY
+Phase: 22 (group-conversations-with-ten-member-limit) — READY
 Plan: not planned yet
 Status: Ready for specification
-Last activity: 2026-06-18 -- Phase 20 completed
+Last activity: 2026-06-18 -- Phase 21 completed
 
-Progress: Phase 20 completed with 3/3 plans complete; Phase 21 and Phase 22 are planned follow-ups. Release readiness remains blocked by missing production live, local/prod call, and final v1 evidence.
+Progress: Phase 21 completed with username-based direct-chat creation, exact username lookup, frontend username start-chat UI, and email-start-chat leak guards. Phase 22 is now ready for group conversation planning. Release readiness remains blocked by missing production live, local/prod call, and final v1 evidence.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 69
+- Total plans completed: 67
 - Average duration: 34 min
 - Total execution time: 5h 10m
 
@@ -144,7 +144,7 @@ Recent decisions affecting current work:
 - Phase 19 planned with five sequential waves: notification preference/privacy model, notification UI and realtime alert wiring, account/session and multi-tab polish, empty/offline/blocked/failure state polish, and product-polish verification/evidence.
 - Phase 19 completed with local notification/product-polish evidence, full frontend tests, Playwright checks, lint, build, ops check, and release blockers preserved.
 - Phase 20 added: Username Identity And Privacy Foundation, with unique public usernames, signup collection, existing-user setup, and private-email boundaries.
-- Phase 21 added: Username-Based Contact Discovery, replacing email-based direct chat creation and contact discovery with username lookup.
+- Phase 21 completed: Username-Based Contact Discovery replaced email-based direct chat creation with `targetUsername`, added exact protected username lookup, updated chat start UI to username copy/validation, and added email-start-chat leak guards.
 - Phase 22 added: Group Conversations With Ten-Member Limit, promoting group chats from deferred v2 scope into a planned feature phase after username discovery.
 - Group chats are no longer deferred, but broader platform expansion such as cross-platform push/email delivery, moderation/admin tooling, end-to-end encryption, channels, bots, integrations, and group calls remains deferred.
 
@@ -159,8 +159,8 @@ Recent decisions affecting current work:
 - Plan Phase 17 so final readiness cannot pass until Phase 1, Phase 10, Phase 10.1, Phase 14, and Phase 15 evidence is reconciled.
 - Phase 19 is complete; do not use it to claim release readiness until Phase 14, Phase 15, and Phase 17 blockers are resolved with evidence.
 - Plan and execute Phase 20 before starting username discovery or group work; username uniqueness and mandatory setup are prerequisites.
-- Plan and execute Phase 21 before group creation; group member selection must use username-based discovery, not email lookup.
-- Plan and execute Phase 22 only after Phase 20 and Phase 21 are complete, preserving the 10-member cap and email privacy guardrails.
+- Phase 21 is complete; group member selection must use username-based discovery, not email lookup.
+- Plan and execute Phase 22 next, preserving the 10-member cap and email privacy guardrails.
 
 ### Blockers/Concerns
 
@@ -187,6 +187,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-18T06:24:17.756Z
-Stopped at: Phase 20 planned
-Resume file: .planning/phases/20-username-identity-and-privacy-foundation/20-01-PLAN.md
+Last session: 2026-06-18T10:13:55.786+03:00
+Stopped at: Phase 21 completed
+Resume file: .planning/phases/21-username-based-contact-discovery/21-VERIFICATION.md

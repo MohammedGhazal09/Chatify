@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 18: Operational Observability And Runbook Hardening** - Make Chatify diagnosable, supportable, and repeatable in local and deployed environments. (completed 2026-06-17)
 - [x] **Phase 19: Messenger Product Polish And Notifications** - Add post-readiness messenger polish, notification behavior, and account/session UX refinements without expanding into full platform scope. (completed 2026-06-17)
 - [x] **Phase 20: Username Identity And Privacy Foundation** - Add unique public usernames, signup collection, existing-user username setup, and private-email boundaries. (completed 2026-06-18)
-- [ ] **Phase 21: Username-Based Contact Discovery** - Replace email-based direct chat creation and contact discovery with username-based lookup.
+- [x] **Phase 21: Username-Based Contact Discovery** - Replace email-based direct chat creation and contact discovery with username-based lookup. (completed 2026-06-18)
 - [ ] **Phase 22: Group Conversations With Ten-Member Limit** - Add private group conversations with username-selected members and a server-enforced 10-member cap.
 
 ## Phase Details
@@ -513,8 +513,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 17. V1 Readiness Closure And Release Gate | 4/4 | Blocked pending release evidence | - |
 | 18. Operational Observability And Runbook Hardening | 4/4 | Complete | 2026-06-17 |
 | 19. Messenger Product Polish And Notifications | 5/5 | Complete   | 2026-06-17 |
-| 20. Username Identity And Privacy Foundation | 1/3 | In Progress|  |
-| 21. Username-Based Contact Discovery | 0/3 | Planned | - |
+| 20. Username Identity And Privacy Foundation | 3/3 | Complete | 2026-06-18 |
+| 21. Username-Based Contact Discovery | 3/3 | Complete | 2026-06-18 |
 | 22. Group Conversations With Ten-Member Limit | 0/4 | Planned | - |
 
 ### Phase 15: Investigate and fix audio and video call reliability
@@ -696,7 +696,7 @@ Plans:
   4. Auth payloads, Zustand user state, identity display helpers, and profile/identity responses include username where needed while avoiding public email exposure outside auth/reset/account settings.
   5. Tests cover username normalization, uniqueness races, signup, existing-user setup, CSRF protection for username updates, redacted logging, and session recovery around the mandatory setup gate.
 
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -733,21 +733,21 @@ Plans:
   4. Existing direct chat idempotency remains based on member ids and `directKey`, so repeated username submits continue the same direct conversation without duplicate chat records.
   5. Backend, frontend, and UI tests migrate from email-based chat start to username-based chat start and include guardrails proving emails are not searchable or rendered in discovery surfaces.
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 
 **Wave 1**
 
-- [ ] 21-01: Backend Username Direct-Chat Contract And Privacy-Safe Lookup
+- [x] 21-01: Backend Username Direct-Chat Contract And Privacy-Safe Lookup
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 21-02: Frontend Username Start-Chat Flow, Copy, Validation, And Cache Updates
+- [x] 21-02: Frontend Username Start-Chat Flow, Copy, Validation, And Cache Updates
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 21-03: Contact Discovery Regression Coverage And Email-Leak Guardrails
+- [x] 21-03: Contact Discovery Regression Coverage And Email-Leak Guardrails
 
 **Cross-cutting constraints:**
 
