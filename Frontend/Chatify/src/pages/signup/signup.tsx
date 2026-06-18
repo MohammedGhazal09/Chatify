@@ -255,7 +255,7 @@ const onSubmit = async (data: SignupFormData) => {
 
             {/* Root error */}
             {errors.root && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl">
+              <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl">
                 <p className="text-sm font-medium">{errors.root.message}</p>
               </div>
             )}
@@ -292,6 +292,7 @@ const onSubmit = async (data: SignupFormData) => {
                 onClick={onClick}
                 className={`flex items-center justify-center p-3 border border-gray-700 rounded-xl bg-gray-800/50 hover:bg-gray-700 ${color} transition-all transform hover:scale-105 active:scale-95 cursor-pointer`}
                 title={`Continue with ${label}`}
+                aria-label={`Continue with ${label}`}
               >
                 <Icon size={20} />
               </button>
