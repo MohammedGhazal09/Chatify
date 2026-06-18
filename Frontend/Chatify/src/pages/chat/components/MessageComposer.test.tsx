@@ -316,10 +316,11 @@ describe('MessageComposer', () => {
       durationSeconds: 4,
     };
 
-    render(<ComposerHarness onSend={onSend} />);
+    const { container } = render(<ComposerHarness onSend={onSend} />);
 
     expect(screen.getAllByText('voice-message.webm').length).toBeGreaterThan(0);
-    expect(screen.getByText('Voice - 0:04 - 5 B')).toBeInTheDocument();
+    expect(screen.getByText('Voice message - 0:04 - 5 B')).toBeInTheDocument();
+    expect(container.querySelector('img[src="blob:voice-preview"]')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Send message' }));
 

@@ -1,4 +1,4 @@
-import { AlertCircle, FileText, Image as ImageIcon, Mic, X } from 'lucide-react';
+import { AlertCircle, FileText, Image as ImageIcon, X } from 'lucide-react';
 import type { MessageUploadState } from '../../../hooks/useChatQueries';
 import type { ComposerAttachmentDraft } from '../../../types/chat';
 import { formatDurationSeconds, formatFileSize } from '../utils/attachmentDisplay';
@@ -11,6 +11,8 @@ interface AttachmentTrayProps {
   onCancelUpload?: () => void;
   onRemove: (id: string) => void;
 }
+
+const VOICE_DRAFT_WAVEFORM_BARS = [12, 20, 14, 28, 18, 24, 12, 30, 16, 22, 14, 26];
 
 const AttachmentTray = ({
   attachments,
@@ -30,45 +32,60 @@ const AttachmentTray = ({
     <div className="mx-auto mb-3 max-w-[880px] space-y-2" data-testid="attachment-tray">
       {attachments.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2">
-          {attachments.map((attachment) => (
-            <div
-              key={attachment.id}
-              className="flex min-w-0 items-center gap-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-2"
-            >
-              <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[var(--chat-radius-md)] bg-[var(--chat-panel-subtle)] text-[var(--chat-accent)]">
-                {attachment.localPreviewUrl ? (
-                  <img
-                    src={attachment.localPreviewUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : attachment.kind === 'voice' ? (
-                  <Mic aria-hidden="true" className="h-5 w-5" />
-                ) : attachment.kind === 'media' ? (
-                  <ImageIcon aria-hidden="true" className="h-5 w-5" />
-                ) : (
-                  <FileText aria-hidden="true" className="h-5 w-5" />
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-[var(--chat-text)]">{attachment.displayName}</span>
-                <span className="block truncate text-xs text-[var(--chat-text-muted)]">
-                  {attachment.kind === 'voice'
-                    ? `Voice - ${formatDurationSeconds(attachment.durationSeconds)} - ${formatFileSize(attachment.size)}`
-                    : `${attachment.mimeType || 'application/octet-stream'} - ${formatFileSize(attachment.size)}`}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => onRemove(attachment.id)}
-                disabled={disabled || isUploading}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-danger)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-                aria-label={`Remove ${attachment.displayName}`}
+          {attachments.map((attachment) => {
+            const isVoiceDraft = attachment.kind === 'voice';
+
+            return (
+              <div
+                key={attachment.id}
+                className={`flex min-w-0 items-center gap-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-2 ${isVoiceDraft ? 'sm:col-span-2' : ''}`}
               >
-                <X aria-hidden="true" className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
+                {!isVoiceDraft && (
+                  <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[var(--chat-radius-md)] bg-[var(--chat-panel-subtle)] text-[var(--chat-accent)]">
+                    {attachment.kind === 'media' && attachment.localPreviewUrl ? (
+                      <img
+                        src={attachment.localPreviewUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : attachment.kind === 'media' ? (
+                      <ImageIcon aria-hidden="true" className="h-5 w-5" />
+                    ) : (
+                      <FileText aria-hidden="true" className="h-5 w-5" />
+                    )}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-[var(--chat-text)]">{attachment.displayName}</span>
+                  <span className="block truncate text-xs text-[var(--chat-text-muted)]">
+                    {isVoiceDraft
+                      ? `Voice message - ${formatDurationSeconds(attachment.durationSeconds)} - ${formatFileSize(attachment.size)}`
+                      : `${attachment.mimeType || 'application/octet-stream'} - ${formatFileSize(attachment.size)}`}
+                  </span>
+                </span>
+                {isVoiceDraft && (
+                  <span className="hidden h-8 w-28 shrink-0 items-center gap-1 sm:flex" aria-hidden="true">
+                    {VOICE_DRAFT_WAVEFORM_BARS.map((height, index) => (
+                      <span
+                        key={`${height}-${index}`}
+                        className="w-1 rounded-full bg-[color-mix(in_srgb,var(--chat-accent)_62%,var(--chat-panel-subtle))]"
+                        style={{ height }}
+                      />
+                    ))}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onRemove(attachment.id)}
+                  disabled={disabled || isUploading}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-danger)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                  aria-label={`Remove ${attachment.displayName}`}
+                >
+                  <X aria-hidden="true" className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
       {isUploading && (

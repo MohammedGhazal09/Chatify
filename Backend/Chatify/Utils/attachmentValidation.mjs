@@ -117,6 +117,13 @@ const normalizeTextLikeMime = (mimeType, extension) => {
   return mimeType;
 };
 
+const isAllowedWebmVoiceContainer = ({ extension, allowedType, detectedMimeType, declaredMimeType }) => (
+  extension === '.webm'
+  && allowedType.kind === 'voice'
+  && detectedMimeType === 'video/webm'
+  && matchesAllowedMime(declaredMimeType, allowedType)
+);
+
 export const buildAttachmentFingerprint = (attachments = []) => hashBuffer(Buffer.from(JSON.stringify(
   attachments.map((attachment) => ({
     displayName: attachment.displayName,
@@ -206,8 +213,15 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
     } catch {
       detectedType = undefined;
     }
-    let mimeType = normalizeMimeType(detectedType?.mime ?? file.mimetype ?? '');
-    mimeType = normalizeTextLikeMime(mimeType, extension);
+    const detectedMimeType = normalizeMimeType(detectedType?.mime ?? '');
+    const declaredMimeType = normalizeMimeType(file.mimetype ?? '');
+    let mimeType = normalizeTextLikeMime(detectedMimeType || declaredMimeType, extension);
+    const hasWebmVoiceContainer = isAllowedWebmVoiceContainer({
+      extension,
+      allowedType,
+      detectedMimeType,
+      declaredMimeType,
+    });
 
     if (allowedType.signatureRequired) {
       if (!detectedType || !matchesAllowedMime(detectedType.mime, allowedType)) {
@@ -217,10 +231,14 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
         );
       }
     } else if (!matchesAllowedMime(mimeType, allowedType)) {
-      return buildAttachmentError(
-        ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
-        `${displayName} has an unsupported content type`
-      );
+      if (hasWebmVoiceContainer) {
+        mimeType = declaredMimeType;
+      } else {
+        return buildAttachmentError(
+          ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
+          `${displayName} has an unsupported content type`
+        );
+      }
     }
 
     const attachment = {

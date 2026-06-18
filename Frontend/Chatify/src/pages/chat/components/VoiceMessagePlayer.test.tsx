@@ -32,7 +32,8 @@ describe('VoiceMessagePlayer', () => {
       'href',
       'https://backend.test/api/message/attachments/voice-1/download'
     );
-    expect(screen.getByText('0:04 - 5 B')).toBeInTheDocument();
+    expect(screen.getByText('0:04')).toBeInTheDocument();
+    expect(screen.getByText('5 B')).toBeInTheDocument();
   });
 
   it('supports play and pause with accessible pressed state', async () => {

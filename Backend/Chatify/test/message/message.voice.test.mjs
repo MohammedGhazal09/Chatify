@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import Attachment from '../../Models/attachmentModel.mjs';
 import Message from '../../Models/messageModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
-import { attachVoice, tinyVoiceBuffer } from '../fixtures/attachments.mjs';
+import { attachVoice, tinyDetectedWebmVoiceBuffer, tinyVoiceBuffer } from '../fixtures/attachments.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 
 const setupVoiceScenario = async () => {
@@ -108,6 +108,31 @@ describe('voice message attachments', () => {
     expect(outsiderPreview.body.message).toMatch(/attachment not found/i);
   });
 
+  it('accepts browser WebM voice recordings detected as a video container when declared as audio', async () => {
+    const { memberOne, chat } = await setupVoiceScenario();
+
+    const response = await attachVoice(
+      memberOne.agent
+        .post('/api/message/new-message')
+        .field('chatId', chat._id.toString())
+        .field('text', '')
+        .field('clientMessageId', 'voice-webm-container-detected-video'),
+      {
+        buffer: tinyDetectedWebmVoiceBuffer(),
+        contentType: 'audio/webm;codecs=opus',
+        durationSeconds: 3.5,
+      }
+    ).expect(201);
+    const attachment = response.body.data.message.attachments[0];
+
+    expect(attachment).toMatchObject({
+      displayName: 'voice-message.webm',
+      mimeType: 'audio/webm',
+      kind: 'voice',
+      durationSeconds: 3.5,
+    });
+  });
+
   it('rejects missing, too-short, too-long, and unsupported voice payloads with stable codes', async () => {
     const { memberOne, chat } = await setupVoiceScenario();
     const baseRequest = (clientMessageId) => memberOne.agent
@@ -135,10 +160,17 @@ describe('voice message attachments', () => {
       filename: 'voice.wav',
       contentType: 'audio/wav',
     }).expect(400);
+    const declaredVideo = await attachVoice(baseRequest('voice-declared-video'), {
+      buffer: tinyDetectedWebmVoiceBuffer(),
+      durationSeconds: 3,
+      filename: 'declared-video.webm',
+      contentType: 'video/webm',
+    }).expect(400);
 
     expect(missingDuration.body.code).toBe('VOICE_DURATION_INVALID');
     expect(tooShort.body.code).toBe('VOICE_DURATION_INVALID');
     expect(tooLong.body.code).toBe('VOICE_DURATION_EXCEEDED');
     expect(unsupported.body.code).toBe('ATTACHMENT_TYPE_UNSUPPORTED');
+    expect(declaredVideo.body.code).toBe('ATTACHMENT_TYPE_UNSUPPORTED');
   });
 });
