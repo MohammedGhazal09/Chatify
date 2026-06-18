@@ -706,7 +706,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 20-02: Signup Username Field And Existing-User Mandatory Setup Gate
+- [x] 20-02: Signup Username Field And Existing-User Mandatory Setup Gate
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
