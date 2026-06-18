@@ -40,6 +40,7 @@ describe('Signup', () => {
 
     await user.type(screen.getByLabelText(/first name/i), 'Ahmed');
     await user.type(screen.getByLabelText(/last name/i), 'Musa');
+    await user.type(screen.getByLabelText(/username/i), 'Ahmed.Musa');
     await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'password123');
     await user.keyboard('{Enter}');
@@ -49,6 +50,7 @@ describe('Signup', () => {
       expect.objectContaining({
         firstName: 'Ahmed',
         lastName: 'Musa',
+        username: 'ahmed.musa',
         email: 'user@example.com',
         password: 'password123',
       }),

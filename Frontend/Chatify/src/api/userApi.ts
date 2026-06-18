@@ -57,6 +57,7 @@ interface ProfileImageResponse {
 }
 
 type IdentityMarkResponse = ProfileImageResponse;
+type SetUsernameResponse = ProfileImageResponse;
 
 export const userApi = {
   getOnlineStatus: (userId: string): Promise<AxiosResponse<OnlineStatusResponse>> =>
@@ -83,6 +84,9 @@ export const userApi = {
 
   removeProfileImage: (): Promise<AxiosResponse<ProfileImageResponse>> =>
     axiosInstance.delete('/api/user/profile-image'),
+
+  setUsername: (payload: { username: string }): Promise<AxiosResponse<SetUsernameResponse>> =>
+    axiosInstance.patch('/api/user/username', payload),
 
   updateIdentityMark: (identityMark: IdentityMarkInput): Promise<AxiosResponse<IdentityMarkResponse>> =>
     axiosInstance.patch('/api/user/identity', identityMark),

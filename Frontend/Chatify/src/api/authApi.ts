@@ -8,7 +8,7 @@ export const authApi = {
   
   getLoggedUser: () => axiosInstance.get<{ status: string; user: User }>('/api/user/get-logged-user'),
   
-  signup: (data: SignupData) => axiosInstance.post('/api/auth/signup', data),
+  signup: (data: SignupData) => axiosInstance.post<{ success: boolean; message: string; user: User }>('/api/auth/signup', data),
 
   login: (data: LoginData) => axiosInstance.post('/api/auth/login', data),
   

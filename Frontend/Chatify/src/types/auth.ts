@@ -26,6 +26,7 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
+  username?: string;
   profilePic?: string;
   identityMark?: IdentityMark;
   identityMarkUpdatedAt?: string | null;
@@ -47,6 +48,7 @@ export interface LoginData {
 export interface SignupData {
   firstName: string;
   lastName: string;
+  username: string;
   email: string;
   password: string;
 }

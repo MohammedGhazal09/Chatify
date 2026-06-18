@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '../api/authApi'
+import { userApi } from '../api/userApi'
 import { useAuthStore } from '../store/authstore'
 import { usePresenceStore } from '../store/presenceStore'
 import { broadcastSessionEvent } from './useSessionBroadcast'
@@ -67,6 +68,21 @@ export const useLogin = () => {
         console.error('Failed to fetch user after login:', error)
         throw new Error('Login succeeded but failed to fetch user data')
       }
+    }
+  })
+}
+
+export const useSetUsername = () => {
+  const setUser = useAuthStore((state) => state.setUser)
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (username: string) => userApi.setUsername({ username }),
+    onSuccess: (response) => {
+      const user = response.data.data.user
+      setUser(user)
+      queryClient.setQueryData(['auth'], user)
+      queryClient.invalidateQueries({ queryKey: ['auth'] })
     }
   })
 }

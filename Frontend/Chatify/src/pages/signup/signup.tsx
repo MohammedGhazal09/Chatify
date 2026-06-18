@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { AtSign, Eye, EyeOff, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { FaGoogle, FaGithub, FaDiscord } from "react-icons/fa";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -181,6 +181,31 @@ const onSubmit = async (data: SignupFormData) => {
             </div>
 
             <div className="space-y-2">
+              <label htmlFor="username" className="block text-sm font-medium text-gray-300">
+                Username
+              </label>
+              <div className="relative">
+                <AtSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={18} />
+                <input
+                  id="username"
+                  {...register('username')}
+                  type="text"
+                  placeholder="ahmed.musa"
+                  disabled={isSubmitting}
+                  aria-invalid={errors.username ? 'true' : 'false'}
+                  aria-describedby="username-helper username-error"
+                  className={`w-full bg-gray-800 border ${errors.username ? 'border-red-500' : 'border-gray-700'} rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
+                />
+              </div>
+              <p id="username-helper" className="text-gray-500 text-sm mt-1">
+                Use 3-24 letters, numbers, dots, or underscores.
+              </p>
+              {errors.username && (
+                <p id="username-error" className="text-red-400 text-sm mt-1">{errors.username.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-medium text-gray-300">
                 Email Address
               </label>
@@ -217,6 +242,7 @@ const onSubmit = async (data: SignupFormData) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   className="cursor-pointer absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
                 >
                   {showPassword ? <EyeOff className='cursor-pointer' size={18} /> : <Eye className='cursor-pointer' size={18} />}
