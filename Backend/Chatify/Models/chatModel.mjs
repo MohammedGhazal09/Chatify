@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 
+const GROUP_MEMBER_MIN = 3;
+const GROUP_MEMBER_MAX = 10;
+
 const buildDirectKey = (members = []) => members
   .map((member) => member?.toString())
   .filter(Boolean)
@@ -27,8 +30,23 @@ const chatSchema = new mongoose.Schema(
   }
 );
 
-chatSchema.pre("validate", function setDirectKey(next) {
-  if (!this.isGroupChat && this.members?.length === 2) {
+chatSchema.pre("validate", function validateChatMembers(next) {
+  const memberIds = (this.members ?? [])
+    .map((member) => member?.toString())
+    .filter(Boolean);
+  const uniqueMemberIds = new Set(memberIds);
+
+  if (this.isGroupChat) {
+    if (memberIds.length !== uniqueMemberIds.size) {
+      this.invalidate("members", "Group members must be unique");
+    }
+
+    if (uniqueMemberIds.size < GROUP_MEMBER_MIN || uniqueMemberIds.size > GROUP_MEMBER_MAX) {
+      this.invalidate("members", "Group conversations must have 3 to 10 members");
+    }
+
+    this.directKey = undefined;
+  } else if (this.members?.length === 2) {
     this.directKey = buildDirectKey(this.members);
   } else {
     this.directKey = undefined;

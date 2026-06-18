@@ -33,6 +33,11 @@ describe('CSRF protection', () => {
       .expect(403);
 
     await requester.agent
+      .post('/api/chat/create-group-chat')
+      .send({ chatName: 'CSRF group', memberUsernames: ['nobody', 'nobody2'] })
+      .expect(403);
+
+    await requester.agent
       .post('/api/message/batch/unread-counts')
       .send({ chatIds: [] })
       .expect(403);
@@ -44,12 +49,23 @@ describe('CSRF protection', () => {
       { autoCsrf: false }
     );
     const target = await signupWithAgent({ firstName: 'Csrf', lastName: 'Target' });
+    const groupMember = await signupWithAgent({ firstName: 'Csrf', lastName: 'GroupMember' });
+    const groupMemberTwo = await signupWithAgent({ firstName: 'Csrf', lastName: 'GroupMemberTwo' });
     const csrfToken = await getCsrfForAgent(requester.agent);
 
     const chatResponse = await requester.agent
       .post('/api/chat/create-new-chat')
       .set('X-CSRF-Token', csrfToken)
       .send({ targetUsername: target.user.username })
+      .expect(201);
+
+    const groupResponse = await requester.agent
+      .post('/api/chat/create-group-chat')
+      .set('X-CSRF-Token', csrfToken)
+      .send({
+        chatName: 'CSRF group',
+        memberUsernames: [groupMember.user.username, groupMemberTwo.user.username],
+      })
       .expect(201);
 
     const messageResponse = await requester.agent
@@ -63,6 +79,7 @@ describe('CSRF protection', () => {
       .expect(201);
 
     expect(messageResponse.body.data.message.text).toBe('CSRF-protected message');
+    expect(groupResponse.body.data.chat.isGroupChat).toBe(true);
   });
 
   it('keeps safe authenticated reads exempt from CSRF headers', async () => {

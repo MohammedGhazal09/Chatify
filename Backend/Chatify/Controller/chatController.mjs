@@ -14,6 +14,7 @@ import {
 import {
   blockDirectChatPeer,
   buildConversationControls,
+  filterUnblockedContactIds,
   unblockDirectChatPeer,
 } from "../Utils/conversationControls.mjs";
 import {
@@ -32,6 +33,12 @@ const projectLatestVisibleMessage = async (chatId, requesterId) => {
 };
 
 const DIRECT_CHAT_START_ERROR = "We could not start or continue that chat. Check the username and try again.";
+const GROUP_CHAT_START_ERROR = "We could not create that group. Check the usernames and try again.";
+const GROUP_NAME_REQUIRED_ERROR = "Enter a group name.";
+const GROUP_MEMBER_MIN = 3;
+const GROUP_MEMBER_MAX = 10;
+const GROUP_SELECTED_MIN = GROUP_MEMBER_MIN - 1;
+const GROUP_SELECTED_MAX = GROUP_MEMBER_MAX - 1;
 const PUBLIC_CHAT_MEMBER_SELECT = "username firstName lastName profilePic identityMark identityMarkUpdatedAt";
 
 const buildDirectChatKey = (leftMemberId, rightMemberId) => [leftMemberId.toString(), rightMemberId.toString()]
@@ -48,7 +55,16 @@ const findDirectChat = (directKey, memberIds = []) => Chats.findOne({
   ],
 })
   .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
+  .populate("groupAdmin", PUBLIC_CHAT_MEMBER_SELECT)
   .populate("latestMessage");
+
+const populateChatPublicFields = async (chat) => {
+  await chat.populate("members", PUBLIC_CHAT_MEMBER_SELECT);
+  await chat.populate("groupAdmin", PUBLIC_CHAT_MEMBER_SELECT);
+  await chat.populate("latestMessage");
+
+  return chat;
+};
 
 const serializeChatForRequester = async (chat, requesterId, latestMessage = undefined) => {
   const chatObject = chat.toObject?.() ?? chat;
@@ -110,6 +126,131 @@ const loadChatForRequester = async ({ chatId, requesterId, next }) => {
   }
 
   return chat;
+};
+
+const normalizeGroupName = (value) => (
+  typeof value === "string" ? value.trim().replace(/\s+/g, " ") : ""
+);
+
+const validateGroupName = (value) => {
+  const chatName = normalizeGroupName(value);
+
+  if (!chatName || chatName.length < 2) {
+    return {
+      ok: false,
+      message: GROUP_NAME_REQUIRED_ERROR,
+    };
+  }
+
+  if (chatName.length > 60) {
+    return {
+      ok: false,
+      message: "Group name must be 60 characters or fewer.",
+    };
+  }
+
+  return {
+    ok: true,
+    value: chatName,
+  };
+};
+
+const validateGroupUsernames = (memberUsernames) => {
+  if (!Array.isArray(memberUsernames)) {
+    return {
+      ok: false,
+      message: "Add at least two other members.",
+    };
+  }
+
+  if (memberUsernames.length < GROUP_SELECTED_MIN) {
+    return {
+      ok: false,
+      message: "Add at least two other members.",
+    };
+  }
+
+  if (memberUsernames.length > GROUP_SELECTED_MAX) {
+    return {
+      ok: false,
+      message: "Groups can have up to 10 members.",
+    };
+  }
+
+  const normalizedUsernames = [];
+
+  for (const username of memberUsernames) {
+    const validation = validateUsername(username);
+
+    if (!validation.ok) {
+      return {
+        ok: false,
+        message: "Use valid member usernames.",
+      };
+    }
+
+    normalizedUsernames.push(validation.value);
+  }
+
+  if (new Set(normalizedUsernames).size !== normalizedUsernames.length) {
+    return {
+      ok: false,
+      message: "Each member username must be unique.",
+    };
+  }
+
+  return {
+    ok: true,
+    value: normalizedUsernames,
+  };
+};
+
+const resolveGroupMembers = async ({ memberUsernames, requesterId }) => {
+  const usernameValidation = validateGroupUsernames(memberUsernames);
+
+  if (!usernameValidation.ok) {
+    return usernameValidation;
+  }
+
+  const users = await User.find({ username: { $in: usernameValidation.value } })
+    .select("username firstName lastName profilePic identityMark identityMarkUpdatedAt");
+  const usersByUsername = new Map(users.map((user) => [user.username, user]));
+  const orderedUsers = usernameValidation.value.map((username) => usersByUsername.get(username));
+
+  if (orderedUsers.some((user) => !user)) {
+    return {
+      ok: false,
+      message: GROUP_CHAT_START_ERROR,
+    };
+  }
+
+  const requesterIdString = requesterId.toString();
+  const targetMemberIds = orderedUsers.map((user) => user._id.toString());
+
+  if (targetMemberIds.includes(requesterIdString)) {
+    return {
+      ok: false,
+      message: "Each member username must be unique.",
+    };
+  }
+
+  const unblockedIds = await filterUnblockedContactIds({
+    userId: requesterId,
+    contactIds: targetMemberIds,
+  });
+
+  if (unblockedIds.length !== targetMemberIds.length) {
+    return {
+      ok: false,
+      message: GROUP_CHAT_START_ERROR,
+    };
+  }
+
+  return {
+    ok: true,
+    users: orderedUsers,
+    memberIds: [requesterIdString, ...targetMemberIds],
+  };
 };
 
 
@@ -174,8 +315,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
     return respondWithExistingDirectChat(res, duplicateChat, requesterId);
   }
 
-  await newChat.populate("members", PUBLIC_CHAT_MEMBER_SELECT);
-  await newChat.populate("latestMessage");
+  await populateChatPublicFields(newChat);
 
   const requesterChat = await serializeChatForRequester(newChat, requesterId);
   const targetChat = await serializeChatForRequester(newChat, targetUser._id.toString());
@@ -205,9 +345,74 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
   });
 });
 
+export const createGroupChat = asyncErrHandler(async (req, res, next) => {
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const groupNameValidation = validateGroupName(req.body?.chatName);
+
+  if (!groupNameValidation.ok) {
+    return next(new CustomError(groupNameValidation.message, 400));
+  }
+
+  const memberResolution = await resolveGroupMembers({
+    memberUsernames: req.body?.memberUsernames,
+    requesterId,
+  });
+
+  if (!memberResolution.ok) {
+    return next(new CustomError(memberResolution.message, 400));
+  }
+
+  const newChat = await Chats.create({
+    chatName: groupNameValidation.value,
+    members: memberResolution.memberIds,
+    isGroupChat: true,
+    groupAdmin: requesterId,
+  });
+
+  await populateChatPublicFields(newChat);
+
+  const requesterChat = await serializeChatForRequester(newChat, requesterId);
+
+  try {
+    await Promise.all(memberResolution.memberIds.map(async (memberId) => {
+      joinUserToChat(memberId, newChat._id);
+
+      if (memberId === requesterId) {
+        return;
+      }
+
+      emitToUserSockets(
+        memberId,
+        'chat:new',
+        await serializeChatForRequester(newChat, memberId)
+      );
+    }));
+  } catch (err) {
+    logger.error('chat.group_new_notification_failed', {
+      chatId: newChat._id.toString(),
+      requesterId,
+      memberCount: memberResolution.memberIds.length,
+      error: err,
+    });
+  }
+
+  res.status(201).json({
+    status: "group chat created successfully",
+    data: {
+      chat: requesterChat,
+    },
+  });
+});
+
 export const getAllChats = asyncErrHandler(async (req, res, next) => {
   const chats = await Chats.find({ members: { $in: [req.userId] } })
     .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
+    .populate("groupAdmin", PUBLIC_CHAT_MEMBER_SELECT)
     .sort({ updatedAt: -1 });
   const projectedChats = await Promise.all(chats.map(async (chat) => {
     return serializeChatForRequester(chat, req.userId);
