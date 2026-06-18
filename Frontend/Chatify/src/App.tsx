@@ -28,7 +28,7 @@ function App() {
     <ErrorBoundary>
       <ToastProvider>
         <BrowserRouter>
-          <Suspense fallback={<LoadingSpinner />}>
+          <Suspense fallback={<LoadingSpinner showColdStartNotice={false} />}>
             <Routes>
               <Route path='/' element={<ProtectedRoute><Chat/></ProtectedRoute>}></Route>
               <Route path='/setup-username' element={<ProtectedRoute requireUsername={false}><SetupUsername/></ProtectedRoute>}></Route>

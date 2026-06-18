@@ -5,6 +5,15 @@ import { makeUser } from '../../../test/chatFixtures';
 import type { CallControllerState } from '../../../hooks/useCallController';
 import CallOverlay from './CallOverlay';
 
+const soundMocks = vi.hoisted(() => ({
+  startCallToneLoop: vi.fn(),
+  stopCallTone: vi.fn(),
+}));
+
+vi.mock('../../../utils/sounds', () => ({
+  startCallToneLoop: soundMocks.startCallToneLoop,
+}));
+
 const baseCallState: CallControllerState = {
   status: 'idle',
   session: null,
@@ -20,7 +29,10 @@ const baseCallState: CallControllerState = {
   connectedAt: null,
 };
 
-const renderOverlay = (state: Partial<CallControllerState>) => {
+const renderOverlay = (
+  state: Partial<CallControllerState>,
+  options: { shouldPlayCallTone?: boolean } = {}
+) => {
   const handlers = {
     onAccept: vi.fn(),
     onReject: vi.fn(),
@@ -29,17 +41,26 @@ const renderOverlay = (state: Partial<CallControllerState>) => {
     onToggleCamera: vi.fn(),
   };
 
-  render(<CallOverlay callState={{ ...baseCallState, ...state }} {...handlers} />);
-  return handlers;
+  const view = render(
+    <CallOverlay
+      callState={{ ...baseCallState, ...state }}
+      shouldPlayCallTone={options.shouldPlayCallTone ?? false}
+      {...handlers}
+    />
+  );
+  return { ...handlers, ...view };
 };
 
 describe('CallOverlay', () => {
   beforeEach(() => {
     vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    soundMocks.startCallToneLoop.mockReturnValue(soundMocks.stopCallTone);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    soundMocks.startCallToneLoop.mockReset();
+    soundMocks.stopCallTone.mockReset();
   });
 
   it('does not render while idle', () => {
@@ -64,6 +85,70 @@ describe('CallOverlay', () => {
 
     expect(handlers.onAccept).toHaveBeenCalledTimes(1);
     expect(handlers.onReject).toHaveBeenCalledTimes(1);
+  });
+
+  it('plays the incoming call tone when sound is enabled', () => {
+    renderOverlay({
+      status: 'incoming',
+      mode: 'audio',
+      startedAt: '2026-06-13T10:00:00.000Z',
+    }, { shouldPlayCallTone: true });
+
+    expect(soundMocks.startCallToneLoop).toHaveBeenCalledWith('incoming');
+    expect(screen.getByText('Answer when ready')).toBeInTheDocument();
+  });
+
+  it('plays the outgoing call tone while waiting for an answer', () => {
+    renderOverlay({
+      status: 'outgoing',
+      mode: 'audio',
+      startedAt: '2026-06-13T10:00:00.000Z',
+    }, { shouldPlayCallTone: true });
+
+    expect(soundMocks.startCallToneLoop).toHaveBeenCalledWith('outgoing');
+    expect(screen.getByText('Waiting for answer')).toBeInTheDocument();
+  });
+
+  it('does not start a call tone when sound is disabled', () => {
+    renderOverlay({
+      status: 'ringing',
+      mode: 'audio',
+      startedAt: '2026-06-13T10:00:00.000Z',
+    }, { shouldPlayCallTone: false });
+
+    expect(soundMocks.startCallToneLoop).not.toHaveBeenCalled();
+  });
+
+  it('stops the call tone when the call leaves the ringing state', () => {
+    const handlers = {
+      onAccept: vi.fn(),
+      onReject: vi.fn(),
+      onEnd: vi.fn(),
+      onToggleMute: vi.fn(),
+      onToggleCamera: vi.fn(),
+    };
+    const { rerender, unmount } = render(
+      <CallOverlay
+        callState={{ ...baseCallState, status: 'outgoing', mode: 'audio' }}
+        shouldPlayCallTone
+        {...handlers}
+      />
+    );
+
+    expect(soundMocks.startCallToneLoop).toHaveBeenCalledWith('outgoing');
+
+    rerender(
+      <CallOverlay
+        callState={{ ...baseCallState, status: 'connecting', mode: 'audio' }}
+        shouldPlayCallTone
+        {...handlers}
+      />
+    );
+
+    expect(soundMocks.stopCallTone).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(soundMocks.stopCallTone).toHaveBeenCalledTimes(1);
   });
 
   it('attaches the remote stream to audio playback during active audio calls', () => {

@@ -511,6 +511,16 @@ const ChatPage = () => {
   });
   callHandlersRef.current = socketHandlers;
 
+  const activeCallChatId = callState.session?.chatId ?? selectedChatId;
+  const isActiveCallMuted = activeCallChatId
+    ? notificationPreferences.isChatMuted(activeCallChatId)
+    : false;
+  const shouldPlayCallTone = notificationPreferences.soundEnabled && (
+    callState.status === 'incoming'
+      ? !isActiveCallMuted
+      : callState.status === 'outgoing' || callState.status === 'ringing'
+  );
+
   const handleStartAudioCall = useCallback(() => {
     void startCall('audio');
   }, [startCall]);
@@ -1751,6 +1761,7 @@ const ChatPage = () => {
           />
           <CallOverlay
             callState={callState}
+            shouldPlayCallTone={shouldPlayCallTone}
             onAccept={handleAcceptCall}
             onReject={handleRejectCall}
             onEnd={handleEndCall}

@@ -1,6 +1,35 @@
-import type { FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
 
-const LoadingSpinner: FC = () => {
+interface LoadingSpinnerProps {
+  showColdStartNotice?: boolean;
+  coldStartNoticeDelayMs?: number;
+}
+
+const LoadingSpinner: FC<LoadingSpinnerProps> = ({
+  showColdStartNotice = true,
+  coldStartNoticeDelayMs = 10_000,
+}) => {
+  const [shouldShowColdStartNotice, setShouldShowColdStartNotice] = useState(false);
+
+  useEffect(() => {
+    if (!showColdStartNotice) {
+      setShouldShowColdStartNotice(false);
+      return;
+    }
+
+    if (coldStartNoticeDelayMs <= 0) {
+      setShouldShowColdStartNotice(true);
+      return;
+    }
+
+    setShouldShowColdStartNotice(false);
+    const timer = window.setTimeout(() => {
+      setShouldShowColdStartNotice(true);
+    }, coldStartNoticeDelayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [coldStartNoticeDelayMs, showColdStartNotice]);
+
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
       {/* Animated background elements */}
@@ -42,6 +71,21 @@ const LoadingSpinner: FC = () => {
         <div className="w-64 h-1 bg-gray-800 rounded-full overflow-hidden">
           <div className="h-full bg-gradient-to-r from-green-500 to-green-400 rounded-full animate-pulse"></div>
         </div>
+
+        {shouldShowColdStartNotice ? (
+          <div
+            className="w-full max-w-[420px] rounded-xl border border-green-400/20 bg-slate-950/80 px-5 py-4 text-center shadow-2xl shadow-green-950/30 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <p className="text-sm font-semibold text-green-300">Chatify is starting up</p>
+            <p className="mt-2 text-sm leading-6 text-gray-300">
+              The app server may need a short wake-up after being idle, which can take about 30-40 seconds.
+              Your connection is not the issue; please keep this tab open and we'll continue automatically.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {/* Floating decorative elements */}

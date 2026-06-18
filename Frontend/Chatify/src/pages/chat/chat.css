@@ -206,6 +206,47 @@
   transform: translateY(1px);
 }
 
+.call-state-icon {
+  position: relative;
+  isolation: isolate;
+}
+
+.call-state-icon > svg {
+  position: relative;
+  z-index: 1;
+}
+
+.call-state-icon--ringing::before,
+.call-state-icon--ringing::after {
+  position: absolute;
+  inset: -5px;
+  z-index: 0;
+  content: "";
+  border: 1px solid color-mix(in srgb, var(--chat-accent) 58%, transparent);
+  border-radius: inherit;
+  opacity: 0;
+  animation: call-ring-pulse 1.8s ease-out infinite;
+}
+
+.call-state-icon--ringing::after {
+  animation-delay: 0.9s;
+}
+
+@keyframes call-ring-pulse {
+  0% {
+    opacity: 0.42;
+    transform: scale(0.92);
+  }
+  72% {
+    opacity: 0;
+    transform: scale(1.48);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.48);
+  }
+}
+
 /* Sidebar scrollbar */
 .chat-sidebar-scroll {
   scrollbar-width: thin;
@@ -462,6 +503,8 @@
   .chat-overlay,
   .chat-shell,
   .chat-context-rail,
+  .call-state-icon--ringing::before,
+  .call-state-icon--ringing::after,
   .animate-fade-in,
   .animate-slide-down,
   .typing-dot,
@@ -469,6 +512,12 @@
   .chat-messages-scroll > * {
     animation: none !important;
     transition: none !important;
+  }
+
+  .call-state-icon--ringing::before,
+  .call-state-icon--ringing::after {
+    opacity: 0.28;
+    transform: scale(1.12);
   }
 
   .message-search-highlight .message-bubble {

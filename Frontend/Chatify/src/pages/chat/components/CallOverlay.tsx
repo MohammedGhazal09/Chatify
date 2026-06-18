@@ -2,9 +2,11 @@ import { Mic, MicOff, Phone, PhoneOff, RefreshCw, Video, VideoOff } from 'lucide
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, Ref } from 'react';
 import type { CallControllerState } from '../../../hooks/useCallController';
+import { startCallToneLoop, type CallToneVariant } from '../../../utils/sounds';
 
 interface CallOverlayProps {
   callState: CallControllerState;
+  shouldPlayCallTone: boolean;
   onAccept: () => void;
   onReject: () => void;
   onEnd: () => void;
@@ -71,12 +73,61 @@ const getStatusCopy = (callState: CallControllerState) => {
   return 'Call ended';
 };
 
+const getStatusDetailCopy = (callState: CallControllerState, elapsed: string) => {
+  if (callState.status === 'connected') {
+    return elapsed;
+  }
+
+  if (callState.status === 'reconnecting') {
+    return `Trying to reconnect · ${elapsed}`;
+  }
+
+  if (callState.status === 'incoming') {
+    return 'Answer when ready';
+  }
+
+  if (callState.status === 'outgoing' || callState.status === 'ringing') {
+    return 'Waiting for answer';
+  }
+
+  if (callState.status === 'connecting') {
+    return 'Starting secure media';
+  }
+
+  if (callState.status === 'permission_denied') {
+    return 'Check browser permissions';
+  }
+
+  if (callState.status === 'busy') {
+    return 'Try again later';
+  }
+
+  if (callState.status === 'failed') {
+    return 'Call could not be completed';
+  }
+
+  return 'Secure session active';
+};
+
 const shouldRenderOverlay = (status: CallControllerState['status']) => (
   status !== 'idle' && status !== 'ended'
 );
 
+const getCallToneVariant = (status: CallControllerState['status']): CallToneVariant | null => {
+  if (status === 'incoming') {
+    return 'incoming';
+  }
+
+  if (status === 'outgoing' || status === 'ringing') {
+    return 'outgoing';
+  }
+
+  return null;
+};
+
 const CallOverlay = ({
   callState,
+  shouldPlayCallTone,
   onAccept,
   onReject,
   onEnd,
@@ -90,6 +141,8 @@ const CallOverlay = ({
     () => formatElapsed(callState.connectedAt ?? callState.startedAt, now),
     [callState.connectedAt, callState.startedAt, now]
   );
+  const statusDetailCopy = getStatusDetailCopy(callState, elapsed);
+  const callToneVariant = getCallToneVariant(callState.status);
 
   useEffect(() => {
     if (!shouldRenderOverlay(callState.status)) {
@@ -103,12 +156,21 @@ const CallOverlay = ({
     };
   }, [callState.status]);
 
+  useEffect(() => {
+    if (!shouldPlayCallTone || !callToneVariant) {
+      return undefined;
+    }
+
+    return startCallToneLoop(callToneVariant);
+  }, [callToneVariant, shouldPlayCallTone]);
+
   if (!shouldRenderOverlay(callState.status)) {
     return null;
   }
 
   const isIncoming = callState.status === 'incoming';
   const isConnected = callState.status === 'connected' || callState.status === 'reconnecting';
+  const isRingingState = callState.status === 'incoming' || callState.status === 'outgoing' || callState.status === 'ringing';
   const isVideo = callState.mode === 'video' && (
     callState.status === 'incoming'
     || callState.status === 'outgoing'
@@ -128,7 +190,7 @@ const CallOverlay = ({
       <section className={`w-full max-w-[520px] overflow-hidden rounded-[var(--chat-radius-lg)] border border-[var(--chat-border)] bg-[var(--chat-panel)] text-[var(--chat-text)] shadow-[var(--chat-shadow)] ${isVideo ? 'sm:max-w-[720px]' : ''}`}>
         <div className="border-b border-[var(--chat-border)] px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-[var(--chat-accent)]">
+            <div className={`call-state-icon grid h-12 w-12 shrink-0 place-items-center rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-[var(--chat-accent)] ${isRingingState ? 'call-state-icon--ringing' : ''}`}>
               {callState.mode === 'video'
                 ? <Video aria-hidden="true" className="h-6 w-6" />
                 : <Phone aria-hidden="true" className="h-6 w-6" />}
@@ -136,7 +198,7 @@ const CallOverlay = ({
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-lg font-bold">{statusCopy}</h2>
               <p className="text-sm text-[var(--chat-text-muted)]" aria-live="polite">
-                {isConnected ? elapsed : 'Secure session active'}
+                {statusDetailCopy}
               </p>
             </div>
           </div>
@@ -152,7 +214,7 @@ const CallOverlay = ({
         {!isVideo && (
           <div className="px-5 py-5">
             <div className="rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-4 py-5 text-sm text-[var(--chat-text-muted)]">
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[var(--chat-border)] text-[var(--chat-accent)]">
+              <div className={`call-state-icon mx-auto grid h-16 w-16 place-items-center rounded-full border border-[var(--chat-border)] text-[var(--chat-accent)] ${isRingingState ? 'call-state-icon--ringing' : ''}`}>
                 {callState.status === 'reconnecting'
                   ? <RefreshCw aria-hidden="true" className="h-7 w-7" />
                   : <Phone aria-hidden="true" className="h-7 w-7" />}

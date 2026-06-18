@@ -1,10 +1,36 @@
 // Notification sound utility
 let notificationSound: HTMLAudioElement | null = null;
 let callEndedAudioContext: AudioContext | null = null;
+let callToneAudioContext: AudioContext | null = null;
 export const LEGACY_SOUND_STORAGE_KEY = 'chatify_sound_enabled';
+
+export type CallToneVariant = 'outgoing' | 'incoming';
 
 type WindowWithWebkitAudio = Window & {
   webkitAudioContext?: typeof AudioContext;
+};
+
+interface ToneNodePair {
+  oscillator: OscillatorNode;
+  gain: GainNode;
+}
+
+const getAudioContextConstructor = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return window.AudioContext ?? (window as WindowWithWebkitAudio).webkitAudioContext ?? null;
+};
+
+const resumeContext = (context: AudioContext) => {
+  if (context.state === 'suspended') {
+    try {
+      void context.resume().catch(() => undefined);
+    } catch {
+      // Browsers can reject audio startup until a gesture; sounds are optional.
+    }
+  }
 };
 
 export const playNotificationSound = () => {
@@ -23,22 +49,13 @@ export const playNotificationSound = () => {
 };
 
 const getCallEndedAudioContext = () => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const AudioContextConstructor =
-    window.AudioContext ?? (window as WindowWithWebkitAudio).webkitAudioContext;
-
+  const AudioContextConstructor = getAudioContextConstructor();
   if (!AudioContextConstructor) {
     return null;
   }
 
   callEndedAudioContext ??= new AudioContextConstructor();
-
-  if (callEndedAudioContext.state === 'suspended') {
-    void callEndedAudioContext.resume().catch(() => undefined);
-  }
+  resumeContext(callEndedAudioContext);
 
   return callEndedAudioContext;
 };
@@ -90,6 +107,123 @@ export const playCallEndedSound = () => {
   } catch {
     playNotificationSound();
   }
+};
+
+const getCallToneAudioContext = () => {
+  const AudioContextConstructor = getAudioContextConstructor();
+  if (!AudioContextConstructor) {
+    return null;
+  }
+
+  callToneAudioContext ??= new AudioContextConstructor();
+  resumeContext(callToneAudioContext);
+
+  return callToneAudioContext;
+};
+
+const getCallTonePattern = (variant: CallToneVariant) => (
+  variant === 'incoming'
+    ? [
+        { offset: 0.00, duration: 0.22, frequency: 659, type: 'triangle' as const, volume: 0.075 },
+        { offset: 0.31, duration: 0.24, frequency: 523, type: 'sine' as const, volume: 0.065 },
+      ]
+    : [
+        { offset: 0.00, duration: 0.2, frequency: 440, type: 'sine' as const, volume: 0.06 },
+        { offset: 0.28, duration: 0.24, frequency: 554, type: 'triangle' as const, volume: 0.07 },
+      ]
+);
+
+const scheduleCallTone = (context: AudioContext, variant: CallToneVariant) => {
+  const nodes: ToneNodePair[] = [];
+  const phraseStart = context.currentTime + 0.02;
+
+  getCallTonePattern(variant).forEach((tone) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const startAt = phraseStart + tone.offset;
+    const endAt = startAt + tone.duration;
+
+    oscillator.type = tone.type;
+    oscillator.frequency.setValueAtTime(tone.frequency, startAt);
+
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.linearRampToValueAtTime(tone.volume, startAt + 0.035);
+    gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(startAt);
+    oscillator.stop(endAt + 0.03);
+    nodes.push({ oscillator, gain });
+  });
+
+  return () => {
+    const fadeAt = context.currentTime;
+
+    nodes.forEach(({ oscillator, gain }) => {
+      try {
+        gain.gain.cancelScheduledValues(fadeAt);
+        gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), fadeAt);
+        gain.gain.exponentialRampToValueAtTime(0.0001, fadeAt + 0.05);
+        oscillator.stop(fadeAt + 0.06);
+      } catch {
+        // The tone may already have ended; cleanup should stay silent.
+      }
+    });
+  };
+};
+
+export const startCallToneLoop = (variant: CallToneVariant): (() => void) => {
+  if (typeof window === 'undefined') {
+    return () => undefined;
+  }
+
+  let context: AudioContext | null = null;
+  try {
+    context = getCallToneAudioContext();
+  } catch {
+    return () => undefined;
+  }
+
+  if (!context) {
+    return () => undefined;
+  }
+
+  const activeToneCleanups = new Set<() => void>();
+  let isStopped = false;
+  let loopId: number | null = null;
+
+  const playPhrase = () => {
+    if (isStopped) {
+      return;
+    }
+
+    try {
+      const cleanupTone = scheduleCallTone(context, variant);
+      activeToneCleanups.add(cleanupTone);
+      window.setTimeout(() => {
+        activeToneCleanups.delete(cleanupTone);
+      }, 900);
+    } catch {
+      return;
+    }
+
+    loopId = window.setTimeout(playPhrase, 1800);
+  };
+
+  playPhrase();
+
+  return () => {
+    isStopped = true;
+
+    if (loopId !== null) {
+      window.clearTimeout(loopId);
+      loopId = null;
+    }
+
+    activeToneCleanups.forEach((cleanupTone) => cleanupTone());
+    activeToneCleanups.clear();
+  };
 };
 
 // Check if user has enabled sound notifications

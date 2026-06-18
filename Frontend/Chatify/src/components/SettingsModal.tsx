@@ -768,7 +768,7 @@ const SettingsModal = ({
                     <Volume2 aria-hidden="true" className="h-4 w-4" />
                     Sound
                   </p>
-                  <p className="text-xs text-[var(--chat-text-muted)]">Play a local sound for eligible alerts.</p>
+                  <p className="text-xs text-[var(--chat-text-muted)]">Play a local sound for eligible alerts and call tones.</p>
                 </div>
                 <ToggleButton
                   pressed={soundEnabled}
