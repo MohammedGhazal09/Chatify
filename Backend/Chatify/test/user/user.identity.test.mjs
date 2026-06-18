@@ -45,6 +45,10 @@ describe('user identity marks', () => {
       firstName: 'Identity',
       lastName: 'Viewer',
     });
+    const outsider = await setupIdentityUser({
+      firstName: 'Identity',
+      lastName: 'Outsider',
+    });
 
     await createDirectChat([owner.user, viewer.user]);
 
@@ -88,6 +92,7 @@ describe('user identity marks', () => {
       .expect(200);
 
     const ownerFromAllUsers = allUsers.body.users.find((candidate) => candidate._id === owner.user._id.toString());
+    const outsiderFromAllUsers = allUsers.body.users.find((candidate) => candidate._id === outsider.user._id.toString());
     const ownerFromContacts = onlineUsers.body.data.allContacts.find((candidate) => candidate._id === owner.user._id.toString());
     const ownerFromChat = chats.body.data.chats[0].members.find((candidate) => candidate._id === owner.user._id.toString());
 
@@ -98,6 +103,7 @@ describe('user identity marks', () => {
       username: owner.user.username,
       identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),
     });
+    expect(outsiderFromAllUsers).toBeUndefined();
     expect(ownerFromContacts).toMatchObject({
       username: owner.user.username,
       identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),

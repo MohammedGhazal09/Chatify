@@ -133,6 +133,24 @@ const emitIdentityUpdated = async (user) => {
   });
 };
 
+const getContactIdsForUser = async (userId) => {
+  const userChats = await Chats.find({ members: userId }).select('members');
+  const contactIds = new Set();
+  const normalizedUserId = userId.toString();
+
+  userChats.forEach(chat => {
+    chat.members.forEach(memberId => {
+      const contactId = memberId.toString();
+
+      if (contactId !== normalizedUserId) {
+        contactIds.add(contactId);
+      }
+    });
+  });
+
+  return Array.from(contactIds);
+};
+
 const cleanupProfileImage = async (storageFileId) => {
   if (!storageFileId) {
     return;
@@ -211,7 +229,8 @@ export const setUsername = asyncErrHandler(async (req, res, next) => {
 });
 
 export const getAllUsers = asyncErrHandler(async (req, res, next) => {
-  const users = await User.find({_id: {$ne: req.userId}})
+  const contactIds = await getContactIdsForUser(req.userId);
+  const users = await User.find({ _id: { $in: contactIds } })
     .select('username firstName lastName profilePic identityMark identityMarkUpdatedAt')
 
   res.status(200).json({
@@ -262,23 +281,11 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
 // Get online users (contacts/chat members only)
 export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
   const userId = req.userId;
-
-  // Get all chats the user is a member of
-  const userChats = await Chats.find({ members: userId }).select('members');
-
-  // Extract unique user IDs from all chats
-  const contactIds = new Set();
-  userChats.forEach(chat => {
-    chat.members.forEach(memberId => {
-      if (memberId.toString() !== userId) {
-        contactIds.add(memberId.toString());
-      }
-    });
-  });
+  const contactIds = await getContactIdsForUser(userId);
 
   // Get online status for all contacts
   const contacts = await User.find({
-    _id: { $in: Array.from(contactIds) },
+    _id: { $in: contactIds },
   }).select('username firstName lastName isOnline lastSeen showOnlineStatus showLastSeen profilePic identityMark identityMarkUpdatedAt');
 
   const onlineUsers = contacts

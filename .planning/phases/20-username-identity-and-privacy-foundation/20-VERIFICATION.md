@@ -9,13 +9,13 @@ status: passed
 
 ## Result
 
-Phase 20 verification passed. Username is available in account state and public identity payloads, existing username-less users remain migration-safe, mandatory setup is route-gated, and public identity/contact/presence/chat/socket payloads no longer expose email.
+Phase 20 verification passed. Username is available in account state and public identity payloads, existing username-less users remain migration-safe, mandatory setup is route-gated, and public identity/contact/presence/chat/socket payloads no longer expose email. Code review tightened public user listing to shared-chat contacts only.
 
 ## Commands
 
 | Area | Command | Result |
 |------|---------|--------|
-| Backend username/privacy regression | `cd Backend/Chatify; npm test -- --run test/user/user.username.test.mjs test/user/user.identity.test.mjs test/chat/chat.direct.test.mjs test/socket/socket.auth.test.mjs test/socket/socket.voice-identity.test.mjs test/socket/socket.presence-reconnect.test.mjs test/auth/auth.lifecycle.test.mjs test/security/csrf.test.mjs` | Passed: 8 files, 57 tests |
+| Backend username/privacy regression | `cd Backend/Chatify; npm test -- --run test/user/user.identity.test.mjs test/user/user.profile-image.test.mjs test/user/user.username.test.mjs test/chat/chat.direct.test.mjs test/socket/socket.auth.test.mjs test/socket/socket.voice-identity.test.mjs test/socket/socket.presence-reconnect.test.mjs test/auth/auth.lifecycle.test.mjs test/security/csrf.test.mjs` | Passed: 9 files, 67 tests |
 | Frontend username/privacy regression | `cd Frontend/Chatify; npm test -- --run src/utils/validationSchemas.test.ts src/pages/signup/signup.test.tsx src/hooks/useAuthQuery.test.tsx src/components/protectedRoute.test.tsx src/pages/chat/fixtureLeakGuard.test.ts` | Passed: 5 files, 15 tests |
 | Frontend lint | `cd Frontend/Chatify; npm run lint` | Passed |
 | Frontend build | `cd Frontend/Chatify; npm run build` | Passed |
@@ -25,6 +25,7 @@ Phase 20 verification passed. Username is available in account state and public 
 ## Privacy Boundary Changes Verified
 
 - `Backend/Chatify/Controller/userController.mjs` now serializes public users through a public identity shape with `_id`, `username`, names, profile image, and identity mark fields only.
+- `Backend/Chatify/Controller/userController.mjs` now scopes `getAllUsers` to shared-chat contacts instead of enumerating all users.
 - Public user list, online status, online contacts, and identity update socket payloads include username and omit email.
 - `Backend/Chatify/Controller/chatController.mjs` populates chat members with public identity fields instead of all user fields minus password.
 - `Backend/Chatify/Config/socket.mjs` includes username in presence and typing payloads without adding email.

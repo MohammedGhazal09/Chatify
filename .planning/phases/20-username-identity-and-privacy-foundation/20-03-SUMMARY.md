@@ -51,6 +51,7 @@ Finished Phase 20 privacy propagation. Public identity, status, contact, chat me
 | Commit | Description |
 |--------|-------------|
 | `b4cbe3b` | Added public identity serializers, chat member public projection, username socket payloads, frontend username display fallbacks, privacy tests, fixture cleanup, and `20-VERIFICATION.md`. |
+| review fix | Scoped `getAllUsers` to shared-chat contacts and added the code review artifact. |
 
 ## Key Files
 
@@ -81,8 +82,8 @@ Finished Phase 20 privacy propagation. Public identity, status, contact, chat me
 
 ## Verification
 
-- `cd Backend/Chatify; npm test -- --run test/user/user.username.test.mjs test/user/user.identity.test.mjs test/chat/chat.direct.test.mjs test/socket/socket.auth.test.mjs test/socket/socket.voice-identity.test.mjs test/socket/socket.presence-reconnect.test.mjs test/auth/auth.lifecycle.test.mjs test/security/csrf.test.mjs`
-- Result: passed, 8 test files and 57 tests.
+- `cd Backend/Chatify; npm test -- --run test/user/user.identity.test.mjs test/user/user.profile-image.test.mjs test/user/user.username.test.mjs test/chat/chat.direct.test.mjs test/socket/socket.auth.test.mjs test/socket/socket.voice-identity.test.mjs test/socket/socket.presence-reconnect.test.mjs test/auth/auth.lifecycle.test.mjs test/security/csrf.test.mjs`
+- Result: passed, 9 test files and 67 tests.
 - `cd Frontend/Chatify; npm test -- --run src/utils/validationSchemas.test.ts src/pages/signup/signup.test.tsx src/hooks/useAuthQuery.test.tsx src/components/protectedRoute.test.tsx src/pages/chat/fixtureLeakGuard.test.ts`
 - Result: passed, 5 test files and 15 tests.
 - `cd Frontend/Chatify; npm run lint`
@@ -96,6 +97,7 @@ Finished Phase 20 privacy propagation. Public identity, status, contact, chat me
 
 - Kept email available in owner account/auth/reset surfaces while making public user objects email-optional.
 - Treated current email-based chat creation as an explicit Phase 21-deferred path, not a Phase 20 regression.
+- Scoped public user listing to shared-chat contacts so Phase 20 does not create a broad username directory before Phase 21 designs exact lookup.
 - Added username to presence and typing payloads without removing existing display-name fields, preserving compatibility.
 - Changed frontend public identity fallbacks to username instead of email.
 
