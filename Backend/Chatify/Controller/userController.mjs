@@ -239,6 +239,32 @@ export const getAllUsers = asyncErrHandler(async (req, res, next) => {
   });
 })
 
+export const lookupUserByUsername = asyncErrHandler(async (req, res, next) => {
+  const validation = validateUsername(req.params?.username);
+
+  if (!validation.ok) {
+    return res.status(400).json({
+      status: 'fail',
+      code: validation.code,
+      message: validation.message,
+    });
+  }
+
+  const user = await User.findOne({ username: validation.value })
+    .select('username firstName lastName profilePic identityMark identityMarkUpdatedAt')
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      user: serializePublicIdentityUser(user),
+    },
+  });
+})
+
 // Get online status for a specific user
 export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
   const { userId } = req.params;

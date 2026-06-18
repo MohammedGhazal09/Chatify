@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   getLoggedUser,
   getAllUsers,
+  lookupUserByUsername,
   getOnlineStatus,
   getOnlineUsers,
   getProfileImage,
@@ -22,6 +23,7 @@ router.route('/get-logged-user').get(protect, getLoggedUser)
 router.route('/get-all-users').get(protect, getAllUsers)
 router.route('/online-status/:userId').get(protect, getOnlineStatus)
 router.route('/online-users').get(protect, getOnlineUsers)
+router.route('/lookup/:username').get(protect, lookupUserByUsername)
 router.route('/username').patch(protect, csrfProtection, setUsername)
 router.route('/profile-image')
   .patch(protect, csrfProtection, profileImageUploadLimiter, parseProfileImageUpload, uploadProfileImage)

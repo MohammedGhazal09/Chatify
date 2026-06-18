@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
-import validator from "validator";
 import Chats from "../Models/chatModel.mjs";
 import Message from "../Models/messageModel.mjs";
 import User from "../Models/userModel.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
 import { CustomError } from "../Utils/customError.mjs";
+import { validateUsername } from "../Utils/usernameValidation.mjs";
 import {
   emitToUserSockets,
   endActiveCallForChatDueToBlock,
@@ -31,7 +31,7 @@ const projectLatestVisibleMessage = async (chatId, requesterId) => {
   return latestVisibleMessage ? serializeMessage(latestVisibleMessage) : null;
 };
 
-const DIRECT_CHAT_START_ERROR = "We could not start or continue that chat. Check the email and try again.";
+const DIRECT_CHAT_START_ERROR = "We could not start or continue that chat. Check the username and try again.";
 const PUBLIC_CHAT_MEMBER_SELECT = "username firstName lastName profilePic identityMark identityMarkUpdatedAt";
 
 const buildDirectChatKey = (leftMemberId, rightMemberId) => [leftMemberId.toString(), rightMemberId.toString()]
@@ -114,24 +114,20 @@ const loadChatForRequester = async ({ chatId, requesterId, next }) => {
 
 
 export const createChat = asyncErrHandler(async (req, res, next) => {
-  const { targetEmail, chatName } = req.body ?? {};
+  const { targetUsername, chatName } = req.body ?? {};
   const requesterId = req.userId?.toString();
 
   if (!requesterId) {
     return next(new CustomError("Not authorized to access this route", 401));
   }
 
-  if (!targetEmail || typeof targetEmail !== "string") {
-    return next(new CustomError("Please provide a valid email address", 400));
+  const usernameValidation = validateUsername(targetUsername);
+
+  if (!usernameValidation.ok) {
+    return next(new CustomError(usernameValidation.message, 400));
   }
 
-  const normalizedEmail = targetEmail.trim().toLowerCase();
-
-  if (!validator.isEmail(normalizedEmail)) {
-    return next(new CustomError("Please provide a valid email address", 400));
-  }
-
-  const targetUser = await User.findOne({ email: normalizedEmail });
+  const targetUser = await User.findOne({ username: usernameValidation.value });
 
   if (!targetUser) {
     return next(new CustomError(DIRECT_CHAT_START_ERROR, 404));

@@ -41,7 +41,7 @@ describe('direct chat continuation', () => {
 
     const response = await requester.agent
       .post('/api/chat/create-new-chat')
-      .send({ targetEmail: ` ${target.user.email.toUpperCase()} ` })
+      .send({ targetUsername: ` ${target.user.username.toUpperCase()} ` })
       .expect(201);
 
     const chat = await Chats.findById(response.body.data.chat._id);
@@ -77,18 +77,18 @@ describe('direct chat continuation', () => {
     });
   });
 
-  it('continues an existing exact-email direct chat with 200 semantics', async () => {
+  it('continues an existing exact-username direct chat with 200 semantics', async () => {
     const { requester, target } = await setupDirectChatUsers();
 
     const created = await requester.agent
       .post('/api/chat/create-new-chat')
-      .send({ targetEmail: target.user.email })
+      .send({ targetUsername: target.user.username })
       .expect(201);
     vi.clearAllMocks();
 
     const continued = await requester.agent
       .post('/api/chat/create-new-chat')
-      .send({ targetEmail: target.user.email })
+      .send({ targetUsername: target.user.username })
       .expect(200);
 
     expect(continued.body.data.chat._id).toBe(created.body.data.chat._id);
@@ -97,13 +97,13 @@ describe('direct chat continuation', () => {
     expect(emitToUserSockets).not.toHaveBeenCalled();
   });
 
-  it('coalesces concurrent exact-email submits into one direct chat record', async () => {
+  it('coalesces concurrent exact-username submits into one direct chat record', async () => {
     const { requester, target } = await setupDirectChatUsers();
 
     const responses = await Promise.all(
       Array.from({ length: 5 }, () => requester.agent
         .post('/api/chat/create-new-chat')
-        .send({ targetEmail: target.user.email }))
+        .send({ targetUsername: target.user.username }))
     );
     const ids = responses.map((response) => response.body.data.chat._id);
 
@@ -117,11 +117,11 @@ describe('direct chat continuation', () => {
 
     const missingAccount = await requester.agent
       .post('/api/chat/create-new-chat')
-      .send({ targetEmail: 'missing-account@example.test' })
+      .send({ targetUsername: 'missing.account' })
       .expect(404);
     const selfTarget = await requester.agent
       .post('/api/chat/create-new-chat')
-      .send({ targetEmail: requester.user.email })
+      .send({ targetUsername: requester.user.username })
       .expect(400);
 
     expect(missingAccount.body.message).toMatch(GENERIC_START_ERROR);
@@ -130,14 +130,26 @@ describe('direct chat continuation', () => {
     expect(selfTarget.body.message).not.toMatch(/yourself|self/i);
   });
 
-  it('keeps invalid email format feedback specific', async () => {
+  it('keeps invalid username format feedback specific', async () => {
     const { requester } = await setupDirectChatUsers();
 
     const response = await requester.agent
       .post('/api/chat/create-new-chat')
-      .send({ targetEmail: 'not-an-email' })
+      .send({ targetUsername: 'not an username!' })
       .expect(400);
 
-    expect(response.body.message).toBe('Please provide a valid email address');
+    expect(response.body.message).toBe('Username must be 3-24 letters, numbers, dots, or underscores');
+  });
+
+  it('rejects legacy email-only direct chat payloads without lookup', async () => {
+    const { requester, target } = await setupDirectChatUsers();
+
+    const response = await requester.agent
+      .post('/api/chat/create-new-chat')
+      .send({ targetEmail: target.user.email })
+      .expect(400);
+
+    expect(response.body.message).toBe('Username is required');
+    expect(await Chats.countDocuments({ isGroupChat: false })).toBe(0);
   });
 });

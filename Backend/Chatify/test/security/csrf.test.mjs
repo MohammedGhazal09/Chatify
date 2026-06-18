@@ -29,7 +29,7 @@ describe('CSRF protection', () => {
 
     await requester.agent
       .post('/api/chat/create-new-chat')
-      .send({ targetEmail: 'nobody@example.test' })
+      .send({ targetUsername: 'nobody' })
       .expect(403);
 
     await requester.agent
@@ -49,7 +49,7 @@ describe('CSRF protection', () => {
     const chatResponse = await requester.agent
       .post('/api/chat/create-new-chat')
       .set('X-CSRF-Token', csrfToken)
-      .send({ targetEmail: target.user.email })
+      .send({ targetUsername: target.user.username })
       .expect(201);
 
     const messageResponse = await requester.agent

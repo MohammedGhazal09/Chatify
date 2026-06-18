@@ -211,7 +211,7 @@ describe('message cursor pagination', () => {
 
     const response = await memberTwo.agent
       .post('/api/chat/create-new-chat')
-      .send({ targetEmail: memberOne.user.email })
+      .send({ targetUsername: memberOne.user.username })
       .expect(200);
 
     expect(response.body.data.chat._id).toBe(chat._id.toString());

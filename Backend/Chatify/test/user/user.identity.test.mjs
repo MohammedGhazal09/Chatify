@@ -87,6 +87,9 @@ describe('user identity marks', () => {
     const onlineStatus = await viewer.agent
       .get(`/api/user/online-status/${owner.user._id}`)
       .expect(200);
+    const lookup = await viewer.agent
+      .get(`/api/user/lookup/${owner.user.username.toUpperCase()}`)
+      .expect(200);
     const chats = await viewer.agent
       .get('/api/chat/get-all-chats')
       .expect(200);
@@ -112,6 +115,10 @@ describe('user identity marks', () => {
       username: owner.user.username,
       identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),
     });
+    expect(lookup.body.data.user).toMatchObject({
+      username: owner.user.username,
+      identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),
+    });
     expect(ownerFromChat).toMatchObject({
       username: owner.user.username,
       identityMark: expect.objectContaining({ source: 'custom', label: 'Relay Grid' }),
@@ -120,11 +127,35 @@ describe('user identity marks', () => {
     expectNoPrivateIdentityFields(allUsers.body);
     expectNoPrivateIdentityFields(onlineUsers.body);
     expectNoPrivateIdentityFields(onlineStatus.body);
+    expectNoPrivateIdentityFields(lookup.body);
     expectNoPrivateIdentityFields(chats.body);
     expectNoPublicEmailFields(allUsers.body);
     expectNoPublicEmailFields(onlineUsers.body);
     expectNoPublicEmailFields(onlineStatus.body);
+    expectNoPublicEmailFields(lookup.body);
     expectNoPublicEmailFields(chats.body);
+  });
+
+  it('validates exact username lookup without exposing email identity', async () => {
+    const viewer = await setupIdentityUser({
+      firstName: 'Lookup',
+      lastName: 'Viewer',
+    });
+
+    const invalid = await viewer.agent
+      .get('/api/user/lookup/not%20valid')
+      .expect(400);
+    const missing = await viewer.agent
+      .get('/api/user/lookup/missing.user')
+      .expect(404);
+
+    expect(invalid.body).toMatchObject({
+      status: 'fail',
+      code: 'USERNAME_INVALID',
+    });
+    expect(missing.body.message).toBe('User not found');
+    expectNoPublicEmailFields(invalid.body);
+    expectNoPublicEmailFields(missing.body);
   });
 
   it('rejects unsupported preset ids, URL-like values, and living-being identity concepts', async () => {
