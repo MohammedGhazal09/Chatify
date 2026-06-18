@@ -513,7 +513,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 17. V1 Readiness Closure And Release Gate | 4/4 | Blocked pending release evidence | - |
 | 18. Operational Observability And Runbook Hardening | 4/4 | Complete | 2026-06-17 |
 | 19. Messenger Product Polish And Notifications | 5/5 | Complete   | 2026-06-17 |
-| 20. Username Identity And Privacy Foundation | 0/3 | Planned | - |
+| 20. Username Identity And Privacy Foundation | 1/3 | In Progress|  |
 | 21. Username-Based Contact Discovery | 0/3 | Planned | - |
 | 22. Group Conversations With Ten-Member Limit | 0/4 | Planned | - |
 
@@ -696,13 +696,13 @@ Plans:
   4. Auth payloads, Zustand user state, identity display helpers, and profile/identity responses include username where needed while avoiding public email exposure outside auth/reset/account settings.
   5. Tests cover username normalization, uniqueness races, signup, existing-user setup, CSRF protection for username updates, redacted logging, and session recovery around the mandatory setup gate.
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 20-01: Backend Username Model, Validation, Indexing, And Migration-Safe Contract
+- [x] 20-01: Backend Username Model, Validation, Indexing, And Migration-Safe Contract
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

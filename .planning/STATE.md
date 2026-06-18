@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 20-22 added to promote username discovery and group chats into the roadmap; Phase 14/15/17 release blockers preserved.
+status: executing
 stopped_at: Phase 20 planned
-last_updated: "2026-06-18T06:24:17.767Z"
-last_activity: 2026-06-18 -- Added Phase 20-22 for username identity, username-based discovery, and capped group conversations; v1 release remains blocked pending production/call evidence
+last_updated: "2026-06-18T06:32:28.629Z"
+last_activity: 2026-06-18 -- Phase 20 execution started
 progress:
   total_phases: 23
   completed_phases: 20
   total_plans: 68
-  completed_plans: 68
+  completed_plans: 69
   percent: 87
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 20 — plan username identity and privacy foundation
+**Current focus:** Phase 20 — username-identity-and-privacy-foundation
 
 ## Current Position
 
-Phase: 20 (username-identity-and-privacy-foundation) — PLANNED
-Plan: Not planned yet
-Status: Phase 20-22 added to promote username discovery and group chats into the roadmap; Phase 14/15/17 release blockers preserved.
-Last activity: 2026-06-18 -- Added Phase 20-22 for username identity, username-based discovery, and capped group conversations; v1 release remains blocked pending production/call evidence
+Phase: 20 (username-identity-and-privacy-foundation) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-18 -- Phase 20 execution started
 
 Progress: Phase 20 is the next planned phase with 0/3 plans complete; Phase 21 and Phase 22 are planned follow-ups. Release readiness remains blocked by missing production live, local/prod call, and final v1 evidence.
 
