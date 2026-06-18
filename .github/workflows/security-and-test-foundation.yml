@@ -7,6 +7,13 @@ on:
       - main
       - "gsd/**"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend tests
@@ -23,7 +30,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: "lts/*"
           cache: npm
           cache-dependency-path: Backend/Chatify/package-lock.json
 
@@ -51,7 +58,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: "lts/*"
           cache: npm
           cache-dependency-path: Frontend/Chatify/package-lock.json
 
