@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Phase 20-22 added to promote username discovery and group chats into the roadmap; Phase 14/15/17 release blockers preserved.
-stopped_at: Phase 20 context gathered
-last_updated: "2026-06-18T06:11:59.559Z"
+stopped_at: Phase 20 UI-SPEC approved
+last_updated: "2026-06-18T06:15:16.481Z"
 last_activity: 2026-06-18 -- Added Phase 20-22 for username identity, username-based discovery, and capped group conversations; v1 release remains blocked pending production/call evidence
 progress:
   total_phases: 23
@@ -187,6 +187,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-18T06:11:59.549Z
-Stopped at: Phase 20 context gathered
-Resume file: .planning/phases/20-username-identity-and-privacy-foundation/20-CONTEXT.md
+Last session: 2026-06-18T06:15:16.470Z
+Stopped at: Phase 20 UI-SPEC approved
+Resume file: .planning/phases/20-username-identity-and-privacy-foundation/20-UI-SPEC.md
