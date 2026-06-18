@@ -17,7 +17,7 @@ interface ChatSidebarProps {
   isError: boolean;
   searchQuery: string;
   isNewChatOpen: boolean;
-  newChatEmail: string;
+  newChatUsername: string;
   createChatError: string | null;
   isCreatingChat: boolean;
   unreadCounts?: Map<string, number>;
@@ -30,7 +30,7 @@ interface ChatSidebarProps {
   onOpenSettings: () => void;
   onLogout: () => void;
   onToggleNewChat: () => void;
-  onNewChatEmailChange: (value: string) => void;
+  onNewChatUsernameChange: (value: string) => void;
   onCreateChatSubmit: NewChatDialogProps['onSubmit'];
   onRefetchChats: () => void;
 }
@@ -46,7 +46,7 @@ const ChatSidebar = ({
   isError,
   searchQuery,
   isNewChatOpen,
-  newChatEmail,
+  newChatUsername,
   createChatError,
   isCreatingChat,
   unreadCounts,
@@ -59,7 +59,7 @@ const ChatSidebar = ({
   onOpenSettings,
   onLogout,
   onToggleNewChat,
-  onNewChatEmailChange,
+  onNewChatUsernameChange,
   onCreateChatSubmit,
   onRefetchChats,
 }: ChatSidebarProps) => {
@@ -166,11 +166,11 @@ const ChatSidebar = ({
 
       <NewChatDialog
         isOpen={isNewChatOpen}
-        email={newChatEmail}
+        username={newChatUsername}
         error={createChatError}
         isSubmitting={isCreatingChat}
         openerRef={newChatButtonRef}
-        onEmailChange={onNewChatEmailChange}
+        onUsernameChange={onNewChatUsernameChange}
         onSubmit={onCreateChatSubmit}
         onClose={onToggleNewChat}
       />
@@ -220,7 +220,7 @@ const ChatSidebar = ({
               <p className="max-w-[240px]">
                 {searchQuery.trim()
                   ? 'Try another name or message preview, or clear search to see every conversation.'
-                  : 'Start a direct chat by email when you are ready to message.'}
+                  : 'Start a direct chat by username when you are ready to message.'}
               </p>
             </div>
             <button

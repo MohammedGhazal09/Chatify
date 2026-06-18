@@ -4,22 +4,22 @@ import { LoaderCircle, X } from 'lucide-react';
 
 interface NewChatDialogProps {
   isOpen: boolean;
-  email: string;
+  username: string;
   error: string | null;
   isSubmitting: boolean;
   openerRef: RefObject<HTMLButtonElement | null>;
-  onEmailChange: (value: string) => void;
+  onUsernameChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
 }
 
 const NewChatDialog = ({
   isOpen,
-  email,
+  username,
   error,
   isSubmitting,
   openerRef,
-  onEmailChange,
+  onUsernameChange,
   onSubmit,
   onClose,
 }: NewChatDialogProps) => {
@@ -94,7 +94,7 @@ const NewChatDialog = ({
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 id="new-chat-title" className="text-base font-bold text-[#F4F7F6]">New chat</h2>
-            <p className="mt-1 text-sm text-[#A8B3AF]">Start or continue a private chat by exact email.</p>
+            <p className="mt-1 text-sm text-[#A8B3AF]">Start or continue a private chat by username.</p>
           </div>
           <button
             type="button"
@@ -109,20 +109,21 @@ const NewChatDialog = ({
           </button>
         </div>
         <form onSubmit={onSubmit} className="space-y-3" noValidate>
-          <label htmlFor="new-chat-email" className="text-xs font-semibold text-[#A8B3AF]">
-            Email address
+          <label htmlFor="new-chat-username" className="text-xs font-semibold text-[#A8B3AF]">
+            Username
           </label>
           <input
             ref={inputRef}
-            id="new-chat-email"
-            name="targetEmail"
-            type="email"
-            value={email}
-            onChange={(event) => onEmailChange(event.target.value)}
+            id="new-chat-username"
+            name="targetUsername"
+            type="text"
+            value={username}
+            onChange={(event) => onUsernameChange(event.target.value)}
             className="w-full rounded-lg border border-[#2E363C] bg-[#101113] px-3 py-2 text-sm text-[#F4F7F6] placeholder:text-[#6F7B77] focus:border-[#14B8A6] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]"
-            placeholder="friend@example.com"
+            placeholder="alex.morgan"
             required
-            autoComplete="email"
+            autoComplete="off"
+            spellCheck={false}
             aria-invalid={error ? 'true' : 'false'}
             aria-describedby={error ? 'new-chat-error' : undefined}
           />

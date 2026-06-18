@@ -219,7 +219,7 @@ export interface Chat {
 }
 
 export interface CreateChatPayload {
-  targetEmail: string;
+  targetUsername: string;
   chatName?: string;
 }
 

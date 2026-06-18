@@ -17,7 +17,7 @@ const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSideba
     isError: false,
     searchQuery: '',
     isNewChatOpen: false,
-    newChatEmail: '',
+    newChatUsername: '',
     createChatError: null,
     isCreatingChat: false,
     unreadCounts: new Map(),
@@ -29,7 +29,7 @@ const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSideba
     onOpenSettings: vi.fn(),
     onLogout: vi.fn(),
     onToggleNewChat: vi.fn(),
-    onNewChatEmailChange: vi.fn(),
+    onNewChatUsernameChange: vi.fn(),
     onCreateChatSubmit: vi.fn(),
     onRefetchChats: vi.fn(),
     ...overrides,
@@ -61,7 +61,7 @@ describe('ChatSidebar', () => {
     renderSidebar({ onCloseSidebar, onToggleNewChat });
 
     expect(screen.getByText('No conversations yet')).toBeInTheDocument();
-    expect(screen.getByText('Start a direct chat by email when you are ready to message.')).toBeInTheDocument();
+    expect(screen.getByText('Start a direct chat by username when you are ready to message.')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument();
     expect(screen.getByText('Authenticated private chat')).toBeInTheDocument();
     expect(screen.queryByText('End-to-end encrypted')).not.toBeInTheDocument();

@@ -67,6 +67,7 @@ import {
 } from './hooks/useSelectedChatPersistence';
 import { getChatTitle, getOtherMember } from './utils/chatDisplay';
 import { buildSendDraftKey } from './sendDraftGuard';
+import { validateUsername } from '../../utils/usernameValidation';
 import './chat.css';
 
 const DETAIL_RAIL_MEDIA_QUERY = '(min-width: 1280px)';
@@ -99,9 +100,8 @@ const useDebounce = (callback: () => void, delay: number) => {
   return { debouncedCallback, cancel };
 };
 
-const isValidEmailAddress = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const INVALID_EMAIL_COPY = 'Enter a valid email address.';
-const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the email and try again.';
+const INVALID_USERNAME_COPY = 'Enter a valid username.';
+const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the username and try again.';
 
 const getConversationDisabledReason = (controls?: ConversationControls) => {
   if (!controls || controls.canSendMessage) {
@@ -143,8 +143,8 @@ const ChatPage = () => {
     setMessageInput,
     isNewChatOpen,
     setIsNewChatOpen,
-    newChatEmail,
-    setNewChatEmail,
+    newChatUsername,
+    setNewChatUsername,
     createChatError,
     setCreateChatError,
     isSidebarOpen,
@@ -550,7 +550,7 @@ const ChatPage = () => {
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(false);
     setAttachmentPreview(null);
-    setNewChatEmail('');
+    setNewChatUsername('');
     setCreateChatError(null);
     clearPresenceState();
     replaceSelectedChatUrl(null);
@@ -562,7 +562,7 @@ const ChatPage = () => {
     setIsSidebarOpen,
     setIsTyping,
     setMessageSearch,
-    setNewChatEmail,
+    setNewChatUsername,
     setSearchQuery,
     setSelectedChatId,
     setShowMessageSearch,
@@ -1108,7 +1108,7 @@ const ChatPage = () => {
     setIsNewChatOpen((prev) => {
       const nextState = !prev;
       if (!nextState) {
-        setNewChatEmail('');
+        setNewChatUsername('');
       }
       setCreateChatError(null);
       return nextState;
@@ -1117,30 +1117,30 @@ const ChatPage = () => {
 
   const handleCreateChatSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const trimmedEmail = newChatEmail.trim();
+    const usernameValidation = validateUsername(newChatUsername);
 
-    if (!trimmedEmail || !isValidEmailAddress(trimmedEmail)) {
-      setCreateChatError(INVALID_EMAIL_COPY);
+    if (!usernameValidation.ok) {
+      setCreateChatError(INVALID_USERNAME_COPY);
       return;
     }
 
     setCreateChatError(null);
 
     createChat.mutate(
-      { targetEmail: trimmedEmail },
+      { targetUsername: usernameValidation.value },
       {
         onSuccess: (chat) => {
           setSelectedChatId(chat._id);
           setIsNewChatOpen(false);
-          setNewChatEmail('');
+          setNewChatUsername('');
           setCreateChatError(null);
         },
         onError: (error) => {
           if (axios.isAxiosError(error)) {
             const message = error.response?.data?.message;
             setCreateChatError(
-              typeof message === 'string' && /valid email/i.test(message)
-                ? INVALID_EMAIL_COPY
+              error.response?.status === 400 && typeof message === 'string' && /username/i.test(message)
+                ? INVALID_USERNAME_COPY
                 : GENERIC_NEW_CHAT_ERROR_COPY
             );
           } else {
@@ -1492,7 +1492,7 @@ const ChatPage = () => {
             isError={chatsError}
             searchQuery={searchQuery}
             isNewChatOpen={isNewChatOpen}
-            newChatEmail={newChatEmail}
+            newChatUsername={newChatUsername}
             createChatError={createChatError}
             isCreatingChat={createChat.isPending}
             unreadCounts={unreadCounts}
@@ -1505,7 +1505,7 @@ const ChatPage = () => {
             onOpenSettings={() => setIsSettingsOpen(true)}
             onLogout={handleLogout}
             onToggleNewChat={handleToggleNewChat}
-            onNewChatEmailChange={setNewChatEmail}
+            onNewChatUsernameChange={setNewChatUsername}
             onCreateChatSubmit={handleCreateChatSubmit}
             onRefetchChats={() => refetchChats()}
           />

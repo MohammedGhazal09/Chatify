@@ -12,7 +12,7 @@ export const useChatViewState = () => {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
-  const [newChatEmail, setNewChatEmail] = useState('');
+  const [newChatUsername, setNewChatUsername] = useState('');
   const [createChatError, setCreateChatError] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
@@ -35,8 +35,8 @@ export const useChatViewState = () => {
     setMessageInput,
     isNewChatOpen,
     setIsNewChatOpen,
-    newChatEmail,
-    setNewChatEmail,
+    newChatUsername,
+    setNewChatUsername,
     createChatError,
     setCreateChatError,
     isSidebarOpen,

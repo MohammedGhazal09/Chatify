@@ -52,6 +52,13 @@ interface AllUsersResponse {
   users: User[];
 }
 
+interface UserLookupResponse {
+  status: string;
+  data: {
+    user: User;
+  };
+}
+
 interface ProfileImageResponse {
   status: string;
   data: {
@@ -77,6 +84,9 @@ export const userApi = {
 
   getAllUsers: (): Promise<AxiosResponse<AllUsersResponse>> =>
     axiosInstance.get('/api/user/get-all-users'),
+
+  lookupByUsername: (username: string): Promise<AxiosResponse<UserLookupResponse>> =>
+    axiosInstance.get(`/api/user/lookup/${encodeURIComponent(username)}`),
 
   uploadProfileImage: (file: File): Promise<AxiosResponse<ProfileImageResponse>> => {
     const formData = new FormData();

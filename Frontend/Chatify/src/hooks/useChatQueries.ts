@@ -72,7 +72,7 @@ const ensureSendClientMessageId = (variables: SendMessageVariables) => {
 };
 
 type CreateChatVariables = {
-  targetEmail: string;
+  targetUsername: string;
   chatName?: string;
 };
 

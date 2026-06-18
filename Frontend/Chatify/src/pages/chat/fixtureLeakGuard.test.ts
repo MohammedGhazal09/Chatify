@@ -44,6 +44,13 @@ const blockedPatterns = [
   { label: 'private storage leak', pattern: /public[-_ ]?(storage|asset|media)[-_ ]?(id|url|key)/i },
   { label: 'private storage leak', pattern: /https?:\/\/[^'"\s]+\/api\/message\/attachments\//i },
   { label: 'public email display fallback', pattern: /\b(?:member|user)\??\.email\b/ },
+  { label: 'direct chat email payload', pattern: /targetEmail/ },
+  { label: 'direct chat email state', pattern: /newChatEmail/ },
+  { label: 'direct chat email input id', pattern: /new-chat-email/ },
+  { label: 'direct chat email placeholder', pattern: /friend@example\.com/i },
+  { label: 'direct chat email copy', pattern: /Start(?: or continue)? a (?:direct |private )?chat by (?:exact )?email/i },
+  { label: 'direct chat email error copy', pattern: /Check the email/i },
+  { label: 'direct chat email validation copy', pattern: /valid email/i },
   { label: 'static profile image fixture', pattern: /profile[-_ ]?(pic|picture|photo)[-_ ]?fixture/i },
   { label: 'static profile image fixture', pattern: /fixture[-_ ]?profile[-_ ]?(pic|picture|photo)/i },
   { label: 'static profile image fixture', pattern: /demo[-_ ]?(avatar|profile[-_ ]?(pic|picture|photo))/i },
@@ -83,6 +90,14 @@ describe('chat runtime fixture leak guard', () => {
 
     expect(blockedPatterns.filter(({ pattern }) => pattern.test(allowedUsernameFallback))).toEqual([]);
     expect(blockedPatterns.some(({ pattern }) => pattern.test(blockedEmailFallback))).toBe(true);
+  });
+
+  it('blocks the old email-based direct chat contract while username targeting is allowed', () => {
+    const allowedUsernameTargeting = 'createChat.mutate({ targetUsername: normalizedUsername });';
+    const blockedEmailTargeting = 'createChat.mutate({ targetEmail: "friend@example.com" });';
+
+    expect(blockedPatterns.filter(({ pattern }) => pattern.test(allowedUsernameTargeting))).toEqual([]);
+    expect(blockedPatterns.some(({ pattern }) => pattern.test(blockedEmailTargeting))).toBe(true);
   });
 
   it('keeps test fixtures, private asset internals, and living visual fixture data out of production chat runtime files', () => {
