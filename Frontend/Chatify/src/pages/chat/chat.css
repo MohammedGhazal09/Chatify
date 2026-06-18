@@ -84,6 +84,11 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, white 18%, transparent);
 }
 
+.abstract-identity-tile.h-full.w-full {
+  width: 100%;
+  height: 100%;
+}
+
 .abstract-identity-tile--brand,
 .abstract-identity-tile--large {
   width: 80px;
