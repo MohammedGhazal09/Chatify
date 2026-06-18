@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: blocked
-stopped_at: Phase 20 planned; release readiness remains blocked pending Phase 14/15/17 evidence
-last_updated: "2026-06-18T09:00:08+03:00"
-last_activity: 2026-06-18 -- Added Phase 20-22 for username identity, username-based discovery, and capped group conversations; v1 release blockers preserved
+status: Phase 20-22 added to promote username discovery and group chats into the roadmap; Phase 14/15/17 release blockers preserved.
+stopped_at: Phase 20 context gathered
+last_updated: "2026-06-18T06:11:59.559Z"
+last_activity: 2026-06-18 -- Added Phase 20-22 for username identity, username-based discovery, and capped group conversations; v1 release remains blocked pending production/call evidence
 progress:
   total_phases: 23
   completed_phases: 20
-  total_plans: 75
+  total_plans: 65
   completed_plans: 68
   percent: 87
 ---
@@ -187,6 +187,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-14T00:57:37+03:00
-Stopped at: Phase 15 planned
-Resume file: .planning/phases/15-investigate-and-fix-audio-and-video-call-reliability/15-01-PLAN.md
+Last session: 2026-06-18T06:11:59.549Z
+Stopped at: Phase 20 context gathered
+Resume file: .planning/phases/20-username-identity-and-privacy-foundation/20-CONTEXT.md
