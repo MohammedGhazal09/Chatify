@@ -122,6 +122,16 @@ describe('ChatSidebar', () => {
     expect(onLogout).toHaveBeenCalledTimes(1);
   });
 
+  it('shows the moderation shortcut only for admins', () => {
+    const { rerender } = render(<ChatSidebar {...makeSidebarProps({ user: makeUser({ role: 'user' }) })} />);
+
+    expect(screen.queryByRole('link', { name: 'Open moderation' })).not.toBeInTheDocument();
+
+    rerender(<ChatSidebar {...makeSidebarProps({ user: makeUser({ role: 'admin' }) })} />);
+
+    expect(screen.getByRole('link', { name: 'Open moderation' })).toHaveAttribute('href', '/admin/moderation');
+  });
+
   it('shows unread counts and selects a conversation', async () => {
     const user = userEvent.setup();
     const onSelectChat = vi.fn();

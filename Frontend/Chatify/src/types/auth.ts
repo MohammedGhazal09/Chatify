@@ -28,6 +28,7 @@ export interface User {
   email?: string;
   username?: string;
   profilePic?: string;
+  role?: 'user' | 'admin';
   identityMark?: IdentityMark;
   identityMarkUpdatedAt?: string | null;
   authProvider: 'local' | 'google' | 'github' | 'discord';

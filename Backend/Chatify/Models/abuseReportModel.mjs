@@ -19,8 +19,15 @@ export const MODERATION_ACTIONS = Object.freeze([
   "none",
   "warned",
   "restricted",
+  "restriction_lifted",
   "content_removed",
   "account_review",
+]);
+export const MODERATION_ENFORCEMENT_TARGETS = Object.freeze([
+  "none",
+  "user",
+  "message",
+  "conversation",
 ]);
 
 const reportedUserSnapshotSchema = new mongoose.Schema({
@@ -50,6 +57,37 @@ const reportContextSchema = new mongoose.Schema({
   message: messageSnapshotSchema,
 }, { _id: false, versionKey: false });
 
+const enforcementSnapshotSchema = new mongoose.Schema({
+  action: {
+    type: String,
+    enum: MODERATION_ACTIONS,
+    default: "none",
+  },
+  targetType: {
+    type: String,
+    enum: MODERATION_ENFORCEMENT_TARGETS,
+    default: "none",
+  },
+  targetId: {
+    type: mongoose.Schema.Types.ObjectId,
+  },
+  appliedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+  },
+  appliedAt: {
+    type: Date,
+  },
+  expiresAt: {
+    type: Date,
+  },
+  summary: {
+    type: String,
+    trim: true,
+    maxlength: 300,
+  },
+}, { _id: false, versionKey: false });
+
 const auditTrailSchema = new mongoose.Schema({
   actor: {
     type: mongoose.Schema.Types.ObjectId,
@@ -75,6 +113,7 @@ const auditTrailSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  enforcement: enforcementSnapshotSchema,
 }, { _id: false, versionKey: false });
 
 const abuseReportSchema = new mongoose.Schema({
@@ -127,6 +166,7 @@ const abuseReportSchema = new mongoose.Schema({
     trim: true,
     maxlength: 1000,
   },
+  enforcement: enforcementSnapshotSchema,
   reviewedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Users",

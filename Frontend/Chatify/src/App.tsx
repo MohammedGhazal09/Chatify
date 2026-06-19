@@ -15,6 +15,7 @@ const Signup = lazy(() => import('./pages/signup/signup'));
 const Login = lazy(() => import('./pages/login/login'));
 const ForgotPassword = lazy(() => import('./pages/forgotPassword/forgotPassword'));
 const SetupUsername = lazy(() => import('./pages/setupUsername/SetupUsername'));
+const AdminModeration = lazy(() => import('./pages/admin/AdminModeration'));
 
 function App() {
   useAuthInit();
@@ -31,6 +32,7 @@ function App() {
           <Suspense fallback={<LoadingSpinner showColdStartNotice={false} />}>
             <Routes>
               <Route path='/' element={<ProtectedRoute><Chat/></ProtectedRoute>}></Route>
+              <Route path='/admin/moderation' element={<ProtectedRoute><AdminModeration/></ProtectedRoute>}></Route>
               <Route path='/setup-username' element={<ProtectedRoute requireUsername={false}><SetupUsername/></ProtectedRoute>}></Route>
               <Route path='/signup' element={<PublicRoute><Signup/></PublicRoute>}></Route>
               <Route path='/login' element={<PublicRoute><Login/></PublicRoute>}></Route>

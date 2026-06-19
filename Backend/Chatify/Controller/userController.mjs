@@ -195,7 +195,7 @@ const cleanupProfileImage = async (storageFileId) => {
 };
 
 export const getLoggedUser = asyncErrHandler(async (req, res, next) => {
-  const user = await User.findById(req.userId)
+  const user = await User.findById(req.userId).select('+role')
   
   if (!user) {
     return next(new CustomError('User not found', 404));

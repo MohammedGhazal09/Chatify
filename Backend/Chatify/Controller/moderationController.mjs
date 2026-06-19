@@ -5,6 +5,7 @@ import AbuseReport, {
   ABUSE_REPORT_TARGET_TYPES,
   MODERATION_ACTIONS,
 } from "../Models/abuseReportModel.mjs";
+import Attachment from "../Models/attachmentModel.mjs";
 import Chats from "../Models/chatModel.mjs";
 import Message from "../Models/messageModel.mjs";
 import User from "../Models/userModel.mjs";
@@ -15,6 +16,19 @@ import { canUserSeeMessage } from "../Utils/messageState.mjs";
 const PUBLIC_USER_SELECT = "username firstName lastName profilePic identityMark identityMarkUpdatedAt";
 const REPORT_LIST_LIMIT = 50;
 const TEXT_PREVIEW_LIMIT = 180;
+const MODERATION_RESTRICTION_MS = 7 * 24 * 60 * 60 * 1000;
+const HIGH_PRIORITY_REASONS = new Set(["illegal", "privacy"]);
+const MEDIUM_PRIORITY_REASONS = new Set(["harassment", "impersonation"]);
+const ENFORCEMENT_ACTIONS = new Set([
+  "warned",
+  "restricted",
+  "restriction_lifted",
+  "content_removed",
+]);
+const REPORT_IDENTITY_POPULATE = [
+  { path: "reporter", select: PUBLIC_USER_SELECT },
+  { path: "reportedUser", select: PUBLIC_USER_SELECT },
+];
 
 const redactSensitiveText = (value = "") => String(value)
   .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
@@ -56,19 +70,90 @@ const getDisplayName = (user) => {
   return `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.username || "Chatify user";
 };
 
-const serializeObjectId = (value) => value?.toString?.() ?? value ?? null;
+const serializeObjectId = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (value._id) {
+    return value._id.toString?.() ?? value._id;
+  }
+
+  return value.toString?.() ?? value;
+};
+
+const getShortIdLabel = (prefix, id) => id ? `${prefix} ${id.slice(-6)}` : prefix;
+
+const serializeIdentity = (value, fallback = null, prefix = "User") => {
+  const source = value && typeof value === "object" && !value._bsontype ? value : fallback;
+  const userId = serializeObjectId(value?._id ?? value?.userId ?? fallback?._id ?? fallback?.userId ?? value);
+
+  if (!source || typeof source !== "object") {
+    return userId
+      ? { userId, username: "", displayName: getShortIdLabel(prefix, userId) }
+      : null;
+  }
+
+  const displayName = source.displayName ?? getDisplayName(source);
+  const username = source.username ?? "";
+
+  return {
+    userId,
+    username,
+    displayName: displayName || username || getShortIdLabel(prefix, userId),
+  };
+};
+
+const buildReportPriority = (source) => {
+  if (source.status !== "open") {
+    return "normal";
+  }
+
+  const createdAtMs = new Date(source.createdAt).getTime();
+  const ageHours = Number.isFinite(createdAtMs)
+    ? (Date.now() - createdAtMs) / (60 * 60 * 1000)
+    : 0;
+
+  if (HIGH_PRIORITY_REASONS.has(source.reason) || ageHours >= 72) {
+    return "high";
+  }
+
+  if (MEDIUM_PRIORITY_REASONS.has(source.reason) || ageHours >= 24) {
+    return "medium";
+  }
+
+  return "normal";
+};
+
+const serializeEnforcement = (enforcement) => enforcement
+  ? {
+      ...enforcement,
+      targetId: serializeObjectId(enforcement.targetId),
+      appliedBy: serializeObjectId(enforcement.appliedBy),
+    }
+  : undefined;
 
 const serializeReport = (report) => {
   const source = report.toObject?.() ?? report;
+  const reporterId = serializeObjectId(source.reporter);
+  const reportedUserId = serializeObjectId(source.reportedUser);
 
   return {
     ...source,
     _id: serializeObjectId(source._id),
-    reporter: serializeObjectId(source.reporter),
-    reportedUser: serializeObjectId(source.reportedUser),
+    reporter: reporterId,
+    reporterIdentity: serializeIdentity(source.reporter, null, "Reporter"),
+    reportedUser: reportedUserId,
+    reportedUserIdentity: serializeIdentity(
+      source.reportedUser,
+      source.context?.reportedUser,
+      "Reported user"
+    ),
     chat: serializeObjectId(source.chat),
     message: serializeObjectId(source.message),
     reviewedBy: serializeObjectId(source.reviewedBy),
+    priority: buildReportPriority(source),
+    enforcement: serializeEnforcement(source.enforcement),
     context: {
       ...source.context,
       reportedUser: source.context?.reportedUser
@@ -94,6 +179,7 @@ const serializeReport = (report) => {
     auditTrail: (source.auditTrail ?? []).map((entry) => ({
       ...entry,
       actor: serializeObjectId(entry.actor),
+      enforcement: serializeEnforcement(entry.enforcement),
     })),
   };
 };
@@ -325,11 +411,12 @@ export const createAbuseReport = asyncErrHandler(async (req, res, next) => {
 });
 
 export const listAbuseReports = asyncErrHandler(async (req, res, next) => {
-  const status = req.query?.status
+  const rawStatus = req.query?.status === "all" ? null : req.query?.status;
+  const status = rawStatus
     ? normalizeEnumValue(req.query.status, ABUSE_REPORT_STATUSES)
     : null;
 
-  if (req.query?.status && !status) {
+  if (rawStatus && !status) {
     return next(new CustomError("Report status is invalid", 400));
   }
 
@@ -339,6 +426,7 @@ export const listAbuseReports = asyncErrHandler(async (req, res, next) => {
     : REPORT_LIST_LIMIT;
   const filter = status ? { status } : {};
   const reports = await AbuseReport.find(filter)
+    .populate(REPORT_IDENTITY_POPULATE)
     .sort({ createdAt: -1 })
     .limit(limit);
 
@@ -349,6 +437,184 @@ export const listAbuseReports = asyncErrHandler(async (req, res, next) => {
     },
   });
 });
+
+export const getAbuseReport = asyncErrHandler(async (req, res, next) => {
+  const reportObjectId = toObjectId(req.params?.reportId);
+
+  if (!reportObjectId) {
+    return next(new CustomError("Report not found", 404));
+  }
+
+  const report = await AbuseReport.findById(reportObjectId)
+    .populate(REPORT_IDENTITY_POPULATE);
+
+  if (!report) {
+    return next(new CustomError("Report not found", 404));
+  }
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      report: serializeReport(report),
+    },
+  });
+});
+
+const requireEnforcementTarget = (report, targetKey, message) => {
+  if (!report[targetKey]) {
+    throw new CustomError(message, 400);
+  }
+};
+
+const buildEnforcementSnapshot = ({
+  action,
+  targetType = "none",
+  targetId = null,
+  adminUserId,
+  appliedAt,
+  expiresAt = null,
+  summary = "",
+}) => ({
+  action,
+  targetType,
+  targetId,
+  appliedBy: adminUserId,
+  appliedAt,
+  expiresAt,
+  summary: normalizeOptionalText(summary, 300),
+});
+
+const applyModerationEnforcement = async ({
+  report,
+  moderationAction,
+  moderationNote,
+  adminUserId,
+  reviewedAt,
+}) => {
+  if (moderationAction === "none" || moderationAction === "account_review") {
+    return buildEnforcementSnapshot({
+      action: moderationAction,
+      adminUserId,
+      appliedAt: reviewedAt,
+      summary: moderationAction === "account_review"
+        ? "Account marked for follow-up review"
+        : "No enforcement action applied",
+    });
+  }
+
+  if (moderationAction === "warned") {
+    requireEnforcementTarget(report, "reportedUser", "A reported user is required for this action");
+
+    await User.findByIdAndUpdate(report.reportedUser, {
+      $set: {
+        "moderation.lastWarningAt": reviewedAt,
+        "moderation.lastWarningBy": adminUserId,
+        "moderation.warningReason": moderationNote,
+      },
+    }, { runValidators: true });
+
+    return buildEnforcementSnapshot({
+      action: moderationAction,
+      targetType: "user",
+      targetId: report.reportedUser,
+      adminUserId,
+      appliedAt: reviewedAt,
+      summary: "Warning recorded for reported user",
+    });
+  }
+
+  if (moderationAction === "restricted") {
+    requireEnforcementTarget(report, "reportedUser", "A reported user is required for this action");
+
+    const expiresAt = new Date(reviewedAt.getTime() + MODERATION_RESTRICTION_MS);
+
+    await User.findByIdAndUpdate(report.reportedUser, {
+      $set: {
+        "moderation.messagingRestrictedUntil": expiresAt,
+        "moderation.restrictedAt": reviewedAt,
+        "moderation.restrictedBy": adminUserId,
+        "moderation.restrictionReason": moderationNote,
+      },
+      $unset: {
+        "moderation.restrictionLiftedAt": "",
+        "moderation.restrictionLiftedBy": "",
+      },
+    }, { runValidators: true });
+
+    return buildEnforcementSnapshot({
+      action: moderationAction,
+      targetType: "user",
+      targetId: report.reportedUser,
+      adminUserId,
+      appliedAt: reviewedAt,
+      expiresAt,
+      summary: "Messaging restricted for reported user",
+    });
+  }
+
+  if (moderationAction === "restriction_lifted") {
+    requireEnforcementTarget(report, "reportedUser", "A reported user is required for this action");
+
+    await User.findByIdAndUpdate(report.reportedUser, {
+      $unset: {
+        "moderation.messagingRestrictedUntil": "",
+        "moderation.restrictedAt": "",
+        "moderation.restrictedBy": "",
+        "moderation.restrictionReason": "",
+      },
+      $set: {
+        "moderation.restrictionLiftedAt": reviewedAt,
+        "moderation.restrictionLiftedBy": adminUserId,
+      },
+    }, { runValidators: true });
+
+    return buildEnforcementSnapshot({
+      action: moderationAction,
+      targetType: "user",
+      targetId: report.reportedUser,
+      adminUserId,
+      appliedAt: reviewedAt,
+      summary: "Messaging restriction lifted for reported user",
+    });
+  }
+
+  if (moderationAction === "content_removed") {
+    requireEnforcementTarget(report, "message", "A reported message is required for this action");
+
+    const message = await Message.findById(report.message);
+
+    if (!message) {
+      throw new CustomError("Message not found", 404);
+    }
+
+    message.text = "";
+    message.deletedForEveryone = true;
+    message.deletedBy = adminUserId;
+    message.deletedAt = reviewedAt;
+    message.reactions = [];
+    message.attachments = (message.attachments ?? []).map((attachment) => ({
+      ...(attachment.toObject?.() ?? attachment),
+      status: "deleted",
+    }));
+    await message.save();
+
+    await Attachment.updateMany(
+      { messageId: message._id },
+      { $set: { status: "deleted" } }
+    );
+
+    return buildEnforcementSnapshot({
+      action: moderationAction,
+      targetType: "message",
+      targetId: report.message,
+      adminUserId,
+      appliedAt: reviewedAt,
+      summary: "Reported message content removed",
+    });
+  }
+
+  throw new CustomError("Moderation action is invalid", 400);
+};
 
 export const reviewAbuseReport = asyncErrHandler(async (req, res, next) => {
   const reportObjectId = toObjectId(req.params?.reportId);
@@ -374,12 +640,31 @@ export const reviewAbuseReport = asyncErrHandler(async (req, res, next) => {
     MODERATION_ACTIONS,
     nextStatus === "action_taken" ? "account_review" : "none"
   );
+
+  if (nextStatus !== "action_taken" && ENFORCEMENT_ACTIONS.has(moderationAction)) {
+    return next(new CustomError("Enforcement actions require action_taken status", 400));
+  }
+
   const moderationNote = normalizeOptionalText(req.body?.note, 1000);
   const reviewedAt = new Date();
+  let enforcement;
+
+  try {
+    enforcement = await applyModerationEnforcement({
+      report,
+      moderationAction,
+      moderationNote,
+      adminUserId: req.adminUserId,
+      reviewedAt,
+    });
+  } catch (error) {
+    return next(error);
+  }
 
   report.status = nextStatus;
   report.moderationAction = moderationAction;
   report.moderationNote = moderationNote;
+  report.enforcement = enforcement;
   report.reviewedBy = req.adminUserId;
   report.reviewedAt = reviewedAt;
   report.auditTrail.push({
@@ -387,10 +672,12 @@ export const reviewAbuseReport = asyncErrHandler(async (req, res, next) => {
     status: nextStatus,
     moderationAction,
     note: moderationNote,
+    enforcement,
     createdAt: reviewedAt,
   });
 
   await report.save();
+  await report.populate(REPORT_IDENTITY_POPULATE);
 
   res.status(200).json({
     status: "success",

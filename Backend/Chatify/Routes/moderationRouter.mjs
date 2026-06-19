@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   createAbuseReport,
+  getAbuseReport,
   listAbuseReports,
   reviewAbuseReport,
 } from "../Controller/moderationController.mjs";
@@ -16,6 +17,10 @@ router
   .route("/reports")
   .post(abuseReportLimiter, createAbuseReport)
   .get(moderationReviewLimiter, requireAdmin, listAbuseReports);
+
+router
+  .route("/reports/:reportId")
+  .get(moderationReviewLimiter, requireAdmin, getAbuseReport);
 
 router
   .route("/reports/:reportId/review")

@@ -44,7 +44,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 28: Trust And Abuse Safety Foundation** - Add abuse reporting, admin review APIs, redaction, and audit trails. (completed locally 2026-06-19)
 - [x] **Phase 29: Privacy And Encryption Design Spike** - Decide E2EE tradeoffs, key-management, and migration scope before implementation. (design complete 2026-06-19)
 - [x] **Phase 30: External Notifications And Platform Expansion** - Design opt-in notifications, bounded spaces, bots, and integrations. (design complete 2026-06-19)
-- [ ] **Phase 31: Admin Moderation UI And Enforcement Workflow** - Build the protected reviewer workspace and enforcement workflow on top of Phase 28.
+- [x] **Phase 31: Admin Moderation UI And Enforcement Workflow** - Build the protected reviewer workspace and enforcement workflow on top of Phase 28. (completed 2026-06-19)
 
 ## Phase Details
 
@@ -1053,7 +1053,7 @@ Plans:
 **Goal:** Build the protected admin moderation workspace on top of Phase 28 abuse-report APIs so maintainers can triage reports, apply scoped enforcement, record reviewer notes, and audit outcomes without leaking private data.
 **Requirements**: V2-ADMIN-02, V2-ADMIN-01, V2-MOD-01, BLOCK-01, BLOCK-02, SEC-02, TEST-01, TEST-03
 **Depends on:** Phase 30
-**Plans:** 0 plans
+**Plans:** 3/3 plans complete
 
 **Success Criteria** (what must be TRUE):
 
@@ -1065,7 +1065,9 @@ Plans:
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 31 to break down)
+- [x] 31-01 Backend Enforcement Contract
+- [x] 31-02 Admin Moderation Workspace UI
+- [x] 31-03 Review, Fix, And Closeout
 
 **Cross-cutting constraints:**
 

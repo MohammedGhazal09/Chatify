@@ -1126,7 +1126,7 @@ const ChatPage = () => {
           closeContextMenu();
           showToast('Report sent for moderation review.', 'success');
         },
-        onError: (error) => {
+        onError: (error: unknown) => {
           closeContextMenu();
           showToast(getRequestErrorMessage(error, 'Could not send this report.'), 'error');
         },
@@ -1185,7 +1185,7 @@ const ChatPage = () => {
           setNewChatUsername('');
           setCreateChatError(null);
         },
-        onError: (error) => {
+        onError: (error: unknown) => {
           if (axios.isAxiosError(error)) {
             const message = error.response?.data?.message;
             setCreateChatError(
@@ -1523,7 +1523,7 @@ const ChatPage = () => {
           setIsConversationMoreOpen(false);
           showToast('Report sent for moderation review.', 'success');
         },
-        onError: (error) => {
+        onError: (error: unknown) => {
           showToast(getRequestErrorMessage(error, 'Could not send this report.'), 'error');
         },
       }

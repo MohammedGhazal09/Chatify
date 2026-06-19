@@ -3,6 +3,7 @@ import multer from 'multer';
 import Attachment from '../Models/attachmentModel.mjs';
 import Message from '../Models/messageModel.mjs';
 import Chats from '../Models/chatModel.mjs';
+import User from '../Models/userModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
 import { emitToUserSockets, getIO } from '../Config/socket.mjs';
 import {
@@ -161,6 +162,29 @@ const ensureConversationActivityAllowed = async ({ chat, userObjectId, res }) =>
     });
     return false;
   }
+};
+
+const ensureMessagingAllowedByModeration = async ({ userObjectId, res }) => {
+  const user = await User.findById(userObjectId).select('+moderation');
+
+  if (!user) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return false;
+  }
+
+  const restrictedUntil = user?.moderation?.messagingRestrictedUntil;
+
+  if (restrictedUntil && new Date(restrictedUntil).getTime() > Date.now()) {
+    res.status(403).json({
+      status: 'fail',
+      code: 'moderation_restricted',
+      message: 'Messaging is temporarily restricted after moderation review.',
+      restrictedUntil,
+    });
+    return false;
+  }
+
+  return true;
 };
 
 const countUnreadForUser = (chatId, userId) => {
@@ -552,6 +576,10 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
   }
 
   if (!(await ensureConversationActivityAllowed({ chat, userObjectId, res }))) {
+    return;
+  }
+
+  if (!(await ensureMessagingAllowedByModeration({ userObjectId, res }))) {
     return;
   }
 

@@ -218,7 +218,7 @@
 | V2-NOTF-01 | Phase 30 | Designed; implementation deferred |
 | V2-MOD-01 | Phase 28 | Complete |
 | V2-ADMIN-01 | Phase 28 | Complete |
-| V2-ADMIN-02 | Phase 31 | Planned |
+| V2-ADMIN-02 | Phase 31 | Complete |
 | V2-E2EE-01 | Phase 29 | Designed; implementation deferred |
 | V2-PLAT-01 | Phase 30 | Designed; implementation deferred |
 | V2-PLAT-02 | Phase 30 | Designed; implementation deferred |

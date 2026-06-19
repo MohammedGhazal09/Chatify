@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: Phase 25 evidence closed by user confirmation; Phase 31 admin moderation UI/enforcement added
-last_updated: "2026-06-19T00:00:00.000Z"
-last_activity: 2026-06-19 -- Phase 25 treated as done per maintainer confirmation; Phase 31 added for admin moderation UI and enforcement
+status: Phase 31 admin moderation UI and enforcement workflow is implemented, reviewed, verified, and marked complete.
+stopped_at: Phase 31 complete; next recommended action is milestone/backlog audit before release closeout.
+last_updated: "2026-06-19T22:13:20.899Z"
+last_activity: 2026-06-19
 progress:
-  total_phases: 31
-  completed_phases: 28
-  total_plans: 80
-  completed_plans: 80
-  percent: 90
+  total_phases: 32
+  completed_phases: 31
+  total_plans: 99
+  completed_plans: 102
+  percent: 97
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 25 release evidence is treated as complete from maintainer-confirmed prior work, Phases 26-30 are complete locally or design-complete, and Phase 31 is the next recommended implementation phase for admin moderation UI and enforcement.
+**Current focus:** Phase 31 is complete with protected admin moderation UI, scoped enforcement, reviewer notes, audit visibility, and full backend/frontend verification. Next recommended action is milestone/backlog audit before release closeout.
 
 ## Current Position
 
-Phase: 31 (admin-moderation-ui-and-enforcement-workflow) - ADDED / NOT PLANNED
-Plan: pending `$gsd-plan-phase 31`
-Status: Release evidence has been closed by maintainer confirmation; the next product gap is a protected admin moderation workspace and scoped enforcement workflow on top of Phase 28 APIs.
-Last activity: 2026-06-19 -- Phase 25 user-confirmed closure recorded and Phase 31 added
+Phase: 31
+Plan: Not started
+Status: Phase 31 admin moderation UI and enforcement workflow is implemented, reviewed, verified, and marked complete.
+Last activity: 2026-06-19
 
-Progress: Phase 20 through Phase 24 are complete locally. Phase 25 is now recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 has been added to turn the moderation foundation into a protected reviewer UI and enforcement workflow.
+Progress: Phase 20 through Phase 24 are complete locally. Phase 25 is now recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 implemented the protected reviewer UI, privacy-safe report queue/detail, scoped warning/restriction/content-removal enforcement, reviewer notes, and audit visibility.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 71
+- Total plans completed: 74
 - Average duration: 34 min
 - Total execution time: 5h 10m
 
@@ -60,6 +60,7 @@ Progress: Phase 20 through Phase 24 are complete locally. Phase 25 is now record
 | 9 | 3 | - | - |
 | 11 | 3 | - | - |
 | 19 | 5 | - | - |
+| 31 | 3 | - | - |
 
 **Recent Trend:**
 
@@ -161,7 +162,7 @@ Recent decisions affecting current work:
 - Phase 29 completed as a design spike with a threat model, key lifecycle design, migration plan, and explicit recommendation to defer runtime E2EE into later opt-in conversation-mode phases. `V2-E2EE-01` is designed but not implemented.
 - Phase 30 added: External Notifications And Platform Expansion.
 - Phase 30 completed as a design handoff with external notification architecture, private spaces scope, bot/integration permission controls, and later implementation phases. `V2-NOTF-01`, `V2-PLAT-01`, `V2-PLAT-02`, and `V2-PLAT-03` are designed but not implemented.
-- Phase 31 added: Admin Moderation UI And Enforcement Workflow, to build the protected reviewer workspace, scoped enforcement actions, reviewer notes, and audit visibility missing after Phase 28.
+- Phase 31 complete: Admin Moderation UI And Enforcement Workflow built the protected reviewer workspace, scoped enforcement actions, reviewer notes, and audit visibility missing after Phase 28.
 
 ### Pending Todos
 
@@ -169,7 +170,7 @@ Recent decisions affecting current work:
 - Phase 22 is complete locally; group member selection uses username-based discovery, not email lookup.
 - Phase 23 is added for per-user deletion of received and group messages using the existing `deletedFor` visibility model.
 - Phase 26 is locally complete; configure GitHub branch protection to require the `Required quality gate` job and set `CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE=1` only in release contexts with live smoke secrets.
-- Phase 31 should be planned next so abuse reports become operable through a protected admin UI with scoped enforcement, reviewer notes, and audit visibility.
+- Next recommendation: run milestone/backlog audit before release closeout because Phase 23 still appears pending while Phase 31 is complete.
 - Phase 28 is complete locally; Phases 29 and 30 are design-complete. Do not use their deferred implementation status to reopen Phase 25 unless encryption, notification, or platform work becomes a concrete launch requirement.
 - Keep production readiness blockers separate from the completed local username/group feature chain.
 
@@ -193,10 +194,10 @@ Recent decisions affecting current work:
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Platform | Push/email notification delivery, E2EE implementation, channels, bots, and integrations | Promoted into future phases; Phase 29 and Phase 30 are design-complete, implementation remains deferred until safety and privacy decisions are accepted | Phase 25-30 roadmap update |
-| Admin | Protected report triage UI, scoped enforcement actions, reviewer notes, and moderation audit visibility | Promoted to Phase 31 | Phase 31 roadmap update |
+| Admin | Protected report triage UI, scoped enforcement actions, reviewer notes, and moderation audit visibility | Closed in Phase 31 | Phase 31 |
 
 ## Session Continuity
 
 Last session: 2026-06-19T00:00:00.000Z
-Stopped at: Phase 25 user-confirmed evidence closure recorded, Phases 26-30 completed locally/design-complete, and Phase 31 added
+Stopped at: Phase 31 complete; next recommended action is milestone/backlog audit before release closeout.
 Resume file: .planning/phases/25-production-evidence-closure-and-live-smoke-execution/25-VERIFICATION.md

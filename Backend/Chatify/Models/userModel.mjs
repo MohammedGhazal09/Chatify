@@ -93,6 +93,46 @@ const identityMarkSchema = new mongoose.Schema({
   versionKey: false,
 });
 
+const moderationStateSchema = new mongoose.Schema({
+  lastWarningAt: {
+    type: Date,
+  },
+  lastWarningBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Users',
+  },
+  warningReason: {
+    type: String,
+    trim: true,
+    maxlength: 1000,
+  },
+  messagingRestrictedUntil: {
+    type: Date,
+  },
+  restrictedAt: {
+    type: Date,
+  },
+  restrictedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Users',
+  },
+  restrictionReason: {
+    type: String,
+    trim: true,
+    maxlength: 1000,
+  },
+  restrictionLiftedAt: {
+    type: Date,
+  },
+  restrictionLiftedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Users',
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
 const userSchema = new mongoose.Schema({
    firstName: {
       type: String,
@@ -166,6 +206,11 @@ const userSchema = new mongoose.Schema({
         default: 'user',
         select: false,
     },
+    moderation: {
+        type: moderationStateSchema,
+        default: () => ({}),
+        select: false,
+    },
     googleId: {
       type: String,
       sparse: true
@@ -211,6 +256,7 @@ const userSchema = new mongoose.Schema({
             delete ret.googleId;
             delete ret.discordId;
             delete ret.githubId;
+            delete ret.moderation;
             return hideProfileImageInternals(ret);
         }
     },
@@ -221,6 +267,7 @@ const userSchema = new mongoose.Schema({
             delete ret.googleId;
             delete ret.discordId;
             delete ret.githubId;
+            delete ret.moderation;
             return hideProfileImageInternals(ret);
         }
     },
