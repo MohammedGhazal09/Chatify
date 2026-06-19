@@ -27,6 +27,21 @@ const runAxeScan = async (page: Page) => {
   expect(results.violations).toEqual([]);
 };
 
+const expectVoiceRecorderControl = async (page: Page) => {
+  const voiceButton = page.getByRole('button', { name: 'Record voice message' }).first();
+
+  if (await voiceButton.count()) {
+    await expect(voiceButton).toBeVisible();
+
+    if (await voiceButton.isDisabled()) {
+      await expect(voiceButton).toHaveAttribute('title', /voice recording unavailable/i);
+      return;
+    }
+
+    await expect(voiceButton).toBeEnabled();
+  }
+};
+
 const expectUnsupportedControlsUnavailable = async (page: Page) => {
   const callButton = page.getByRole('button', { name: 'Call' }).first();
   await expect(callButton).toBeDisabled();
@@ -35,13 +50,10 @@ const expectUnsupportedControlsUnavailable = async (page: Page) => {
   const videoButton = page.getByRole('button', { name: 'Video call' }).first();
   if (await videoButton.count()) {
     await expect(videoButton).toBeDisabled();
-    await expect(videoButton).toHaveAttribute('title', /unavailable|direct chats|online|connection|availability/i);
+      await expect(videoButton).toHaveAttribute('title', /unavailable|direct chats|online|connection|availability/i);
   }
 
-  const voiceButton = page.getByRole('button', { name: 'Voice message unavailable in this phase' });
-  if (await voiceButton.count()) {
-    await expect(voiceButton).toBeDisabled();
-  }
+  await expectVoiceRecorderControl(page);
 };
 
 const expectProtectedAssetControls = async (page: Page) => {
@@ -180,7 +192,7 @@ test.describe('Phase 09 messenger interaction quality gate', () => {
     await assertBaselineConversation(page);
 
     await page.getByRole('button', { name: 'Start new chat' }).click();
-    await page.getByRole('textbox', { name: 'Email address' }).fill(phase09QualityGateFixture.continuationEmail);
+    await page.getByRole('textbox', { name: 'Username' }).fill(phase09QualityGateFixture.continuationUsername);
     await page.getByRole('button', { name: 'Start or continue chat' }).click();
     await expect(page.getByTestId('conversation-pane').getByRole('heading', { name: phase09QualityGateFixture.secondaryTitle })).toBeVisible();
     await page.getByRole('button', { name: /Relay Grid/ }).click();

@@ -15,8 +15,10 @@ const smokeEnvKeys = [
   'CHATIFY_PROD_FRONTEND_URL',
   'CHATIFY_PROD_BACKEND_URL',
   'CHATIFY_SMOKE_USER_A_EMAIL',
+  'CHATIFY_SMOKE_USER_A_USERNAME',
   'CHATIFY_SMOKE_USER_A_PASSWORD',
   'CHATIFY_SMOKE_USER_B_EMAIL',
+  'CHATIFY_SMOKE_USER_B_USERNAME',
   'CHATIFY_SMOKE_USER_B_PASSWORD',
 ] as const;
 
@@ -53,8 +55,10 @@ const validSmokeEnv: Record<SmokeEnvKey, string> = {
   CHATIFY_PROD_FRONTEND_URL: 'https://chatify-ten-rho.vercel.app',
   CHATIFY_PROD_BACKEND_URL: 'https://chatify-ckmn.onrender.com',
   CHATIFY_SMOKE_USER_A_EMAIL: 'sender@example.test',
+  CHATIFY_SMOKE_USER_A_USERNAME: 'sender.smoke',
   CHATIFY_SMOKE_USER_A_PASSWORD: 'example-secret-a',
   CHATIFY_SMOKE_USER_B_EMAIL: 'recipient@example.test',
+  CHATIFY_SMOKE_USER_B_USERNAME: 'recipient.smoke',
   CHATIFY_SMOKE_USER_B_PASSWORD: 'example-secret-b',
 };
 
@@ -63,8 +67,10 @@ const missingSmokeEnv: Record<SmokeEnvKey, string> = {
   CHATIFY_PROD_FRONTEND_URL: '',
   CHATIFY_PROD_BACKEND_URL: '',
   CHATIFY_SMOKE_USER_A_EMAIL: '',
+  CHATIFY_SMOKE_USER_A_USERNAME: '',
   CHATIFY_SMOKE_USER_A_PASSWORD: '',
   CHATIFY_SMOKE_USER_B_EMAIL: '',
+  CHATIFY_SMOKE_USER_B_USERNAME: '',
   CHATIFY_SMOKE_USER_B_PASSWORD: '',
 };
 

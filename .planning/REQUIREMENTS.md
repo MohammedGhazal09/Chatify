@@ -36,7 +36,7 @@
 - [x] **DELIV-02**: Optimistic updates, HTTP mutation responses, socket echoes, retries, and refetches merge by `clientMessageId` and durable message id without duplicates.
 - [x] **DELIV-03**: Recipient browsers receive new messages through Socket.IO without requiring page refresh.
 - [x] **DELIV-04**: Delivered/read indicators reflect server-confirmed recipient delivery/read state, not only sender-side success.
-- [ ] **DELIV-05**: Two-account local and deployed smoke tests prove no duplicate sends, instant realtime receive, reconnect reconciliation, and refresh parity.
+- [x] **DELIV-05**: Two-account local and deployed smoke tests prove no duplicate sends, instant realtime receive, reconnect reconciliation, and refresh parity.
 
 ### Chat User Experience
 
@@ -66,14 +66,14 @@
 - [x] **MEDIA-01**: User can attach and send supported images or files with validation, recoverable failures, and persisted message metadata.
 - [x] **MEDIA-02**: User can preview, open, and download shared media/files only when authorized for the conversation.
 - [x] **MEDIA-03**: Conversation detail surfaces for shared media, shared files, pinned messages, and security status use real data or are intentionally hidden until supported.
-- [ ] **MEDIA-04**: Shared media and shared files are derived from persisted attachments in production and never from static placeholder cards.
+- [x] **MEDIA-04**: Shared media and shared files are derived from persisted attachments in production and never from static placeholder cards.
 
 ### Production Messenger Remediation
 
-- [ ] **PROD-01**: The deployed Vercel frontend and Render backend can be tested with real authenticated accounts and real persisted data.
-- [ ] **PROD-02**: Production chat runtime does not ship fixture, screenshot, or static demo content as if it were real conversation data.
-- [ ] **PROD-03**: Desktop rails, mobile drawers, overlays, and panels can be opened, closed, escaped, and restored without trapping the user.
-- [ ] **PROD-04**: Chatify is not called functionally ready until the live deployed product passes the full production acceptance gate.
+- [x] **PROD-01**: The deployed Vercel frontend and Render backend can be tested with real authenticated accounts and real persisted data.
+- [x] **PROD-02**: Production chat runtime does not ship fixture, screenshot, or static demo content as if it were real conversation data.
+- [x] **PROD-03**: Desktop rails, mobile drawers, overlays, and panels can be opened, closed, escaped, and restored without trapping the user.
+- [x] **PROD-04**: Chatify is not called functionally ready until the live deployed product passes the full production acceptance gate.
 - [x] **CTRL-01**: Header, rail, and mobile message-search controls open real searchable message workflows.
 - [x] **CTRL-02**: More menus expose implemented conversation actions only, with accessible labels, loading states, and recoverable errors.
 - [x] **CTRL-03**: Pinned messages, shared files, shared media, and security rows render from server-backed conversation state or disappear when empty.
@@ -81,8 +81,8 @@
 - [x] **BLOCK-02**: Blocked state prevents new messages, call attempts, and inappropriate realtime events across HTTP and Socket.IO paths.
 - [x] **ID-01**: User identity imagery or abstract identity marks can be changed and persist across sidebar, header, message, and detail surfaces.
 - [x] **ID-02**: Identity imagery upload or customization has validation, privacy controls, and fallback behavior.
-- [ ] **VOICE-01**: User can record, preview, cancel, send, reload, and play voice messages.
-- [ ] **VOICE-02**: Voice message permission denial, unsupported browsers, network failure, retry, and playback errors are recoverable.
+- [x] **VOICE-01**: User can record, preview, cancel, send, reload, and play voice messages.
+- [x] **VOICE-02**: Voice message permission denial, unsupported browsers, network failure, retry, and playback errors are recoverable.
 - [x] **CALL-01**: Audio call controls initiate authenticated one-to-one realtime call sessions.
 - [x] **CALL-02**: Video call controls initiate authenticated one-to-one realtime video sessions.
 - [x] **CALL-03**: Call state covers incoming, outgoing, ringing, connected, rejected, missed, busy, permission-denied, and ended flows.
@@ -120,17 +120,21 @@
 - **V2-NOTF-01**: User can receive push or email notifications for new messages.
 - **V2-MOD-01**: User can report another user and route reports into moderation tooling.
 - **V2-ADMIN-01**: Admin can review abuse reports and moderate accounts or content.
+- **V2-ADMIN-02**: Admin can triage reports, apply enforcement actions, record reviewer notes, and audit moderation outcomes from a protected UI.
 - **V2-E2EE-01**: Users can opt into end-to-end encrypted conversations after storage and delivery tradeoffs are designed.
+- **V2-PLAT-01**: Channels or shared spaces are designed as a bounded expansion after private direct and group conversations are reliable.
+- **V2-PLAT-02**: Bots and integrations require scoped permissions, audit trails, revocation, and abuse controls before runtime execution.
+- **V2-PLAT-03**: External notification delivery respects opt-in preferences, mute/block state, privacy-safe templates, and unsubscribe controls.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
 | Native mobile apps | Web-first reconstruction comes before platform expansion. |
-| End-to-end encryption | Requires a separate message storage and key-management design. |
+| End-to-end encryption implementation | Phase 29 must first settle message storage, key management, recovery, moderation, and notification tradeoffs. |
 | Payments or monetization | Not relevant to the approved messenger reconstruction goal. |
-| Full Slack/Discord feature parity | Phase 22 intentionally scopes only private groups up to 10 members; channels, voice rooms, bots, and integrations remain out of scope. |
-| Large admin suite | Moderation/admin work should follow after private DMs are reliable and secure. |
+| Full Slack/Discord feature parity | Phase 30 may define bounded channels, bots, and integrations; broad clone-style parity remains out of scope. |
+| Large admin suite | Phase 31 promotes the first moderation operations workflow; broad tenant/admin operations remain later. |
 
 ## Traceability
 
@@ -162,7 +166,7 @@
 | DELIV-02 | Phase 10.1 | Complete |
 | DELIV-03 | Phase 10.1 | Complete |
 | DELIV-04 | Phase 10.1 | Complete |
-| DELIV-05 | Phase 10.1 | Pending |
+| DELIV-05 | Phase 10.1, Phase 25, Phase 27 | Complete |
 | UI-01 | Phase 6 | Complete |
 | UI-02 | Phase 6 | Complete |
 | UI-03 | Phase 6 | Complete |
@@ -181,11 +185,11 @@
 | MEDIA-01 | Phase 8 | Complete |
 | MEDIA-02 | Phase 8 | Complete |
 | MEDIA-03 | Phase 8 | Complete |
-| MEDIA-04 | Phase 12 | Pending |
-| PROD-01 | Phase 10, Phase 14 | Pending |
-| PROD-02 | Phase 10, Phase 14 | Pending |
-| PROD-03 | Phase 10 | Pending |
-| PROD-04 | Phase 14 | Pending |
+| MEDIA-04 | Phase 12, Phase 27 | Complete |
+| PROD-01 | Phase 10, Phase 14, Phase 25 | Complete |
+| PROD-02 | Phase 10, Phase 14, Phase 25 | Complete |
+| PROD-03 | Phase 10, Phase 25 | Complete |
+| PROD-04 | Phase 14, Phase 25, Phase 26 | Complete |
 | CTRL-01 | Phase 11 | Complete |
 | CTRL-02 | Phase 11 | Complete |
 | CTRL-03 | Phase 11 | Complete |
@@ -193,8 +197,8 @@
 | BLOCK-02 | Phase 11, Phase 13 | Complete |
 | ID-01 | Phase 12, Phase 16 | Complete |
 | ID-02 | Phase 12, Phase 16 | Complete |
-| VOICE-01 | Phase 12 | Pending |
-| VOICE-02 | Phase 12 | Pending |
+| VOICE-01 | Phase 12, Phase 27 | Complete |
+| VOICE-02 | Phase 12, Phase 27 | Complete |
 | CALL-01 | Phase 13 | Complete |
 | CALL-02 | Phase 13 | Complete |
 | CALL-03 | Phase 13 | Complete |
@@ -210,7 +214,15 @@
 | V2-GRP-01 | Phase 22 | Planned |
 | V2-GRP-02 | Phase 22 | Planned |
 | V2-GRP-03 | Phase 22 | Planned |
-| V2-GRP-04 | Phase 22 | Planned |
+| V2-GRP-04 | Phase 22, Phase 24, Phase 25 | Complete |
+| V2-NOTF-01 | Phase 30 | Designed; implementation deferred |
+| V2-MOD-01 | Phase 28 | Complete |
+| V2-ADMIN-01 | Phase 28 | Complete |
+| V2-ADMIN-02 | Phase 31 | Planned |
+| V2-E2EE-01 | Phase 29 | Designed; implementation deferred |
+| V2-PLAT-01 | Phase 30 | Designed; implementation deferred |
+| V2-PLAT-02 | Phase 30 | Designed; implementation deferred |
+| V2-PLAT-03 | Phase 30 | Designed; implementation deferred |
 
 **Coverage:**
 
@@ -220,4 +232,4 @@
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-18 after username identity and group conversation phase additions*
+*Last updated: 2026-06-19 after Phase 25 user-confirmed evidence closure and Phase 31 addition*

@@ -34,6 +34,7 @@ import {
 } from '../../hooks/useChatQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import { useCallController } from '../../hooks/useCallController';
+import { useSubmitAbuseReport } from '../../hooks/useModerationReports';
 import type {
   BatchReadEvent,
   AttachmentSummary,
@@ -233,6 +234,7 @@ const ChatPage = () => {
   const unpinMessageMutation = useUnpinMessage();
   const blockChatPeerMutation = useBlockChatPeer();
   const unblockChatPeerMutation = useUnblockChatPeer();
+  const submitAbuseReportMutation = useSubmitAbuseReport();
 
   const chatIds = useMemo(() => chats?.map((chat) => chat._id) ?? [], [chats]);
   const { data: unreadCounts } = useUnreadCounts(chatIds);
@@ -1099,6 +1101,39 @@ const ChatPage = () => {
     );
   };
 
+  const handleReportMessage = useCallback((message: Message) => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (message.sender === user?._id) {
+      showToast('You cannot report your own message.', 'error');
+      closeContextMenu();
+      return;
+    }
+
+    submitAbuseReportMutation.mutate(
+      {
+        targetType: 'message',
+        reason: 'other',
+        chatId: selectedChatId,
+        messageId: message._id,
+        reportedUserId: message.sender,
+        details: 'Reported from message actions.',
+      },
+      {
+        onSuccess: () => {
+          closeContextMenu();
+          showToast('Report sent for moderation review.', 'success');
+        },
+        onError: (error) => {
+          closeContextMenu();
+          showToast(getRequestErrorMessage(error, 'Could not send this report.'), 'error');
+        },
+      }
+    );
+  }, [closeContextMenu, selectedChatId, showToast, submitAbuseReportMutation, user?._id]);
+
   const handleExportChat = () => {
     if (!selectedChat || !allMessages.length) return;
 
@@ -1466,6 +1501,35 @@ const ChatPage = () => {
     });
   }, [conversationControls?.canUnblockUser, selectedChatId, showToast, unblockChatPeerMutation]);
 
+  const handleReportConversation = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    const isDirectChat = conversationControls?.isDirectChat === true && Boolean(conversationControls.peerId);
+
+    submitAbuseReportMutation.mutate(
+      {
+        targetType: isDirectChat ? 'user' : 'conversation',
+        reason: 'other',
+        chatId: selectedChatId,
+        reportedUserId: isDirectChat ? conversationControls?.peerId ?? undefined : undefined,
+        details: isDirectChat
+          ? 'Reported from conversation actions.'
+          : 'Reported from group conversation actions.',
+      },
+      {
+        onSuccess: () => {
+          setIsConversationMoreOpen(false);
+          showToast('Report sent for moderation review.', 'success');
+        },
+        onError: (error) => {
+          showToast(getRequestErrorMessage(error, 'Could not send this report.'), 'error');
+        },
+      }
+    );
+  }, [conversationControls, selectedChatId, showToast, submitAbuseReportMutation]);
+
   const handleUnpinMessage = (messageId: string) => {
     if (!selectedChatId) {
       return;
@@ -1733,6 +1797,7 @@ const ChatPage = () => {
               onToggleMute={handleToggleSelectedChatMute}
               onBlockUser={handleBlockPeer}
               onUnblockUser={handleUnblockPeer}
+              onReportConversation={handleReportConversation}
               onClose={() => setIsConversationMoreOpen(false)}
             />
           )}
@@ -1750,6 +1815,7 @@ const ChatPage = () => {
             onDelete={handleDeleteMessage}
             onCopy={handleCopyMessage}
             onTogglePin={handleTogglePinMessage}
+            onReportMessage={handleReportMessage}
             onClose={closeContextMenu}
           />
           <SettingsModal

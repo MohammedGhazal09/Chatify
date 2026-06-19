@@ -167,11 +167,11 @@ const createPhase14Page = async (
   }
 };
 
-const startOrContinueChat = async (page: Page, targetEmail: string) => {
+const startOrContinueChat = async (page: Page, targetUsername: string) => {
   await page.getByRole('button', { name: 'Start new chat' }).click();
   const dialog = page.getByRole('dialog', { name: 'New chat' });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel('Email address').fill(targetEmail);
+  await dialog.getByLabel('Username').fill(targetUsername);
   await dialog.getByRole('button', { name: 'Start or continue chat' }).click();
   await expect(dialog).toBeHidden({ timeout: 20000 });
   await expect(page.getByRole('textbox', { name: 'Write a private message' })).toBeVisible({ timeout: 20000 });
@@ -369,12 +369,26 @@ const exerciseMessageSearch = async (page: Page, marker: string) => {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const exerciseUnsupportedControls = async (page: Page) => {
-  const voiceButton = page.getByRole('button', { name: 'Voice message unavailable in this phase' });
-  if (await voiceButton.count()) {
-    await expect(voiceButton).toBeDisabled();
-    await expect(voiceButton).toHaveAttribute('title', /unavailable/i);
+const inspectVoiceRecorderControl = async (page: Page) => {
+  const voiceButton = page.getByRole('button', { name: 'Record voice message' }).first();
+
+  if (!(await voiceButton.count())) {
+    return 'voice recorder control absent on current viewport';
   }
+
+  await expect(voiceButton).toBeVisible();
+
+  if (await voiceButton.isDisabled()) {
+    await expect(voiceButton).toHaveAttribute('title', /voice recording unavailable/i);
+    return 'voice recorder honestly unavailable';
+  }
+
+  await expect(voiceButton).toBeEnabled();
+  return 'voice recorder available';
+};
+
+const exerciseUnsupportedControls = async (page: Page) => {
+  const voiceRecorderState = await inspectVoiceRecorderControl(page);
 
   const disabledCallButtons = await page.getByRole('button', { name: 'Call' }).evaluateAll((buttons) => (
     buttons.filter((button) => button.hasAttribute('disabled')).length
@@ -389,7 +403,7 @@ const exerciseUnsupportedControls = async (page: Page) => {
     buttons.filter((button) => !button.hasAttribute('disabled')).length
   ));
 
-  return `Voice unavailable state verified when present. Call controls enabled=${enabledCallButtons}, disabled=${disabledCallButtons}; video enabled=${enabledVideoButtons}, disabled=${disabledVideoButtons}.`;
+  return `Voice recorder state: ${voiceRecorderState}. Call controls enabled=${enabledCallButtons}, disabled=${disabledCallButtons}; video enabled=${enabledVideoButtons}, disabled=${disabledVideoButtons}.`;
 };
 
 const isAcceptableCallDisabledReason = (reason: string) => (
@@ -854,9 +868,9 @@ test.describe.serial('Phase 14 production live acceptance', () => {
           run: async () => {
             expect(sender).not.toBeNull();
             expect(recipient).not.toBeNull();
-            await startOrContinueChat(sender!.page, config.accounts.recipient.email);
+            await startOrContinueChat(sender!.page, config.accounts.recipient.username);
             selectedChatId = getSelectedChatId(sender!.page);
-            await startOrContinueChat(recipient!.page, config.accounts.sender.email);
+            await startOrContinueChat(recipient!.page, config.accounts.sender.username);
 
             return `Direct chat selected${selectedChatId ? ` (${selectedChatId})` : ''}.`;
           },

@@ -9,6 +9,7 @@ export const PHASE09_TERTIARY_CHAT_ID = 'phase09-chat-cipher-vault';
 export const PHASE09_RETRY_CLIENT_ID = 'phase09-client-retry';
 export const PHASE09_DISMISS_CLIENT_ID = 'phase09-client-dismiss';
 export const PHASE09_CONTINUATION_EMAIL = 'vector-archive@chatify.invalid';
+export const PHASE09_CONTINUATION_USERNAME = 'vector.archive';
 export const PHASE09_UPLOAD_FILE_NAME = 'phase09-upload-sample.txt';
 
 export type CreatePhase09MessageInput = {
@@ -22,6 +23,7 @@ const phase09User = (label: string, overrides: Partial<User>): User => ({
   _id: overrides._id ?? `phase09-user-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
   firstName: label,
   lastName: '',
+  username: label.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '') || 'phase09.user',
   email: overrides.email ?? `${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}@chatify.invalid`,
   authProvider: 'local',
   isVerified: true,
@@ -43,6 +45,7 @@ const relayGrid = phase09User('Relay Grid', {
 const vectorArchive = phase09User('Vector Archive', {
   _id: 'phase09-user-vector-archive',
   email: PHASE09_CONTINUATION_EMAIL,
+  username: PHASE09_CONTINUATION_USERNAME,
 });
 
 const cipherVault = phase09User('Cipher Vault', {
@@ -386,6 +389,7 @@ export const phase09QualityGateFixture = {
   secondaryChatId: PHASE09_SECONDARY_CHAT_ID,
   tertiaryChatId: PHASE09_TERTIARY_CHAT_ID,
   continuationEmail: PHASE09_CONTINUATION_EMAIL,
+  continuationUsername: PHASE09_CONTINUATION_USERNAME,
   primaryTitle: 'Relay Grid',
   secondaryTitle: 'Vector Archive',
   tertiaryTitle: 'Cipher Vault',

@@ -9,7 +9,7 @@ const assertSuccess = (response, context) => {
   }
 };
 
-const AUTO_CSRF_ROUTE_PREFIXES = ['/api/chat', '/api/message'];
+const AUTO_CSRF_ROUTE_PREFIXES = ['/api/chat', '/api/message', '/api/moderation'];
 const AUTO_CSRF_METHODS = ['post', 'put', 'patch', 'delete'];
 
 const shouldAttachAutoCsrf = (path) => (

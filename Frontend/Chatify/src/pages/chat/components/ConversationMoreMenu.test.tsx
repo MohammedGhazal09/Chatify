@@ -31,6 +31,7 @@ const renderMenu = (overrides: Partial<Parameters<typeof ConversationMoreMenu>[0
     onExportChat: vi.fn(),
     onBlockUser: vi.fn(),
     onUnblockUser: vi.fn(),
+    onReportConversation: vi.fn(),
     onClose: vi.fn(),
     ...overrides,
   };
@@ -90,5 +91,27 @@ describe('ConversationMoreMenu', () => {
       'title',
       'Restore sound and browser alerts for this conversation'
     );
+  });
+
+  it('reports direct users and group conversations from the overflow menu', async () => {
+    const user = userEvent.setup();
+    const directProps = renderMenu();
+
+    await user.click(screen.getByRole('menuitem', { name: 'Report user' }));
+    expect(directProps.onReportConversation).toHaveBeenCalledTimes(1);
+    expect(directProps.onClose).not.toHaveBeenCalled();
+  });
+
+  it('uses conversation report copy for group chats', () => {
+    renderMenu({
+      conversationControls: {
+        ...conversationControls,
+        isDirectChat: false,
+        peerId: null,
+        canBlockUser: false,
+      },
+    });
+
+    expect(screen.getByRole('menuitem', { name: 'Report conversation' })).toBeEnabled();
   });
 });

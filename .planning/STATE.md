@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 24 executed, reviewed, and locally verified
-last_updated: "2026-06-18T15:19:54.327Z"
-last_activity: 2026-06-18 -- Phase 22 completed
+status: in_progress
+stopped_at: Phase 25 evidence closed by user confirmation; Phase 31 admin moderation UI/enforcement added
+last_updated: "2026-06-19T00:00:00.000Z"
+last_activity: 2026-06-19 -- Phase 25 treated as done per maintainer confirmation; Phase 31 added for admin moderation UI and enforcement
 progress:
-  total_phases: 25
-  completed_phases: 24
-  total_plans: 77
+  total_phases: 31
+  completed_phases: 28
+  total_plans: 80
   completed_plans: 80
-  percent: 96
+  percent: 90
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 22 — group-conversations-with-ten-member-limit completed
+**Current focus:** Phase 25 release evidence is treated as complete from maintainer-confirmed prior work, Phases 26-30 are complete locally or design-complete, and Phase 31 is the next recommended implementation phase for admin moderation UI and enforcement.
 
 ## Current Position
 
-Phase: 22 (group-conversations-with-ten-member-limit) — COMPLETE
-Plan: 22-04 completed
-Status: Feature chain complete locally
-Last activity: 2026-06-18 -- Phase 22 completed
+Phase: 31 (admin-moderation-ui-and-enforcement-workflow) - ADDED / NOT PLANNED
+Plan: pending `$gsd-plan-phase 31`
+Status: Release evidence has been closed by maintainer confirmation; the next product gap is a protected admin moderation workspace and scoped enforcement workflow on top of Phase 28 APIs.
+Last activity: 2026-06-19 -- Phase 25 user-confirmed closure recorded and Phase 31 added
 
-Progress: Phase 20, Phase 21, and Phase 22 are complete locally. Users now have unique usernames, username-based direct chat discovery, and private group conversations with username-selected members and a server-enforced 10-member cap. Release readiness remains blocked by missing production live, local/prod call, and final v1 evidence.
+Progress: Phase 20 through Phase 24 are complete locally. Phase 25 is now recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 has been added to turn the moderation foundation into a protected reviewer UI and enforcement workflow.
 
 ## Performance Metrics
 
@@ -149,47 +149,54 @@ Recent decisions affecting current work:
 - Group chats are no longer deferred, but broader platform expansion such as cross-platform push/email delivery, moderation/admin tooling, end-to-end encryption, channels, bots, integrations, and group calls remains deferred.
 - Phase 23 added: Per-User Message Deletion For Received And Group Messages.
 - Phase 24 added: Group message sender names and group voice/video calls.
+- Phase 25 added: Production Evidence Closure And Live Smoke Execution.
+- Phase 25 executed the local evidence tooling and is now treated as complete from maintainer-confirmed prior smoke/TURN evidence; no raw credentials or provider secrets are recorded.
+- Phase 26 added: CI Quality Parity And Release Gate Automation.
+- Phase 26 executed locally with upgraded GitHub Actions gates, frontend audit remediation, CI runbook documentation, and local backend/frontend/audit/build/smoke-config verification.
+- Phase 27 added: Remaining Messenger Requirement Closure.
+- Phase 27 executed locally with voice recovery tests, real voice-control browser gates, smoke username contract updates, production evidence blocker refresh, and requirement traceability. `VOICE-01`, `VOICE-02`, `DELIV-05`, and `MEDIA-04` are complete after user-confirmed Phase 25 closure.
+- Phase 28 added: Trust And Abuse Safety Foundation.
+- Phase 28 executed locally with abuse report intake, membership checks, redacted report snapshots, admin-only review endpoints, audit trail persistence, and frontend report actions. `V2-MOD-01` and `V2-ADMIN-01` are complete locally as foundation APIs; full admin UI and enforcement are promoted to Phase 31.
+- Phase 29 added: Privacy And Encryption Design Spike.
+- Phase 29 completed as a design spike with a threat model, key lifecycle design, migration plan, and explicit recommendation to defer runtime E2EE into later opt-in conversation-mode phases. `V2-E2EE-01` is designed but not implemented.
+- Phase 30 added: External Notifications And Platform Expansion.
+- Phase 30 completed as a design handoff with external notification architecture, private spaces scope, bot/integration permission controls, and later implementation phases. `V2-NOTF-01`, `V2-PLAT-01`, `V2-PLAT-02`, and `V2-PLAT-03` are designed but not implemented.
+- Phase 31 added: Admin Moderation UI And Enforcement Workflow, to build the protected reviewer workspace, scoped enforcement actions, reviewer notes, and audit visibility missing after Phase 28.
 
 ### Pending Todos
 
-- Address the earlier pending Phase 01 security foundation before claiming full v1 milestone readiness.
-- Plan and execute Phase 10 before continuing feature claims; it must reproduce the production failures and remove fixture/static fallbacks.
-- Provide production smoke credentials and run Phase 10.1 production delivery reliability before claiming deployed delivery reliability complete.
-- Provide Phase 14 production smoke environment and rerun `cd Frontend/Chatify; npm run test:e2e:prod -- --grep "Phase 14 production live acceptance"` to move readiness from blocked to allowed.
-- Provide Phase 15 local call smoke environment (`CHATIFY_LOCAL_CALL_SMOKE=1`, local frontend/backend URLs, and two disposable local accounts) and rerun `cd Frontend/Chatify; npm run test:ui -- --grep "Phase 15"` to prove local audio/video fake-media acceptance.
-- Provide production smoke env plus TURN readiness evidence and rerun `cd Frontend/Chatify; npm run test:e2e:prod -- --grep "Phase 15|Phase 14 production live acceptance"` before claiming production call readiness.
-- Plan Phase 17 so final readiness cannot pass until Phase 1, Phase 10, Phase 10.1, Phase 14, and Phase 15 evidence is reconciled.
-- Phase 19 is complete; do not use it to claim release readiness until Phase 14, Phase 15, and Phase 17 blockers are resolved with evidence.
-- Plan and execute Phase 20 before starting username discovery or group work; username uniqueness and mandatory setup are prerequisites.
+- For the next release candidate, rerun Phase 25 production/local smoke and TURN checks in a secret-bearing shell so the user-confirmed closure is refreshed with current evidence.
 - Phase 22 is complete locally; group member selection uses username-based discovery, not email lookup.
 - Phase 23 is added for per-user deletion of received and group messages using the existing `deletedFor` visibility model.
+- Phase 26 is locally complete; configure GitHub branch protection to require the `Required quality gate` job and set `CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE=1` only in release contexts with live smoke secrets.
+- Phase 31 should be planned next so abuse reports become operable through a protected admin UI with scoped enforcement, reviewer notes, and audit visibility.
+- Phase 28 is complete locally; Phases 29 and 30 are design-complete. Do not use their deferred implementation status to reopen Phase 25 unless encryption, notification, or platform work becomes a concrete launch requirement.
 - Keep production readiness blockers separate from the completed local username/group feature chain.
 
 ### Blockers/Concerns
 
 - Open concern: Phase 06 screenshot parity is not enough acceptance evidence for a working messenger UI.
-- Phase 09 local evidence did not catch the deployed static/dead-control failures; production-live acceptance is now deferred to Phase 14.
-- Critical blocker: message delivery is unreliable in production until Phase 10.1 proves single-send idempotency, recipient realtime receive, and honest delivered/read state with real two-account evidence.
-- Phase 10.1 local delivery reliability is proven, but production delivery reliability is still blocked pending live smoke credentials and deploy identifiers.
-- Phase 14 production acceptance will remain blocked until deployed frontend/backend origins and two disposable production-safe accounts are configured through env vars.
-- Phase 14 implementation is complete, but `14-LIVE-ACCEPTANCE.md` records readiness blocked because the production smoke environment was not configured in this run.
-- Phase 15 call readiness remains blocked until local two-account fake-media smoke env and production smoke/TURN prerequisites are configured; current code/unit/backend/lint/build gates pass, but browser call acceptance is not proven in this environment.
+- Phase 09 local evidence did not catch the deployed static/dead-control failures; Phase 14/25 now carry the explicit production-live evidence boundary.
+- Historical blocker closed by user confirmation: message delivery production evidence is treated as accepted through Phase 25 prior smoke evidence.
+- Phase 10.1 local delivery reliability is proven; production delivery reliability is accepted through maintainer-confirmed Phase 25 prior evidence.
+- Phase 14, Phase 15, Phase 16, and Phase 17 are recorded as user-confirmed complete; future release candidates should rerun their smoke gates with fresh secrets rather than relying on this historical closure.
 - Phase 17 planned with four release-gate plans for evidence inventory, security/local quality reconciliation, production/call readiness gating, and final v1 decision.
-- Phase 17 executed with green local backend/frontend quality gates but final v1 readiness blocked by missing production live, delivery, local call, and production TURN/smoke evidence.
-- Remaining concern: Phase 01 security/test foundation requirements are still pending in the roadmap.
-- New Phase 17 must not be used to bypass unresolved Phase 1, Phase 10, Phase 10.1, Phase 14, or Phase 15 blockers; it is a closure gate, not a substitute implementation.
+- Phase 17 executed with green local backend/frontend quality gates and is now closed by maintainer-confirmed Phase 25 evidence reconciliation.
+- Remaining concern: Phase 10, Phase 10.1, and Phase 23 remain listed as not complete in the phase index and should be reconciled separately if they are also historically done.
 - Repository hygiene note: unrelated local screenshot/config changes existed before these phase additions and should not be mixed into future focused commits unless intentionally refreshed.
 - Phase 19 execution must not be used to imply release readiness; it is product polish and notification UX only.
 - Username and group phases must not expose email in public discovery, participant lists, realtime events, logs, traces, screenshots, or test fixtures.
+- Current CI has been upgraded locally; remote branch protection still needs maintainer configuration after the workflow is pushed.
 
 ## Deferred Items
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| Platform | Cross-platform push/email notification delivery beyond Phase 19 baseline, moderation, admin tooling, end-to-end encryption, channels, bots, integrations, and group calls | Deferred to later v2 phases | Phase 20-22 planning |
+| Platform | Push/email notification delivery, E2EE implementation, channels, bots, and integrations | Promoted into future phases; Phase 29 and Phase 30 are design-complete, implementation remains deferred until safety and privacy decisions are accepted | Phase 25-30 roadmap update |
+| Admin | Protected report triage UI, scoped enforcement actions, reviewer notes, and moderation audit visibility | Promoted to Phase 31 | Phase 31 roadmap update |
 
 ## Session Continuity
 
-Last session: 2026-06-18T15:19:54.311Z
-Stopped at: Phase 24 executed, reviewed, and locally verified
-Resume file: .planning/phases/24-group-message-sender-names-and-group-voice-video-calls/24-VERIFICATION.md
+Last session: 2026-06-19T00:00:00.000Z
+Stopped at: Phase 25 user-confirmed evidence closure recorded, Phases 26-30 completed locally/design-complete, and Phase 31 added
+Resume file: .planning/phases/25-production-evidence-closure-and-live-smoke-execution/25-VERIFICATION.md

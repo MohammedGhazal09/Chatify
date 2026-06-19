@@ -13,6 +13,7 @@ interface MenuHarnessProps {
   onDelete?: (deleteForEveryone: boolean) => void;
   onCopy?: (message: ReturnType<typeof makeMessage>) => void;
   onTogglePin?: (message: ReturnType<typeof makeMessage>) => void;
+  onReportMessage?: (message: ReturnType<typeof makeMessage>) => void;
   onToggleReactionPicker?: () => void;
   activeActionsDisabled?: boolean;
   activeActionsDisabledReason?: string | null;
@@ -26,6 +27,7 @@ const MenuHarness = ({
   onDelete = vi.fn(),
   onCopy = vi.fn(),
   onTogglePin = vi.fn(),
+  onReportMessage = vi.fn(),
   onToggleReactionPicker = vi.fn(),
   activeActionsDisabled = false,
   activeActionsDisabledReason = null,
@@ -64,6 +66,7 @@ const MenuHarness = ({
         onDelete={onDelete}
         onCopy={onCopy}
         onTogglePin={onTogglePin}
+        onReportMessage={onReportMessage}
         onClose={closeMenu}
       />
     </>
@@ -174,23 +177,28 @@ describe('MessageActionMenu', () => {
     const user = userEvent.setup();
     const onReaction = vi.fn();
     const onDelete = vi.fn();
+    const onReportMessage = vi.fn();
 
     render(
       <MenuHarness
         isOwn={false}
         onReaction={onReaction}
         onDelete={onDelete}
+        onReportMessage={onReportMessage}
       />
     );
 
     await user.click(screen.getByRole('button', { name: 'Open message actions' }));
 
     expect(screen.getByRole('button', { name: 'Delete for me' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Report message' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete for everyone' })).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Report message' }));
     await user.click(screen.getByRole('button', { name: 'Delete for me' }));
 
+    expect(onReportMessage).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
     expect(onDelete).toHaveBeenCalledWith(false);
   });
 });

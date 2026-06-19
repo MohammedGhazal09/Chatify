@@ -16,8 +16,9 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend tests
+    name: Backend tests and audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     defaults:
       run:
@@ -38,14 +39,15 @@ jobs:
         run: npm ci
 
       - name: Audit backend dependencies
-        run: npm audit
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Run backend tests
-        run: npm test
+        run: npm test -- --run
 
   frontend:
-    name: Frontend lint and build
+    name: Frontend tests, lint, build, and audit
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     defaults:
       run:
@@ -65,8 +67,113 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Audit frontend dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run frontend tests
+        run: npm test -- --run
+
       - name: Run frontend lint
         run: npm run lint
 
       - name: Build frontend
         run: npm run build
+
+  operations:
+    name: Operations and release evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+
+      - name: Run operations guard
+        run: npm run ops:check
+
+      - name: Generate production evidence report
+        id: production-evidence
+        env:
+          REQUIRE_PRODUCTION_EVIDENCE: ${{ vars.CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE }}
+        run: |
+          set +e
+          npm run evidence:production
+          status=$?
+          set -e
+
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::Production evidence is blocked. This is expected on PRs without live smoke secrets, but release branches should set CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE=1."
+          fi
+
+          if [ "${REQUIRE_PRODUCTION_EVIDENCE:-0}" = "1" ] && [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+
+      - name: Upload production evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-25-production-evidence
+          path: .planning/phases/25-production-evidence-closure-and-live-smoke-execution/25-PRODUCTION-EVIDENCE.md
+          if-no-files-found: warn
+
+  browser-smoke-config:
+    name: Browser smoke config and accessibility guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: Frontend/Chatify
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+          cache: npm
+          cache-dependency-path: Frontend/Chatify/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright Chrome
+        run: npx playwright install --with-deps chrome
+
+      - name: Run production smoke config gate
+        run: npm run test:e2e:prod -- e2e/production-smoke-config.spec.ts --workers=1
+
+      - name: Upload production Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-config-report
+          path: Frontend/Chatify/playwright-report-production/
+          if-no-files-found: ignore
+
+  quality-gate:
+    name: Required quality gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - backend
+      - frontend
+      - operations
+      - browser-smoke-config
+
+    steps:
+      - name: Check required jobs
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          node -e "const needs = JSON.parse(process.env.NEEDS_JSON); const failed = Object.entries(needs).filter(([, job]) => !['success', 'skipped'].includes(job.result)); if (failed.length) { console.error('Required jobs failed:'); for (const [name, job] of failed) console.error(`- ${name}: ${job.result}`); process.exit(1); } console.log('All required quality jobs passed or were intentionally skipped.');"

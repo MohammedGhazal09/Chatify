@@ -160,6 +160,12 @@ const userSchema = new mongoose.Schema({
         enum: ['local', 'google', 'discord', 'github'],
         default: 'local',
     },
+    role: {
+        type: String,
+        enum: ['user', 'admin'],
+        default: 'user',
+        select: false,
+    },
     googleId: {
       type: String,
       sparse: true

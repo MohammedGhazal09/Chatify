@@ -19,6 +19,7 @@ interface MessageActionMenuProps {
   onDelete: (deleteForEveryone: boolean) => void;
   onCopy: (message: Message) => void;
   onTogglePin: (message: Message) => void;
+  onReportMessage: (message: Message) => void;
   onClose: () => void;
 }
 
@@ -38,6 +39,7 @@ const MessageActionMenu = ({
   onDelete,
   onCopy,
   onTogglePin,
+  onReportMessage,
   onClose,
 }: MessageActionMenuProps) => {
   useEffect(() => {
@@ -146,6 +148,15 @@ const MessageActionMenu = ({
           className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:text-[#6B7378] focus:outline-none focus-visible:bg-[#181C20]"
         >
           {message.pinned ? 'Unpin message' : 'Pin message'}
+        </button>
+      )}
+      {message && !contextMenu.isOwn && (
+        <button
+          type="button"
+          onClick={() => onReportMessage(message)}
+          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
+        >
+          Report message
         </button>
       )}
       {canDeleteForMe && (

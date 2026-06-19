@@ -103,6 +103,69 @@ describe('useVoiceRecorder', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:voice-preview');
   });
 
+  it('cancels recording without preserving a draft', async () => {
+    const trackStop = vi.fn();
+    const getUserMedia = vi.fn().mockResolvedValue(buildMediaStream(trackStop));
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia,
+      },
+    });
+    const { result } = renderHook(() => useVoiceRecorder());
+
+    await act(async () => {
+      await result.current.startRecording();
+    });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    act(() => {
+      result.current.cancelRecording();
+    });
+
+    expect(result.current.status).toBe('idle');
+    expect(result.current.draft).toBeNull();
+    expect(result.current.durationSeconds).toBe(0);
+    expect(trackStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports permission denial as a recoverable status', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockRejectedValue(new DOMException('Denied', 'NotAllowedError')),
+      },
+    });
+    const { result } = renderHook(() => useVoiceRecorder());
+
+    await act(async () => {
+      await result.current.startRecording();
+    });
+
+    expect(result.current.status).toBe('permission_denied');
+    expect(result.current.errorMessage).toBe('Microphone permission is required to record a voice message.');
+    expect(result.current.canRecord).toBe(true);
+  });
+
+  it('reports missing microphone as a recoverable status', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockRejectedValue(new DOMException('Missing', 'NotFoundError')),
+      },
+    });
+    const { result } = renderHook(() => useVoiceRecorder());
+
+    await act(async () => {
+      await result.current.startRecording();
+    });
+
+    expect(result.current.status).toBe('no_device');
+    expect(result.current.errorMessage).toBe('No microphone is available.');
+    expect(result.current.canRecord).toBe(true);
+  });
+
   it('stops the acquired stream when MediaRecorder construction fails', async () => {
     const trackStop = vi.fn();
     const getUserMedia = vi.fn().mockResolvedValue(buildMediaStream(trackStop));

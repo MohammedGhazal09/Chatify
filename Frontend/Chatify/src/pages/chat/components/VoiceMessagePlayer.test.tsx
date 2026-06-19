@@ -75,9 +75,11 @@ describe('VoiceMessagePlayer', () => {
 
     expect(screen.getByText('Playback failed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Play voice-message.webm' })).toBeDisabled();
+    const failedAudio = container.querySelector('audio');
 
     await user.click(screen.getByRole('button', { name: 'Retry voice-message.webm' }));
 
     expect(screen.queryByText('Playback failed')).not.toBeInTheDocument();
+    expect(container.querySelector('audio')).not.toBe(failedAudio);
   });
 });

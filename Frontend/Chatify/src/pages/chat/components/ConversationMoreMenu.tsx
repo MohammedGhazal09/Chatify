@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { Ban, Bell, BellOff, Download, Info, Phone, Search, ShieldCheck, Video } from 'lucide-react';
+import { Ban, Bell, BellOff, Download, Flag, Info, Phone, Search, ShieldCheck, Video } from 'lucide-react';
 import type { ConversationControls } from '../../../types/chat';
 
 interface ConversationMoreMenuProps {
@@ -20,6 +20,7 @@ interface ConversationMoreMenuProps {
   onToggleMute?: () => void;
   onBlockUser: () => void;
   onUnblockUser: () => void;
+  onReportConversation: () => void;
   onClose: () => void;
 }
 
@@ -60,6 +61,7 @@ const ConversationMoreMenu = ({
   onToggleMute,
   onBlockUser,
   onUnblockUser,
+  onReportConversation,
   onClose,
 }: ConversationMoreMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -177,6 +179,13 @@ const ConversationMoreMenu = ({
         onSelect={() => runAndClose(onStartVideoCall)}
       />
       <MenuDivider />
+      <MenuItem
+        icon={<Flag aria-hidden="true" className="h-4 w-4" />}
+        label={isDirectChat ? 'Report user' : 'Report conversation'}
+        tone="danger"
+        disabled={isActionPending}
+        onSelect={() => runAndClose(onReportConversation, false)}
+      />
       {canUnblock ? (
         <MenuItem
           icon={<ShieldCheck aria-hidden="true" className="h-4 w-4" />}

@@ -1,11 +1,11 @@
 # Runbook: Production Smoke
 
 **Owner:** Chatify maintainer | **Frequency:** Before release claims
-**Last Updated:** 2026-06-17 | **Last Run:** Not recorded
+**Last Updated:** 2026-06-19 | **Last Run:** 2026-06-19, user-confirmed prior run
 
 ## Purpose
 
-Run the production acceptance suite against real deployed origins and disposable accounts.
+Run the production acceptance suite against real deployed origins and disposable accounts. The current roadmap records Phase 25 as closed by maintainer confirmation; rerun this runbook for the next release candidate rather than relying on historical evidence.
 
 ## Prerequisites
 
@@ -20,8 +20,10 @@ $env:CHATIFY_PRODUCTION_SMOKE="1"
 $env:CHATIFY_PROD_FRONTEND_URL="https://frontend.example.test"
 $env:CHATIFY_PROD_BACKEND_URL="https://backend.example.test"
 $env:CHATIFY_SMOKE_USER_A_EMAIL="<smoke-user-a-email>"
+$env:CHATIFY_SMOKE_USER_A_USERNAME="<smoke-user-a-username>"
 $env:CHATIFY_SMOKE_USER_A_PASSWORD="<smoke-user-a-password>"
 $env:CHATIFY_SMOKE_USER_B_EMAIL="<smoke-user-b-email>"
+$env:CHATIFY_SMOKE_USER_B_USERNAME="<smoke-user-b-username>"
 $env:CHATIFY_SMOKE_USER_B_PASSWORD="<smoke-user-b-password>"
 ```
 
@@ -57,7 +59,7 @@ npm run smoke:prod -- --grep "Phase 14 production live acceptance|Phase 15"
 
 - Artifacts reference smoke account labels only.
 - No raw email, password, cookie, token, reset code, SDP, or ICE candidate is committed.
-- Phase 17 remains blocked unless all production smoke blockers are gone.
+- Phase 17 remains ready only when the latest release-candidate smoke has no unresolved blockers or the maintainer explicitly accepts prior evidence.
 
 ## Troubleshooting
 
@@ -76,4 +78,3 @@ If production smoke finds a regression, rollback the frontend or backend deploym
 | Situation | Contact | Method |
 |---|---|---|
 | Smoke accounts may be exposed | Project maintainer | Rotate credentials immediately, then record the incident |
-

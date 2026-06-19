@@ -48,3 +48,21 @@ export const profileImageUploadLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const abuseReportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  skip: skipInTests,
+  message: { status: 'error', message: 'Sending reports too fast, slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+export const moderationReviewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  skip: skipInTests,
+  message: { status: 'error', message: 'Too many moderation requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

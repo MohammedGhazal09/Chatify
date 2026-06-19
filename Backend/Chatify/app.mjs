@@ -8,6 +8,7 @@ import authRouter from './Routes/authRouter.mjs';
 import userRouter from './Routes/userRouter.mjs'
 import chatRouter from './Routes/chatRouter.mjs';
 import messageRouter from './Routes/messageRouter.mjs';
+import moderationRouter from './Routes/moderationRouter.mjs';
 import errHandler from './Controller/errController.mjs';
 import protect from './Middlewares/protectRoutes.mjs';
 import { CustomError } from './Utils/customError.mjs';
@@ -123,6 +124,7 @@ app.use('/api/auth', csrfProtection, authRouter);
 app.use('/api/user', userRouter);
 app.use('/api/chat', protect, csrfProtection, chatRouter);
 app.use('/api/message', protect, csrfProtection, messageLimiter, messageRouter);
+app.use('/api/moderation', protect, csrfProtection, moderationRouter);
 
 app.use((req, res, next) => {
   const error = new CustomError(`Can't find ${req.originalUrl} on this server`, 404);

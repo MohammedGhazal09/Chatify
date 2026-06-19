@@ -13,8 +13,10 @@ export const phase14RequiredEnvVars = [
   'CHATIFY_PROD_FRONTEND_URL',
   'CHATIFY_PROD_BACKEND_URL',
   'CHATIFY_SMOKE_USER_A_EMAIL',
+  'CHATIFY_SMOKE_USER_A_USERNAME',
   'CHATIFY_SMOKE_USER_A_PASSWORD',
   'CHATIFY_SMOKE_USER_B_EMAIL',
+  'CHATIFY_SMOKE_USER_B_USERNAME',
   'CHATIFY_SMOKE_USER_B_PASSWORD',
 ] as const;
 
@@ -195,6 +197,8 @@ export const getPhase14ProductionAcceptanceConfig = (): Phase14ProductionAccepta
   const invalidUrlEnv = [frontendUrl.invalidEnv, backendUrl.invalidEnv].filter((name): name is Phase14UrlEnvVar => Boolean(name));
   const senderEmail = readEnv('CHATIFY_SMOKE_USER_A_EMAIL');
   const recipientEmail = readEnv('CHATIFY_SMOKE_USER_B_EMAIL');
+  const senderUsername = readEnv('CHATIFY_SMOKE_USER_A_USERNAME');
+  const recipientUsername = readEnv('CHATIFY_SMOKE_USER_B_USERNAME');
   const metadata: Phase14ProductionMetadata = {
     frontendOrigin: frontendUrl.origin,
     backendOrigin: backendUrl.origin,
@@ -227,12 +231,14 @@ export const getPhase14ProductionAcceptanceConfig = (): Phase14ProductionAccepta
       sender: {
         label: 'Smoke user A',
         email: senderEmail,
+        username: senderUsername,
         password: readEnv('CHATIFY_SMOKE_USER_A_PASSWORD'),
         redactedEmail: redactEmail(senderEmail),
       },
       recipient: {
         label: 'Smoke user B',
         email: recipientEmail,
+        username: recipientUsername,
         password: readEnv('CHATIFY_SMOKE_USER_B_PASSWORD'),
         redactedEmail: redactEmail(recipientEmail),
       },

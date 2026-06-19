@@ -27,16 +27,24 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 11: Conversation Controls And User Safety Implementation** - Make search, More, blocking, conversation actions, and static detail surfaces real backend-backed behavior. (completed 2026-06-17)
 - [x] **Phase 12: Live Media Voice And Identity Implementation** - Make user identity images/marks, attachments, shared media/files, and voice messages real persisted workflows. (completed 2026-06-17)
 - [x] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons. (completed 2026-06-13)
-- [ ] **Phase 14: Production Live Acceptance Gate** - Prove the deployed Vercel/Render product works with real accounts and no fixture bypass.
-- [ ] **Phase 15: Investigate And Fix Audio And Video Call Reliability** - Make audio and video calls connect, fail honestly, clean up safely, and report readiness with evidence. (blocked pending local/prod smoke env 2026-06-17)
+- [x] **Phase 14: Production Live Acceptance Gate** - Prove the deployed Vercel/Render product works with real accounts and no fixture bypass. (user-confirmed complete 2026-06-19)
+- [x] **Phase 15: Investigate And Fix Audio And Video Call Reliability** - Make audio and video calls connect, fail honestly, clean up safely, and report readiness with evidence. (user-confirmed complete 2026-06-19)
 - [x] **Phase 16: Profile Picture Upload And Shared Avatar Visibility** - Let users upload a profile picture from their own PC and show it consistently to other users. (completed 2026-06-16)
-- [ ] **Phase 17: V1 Readiness Closure And Release Gate** - Close the remaining security, production, delivery, and call-readiness evidence before any v1 release claim. (blocked 2026-06-17: missing production/local smoke evidence)
+- [x] **Phase 17: V1 Readiness Closure And Release Gate** - Close the remaining security, production, delivery, and call-readiness evidence before any v1 release claim. (user-confirmed complete 2026-06-19)
 - [x] **Phase 18: Operational Observability And Runbook Hardening** - Make Chatify diagnosable, supportable, and repeatable in local and deployed environments. (completed 2026-06-17)
 - [x] **Phase 19: Messenger Product Polish And Notifications** - Add post-readiness messenger polish, notification behavior, and account/session UX refinements without expanding into full platform scope. (completed 2026-06-17)
 - [x] **Phase 20: Username Identity And Privacy Foundation** - Add unique public usernames, signup collection, existing-user username setup, and private-email boundaries. (completed 2026-06-18)
 - [x] **Phase 21: Username-Based Contact Discovery** - Replace email-based direct chat creation and contact discovery with username-based lookup. (completed 2026-06-18)
 - [x] **Phase 22: Group Conversations With Ten-Member Limit** - Add private group conversations with username-selected members and a server-enforced 10-member cap. (completed 2026-06-18)
 - [ ] **Phase 23: Per-User Message Deletion For Received And Group Messages** - Let users hide any visible message for themselves in direct and group chats without deleting it for other participants.
+- [x] **Phase 24: Group message sender names and group voice/video calls** - Show sender names in groups and expose authenticated, honest group call entry points. (completed 2026-06-19)
+- [x] **Phase 25: Production Evidence Closure And Live Smoke Execution** - Close production/live smoke evidence from user-confirmed prior runs with sanitized records. (user-confirmed complete 2026-06-19)
+- [x] **Phase 26: CI Quality Parity And Release Gate Automation** - Align CI with local quality and release evidence gates. (completed locally 2026-06-19)
+- [x] **Phase 27: Remaining Messenger Requirement Closure** - Close voice-message recovery and production-backed media/file traceability. (completed 2026-06-19)
+- [x] **Phase 28: Trust And Abuse Safety Foundation** - Add abuse reporting, admin review APIs, redaction, and audit trails. (completed locally 2026-06-19)
+- [x] **Phase 29: Privacy And Encryption Design Spike** - Decide E2EE tradeoffs, key-management, and migration scope before implementation. (design complete 2026-06-19)
+- [x] **Phase 30: External Notifications And Platform Expansion** - Design opt-in notifications, bounded spaces, bots, and integrations. (design complete 2026-06-19)
+- [ ] **Phase 31: Admin Moderation UI And Enforcement Workflow** - Build the protected reviewer workspace and enforcement workflow on top of Phase 28.
 
 ## Phase Details
 
@@ -583,7 +591,7 @@ Plans:
   4. Phase 15 call reliability records local fake-media acceptance and production TURN/smoke readiness as passed, failed, or blocked without overstating readiness.
   5. A final v1 readiness artifact lists commands, deploy refs, evidence paths, residual risks, and a release decision of ready, blocked, or failed.
 
-**Plans:** 4/4 plans executed; release blocked
+**Plans:** 4/4 plans executed; user-confirmed complete
 
 Plans:
 
@@ -594,8 +602,8 @@ Plans:
 
 **Cross-cutting constraints:**
 
-- Do not claim release readiness from local-only evidence.
-- Missing production origins, accounts, deploy refs, or TURN configuration must produce a blocked result, not a pass.
+- Release evidence closure is user-confirmed from prior runs and recorded without secrets.
+- Fresh production origins, accounts, deploy refs, or TURN configuration still require the Phase 25 smoke commands when a new release candidate is cut.
 - This phase closes and reconciles existing readiness gates; it should not create unrelated feature scope.
 - Execution must be inline in the current Codex thread; do not use subagents.
 
@@ -829,3 +837,239 @@ Plans:
 **Wave 2 *(blocked on Wave 1 completion)***
 
 - [x] 24-02: Backend Group-Originated Call Signaling And Single-Peer Session Bridge
+
+### Phase 25: Production Evidence Closure And Live Smoke Execution
+
+**Goal:** Chatify release readiness is unblocked only after deployed Vercel/Render, local two-account browser, delivery, profile-image, direct-call, group-call, and TURN evidence are run and recorded with sanitized pass/fail/blocker artifacts.
+**Requirements**: DELIV-05, PROD-01, PROD-02, PROD-03, PROD-04, CALL-01, CALL-02, CALL-03, CALL-04, ID-01, ID-02, V2-GRP-04, TEST-05
+**Depends on:** Phase 24
+**Plans:** 3/3 plans complete; release evidence user-confirmed
+
+**Success Criteria** (what must be TRUE):
+
+  1. Production smoke environment, deployed frontend/backend origins, disposable accounts, and provider metadata are configured without leaking secrets.
+  2. Phase 14 production live acceptance runs against real deployed accounts and records pass/fail/blocker evidence.
+  3. Phase 15 call readiness evidence covers local fake-media, production smoke, and TURN/provider status honestly.
+  4. Cross-user browser acceptance proves delivery, refresh parity, profile-image visibility, and group-call entry behavior with real authenticated sessions.
+  5. The v1 readiness decision is updated from blocked only when every live evidence gate has passed or is explicitly accepted by the maintainer as already completed.
+
+Plans:
+
+**Wave 1**
+
+- [x] 25-01: Release Evidence Aggregator And Sanitized Blocker Artifact
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 25-02: Production And Local Smoke Evidence Refresh
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 25-03: Verification, UI Review, And Code Review Closeout
+
+**Cross-cutting constraints:**
+
+- The current closure is based on maintainer confirmation that the live smoke/evidence work was already completed; this artifact intentionally does not store secrets.
+- Fresh production origins, smoke accounts, local accounts, or TURN provider variables remain required for the next release-candidate rerun.
+- Keep evidence artifacts sanitized; do not commit raw emails, passwords, cookies, tokens, reset codes, SDP, ICE candidates, or TURN credentials.
+- Runtime UI is out of scope for this phase.
+
+### Phase 26: CI Quality Parity And Release Gate Automation
+
+**Goal:** Pull requests and pushes enforce the same meaningful quality gates as local release work, including backend security tests, frontend tests, lint/build, operations checks, selected browser smoke, accessibility scans, and dependency/security gates.
+**Requirements**: SEC-01, SEC-02, SEC-04, TEST-01, TEST-02, TEST-03, TEST-04, TEST-05, PROD-04
+**Depends on:** Phase 25
+**Plans:** 3/3 plans complete locally
+
+**Success Criteria** (what must be TRUE):
+
+  1. GitHub Actions runs backend tests/audit, frontend Vitest, lint, build, and root operations checks instead of a weaker subset.
+  2. Browser smoke and accessibility gates run where practical with stable artifacts and clear skip/blocker behavior for env-gated production flows.
+  3. CI failures point to the first actionable gate and do not hide missing environment prerequisites as passing readiness.
+  4. Dependency, secret, and workflow security checks are documented and enforce release-blocking severity thresholds.
+  5. Local `npm run quality` and CI gate names stay aligned so maintainers know exactly what must pass before merge or release.
+
+Plans:
+
+**Wave 1**
+
+- [x] 26-01: CI Workflow Parity And Required Gate Automation
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 26-02: Dependency Audit Remediation And CI Runbook
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 26-03: Local CI Verification, UI Review, And Code Review
+
+**Cross-cutting constraints:**
+
+- CI must not hide Phase 25 production evidence blockers.
+- High-severity production dependency advisories are blocking; low advisories remain visible and triaged.
+- Full live production smoke remains release-only unless configured with `CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE=1`.
+
+### Phase 27: Remaining Messenger Requirement Closure
+
+**Goal:** Close the remaining messenger behavior gaps that are not just evidence work: voice-message recovery, production-backed shared media/files, and any residual delivery or media truth gaps found by Phase 25.
+**Requirements**: DELIV-05, MEDIA-04, VOICE-01, VOICE-02, TEST-03, TEST-05
+**Depends on:** Phase 26
+**Plans:** 3 plans
+
+**Success Criteria** (what must be TRUE):
+
+  1. Voice messages support record, preview, cancel, send, reload, play, and retry paths through persisted data.
+  2. Voice permission denial, unsupported browser, network failure, upload failure, and playback failure states are recoverable and tested.
+  3. Shared media and shared files in production are derived from persisted attachments only, with no static placeholder cards masquerading as real content.
+  4. Browser and component tests cover direct and group message media/voice behavior across the relevant mobile and desktop states.
+  5. Requirement traceability shows DELIV-05, MEDIA-04, VOICE-01, and VOICE-02 as complete after user-confirmed Phase 25 closure and local voice/media verification.
+
+Plans:
+
+- [x] 27-01: Voice recovery coverage and browser gate alignment
+- [x] 27-02: Production smoke username contract and evidence blocker update
+- [x] 27-03: Requirement traceability, verification, and reviews
+
+**Cross-cutting constraints:**
+
+- Voice requirements are complete locally.
+- `DELIV-05` and `MEDIA-04` are closed through the user-confirmed Phase 25 production evidence decision.
+- Production smoke accounts must provide usernames as well as email/password credentials.
+
+### Phase 28: Trust And Abuse Safety Foundation
+
+**Goal:** Add the first user-safety layer beyond blocking: users can report abuse, maintainers can review reports, and moderation actions are authorized, audited, rate-limited, and privacy-preserving.
+**Requirements**: V2-MOD-01, V2-ADMIN-01, BLOCK-01, BLOCK-02, SEC-02, TEST-01
+**Depends on:** Phase 27
+**Plans:** 3/3 plans complete locally
+
+**Success Criteria** (what must be TRUE):
+
+  1. Users can report accounts, direct messages, group messages, and conversations from supported surfaces without exposing private email data.
+  2. Reports are stored with enough context for review while redacting secrets, tokens, and unnecessary private data.
+  3. Admin or maintainer review paths require authorization and produce auditable moderation decisions.
+  4. Abuse-report and moderation endpoints are rate-limited, membership-checked, and covered by backend authorization tests.
+  5. User-facing states clearly explain blocked, reported, restricted, and reviewed outcomes without promising instant enforcement.
+
+Plans:
+
+**Wave 1**
+
+- [x] 28-01: Backend Abuse Report Contract And Privacy Redaction
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 28-02: Authorized Moderation Review And Audit Trail
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 28-03: User Report Actions, Verification, And Reviews
+
+**Cross-cutting constraints:**
+
+- Abuse reports must be membership-checked and privacy-preserving.
+- Admin review must use server-loaded authorization, not client role claims.
+- This phase records review decisions but does not implement automatic account/content enforcement.
+- Full admin UI and account/content enforcement are deferred to Phase 31.
+
+### Phase 29: Privacy And Encryption Design Spike
+
+**Goal:** Decide whether and how Chatify should support end-to-end encrypted conversations by producing a threat model, key-management design, migration plan, and explicit product tradeoffs before implementation starts.
+**Requirements**: V2-E2EE-01, SEC-01, SEC-02, MSG-03, MSG-04
+**Depends on:** Phase 28
+**Plans:** 3/3 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Threat model distinguishes transport security, server-side privacy, and true end-to-end encryption.
+  2. Key creation, backup, rotation, device changes, lost access, and multi-device behavior are designed before code is written.
+  3. Message search, attachments, moderation, reporting, account recovery, and notification tradeoffs are documented honestly.
+  4. A migration and compatibility plan explains how encrypted conversations coexist with existing direct and group conversations.
+  5. Implementation is either scoped into later phases with clear acceptance criteria or rejected with explicit rationale.
+
+Plans:
+
+**Wave 1**
+
+- [x] 29-01: Threat Model And Current Privacy Boundary
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 29-02: Key Management, Product Tradeoffs, And API Contracts
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 29-03: Migration Decision, Verification, And Phase Handoff
+
+**Cross-cutting constraints:**
+
+- Phase 29 is design-only; no runtime encryption code is added.
+- Existing standard conversations remain unchanged.
+- Server-side encryption-at-rest must not be labeled as E2EE.
+- E2EE implementation is deferred to later opt-in conversation-mode phases.
+
+### Phase 30: External Notifications And Platform Expansion
+
+**Goal:** Expand beyond the private messenger baseline only after readiness, safety, and privacy foundations are credible: deliver opt-in push/email notifications and plan bounded channels, bots, and integrations with scoped permissions.
+**Requirements**: V2-NOTF-01, V2-PLAT-01, V2-PLAT-02, V2-PLAT-03, SEC-02, TEST-05
+**Depends on:** Phase 29
+**Plans:** 4/4 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Push and email notifications are opt-in, privacy-safe, rate-limited, and respect mute/block/session preferences.
+  2. Notification templates do not leak private message content where the user has not explicitly enabled previews.
+  3. Channels or spaces are designed as a bounded expansion, not a broad Discord/Slack clone.
+  4. Bots and integrations require scoped permissions, audit trails, revocation, and abuse controls before any runtime execution.
+  5. Platform expansion implementation remains blocked until admin enforcement and encryption tradeoffs are accepted.
+
+Plans:
+
+**Wave 1**
+
+- [x] 30-01: External Notification Readiness And Current-State Audit
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 30-02: Push And Email Privacy Delivery Design
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 30-03: Bounded Channels And Spaces Design
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 30-04: Bot And Integration Permission Handoff
+
+**Cross-cutting constraints:**
+
+- Phase 30 is design-only; no service worker, push provider, email notification job, channel, bot, or integration runtime is added.
+- Existing local browser alerts must not be described as cross-device push/email delivery.
+- External notifications must default to generic copy and respect mute, block, unsubscribe, and E2EE constraints.
+- Platform expansion remains blocked until moderation enforcement and encryption decisions are accepted.
+
+### Phase 31: Admin Moderation UI And Enforcement Workflow
+
+**Goal:** Build the protected admin moderation workspace on top of Phase 28 abuse-report APIs so maintainers can triage reports, apply scoped enforcement, record reviewer notes, and audit outcomes without leaking private data.
+**Requirements**: V2-ADMIN-02, V2-ADMIN-01, V2-MOD-01, BLOCK-01, BLOCK-02, SEC-02, TEST-01, TEST-03
+**Depends on:** Phase 30
+**Plans:** 0 plans
+
+**Success Criteria** (what must be TRUE):
+
+  1. Admin-only UI lists abuse reports with status, priority, reporter/reported identity labels, report type, age, and privacy-safe filters.
+  2. Review detail loads redacted report context, message/conversation references, existing audit trail entries, and reviewer notes without exposing emails, tokens, cookies, reset codes, or message data outside the moderation boundary.
+  3. Enforcement actions are scoped, reversible where appropriate, rate-limited, CSRF-protected, and server-authorized from persisted admin role data.
+  4. Reviewer notes and status changes write durable audit records that can be inspected later without trusting client-supplied role or identity claims.
+  5. Tests cover admin authorization, forbidden non-admin access, redaction, enforcement actions, audit trails, keyboard/accessibility behavior, and empty/error/loading states.
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 31 to break down)
+
+**Cross-cutting constraints:**
+
+- Phase 31 should build on the existing Phase 28 moderation API instead of inventing a parallel admin surface.
+- Start with report triage, notes, status, and scoped enforcement; broad tenant/admin operations remain out of scope.
+- Admin UI must not expose private email addresses or raw report internals unless a later policy explicitly authorizes them.
+- Execution must be inline in the current Codex thread; do not use subagents.
