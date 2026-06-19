@@ -278,6 +278,15 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError(DIRECT_CHAT_START_ERROR, 400));
   }
 
+  const unblockedIds = await filterUnblockedContactIds({
+    userId: requesterId,
+    contactIds: [targetUser._id],
+  });
+
+  if (unblockedIds.length !== 1) {
+    return next(new CustomError(DIRECT_CHAT_START_ERROR, 404));
+  }
+
   const members = [requesterId, targetUser._id];
   const directKey = buildDirectChatKey(requesterId, targetUser._id);
 
@@ -514,6 +523,10 @@ export const deleteChat = asyncErrHandler(async (req, res, next) => {
 
   if (!isMember) {
     return next(new CustomError("You are not a member of this chat", 403));
+  }
+
+  if (chat.isGroupChat && chat.groupAdmin?.toString() !== requesterId) {
+    return next(new CustomError("Only the group admin can delete this chat", 403));
   }
 
   // Get member IDs before deletion for socket notification

@@ -2,12 +2,13 @@ import User from '../Models/userModel.mjs';
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import {CustomError} from '../Utils/customError.mjs';
 import jsonwebtoken from 'jsonwebtoken'
-import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import {
   clearSessionCookies,
   issueSessionCookies,
   readRefreshTokenFromRequest,
   revokeRefreshSession,
+  revokeRefreshSessionsForUser,
   rotateSessionCookies,
 } from '../Utils/tokenCookieGenerator.mjs'
 import { readAccessTokenFromRequest, verifyAccessToken } from '../Utils/authToken.mjs';
@@ -28,9 +29,11 @@ const FRONTEND_URL = isProd
   : 'http://localhost:5173';
 const OAUTH_STATE_COOKIE = 'chatify_oauth_state';
 const OAUTH_HANDOFF_PURPOSE = 'oauth_handoff';
+const OAUTH_HANDOFF_TOKEN_TYPE = 'oauth_handoff';
 const OAUTH_HANDOFF_EXPIRES_IN = '60s';
 const OAUTH_HANDOFF_TTL_MS = 60 * 1000;
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
+const LOGIN_FAILURE_MESSAGE = 'Email or password is incorrect';
 
 const hashOAuthState = (state) => createHash('sha256').update(state).digest('base64url');
 
@@ -76,6 +79,7 @@ const generateOAuthState = () => randomBytes(32).toString('base64url');
 const generateOAuthHandoffToken = ({ user, jti, stateHash }) => jsonwebtoken.sign(
   {
     userId: user._id,
+    type: OAUTH_HANDOFF_TOKEN_TYPE,
     purpose: OAUTH_HANDOFF_PURPOSE,
     jti,
     stateHash,
@@ -145,16 +149,16 @@ export const login = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError('Please provide email and password', 400));
   }
   const user = await User.findOne({email:email}).select("+password +authProvider")
-  if (!user) return next(new CustomError("User doesn't exist",401))
+  if (!user) return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401))
   
   // Check if user signed up via OAuth (no password set)
   if (user.authProvider && user.authProvider !== 'local') {
-    return next(new CustomError(`This account uses ${user.authProvider} login. Please sign in with ${user.authProvider}.`, 400));
+    return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401));
   }
   
   const credentials = await user.checkPassword(password)
   if (!credentials) {
-    return next(new CustomError("Password or email are wrong", 400))
+    return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401))
   }
 
   await issueSessionCookies({ user, res, rememberMe });
@@ -260,6 +264,7 @@ export const finalizeOAuth = asyncErrHandler(async (req, res) => {
     const decoded = jsonwebtoken.verify(token, process.env.SECRET_JWT_KEY);
 
     if (
+      decoded?.type !== OAUTH_HANDOFF_TOKEN_TYPE ||
       decoded?.purpose !== OAUTH_HANDOFF_PURPOSE ||
       !decoded.userId ||
       typeof decoded.jti !== 'string' ||
@@ -331,7 +336,7 @@ export const githubCallback = createOAuthCallback('github');
 export const discordCallback = createOAuthCallback('discord');
 
 const generateResetCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit code
+  return randomInt(100000, 1000000).toString();
 }
 
 const getPasswordResetSecret = () => {
@@ -468,7 +473,9 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
 
     user.password = newPassword;
     await user.save();
+    await revokeRefreshSessionsForUser(user._id);
     await PasswordReset.deleteOne({ _id: resetToken._id});
+    clearSessionCookies(res);
 
     return res.status(200).json({
       status: 'success',

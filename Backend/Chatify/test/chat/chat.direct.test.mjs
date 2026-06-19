@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import Chats from '../../Models/chatModel.mjs';
+import UserBlock from '../../Models/userBlockModel.mjs';
 import { emitToUserSockets, joinUserToChat } from '../../Config/socket.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 
@@ -18,6 +19,7 @@ const GENERIC_START_ERROR = /could not start or continue that chat/i;
 
 const setupDirectChatUsers = async () => {
   await Chats.init();
+  await UserBlock.init();
 
   const requester = await signupWithAgent({
     firstName: 'Direct',
@@ -151,5 +153,29 @@ describe('direct chat continuation', () => {
 
     expect(response.body.message).toBe('Username is required');
     expect(await Chats.countDocuments({ isGroupChat: false })).toBe(0);
+  });
+
+  it('does not continue or notify a direct chat while either participant is blocked', async () => {
+    const { requester, target } = await setupDirectChatUsers();
+
+    await requester.agent
+      .post('/api/chat/create-new-chat')
+      .send({ targetUsername: target.user.username })
+      .expect(201);
+    await UserBlock.create({
+      blocker: target.user._id,
+      blockedUser: requester.user._id,
+    });
+    vi.clearAllMocks();
+
+    const response = await requester.agent
+      .post('/api/chat/create-new-chat')
+      .send({ targetUsername: target.user.username })
+      .expect(404);
+
+    expect(response.body.message).toMatch(GENERIC_START_ERROR);
+    expect(joinUserToChat).not.toHaveBeenCalled();
+    expect(emitToUserSockets).not.toHaveBeenCalled();
+    expect(await Chats.countDocuments({ isGroupChat: false })).toBe(1);
   });
 });

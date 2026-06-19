@@ -194,4 +194,29 @@ describe('group chat creation', () => {
     expect(legacyEmailPayload.body.message).toBe('Add at least two other members.');
     expect(await Chats.countDocuments({ isGroupChat: true })).toBe(0);
   });
+
+  it('allows only the group admin to delete the shared group chat', async () => {
+    const [owner, memberTwo, memberThree] = await setupGroupUsers(3);
+    const created = await owner.agent
+      .post('/api/chat/create-group-chat')
+      .send({
+        chatName: 'Admin Delete Group',
+        memberUsernames: [memberTwo.user.username, memberThree.user.username],
+      })
+      .expect(201);
+    const chatId = created.body.data.chat._id;
+
+    const denied = await memberTwo.agent
+      .delete(`/api/chat/${chatId}`)
+      .expect(403);
+
+    expect(denied.body.message).toMatch(/group admin/i);
+    await expect(Chats.findById(chatId)).resolves.toBeTruthy();
+
+    await owner.agent
+      .delete(`/api/chat/${chatId}`)
+      .expect(200);
+
+    await expect(Chats.findById(chatId)).resolves.toBeNull();
+  });
 });

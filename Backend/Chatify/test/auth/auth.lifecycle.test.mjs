@@ -7,6 +7,7 @@ import { getCsrfForAgent, loginWithAgent, signupWithAgent } from '../helpers/aut
 import { getTestApp } from '../setup/app.mjs';
 import OAuthHandoff from '../../Models/oauthHandoffModel.mjs';
 import Session from '../../Models/sessionModel.mjs';
+import User from '../../Models/userModel.mjs';
 
 const getAccessTokenCookie = (response) => {
   const cookies = response.headers['set-cookie'] ?? [];
@@ -47,6 +48,7 @@ const createOAuthHandoff = async ({ user, state = 'oauth-state' } = {}) => {
   const token = jsonwebtoken.sign(
     {
       userId: targetUser._id,
+      type: 'oauth_handoff',
       purpose: 'oauth_handoff',
       jti,
       stateHash,
@@ -256,5 +258,55 @@ describe('auth lifecycle routes', () => {
 
     expect(replayResponse.headers.location).toBe('http://localhost:5173/login?error=auth_failed');
     expect(getAccessTokenCookie(replayResponse)).toBeUndefined();
+  });
+
+  it('does not accept OAuth handoff tokens as access tokens', async () => {
+    const app = await getTestApp();
+    const { token } = await createOAuthHandoff();
+
+    const response = await request(app)
+      .get('/api/user/get-logged-user')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401);
+
+    expect(response.body.message).toMatch(/invalid token|token verification failed/i);
+  });
+
+  it('uses one generic response for missing, wrong-password, and OAuth login failures', async () => {
+    const app = await getTestApp();
+    const localUser = await createUser({ firstName: 'Uniform', lastName: 'Local' });
+    const oauthUser = await User.create({
+      firstName: 'Uniform',
+      lastName: 'OAuth',
+      email: 'uniform-oauth@example.test',
+      authProvider: 'google',
+      googleId: 'google-uniform-user',
+      isVerified: true,
+    });
+    const agent = request.agent(app);
+    const csrfToken = await getCsrfForAgent(agent);
+
+    const cases = [
+      { email: 'missing-login@example.test', password: TEST_PASSWORD },
+      { email: localUser.email, password: 'WrongPassword123!' },
+      { email: oauthUser.email, password: TEST_PASSWORD },
+    ];
+    const responses = [];
+
+    for (const body of cases) {
+      const response = await agent
+        .post('/api/auth/login')
+        .set('X-CSRF-Token', csrfToken)
+        .send(body)
+        .expect(401);
+
+      responses.push(response);
+    }
+
+    expect(new Set(responses.map((response) => response.body.message)).size).toBe(1);
+    responses.forEach((response) => {
+      expect(getAccessTokenCookie(response)).toBeUndefined();
+      expect(response.body.message).toBe('Email or password is incorrect');
+    });
   });
 });

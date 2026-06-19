@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import User from '../../Models/userModel.mjs';
+import UserBlock from '../../Models/userBlockModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import { createAgent, getCsrfForAgent, signupWithAgent } from '../helpers/authAgent.mjs';
 import { getTestApp } from '../setup/app.mjs';
@@ -156,6 +157,44 @@ describe('user identity marks', () => {
     expect(missing.body.message).toBe('User not found');
     expectNoPublicEmailFields(invalid.body);
     expectNoPublicEmailFields(missing.body);
+  });
+
+  it('limits online-status lookups to unblocked chat contacts and self', async () => {
+    await UserBlock.init();
+
+    const owner = await setupIdentityUser({
+      firstName: 'Presence',
+      lastName: 'Owner',
+    });
+    const viewer = await setupIdentityUser({
+      firstName: 'Presence',
+      lastName: 'Viewer',
+    });
+    const outsider = await setupIdentityUser({
+      firstName: 'Presence',
+      lastName: 'Outsider',
+    });
+
+    await createDirectChat([owner.user, viewer.user]);
+
+    await owner.agent
+      .get(`/api/user/online-status/${owner.user._id}`)
+      .expect(200);
+    await viewer.agent
+      .get(`/api/user/online-status/${owner.user._id}`)
+      .expect(200);
+    await outsider.agent
+      .get(`/api/user/online-status/${owner.user._id}`)
+      .expect(404);
+
+    await UserBlock.create({
+      blocker: owner.user._id,
+      blockedUser: viewer.user._id,
+    });
+
+    await viewer.agent
+      .get(`/api/user/online-status/${owner.user._id}`)
+      .expect(404);
   });
 
   it('rejects unsupported preset ids, URL-like values, and living-being identity concepts', async () => {

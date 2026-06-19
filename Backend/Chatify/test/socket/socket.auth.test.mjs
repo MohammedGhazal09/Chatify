@@ -159,6 +159,30 @@ describe('authenticated Socket.IO handshake', () => {
     expect(socket.connected).toBe(false);
   });
 
+  it('rejects an OAuth handoff token in the accessToken cookie', async () => {
+    const server = await startServer();
+    const signup = await signupWithAgent({ firstName: 'Handoff', lastName: 'Socket' });
+    const handoffToken = jsonwebtoken.sign(
+      {
+        userId: signup.user._id.toString(),
+        purpose: 'oauth_handoff',
+        jti: 'socket-handoff-token',
+        stateHash: 'socket-state-hash',
+      },
+      process.env.SECRET_JWT_KEY,
+      { algorithm: 'HS256', expiresIn: '60s' }
+    );
+    const socket = trackSocket(connectSocketWithCookie(server.url, `accessToken=${handoffToken}`));
+    const errorPromise = waitForSocketEvent(socket, 'connect_error');
+
+    socket.connect();
+    const error = await errorPromise;
+
+    expect(error.message).toBe('Socket authentication invalid');
+    expect(error.data).toMatchObject({ code: 'socket_auth_invalid' });
+    expect(socket.connected).toBe(false);
+  });
+
   it('rejects an expired access token and accepts the socket after HTTP refresh', async () => {
     const server = await startServer();
     const signup = await signupWithAgent({ firstName: 'Refresh', lastName: 'Socket' });

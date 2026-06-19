@@ -203,6 +203,25 @@ export const revokeRefreshSession = async (refreshToken) => {
   );
 };
 
+export const revokeRefreshSessionsForUser = async (userId) => {
+  if (!userId) {
+    return;
+  }
+
+  await Session.updateMany(
+    {
+      userId,
+      revokedAt: null,
+    },
+    {
+      $set: {
+        revokedAt: new Date(),
+        lastUsedAt: new Date(),
+      },
+    }
+  );
+};
+
 export const generateTokenAndSetCookie = async (user, res, rememberMe = false) => {
   const { accessToken } = await issueSessionCookies({ user, res, rememberMe });
   return accessToken;

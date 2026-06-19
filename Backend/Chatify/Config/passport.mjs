@@ -6,13 +6,63 @@ import User from '../Models/userModel.mjs';
 import { resolveOAuthCallbackBaseURL } from '../Utils/oauthConfig.mjs';
 import { logger } from '../Utils/observabilityLogger.mjs';
 
+const getFirstEmailValue = (profile) => (
+    Array.isArray(profile.emails)
+        ? profile.emails.find((email) => typeof email?.value === 'string' && email.value)?.value
+        : null
+);
+
+const getVerifiedEmailEntry = (profile) => {
+    if (!Array.isArray(profile.emails)) {
+        return null;
+    }
+
+    return profile.emails.find((email) => email?.verified === true && email?.primary === true)
+        ?? profile.emails.find((email) => email?.verified === true)
+        ?? null;
+};
+
+const getProviderEmailInfo = (profile, provider) => {
+    if (provider === 'google') {
+        return {
+            email: getFirstEmailValue(profile),
+            verified: profile?._json?.email_verified === true || profile.emails?.[0]?.verified === true,
+        };
+    }
+
+    if (provider === 'github') {
+        const verifiedEmail = getVerifiedEmailEntry(profile);
+
+        return {
+            email: verifiedEmail?.value ?? getFirstEmailValue(profile),
+            verified: Boolean(verifiedEmail),
+        };
+    }
+
+    if (provider === 'discord') {
+        return {
+            email: profile.email,
+            verified: profile?.verified === true || profile?._json?.verified === true,
+        };
+    }
+
+    return {
+        email: null,
+        verified: false,
+    };
+};
+
 // Helper function to create or find OAuth user
-const handleOAuthUser = async (profile, provider) => {
+export const handleOAuthUser = async (profile, provider) => {
     try {
 
-        const providerEmail = profile.email;
         const providerId = profile.id;
         const providerIdField = `${provider}Id`;
+        const providerEmail = getProviderEmailInfo(profile, provider);
+
+        if (!providerId || !providerEmail.email) {
+            throw new Error('OAuth provider profile is missing required identity fields');
+        }
         
         // Extract user info based on provider
         let userInfo = {};
@@ -22,7 +72,8 @@ const handleOAuthUser = async (profile, provider) => {
                 userInfo = {
                     firstName: profile.name.givenName,
                     lastName: profile.name.familyName === undefined ? '' : profile.name.familyName,
-                    email: profile.emails[0].value,
+                    email: providerEmail.email,
+                    emailVerified: providerEmail.verified,
                     providerProfilePic: profile.photos[0]?.value || ''
                 };
                 break;
@@ -32,7 +83,8 @@ const handleOAuthUser = async (profile, provider) => {
                 userInfo = {
                     firstName: nameParts[0] || profile.username,
                     lastName: nameParts.slice(1).join(' ') || 'User',
-                    email: profile.emails?.[0]?.value || `${profile.username}@github.local`,
+                    email: providerEmail.email,
+                    emailVerified: providerEmail.verified,
                     providerProfilePic: profile.photos[0]?.value || ''
                 };
                 break;
@@ -41,31 +93,35 @@ const handleOAuthUser = async (profile, provider) => {
                 userInfo = {
                     firstName: profile.username || profile.global_name,
                     lastName: '',
-                    email: providerEmail,
+                    email: providerEmail.email,
+                    emailVerified: providerEmail.verified,
                     providerProfilePic: avatarUrl || ''
                 };
                 break;
         }
 
-        // Check if user exists with same email (account linking)
+        const existingProviderUser = await User.findOne({
+            [providerIdField]: providerId,
+            authProvider: provider,
+        }).select('+providerProfilePic +uploadedProfileImage');
+
+        if (existingProviderUser) {
+            existingProviderUser.providerProfilePic = userInfo.providerProfilePic
+
+            if (!existingProviderUser.hasUploadedProfileImage()) {
+                existingProviderUser.profilePic = userInfo.providerProfilePic || '';
+            }
+
+            await existingProviderUser.save();
+            return existingProviderUser;
+        }
+
         const existingEmailUser = await User.findOne({ 
             email: userInfo.email,
         }).select('+providerProfilePic +uploadedProfileImage');
 
         if (existingEmailUser) {
-            // Link provider account to existing local account
-            existingEmailUser.authProvider = provider;
-            existingEmailUser.isVerified = true;
-            existingEmailUser.providerProfilePic = userInfo.providerProfilePic
-            existingEmailUser[providerIdField] = providerId;
-            
-            // Keep a user-uploaded image active. Otherwise expose the provider image as fallback.
-            if (!existingEmailUser.hasUploadedProfileImage()) {
-                existingEmailUser.profilePic = userInfo.providerProfilePic || '';
-            }
-            
-            await existingEmailUser.save();
-            return existingEmailUser;
+            throw new Error('OAuth account linking requires existing user confirmation');
         }
 
         // Create new user
@@ -77,7 +133,7 @@ const handleOAuthUser = async (profile, provider) => {
             profilePic: userInfo.providerProfilePic,
             providerProfilePic: userInfo.providerProfilePic,
             authProvider: provider,
-            isVerified: true
+            isVerified: userInfo.emailVerified
         });
 
         return newUser;

@@ -49,7 +49,7 @@ export const verifyAccessToken = (token) => {
     throw new jwt.JsonWebTokenError('Missing user id claim');
   }
 
-  if (decoded.type && decoded.type !== 'access') {
+  if (decoded.type !== 'access') {
     throw new jwt.JsonWebTokenError('Invalid token type');
   }
 

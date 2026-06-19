@@ -1,7 +1,10 @@
+import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PasswordReset from '../../Models/passwordResetModel.mjs';
+import Session from '../../Models/sessionModel.mjs';
 import { sendPasswordResetEmail } from '../../Services/emailService.mjs';
 import { createAgent, getCsrfForAgent, loginWithAgent, signupWithAgent } from '../helpers/authAgent.mjs';
+import { getTestApp } from '../setup/app.mjs';
 
 vi.mock('../../Services/emailService.mjs', () => ({
   sendPasswordResetEmail: vi.fn(),
@@ -17,6 +20,11 @@ const postAuth = (agent, csrfToken, path, body) => agent
   .post(`/api/auth/${path}`)
   .set('X-CSRF-Token', csrfToken)
   .send(body);
+
+const getRefreshTokenCookie = (response) => {
+  const cookies = response.headers['set-cookie'] ?? [];
+  return cookies.find((cookie) => cookie.startsWith('refreshToken='));
+};
 
 const requestResetCode = async (email) => {
   const { agent, csrfToken } = await resetRequestAgent();
@@ -126,5 +134,35 @@ describe('password reset security', () => {
       code,
       newPassword: 'AnotherPassword123!',
     }).expect(400);
+  });
+
+  it('revokes existing refresh sessions after a successful password reset', async () => {
+    const app = await getTestApp();
+    const { user, response: signupResponse } = await signupWithAgent({
+      firstName: 'Reset',
+      lastName: 'Sessions',
+    });
+    const oldRefreshCookie = getRefreshTokenCookie(signupResponse)?.split(';')[0];
+    const { agent, csrfToken, code } = await requestResetCode(user.email);
+
+    await postAuth(agent, csrfToken, 'reset-password', {
+      email: user.email,
+      code,
+      newPassword: 'NewPassword123!',
+    }).expect(200);
+
+    await expect(Session.countDocuments({
+      userId: user._id,
+      revokedAt: null,
+    })).resolves.toBe(0);
+
+    const replayAgent = request.agent(app);
+    const replayCsrf = await getCsrfForAgent(replayAgent);
+
+    await replayAgent
+      .post('/api/auth/refresh-token')
+      .set('Cookie', `${oldRefreshCookie}; XSRF-TOKEN=${encodeURIComponent(replayCsrf)}`)
+      .set('X-CSRF-Token', replayCsrf)
+      .expect(401);
   });
 });

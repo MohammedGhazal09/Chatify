@@ -30,6 +30,7 @@ import {
   buildUsernameConflict,
   validateUsername,
 } from '../Utils/usernameValidation.mjs'
+import { filterUnblockedContactIds } from '../Utils/conversationControls.mjs'
 
 const PROFILE_IMAGE_NOT_FOUND = 'Profile image not found';
 
@@ -149,6 +150,34 @@ const getContactIdsForUser = async (userId) => {
   });
 
   return Array.from(contactIds);
+};
+
+const canViewPresenceForUser = async ({ requesterId, targetId }) => {
+  const requesterIdString = requesterId?.toString?.();
+  const targetIdString = targetId?.toString?.();
+
+  if (!requesterIdString || !targetIdString) {
+    return false;
+  }
+
+  if (requesterIdString === targetIdString) {
+    return true;
+  }
+
+  const sharedChat = await Chats.exists({
+    members: { $all: [requesterIdString, targetIdString] },
+  });
+
+  if (!sharedChat) {
+    return false;
+  }
+
+  const unblockedIds = await filterUnblockedContactIds({
+    userId: requesterIdString,
+    contactIds: [targetIdString],
+  });
+
+  return unblockedIds.length === 1;
 };
 
 const cleanupProfileImage = async (storageFileId) => {
@@ -276,6 +305,15 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
   const user = await User.findById(userId).select('username isOnline lastSeen showOnlineStatus showLastSeen firstName lastName profilePic identityMark identityMarkUpdatedAt');
 
   if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  const canViewPresence = await canViewPresenceForUser({
+    requesterId: req.userId,
+    targetId: user._id,
+  });
+
+  if (!canViewPresence) {
     return next(new CustomError('User not found', 404));
   }
 
