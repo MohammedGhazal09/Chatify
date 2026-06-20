@@ -498,7 +498,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 10.1 -> 11 -> 12 -> 13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> 20 -> 21 -> 22 -> 23 -> 24 -> 25 -> 26 -> 27 -> 28 -> 29 -> 30 -> 31
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -514,7 +514,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 10. Production Messenger Reality Audit And Fixture Removal | 3/3 | Complete by Phase 25 evidence reconciliation | 2026-06-20 |
 | 10.1. Production Message Delivery Reliability Repair | 3/3 | Complete by Phase 25 evidence reconciliation | 2026-06-20 |
 | 11. Conversation Controls And User Safety Implementation | 3/3 | Complete    | 2026-06-17 |
-| 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
+| 12. Live Media Voice And Identity Implementation | 3/3 | Complete | 2026-06-17 |
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
 | 14. Production Live Acceptance Gate | 3/3 | User-confirmed complete through Phase 25 | 2026-06-19 |
 | 15. Investigate And Fix Audio And Video Call Reliability | 4/4 | User-confirmed complete through Phase 25 | 2026-06-19 |
@@ -526,6 +526,14 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 21. Username-Based Contact Discovery | 3/3 | Complete | 2026-06-18 |
 | 22. Group Conversations With Ten-Member Limit | 4/4 | Complete | 2026-06-18 |
 | 23. Per-User Message Deletion For Received And Group Messages | 1/1 | Complete by reconciliation | 2026-06-20 |
+| 24. Group message sender names and group voice/video calls | 2/2 | Complete | 2026-06-19 |
+| 25. Production Evidence Closure And Live Smoke Execution | 3/3 | User-confirmed complete | 2026-06-19 |
+| 26. CI Quality Parity And Release Gate Automation | 3/3 | Complete locally | 2026-06-19 |
+| 27. Remaining Messenger Requirement Closure | 3/3 | Complete | 2026-06-19 |
+| 28. Trust And Abuse Safety Foundation | 3/3 | Complete locally | 2026-06-19 |
+| 29. Privacy And Encryption Design Spike | 3/3 | Design complete | 2026-06-19 |
+| 30. External Notifications And Platform Expansion | 4/4 | Design complete | 2026-06-19 |
+| 31. Admin Moderation UI And Enforcement Workflow | 3/3 | Complete | 2026-06-19 |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 

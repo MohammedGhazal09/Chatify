@@ -35,4 +35,4 @@ None. The no-env skipped tests are expected current-state evidence, not release 
 
 ## Self-Check
 
-PASSED for evidence refresh scope. Hosted/provider and local two-account success are not claimed.
+PASSED for evidence refresh scope. The no-env command results remain recorded as historical shell evidence, and the final Phase 25 status is closed by maintainer-confirmed prior hosted/provider and local two-account evidence in `25-PRODUCTION-EVIDENCE.md` and `25-VERIFICATION.md`.

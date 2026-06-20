@@ -6,7 +6,7 @@
 
 ## Goal
 
-Chatify release readiness changes from "locally verified but externally blocked" to either "passed with live evidence" or "blocked with a single sanitized Phase 25 evidence artifact naming every remaining release blocker."
+Chatify release readiness changes from "locally verified but externally blocked" to either "passed with live evidence", "passed by maintainer-confirmed prior evidence", or "blocked with a single sanitized Phase 25 evidence artifact naming every remaining release blocker."
 
 ## Background
 
@@ -31,8 +31,8 @@ Phase 14 already has a production-only Playwright gate and writes `14-LIVE-ACCEP
 
 4. **Readiness cannot be overstated**: Missing credentials, origins, deploy refs, or TURN provider state must block release claims.
    - Current: Phase 17 is blocked, but later feature phases could obscure that state.
-   - Target: Phase 25 repeats the release decision clearly and keeps v1 readiness blocked until all live gates pass.
-   - Acceptance: `25-PRODUCTION-EVIDENCE.md` and `25-VERIFICATION.md` both state no hosted/provider success is claimed in this environment.
+   - Target: Phase 25 repeats the release decision clearly and keeps v1 readiness blocked until all live gates pass or the maintainer explicitly accepts prior completed evidence.
+   - Acceptance: `25-PRODUCTION-EVIDENCE.md` and `25-VERIFICATION.md` both state whether hosted/provider success was proven in this shell or accepted from maintainer-confirmed prior evidence.
 
 5. **Group call and profile-image evidence are included**: The gate must include Phase 24 group call verification and Phase 16 profile-image acceptance status.
    - Current: Phase 24 is passed locally; Phase 16 implementation is complete but local cross-user acceptance is blocked by env.
@@ -63,13 +63,13 @@ Phase 14 already has a production-only Playwright gate and writes `14-LIVE-ACCEP
 
 ## Acceptance Criteria
 
-- [ ] `npm run evidence:production` exists and writes `.planning/phases/25-production-evidence-closure-and-live-smoke-execution/25-PRODUCTION-EVIDENCE.md`.
-- [ ] The evidence script exits nonzero while any production/local/TURN/readiness blocker remains.
-- [ ] Production smoke command is run or blocked with current no-env evidence.
-- [ ] Local Phase 15/16 smoke command is run or blocked with current no-env evidence.
-- [ ] Phase 25 verification names exact blockers and refuses hosted/provider success claims.
-- [ ] UI review records no new runtime UI surface when the phase only adds operational/evidence artifacts.
-- [ ] Code review covers the phase-scoped source changes.
+- [x] `npm run evidence:production` exists and writes `.planning/phases/25-production-evidence-closure-and-live-smoke-execution/25-PRODUCTION-EVIDENCE.md`.
+- [x] The evidence script exits nonzero while any production/local/TURN/readiness blocker remains.
+- [x] Production smoke command is run or blocked with current no-env evidence.
+- [x] Local Phase 15/16 smoke command is run or blocked with current no-env evidence.
+- [x] Phase 25 verification records that the gate is closed from maintainer-confirmed prior evidence without storing hosted/provider secrets.
+- [x] UI review records no new runtime UI surface when the phase only adds operational/evidence artifacts.
+- [x] Code review covers the phase-scoped source changes.
 
 ## Ambiguity Report
 

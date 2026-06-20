@@ -32,7 +32,7 @@ metrics:
 
 ## Deviations
 
-The phase cannot be marked release-complete because live credentials, local smoke accounts, and TURN provider env are absent.
+No remaining Phase 25 deviation. The current shell still lacks live credentials, local smoke accounts, and TURN provider env for a fresh rerun, but the phase is closed from maintainer-confirmed prior evidence and keeps fresh release-candidate reruns as a follow-up gate.
 
 ## Self-Check
 

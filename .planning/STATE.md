@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 23 closure, requirements traceability, and moderation realtime fanout are complete; milestone backlog is reconciled through Phase 31.
+status: Phase 25 closeout is reconciled as user-confirmed complete; milestone backlog is reconciled through Phase 31.
 stopped_at: Backlog reconciled through Phase 31; next recommended action is fresh release-candidate production smoke before any new launch claim.
 last_updated: "2026-06-20T00:00:00.000Z"
 last_activity: 2026-06-20
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 23 is now closed by reconciliation, requirements traceability is current through Phase 31, and moderation content removal emits realtime deletion events. Next recommended action is fresh release-candidate production smoke before any new launch claim.
+**Current focus:** Phase 25 is closed by maintainer-confirmed production/local smoke, delivery, profile-image, call, group-call, and TURN evidence. Next recommended action is fresh release-candidate production smoke before any new launch claim.
 
 ## Current Position
 
 Phase: 31
 Plan: Not started
-Status: Phase 23 closure, requirements traceability, and moderation realtime fanout are complete; milestone backlog is reconciled through Phase 31.
+Status: Phase 25 closeout is reconciled as user-confirmed complete; milestone backlog is reconciled through Phase 31.
 Last activity: 2026-06-20
 
 Progress: Phase 20 through Phase 24 are complete locally. Phase 23 is closed by reconciliation against the existing `deletedFor` visibility model and group-message tests. Phase 25 is recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 implemented the protected reviewer UI, privacy-safe report queue/detail, scoped warning/restriction/content-removal enforcement, reviewer notes, audit visibility, and follow-up realtime content-removal fanout.
@@ -36,7 +36,7 @@ Progress: Phase 20 through Phase 24 are complete locally. Phase 23 is closed by 
 
 **Velocity:**
 
-- Total plans completed: 74
+- Total plans completed: 103
 - Average duration: 34 min
 - Total execution time: 5h 10m
 
@@ -199,4 +199,4 @@ Recent decisions affecting current work:
 
 Last session: 2026-06-19T00:00:00.000Z
 Stopped at: Backlog reconciled through Phase 31; next recommended action is fresh release-candidate production smoke before any new launch claim.
-Resume file: .planning/phases/25-production-evidence-closure-and-live-smoke-execution/25-VERIFICATION.md
+Resume file: .planning/v1.0-MILESTONE-AUDIT.md
