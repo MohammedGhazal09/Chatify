@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import Message from '../../Models/messageModel.mjs';
+import User from '../../Models/userModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import { createMessage } from '../fixtures/messages.mjs';
 import {
@@ -329,6 +330,58 @@ describe('Socket.IO message state contract', () => {
       },
     });
     expect(deleteEvent.message).toEqual(deleteResponse.body.data.message);
+    expect(unreadEvent).toEqual({
+      chatId,
+      userId: memberTwo.user._id.toString(),
+      count: 0,
+    });
+  });
+
+  it('emits canonical tombstones when moderation removes reported content', async () => {
+    const { memberOne, memberTwo, chat, chatId } = await setupRealtimeMessageScenario();
+    const message = await createMessage({ chat, sender: memberOne.user, text: 'Moderation tombstone' });
+    const admin = await signupWithAgent({
+      firstName: 'Socket',
+      lastName: 'Admin',
+      username: 'socket.admin',
+    });
+    await User.findByIdAndUpdate(admin.user._id, { role: 'admin' });
+
+    const reportResponse = await memberTwo.agent
+      .post('/api/moderation/reports')
+      .send({
+        targetType: 'message',
+        messageId: message._id.toString(),
+        reason: 'privacy',
+      })
+      .expect(201);
+    const deletePromise = waitForSocketEvent(memberTwo.socket, 'message:deleted');
+    const unreadPromise = waitForSocketEvent(memberTwo.socket, 'unread:update');
+
+    await admin.agent
+      .patch(`/api/moderation/reports/${reportResponse.body.data.report._id}/review`)
+      .send({
+        status: 'action_taken',
+        moderationAction: 'content_removed',
+        note: 'Remove reported content from active clients.',
+      })
+      .expect(200);
+
+    const deleteEvent = await deletePromise;
+    const unreadEvent = await unreadPromise;
+
+    expect(deleteEvent).toMatchObject({
+      messageId: message._id.toString(),
+      text: '',
+      deletedForEveryone: true,
+      deletedBy: admin.user._id.toString(),
+      moderationAction: 'content_removed',
+      message: {
+        _id: message._id.toString(),
+        text: '',
+        deletedForEveryone: true,
+      },
+    });
     expect(unreadEvent).toEqual({
       chatId,
       userId: memberTwo.user._id.toString(),

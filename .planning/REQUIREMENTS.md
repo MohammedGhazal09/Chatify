@@ -204,17 +204,17 @@
 | CALL-03 | Phase 13 | Complete |
 | CALL-04 | Phase 13 | Complete |
 | TEST-05 | Phase 9 | Complete |
-| V2-USER-01 | Phase 20 | Planned |
-| V2-USER-02 | Phase 20 | Planned |
-| V2-USER-03 | Phase 20 | Planned |
-| V2-USER-04 | Phase 21 | Planned |
-| V2-PRIV-01 | Phase 20, Phase 21, Phase 22 | Planned |
-| V2-PRIV-02 | Phase 21 | Planned |
-| V2-PRIV-03 | Phase 22 | Planned |
-| V2-GRP-01 | Phase 22 | Planned |
-| V2-GRP-02 | Phase 22 | Planned |
-| V2-GRP-03 | Phase 22 | Planned |
-| V2-GRP-04 | Phase 22, Phase 24, Phase 25 | Complete |
+| V2-USER-01 | Phase 20 | Complete |
+| V2-USER-02 | Phase 20 | Complete |
+| V2-USER-03 | Phase 20 | Complete |
+| V2-USER-04 | Phase 21 | Complete |
+| V2-PRIV-01 | Phase 20, Phase 21, Phase 22 | Complete |
+| V2-PRIV-02 | Phase 21 | Complete |
+| V2-PRIV-03 | Phase 22 | Complete |
+| V2-GRP-01 | Phase 22 | Complete |
+| V2-GRP-02 | Phase 22 | Complete |
+| V2-GRP-03 | Phase 22 | Complete |
+| V2-GRP-04 | Phase 22, Phase 23, Phase 24, Phase 25 | Complete |
 | V2-NOTF-01 | Phase 30 | Designed; implementation deferred |
 | V2-MOD-01 | Phase 28 | Complete |
 | V2-ADMIN-01 | Phase 28 | Complete |
@@ -232,4 +232,4 @@
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-19 after Phase 25 user-confirmed evidence closure and Phase 31 addition*
+*Last updated: 2026-06-20 after Phase 23 closure and milestone traceability reconciliation*

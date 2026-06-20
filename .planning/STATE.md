@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 31 admin moderation UI and enforcement workflow is implemented, reviewed, verified, and marked complete.
-stopped_at: Phase 31 complete; next recommended action is milestone/backlog audit before release closeout.
-last_updated: "2026-06-19T22:13:20.899Z"
-last_activity: 2026-06-19
+status: Phase 23 closure, requirements traceability, and moderation realtime fanout are complete; milestone backlog is reconciled through Phase 31.
+stopped_at: Backlog reconciled through Phase 31; next recommended action is fresh release-candidate production smoke before any new launch claim.
+last_updated: "2026-06-20T00:00:00.000Z"
+last_activity: 2026-06-20
 progress:
   total_phases: 32
-  completed_phases: 31
-  total_plans: 99
-  completed_plans: 102
-  percent: 97
+  completed_phases: 32
+  total_plans: 100
+  completed_plans: 103
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 31 is complete with protected admin moderation UI, scoped enforcement, reviewer notes, audit visibility, and full backend/frontend verification. Next recommended action is milestone/backlog audit before release closeout.
+**Current focus:** Phase 23 is now closed by reconciliation, requirements traceability is current through Phase 31, and moderation content removal emits realtime deletion events. Next recommended action is fresh release-candidate production smoke before any new launch claim.
 
 ## Current Position
 
 Phase: 31
 Plan: Not started
-Status: Phase 31 admin moderation UI and enforcement workflow is implemented, reviewed, verified, and marked complete.
-Last activity: 2026-06-19
+Status: Phase 23 closure, requirements traceability, and moderation realtime fanout are complete; milestone backlog is reconciled through Phase 31.
+Last activity: 2026-06-20
 
-Progress: Phase 20 through Phase 24 are complete locally. Phase 25 is now recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 implemented the protected reviewer UI, privacy-safe report queue/detail, scoped warning/restriction/content-removal enforcement, reviewer notes, and audit visibility.
+Progress: Phase 20 through Phase 24 are complete locally. Phase 23 is closed by reconciliation against the existing `deletedFor` visibility model and group-message tests. Phase 25 is recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 implemented the protected reviewer UI, privacy-safe report queue/detail, scoped warning/restriction/content-removal enforcement, reviewer notes, audit visibility, and follow-up realtime content-removal fanout.
 
 ## Performance Metrics
 
@@ -147,8 +147,8 @@ Recent decisions affecting current work:
 - Phase 20 added: Username Identity And Privacy Foundation, with unique public usernames, signup collection, existing-user setup, and private-email boundaries.
 - Phase 21 completed: Username-Based Contact Discovery replaced email-based direct chat creation with `targetUsername`, added exact protected username lookup, updated chat start UI to username copy/validation, and added email-start-chat leak guards.
 - Phase 22 completed: Group Conversations With Ten-Member Limit added backend group creation, 3-to-10 member validation, username member selection, group creation UI, group message/socket regression coverage, and group email leak guards.
-- Group chats are no longer deferred, but broader platform expansion such as cross-platform push/email delivery, moderation/admin tooling, end-to-end encryption, channels, bots, integrations, and group calls remains deferred.
-- Phase 23 added: Per-User Message Deletion For Received And Group Messages.
+- Group chats and admin moderation workflow are no longer deferred, but broader platform expansion such as cross-platform push/email delivery, end-to-end encryption implementation, channels, bots, and integrations remains deferred.
+- Phase 23 completed by reconciliation: Per-User Message Deletion For Received And Group Messages is backed by the existing `deletedFor` visibility model, direct/group tests, and frontend cache behavior.
 - Phase 24 added: Group message sender names and group voice/video calls.
 - Phase 25 added: Production Evidence Closure And Live Smoke Execution.
 - Phase 25 executed the local evidence tooling and is now treated as complete from maintainer-confirmed prior smoke/TURN evidence; no raw credentials or provider secrets are recorded.
@@ -168,9 +168,8 @@ Recent decisions affecting current work:
 
 - For the next release candidate, rerun Phase 25 production/local smoke and TURN checks in a secret-bearing shell so the user-confirmed closure is refreshed with current evidence.
 - Phase 22 is complete locally; group member selection uses username-based discovery, not email lookup.
-- Phase 23 is added for per-user deletion of received and group messages using the existing `deletedFor` visibility model.
+- Phase 23 is complete by reconciliation; received direct and group messages can be hidden per user through the existing `deletedFor` visibility model.
 - Phase 26 is locally complete; configure GitHub branch protection to require the `Required quality gate` job and set `CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE=1` only in release contexts with live smoke secrets.
-- Next recommendation: run milestone/backlog audit before release closeout because Phase 23 still appears pending while Phase 31 is complete.
 - Phase 28 is complete locally; Phases 29 and 30 are design-complete. Do not use their deferred implementation status to reopen Phase 25 unless encryption, notification, or platform work becomes a concrete launch requirement.
 - Keep production readiness blockers separate from the completed local username/group feature chain.
 
@@ -183,7 +182,7 @@ Recent decisions affecting current work:
 - Phase 14, Phase 15, Phase 16, and Phase 17 are recorded as user-confirmed complete; future release candidates should rerun their smoke gates with fresh secrets rather than relying on this historical closure.
 - Phase 17 planned with four release-gate plans for evidence inventory, security/local quality reconciliation, production/call readiness gating, and final v1 decision.
 - Phase 17 executed with green local backend/frontend quality gates and is now closed by maintainer-confirmed Phase 25 evidence reconciliation.
-- Remaining concern: Phase 10, Phase 10.1, and Phase 23 remain listed as not complete in the phase index and should be reconciled separately if they are also historically done.
+- Phase index reconciliation is complete for Phase 10, Phase 10.1, and Phase 23. Fresh production smoke is still recommended for new release candidates.
 - Repository hygiene note: unrelated local screenshot/config changes existed before these phase additions and should not be mixed into future focused commits unless intentionally refreshed.
 - Phase 19 execution must not be used to imply release readiness; it is product polish and notification UX only.
 - Username and group phases must not expose email in public discovery, participant lists, realtime events, logs, traces, screenshots, or test fixtures.
@@ -199,5 +198,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-06-19T00:00:00.000Z
-Stopped at: Phase 31 complete; next recommended action is milestone/backlog audit before release closeout.
+Stopped at: Backlog reconciled through Phase 31; next recommended action is fresh release-candidate production smoke before any new launch claim.
 Resume file: .planning/phases/25-production-evidence-closure-and-live-smoke-execution/25-VERIFICATION.md

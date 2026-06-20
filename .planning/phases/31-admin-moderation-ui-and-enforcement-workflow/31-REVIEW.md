@@ -15,7 +15,6 @@ No actionable code-review findings found in the Phase 31 changes.
 
 ## Residual Risk
 
-- Content removal persists the tombstone but does not emit a realtime moderation deletion event in this phase.
 - Report audit save and enforcement updates use ordinary MongoDB writes rather than a transaction, matching the current test/deployment setup.
 
-Neither residual risk blocks Phase 31 because the phase requires durable enforcement/audit behavior, not realtime moderation fanout or a broader admin transaction framework.
+The earlier realtime moderation fanout risk is closed by the follow-up `message:deleted` emission and socket regression test added during Phase 23/backlog closure.

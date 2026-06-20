@@ -9,10 +9,11 @@
 | `npm test -- AdminModeration` | `Frontend/Chatify` | Passed: 1 file, 5 tests |
 | `npm test -- ChatSidebar` | `Frontend/Chatify` | Passed: 1 file, 11 tests |
 | `npm test -- AdminModeration ChatSidebar` | `Frontend/Chatify` | Passed: 2 files, 16 tests |
+| `npm test -- socket/socket.message-state.test.mjs moderation/abuse-report.test.mjs` | `Backend/Chatify` | Passed: 2 files, 16 tests; includes moderation content-removal realtime fanout |
 | `npm run lint` | `Frontend/Chatify` | Passed |
 | `npm run build` | `Frontend/Chatify` | Passed |
 | `npm test` | `Frontend/Chatify` | Passed: 48 files, 279 tests |
-| `npm test` | `Backend/Chatify` | Passed: 39 files, 215 tests |
+| `npm test` | `Backend/Chatify` | Passed: 39 files, 216 tests |
 
 ## Timeout Note
 

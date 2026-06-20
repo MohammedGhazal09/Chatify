@@ -9,9 +9,15 @@ import Attachment from "../Models/attachmentModel.mjs";
 import Chats from "../Models/chatModel.mjs";
 import Message from "../Models/messageModel.mjs";
 import User from "../Models/userModel.mjs";
+import { emitToUserSockets, getIO } from "../Config/socket.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
 import { CustomError } from "../Utils/customError.mjs";
-import { canUserSeeMessage } from "../Utils/messageState.mjs";
+import {
+  buildUnreadMessageFilter,
+  canUserSeeMessage,
+  serializeMessage,
+} from "../Utils/messageState.mjs";
+import { logger } from "../Utils/observabilityLogger.mjs";
 
 const PUBLIC_USER_SELECT = "username firstName lastName profilePic identityMark identityMarkUpdatedAt";
 const REPORT_LIST_LIMIT = 50;
@@ -29,6 +35,43 @@ const REPORT_IDENTITY_POPULATE = [
   { path: "reporter", select: PUBLIC_USER_SELECT },
   { path: "reportedUser", select: PUBLIC_USER_SELECT },
 ];
+
+const countUnreadForUser = (chatId, userId) => (
+  Message.countDocuments(buildUnreadMessageFilter({ chatId, userId }))
+);
+
+const emitUnreadCountToUser = async (chatId, userId) => {
+  const count = await countUnreadForUser(chatId, userId);
+  emitToUserSockets(userId, "unread:update", {
+    chatId: chatId.toString(),
+    userId: userId.toString(),
+    count,
+  });
+  return count;
+};
+
+const emitModerationContentRemoved = async (message) => {
+  const chat = await Chats.findById(message.chatId).select("members").lean();
+
+  if (!chat) {
+    return;
+  }
+
+  const serializedMessage = serializeMessage(message);
+  const io = getIO();
+
+  io.in(chat._id.toString()).emit("message:deleted", {
+    ...serializedMessage,
+    message: serializedMessage,
+    messageId: serializedMessage._id,
+    deleteForEveryone: true,
+    moderationAction: "content_removed",
+  });
+
+  await Promise.all((chat.members ?? []).map((memberId) => (
+    emitUnreadCountToUser(chat._id, memberId)
+  )));
+};
 
 const redactSensitiveText = (value = "") => String(value)
   .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]")
@@ -602,6 +645,16 @@ const applyModerationEnforcement = async ({
       { messageId: message._id },
       { $set: { status: "deleted" } }
     );
+
+    try {
+      await emitModerationContentRemoved(message);
+    } catch (error) {
+      logger.error("moderation.content_removed_emit_failed", {
+        chatId: message.chatId?.toString(),
+        messageId: message._id.toString(),
+        error,
+      });
+    }
 
     return buildEnforcementSnapshot({
       action: moderationAction,

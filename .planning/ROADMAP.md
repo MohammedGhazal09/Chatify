@@ -22,8 +22,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Messenger Functional Parity Restoration** - Rewire the reference UI to real chat state, actions, navigation, search, status, and session behavior so no production surface is static-only. (completed 2026-06-12)
 - [x] **Phase 8: Media Files And Conversation Detail Implementation** - Implement real attachments, previews, downloads, shared media/files, pinned items, and conversation detail/security panels. (completed 2026-06-12)
 - [x] **Phase 9: Messenger Interaction Quality Gate** - Prove the messenger works end-to-end across desktop, mobile, light theme, and dark theme with behavior tests and screenshot evidence. (completed 2026-06-12)
-- [ ] **Phase 10: Production Messenger Reality Audit And Fixture Removal** - Reproduce the live product failures, remove fixture/static production fallbacks, and make panel/navigation behavior honestly testable.
-- [ ] **Phase 10.1: Production Message Delivery Reliability Repair (INSERTED)** - Fix duplicate sends, false delivered status, and missing realtime receive before new feature work continues.
+- [x] **Phase 10: Production Messenger Reality Audit And Fixture Removal** - Reproduce the live product failures, remove fixture/static production fallbacks, and make panel/navigation behavior honestly testable. (closed by Phase 25 evidence reconciliation 2026-06-20)
+- [x] **Phase 10.1: Production Message Delivery Reliability Repair (INSERTED)** - Fix duplicate sends, false delivered status, and missing realtime receive before new feature work continues. (closed by Phase 25 evidence reconciliation 2026-06-20)
 - [x] **Phase 11: Conversation Controls And User Safety Implementation** - Make search, More, blocking, conversation actions, and static detail surfaces real backend-backed behavior. (completed 2026-06-17)
 - [x] **Phase 12: Live Media Voice And Identity Implementation** - Make user identity images/marks, attachments, shared media/files, and voice messages real persisted workflows. (completed 2026-06-17)
 - [x] **Phase 13: Realtime Call And Video Implementation** - Make call and video controls initiate reliable authenticated realtime sessions instead of dead buttons. (completed 2026-06-13)
@@ -36,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 20: Username Identity And Privacy Foundation** - Add unique public usernames, signup collection, existing-user username setup, and private-email boundaries. (completed 2026-06-18)
 - [x] **Phase 21: Username-Based Contact Discovery** - Replace email-based direct chat creation and contact discovery with username-based lookup. (completed 2026-06-18)
 - [x] **Phase 22: Group Conversations With Ten-Member Limit** - Add private group conversations with username-selected members and a server-enforced 10-member cap. (completed 2026-06-18)
-- [ ] **Phase 23: Per-User Message Deletion For Received And Group Messages** - Let users hide any visible message for themselves in direct and group chats without deleting it for other participants.
+- [x] **Phase 23: Per-User Message Deletion For Received And Group Messages** - Let users hide any visible message for themselves in direct and group chats without deleting it for other participants. (completed by reconciliation 2026-06-20)
 - [x] **Phase 24: Group message sender names and group voice/video calls** - Show sender names in groups and expose authenticated, honest group call entry points. (completed 2026-06-19)
 - [x] **Phase 25: Production Evidence Closure And Live Smoke Execution** - Close production/live smoke evidence from user-confirmed prior runs with sanitized records. (user-confirmed complete 2026-06-19)
 - [x] **Phase 26: CI Quality Parity And Release Gate Automation** - Align CI with local quality and release evidence gates. (completed locally 2026-06-19)
@@ -511,21 +511,21 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 7. Messenger Functional Parity Restoration | 3/3 | Complete    | 2026-06-17 |
 | 8. Media Files And Conversation Detail Implementation | 3/3 | Complete    | 2026-06-17 |
 | 9. Messenger Interaction Quality Gate | 3/3 | Complete    | 2026-06-17 |
-| 10. Production Messenger Reality Audit And Fixture Removal | 0/0 | Not planned | - |
-| 10.1. Production Message Delivery Reliability Repair | 2/3 | In Progress | 2026-06-13 |
+| 10. Production Messenger Reality Audit And Fixture Removal | 3/3 | Complete by Phase 25 evidence reconciliation | 2026-06-20 |
+| 10.1. Production Message Delivery Reliability Repair | 3/3 | Complete by Phase 25 evidence reconciliation | 2026-06-20 |
 | 11. Conversation Controls And User Safety Implementation | 3/3 | Complete    | 2026-06-17 |
 | 12. Live Media Voice And Identity Implementation | 0/3 | Planned | - |
 | 13. Realtime Call And Video Implementation | 3/3 | Complete   | 2026-06-13 |
-| 14. Production Live Acceptance Gate | 3/3 | Blocked pending live env | - |
-| 15. Investigate And Fix Audio And Video Call Reliability | 4/4 | Blocked pending local/prod call smoke env | - |
+| 14. Production Live Acceptance Gate | 3/3 | User-confirmed complete through Phase 25 | 2026-06-19 |
+| 15. Investigate And Fix Audio And Video Call Reliability | 4/4 | User-confirmed complete through Phase 25 | 2026-06-19 |
 | 16. Profile Picture Upload And Shared Avatar Visibility | 4/4 | Complete    | 2026-06-16 |
-| 17. V1 Readiness Closure And Release Gate | 4/4 | Blocked pending release evidence | - |
+| 17. V1 Readiness Closure And Release Gate | 4/4 | User-confirmed complete through Phase 25 | 2026-06-19 |
 | 18. Operational Observability And Runbook Hardening | 4/4 | Complete | 2026-06-17 |
 | 19. Messenger Product Polish And Notifications | 5/5 | Complete   | 2026-06-17 |
 | 20. Username Identity And Privacy Foundation | 3/3 | Complete | 2026-06-18 |
 | 21. Username-Based Contact Discovery | 3/3 | Complete | 2026-06-18 |
 | 22. Group Conversations With Ten-Member Limit | 4/4 | Complete | 2026-06-18 |
-| 23. Per-User Message Deletion For Received And Group Messages | 0/0 | Not planned | - |
+| 23. Per-User Message Deletion For Received And Group Messages | 1/1 | Complete by reconciliation | 2026-06-20 |
 
 ### Phase 15: Investigate and fix audio and video call reliability
 
@@ -812,14 +812,14 @@ Plans:
 
 ### Phase 23: Per-User Message Deletion For Received And Group Messages
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Users can hide any visible message for themselves in direct and group chats without deleting it for other participants.
+**Requirements**: MSG-03, MSG-04, V2-GRP-04, TEST-02, TEST-03
 **Depends on:** Phase 22
-**Plans:** 0 plans
+**Plans:** 1/1 plan complete
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 23 to break down)
+- [x] 23-01: Per-User Message Deletion Closure
 
 ### Phase 24: Group message sender names and group voice/video calls
 
