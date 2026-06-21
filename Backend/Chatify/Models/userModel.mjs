@@ -133,6 +133,78 @@ const moderationStateSchema = new mongoose.Schema({
   versionKey: false,
 });
 
+const pushSubscriptionSchema = new mongoose.Schema({
+  endpointHash: {
+    type: String,
+    required: true,
+  },
+  endpoint: {
+    type: String,
+    required: true,
+  },
+  keys: {
+    p256dh: {
+      type: String,
+      required: true,
+    },
+    auth: {
+      type: String,
+      required: true,
+    },
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
+const notificationPreferencesSchema = new mongoose.Schema({
+  pushEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  emailNotificationsEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  messagePreviewMode: {
+    type: String,
+    enum: ['none'],
+    default: 'none',
+  },
+  mutedChatIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Chats',
+  }],
+  emailUnsubscribedAt: {
+    type: Date,
+  },
+  unsubscribeTokenHash: {
+    type: String,
+    select: false,
+  },
+  pushSubscriptions: {
+    type: [pushSubscriptionSchema],
+    default: [],
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
+const hideNotificationInternals = (ret) => {
+  if (ret.notificationPreferences) {
+    delete ret.notificationPreferences.unsubscribeTokenHash;
+    delete ret.notificationPreferences.pushSubscriptions;
+    delete ret.notificationPreferences.emailUnsubscribedAt;
+  }
+
+  return ret;
+};
+
 const userSchema = new mongoose.Schema({
    firstName: {
       type: String,
@@ -177,6 +249,18 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: false
     },
+    profileBio: {
+        type: String,
+        trim: true,
+        maxlength: [160, 'Profile bio must be 160 characters or fewer'],
+        default: '',
+    },
+    profileStatus: {
+        type: String,
+        trim: true,
+        maxlength: [80, 'Profile status must be 80 characters or fewer'],
+        default: '',
+    },
     providerProfilePic: {
         type: String,
         required: false,
@@ -210,6 +294,10 @@ const userSchema = new mongoose.Schema({
         type: moderationStateSchema,
         default: () => ({}),
         select: false,
+    },
+    notificationPreferences: {
+        type: notificationPreferencesSchema,
+        default: () => ({}),
     },
     googleId: {
       type: String,
@@ -245,6 +333,10 @@ const userSchema = new mongoose.Schema({
     showLastSeen: {
       type: Boolean,
       default: true,
+    },
+    showProfileStatus: {
+      type: Boolean,
+      default: true,
     }
 }, {
     timestamps: true,
@@ -257,6 +349,7 @@ const userSchema = new mongoose.Schema({
             delete ret.discordId;
             delete ret.githubId;
             delete ret.moderation;
+            hideNotificationInternals(ret);
             return hideProfileImageInternals(ret);
         }
     },
@@ -268,6 +361,7 @@ const userSchema = new mongoose.Schema({
             delete ret.discordId;
             delete ret.githubId;
             delete ret.moderation;
+            hideNotificationInternals(ret);
             return hideProfileImageInternals(ret);
         }
     },
@@ -283,6 +377,8 @@ const userSchema = new mongoose.Schema({
       partialFilterExpression: { username: { $type: 'string' } },
     }
   )
+  userSchema.index({ 'notificationPreferences.mutedChatIds': 1 })
+  userSchema.index({ 'notificationPreferences.pushSubscriptions.endpointHash': 1 })
 
   // Hashing Password before saving
   userSchema.pre('save', async function(next) {

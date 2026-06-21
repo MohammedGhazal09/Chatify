@@ -27,6 +27,10 @@ export const isDifferentDay = (date1: string, date2: string) => {
 };
 
 export const getChatTitle = (chat: Chat, userId: string | undefined) => {
+  if (chat.isSpaceChannel) {
+    return chat.channelName || chat.chatName || 'Channel';
+  }
+
   if (chat.isGroupChat && chat.chatName) {
     return chat.chatName;
   }

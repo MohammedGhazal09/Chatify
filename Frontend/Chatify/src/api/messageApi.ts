@@ -4,6 +4,7 @@ import { resolveApiBaseUrl } from './apiOrigin';
 import type {
   CursorPaginationInfo,
   Message,
+  MessageSearchFilters,
   MessageReceiptPatch,
   MessageUploadAttachment,
   NewMessagePayload,
@@ -38,6 +39,7 @@ interface MessageSearchResponse {
     messages: Message[];
     query: string;
     limit: number;
+    filters?: MessageSearchFilters & { query?: string };
   };
 }
 
@@ -116,6 +118,20 @@ interface PinMessageResponse {
   };
 }
 
+interface MessageContextResponse {
+  status: string;
+  data: {
+    targetMessageId: string;
+    messages: Message[];
+    cursor: CursorPaginationInfo;
+    context: {
+      hasMoreBefore: boolean;
+      hasMoreAfter: boolean;
+      limit: number;
+    };
+  };
+}
+
 type GetMessagesOptions = {
   before?: string | null;
   limit?: number;
@@ -123,6 +139,10 @@ type GetMessagesOptions = {
 
 type SearchMessagesOptions = {
   q: string;
+  limit?: number;
+} & MessageSearchFilters;
+
+type GetMessageContextOptions = {
   limit?: number;
 };
 
@@ -203,7 +223,34 @@ export const messageApi = {
     params.set('q', options.q);
     params.set('limit', String(options.limit ?? 25));
 
+    if (options.senderId) {
+      params.set('senderId', options.senderId);
+    }
+
+    if (options.type && options.type !== 'all') {
+      params.set('type', options.type);
+    }
+
+    if (options.from) {
+      params.set('from', options.from);
+    }
+
+    if (options.to) {
+      params.set('to', options.to);
+    }
+
     return axiosInstance.get(`/api/message/search/${chatId}?${params.toString()}`);
+  },
+
+  getMessageContext: (
+    chatId: string,
+    messageId: string,
+    options: GetMessageContextOptions = {}
+  ): Promise<AxiosResponse<MessageContextResponse>> => {
+    const params = new URLSearchParams();
+    params.set('limit', String(options.limit ?? 25));
+
+    return axiosInstance.get(`/api/message/context/${chatId}/${messageId}?${params.toString()}`);
   },
 
   markMessageAsRead: (messageId: string): Promise<AxiosResponse<MarkReadResponse>> =>

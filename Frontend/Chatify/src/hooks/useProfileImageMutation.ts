@@ -65,10 +65,51 @@ export const useProfileImageMutation = () => {
     },
   });
 
+  const updateProfile = useMutation({
+    mutationFn: async (profile: { profileBio?: string; profileStatus?: string }) => {
+      const response = await userApi.updateProfile(profile);
+      return response.data.data.user;
+    },
+    onSuccess: (user) => {
+      updateCurrentUser(queryClient, setUser, user);
+      invalidateProfileImageDependents(queryClient);
+    },
+  });
+
+  const updatePrivacySettings = useMutation({
+    mutationFn: async (settings: {
+      showOnlineStatus?: boolean;
+      showLastSeen?: boolean;
+      showProfileStatus?: boolean;
+    }) => {
+      const response = await userApi.updatePrivacySettings(settings);
+      return response.data.data;
+    },
+    onSuccess: (settings) => {
+      const currentUser = useAuthStore.getState().user;
+
+      if (currentUser) {
+        updateCurrentUser(queryClient, setUser, {
+          ...currentUser,
+          ...settings,
+        });
+      }
+
+      invalidateProfileImageDependents(queryClient);
+    },
+  });
+
   return {
     uploadProfileImage,
     removeProfileImage,
     updateIdentityMark,
-    isPending: uploadProfileImage.isPending || removeProfileImage.isPending || updateIdentityMark.isPending,
+    updateProfile,
+    updatePrivacySettings,
+    isPending:
+      uploadProfileImage.isPending ||
+      removeProfileImage.isPending ||
+      updateIdentityMark.isPending ||
+      updateProfile.isPending ||
+      updatePrivacySettings.isPending,
   };
 };

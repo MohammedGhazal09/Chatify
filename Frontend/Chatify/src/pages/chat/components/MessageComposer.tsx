@@ -16,6 +16,7 @@ interface MessageComposerProps {
   isSending: boolean;
   isSendError: boolean;
   sendDisabledReason?: string | null;
+  isEncryptedConversation?: boolean;
   uploadState?: MessageUploadState;
   showDisabledReason?: boolean;
   resetToken?: number;
@@ -78,6 +79,7 @@ const MessageComposer = ({
   isSending,
   isSendError,
   sendDisabledReason,
+  isEncryptedConversation = false,
   uploadState,
   showDisabledReason = true,
   resetToken = 0,
@@ -106,9 +108,11 @@ const MessageComposer = ({
   const currentDisabledReason = sendDisabledReason ??
     (isMessageTooLong ? `Message exceeds maximum length of ${MAX_MESSAGE_TEXT_LENGTH} characters.` : null);
   const isDisabledByState = Boolean(sendDisabledReason) || isSending;
+  const isAttachmentDisabled = isDisabledByState || isEncryptedConversation;
   const isRecordingVoice = voiceRecorder.isRecording;
-  const canStartVoice = !isDisabledByState && voiceRecorder.isSupported && !voiceRecorder.draft && attachments.length < MAX_ATTACHMENTS_PER_MESSAGE;
-  const canSend = !isDisabledByState && !isRecordingVoice && !isMessageTooLong && attachmentErrors.length === 0 && (Boolean(trimmedValue) || hasValidAttachments);
+  const hasSendableAttachments = !isEncryptedConversation && hasValidAttachments;
+  const canStartVoice = !isAttachmentDisabled && voiceRecorder.isSupported && !voiceRecorder.draft && attachments.length < MAX_ATTACHMENTS_PER_MESSAGE;
+  const canSend = !isDisabledByState && !isRecordingVoice && !isMessageTooLong && attachmentErrors.length === 0 && (Boolean(trimmedValue) || hasSendableAttachments);
   const uploadFailureCopy = uploadState?.status === 'failed'
     ? uploadState.errorMessage ?? 'Upload failed. Retry before leaving this session.'
     : uploadState?.status === 'aborted'
@@ -149,6 +153,12 @@ const MessageComposer = ({
 
   const validateAndAddFiles = (files: File[]) => {
     const nextErrors: string[] = [];
+
+    if (isEncryptedConversation) {
+      setAttachmentErrors(['Attachments are unavailable in encrypted conversations.']);
+      return;
+    }
+
     const remainingSlots = MAX_ATTACHMENTS_PER_MESSAGE - allAttachments.length;
 
     if (files.length > remainingSlots) {
@@ -260,7 +270,7 @@ const MessageComposer = ({
       <AttachmentTray
         attachments={allAttachments}
         errors={attachmentErrors}
-        disabled={isDisabledByState}
+        disabled={isAttachmentDisabled}
         uploadState={uploadState}
         onCancelUpload={onCancelUpload}
         onRemove={handleRemoveAttachment}
@@ -268,7 +278,7 @@ const MessageComposer = ({
 
       <VoiceRecorderTray
         recorder={voiceRecorder}
-        disabled={isDisabledByState}
+        disabled={isAttachmentDisabled}
       />
 
       <div className="mx-auto flex max-w-[880px] items-center gap-3">
@@ -280,14 +290,14 @@ const MessageComposer = ({
           aria-label="Attach file"
           onChange={handleAttachmentChange}
           accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv,.docx,.xlsx"
-          disabled={isDisabledByState}
+          disabled={isAttachmentDisabled}
         />
         <button
           type="button"
           className="grid h-12 w-12 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:h-10 md:w-10"
           aria-label="Attach file"
-          disabled={isDisabledByState}
-          title="Attach file"
+          disabled={isAttachmentDisabled}
+          title={isEncryptedConversation ? 'Attachments are unavailable in encrypted conversations' : 'Attach file'}
           onClick={() => fileInputRef.current?.click()}
         >
           <Paperclip aria-hidden="true" className="h-6 w-6 md:h-5 md:w-5" />
@@ -299,8 +309,8 @@ const MessageComposer = ({
             onChange={onChange}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder="Write a private message"
-            aria-label="Write a private message"
+            placeholder={isEncryptedConversation ? 'Write an encrypted message' : 'Write a private message'}
+            aria-label={isEncryptedConversation ? 'Write an encrypted message' : 'Write a private message'}
             disabled={Boolean(sendDisabledReason)}
             aria-describedby={currentDisabledReason && showDisabledReason ? composerStatusId : undefined}
             className="chat-input-area block max-h-24 min-h-12 w-full resize-none rounded-[var(--chat-radius-pill)] bg-transparent px-4 py-3.5 text-base leading-5 text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-text-soft)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] md:text-sm"
@@ -335,7 +345,7 @@ const MessageComposer = ({
           className="hidden h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:grid"
           aria-label={voiceRecorder.isRecording ? 'Stop recording voice message' : 'Record voice message'}
           disabled={voiceRecorder.isRecording ? isDisabledByState : !canStartVoice}
-          title={voiceRecorder.isSupported ? 'Record voice message' : 'Voice recording unavailable'}
+          title={isEncryptedConversation ? 'Voice messages are unavailable in encrypted conversations' : voiceRecorder.isSupported ? 'Record voice message' : 'Voice recording unavailable'}
           onClick={() => {
             if (voiceRecorder.isRecording) {
               voiceRecorder.stopRecording();
@@ -369,8 +379,13 @@ const MessageComposer = ({
       </div>
       <div className="mx-auto mt-3 flex max-w-[880px] items-center justify-center gap-2 text-sm text-[var(--chat-text-muted)]">
         <Lock aria-hidden="true" className="h-4 w-4 text-[var(--chat-accent)]" />
-        <span>Authenticated private session</span>
+        <span>{isEncryptedConversation ? 'Encrypted conversation' : 'Authenticated private session'}</span>
       </div>
+      {isEncryptedConversation && (
+        <p className="mx-auto mt-2 max-w-[880px] text-center text-sm text-[var(--chat-text-muted)]" role="status">
+          Attachments and voice messages are unavailable until encrypted upload is supported.
+        </p>
+      )}
       {currentDisabledReason && showDisabledReason && (
         <p id={composerStatusId} className="mx-auto mt-2 max-w-[880px] text-sm text-[var(--chat-warning)]" role="status" aria-live="polite">
           {currentDisabledReason}

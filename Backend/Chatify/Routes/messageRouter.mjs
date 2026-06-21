@@ -5,6 +5,7 @@ import {
   parseMessageAttachments,
   getAllMessages,
   searchMessages,
+  getMessageContext,
   previewAttachment,
   downloadAttachment,
   listSharedAssets,
@@ -26,6 +27,7 @@ const router = Router();
 router.route('/new-message').post(attachmentUploadLimiter, parseMessageAttachments, newMessage)
 router.route('/get-all-messages/:id').get(getAllMessages)
 router.route('/search/:chatId').get(searchMessages)
+router.route('/context/:chatId/:messageId').get(getMessageContext)
 router.route('/batch/unread-counts').post(getBatchUnreadCounts)
 router.route('/attachments/:attachmentId/preview').get(previewAttachment)
 router.route('/attachments/:attachmentId/download').get(downloadAttachment)

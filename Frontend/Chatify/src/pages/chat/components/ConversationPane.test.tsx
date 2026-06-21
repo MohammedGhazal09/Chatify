@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConversationControls } from '../../../types/chat';
-import { makeChat, makeMessage } from '../../../test/chatFixtures';
+import { makeChat, makeMessage, makeSpaceChannel } from '../../../test/chatFixtures';
 import ConversationPane from './ConversationPane';
 
 type ConversationPaneProps = ComponentProps<typeof ConversationPane>;
@@ -27,6 +27,7 @@ const makeConversationPaneProps = (overrides: Partial<ConversationPaneProps> = {
   showConversationDetails: false,
   conversationControls: undefined,
   messageSearch: '',
+  messageSearchFilters: { senderId: null, type: 'all', from: null, to: null },
   messageSearchInputRef: createRef<HTMLInputElement>(),
   messageSearchButtonRef: createRef<HTMLButtonElement>(),
   moreButtonRef: createRef<HTMLButtonElement>(),
@@ -35,6 +36,7 @@ const makeConversationPaneProps = (overrides: Partial<ConversationPaneProps> = {
   isMessageSearchLoading: false,
   isMessageSearchError: false,
   isMessageSearchBelowMinimum: false,
+  jumpingMessageId: null,
   loadedMessageIds: new Set(),
   editingMessageId: null,
   editText: '',
@@ -60,6 +62,7 @@ const makeConversationPaneProps = (overrides: Partial<ConversationPaneProps> = {
   onToggleConversationDetails: vi.fn(),
   onToggleMessageSearch: vi.fn(),
   onMessageSearchChange: vi.fn(),
+  onMessageSearchFiltersChange: vi.fn(),
   onClearMessageSearch: vi.fn(),
   onSelectMessageSearchResult: vi.fn(),
   onExportChat: vi.fn(),
@@ -142,6 +145,65 @@ describe('ConversationPane', () => {
     });
 
     expect(screen.getByRole('textbox', { name: 'Search this conversation' })).toHaveValue('state');
+  });
+
+  it('routes space channels through the existing timeline and composer', () => {
+    const channel = makeSpaceChannel({
+      _id: 'channel-general',
+      channelName: 'general',
+      channelDescription: 'Default channel',
+    });
+
+    renderConversationPane({
+      selectedChat: channel,
+      selectedChatId: channel._id,
+      messages: [makeMessage({ chatId: channel._id, text: 'Channel message' })],
+    });
+
+    expect(screen.getByRole('heading', { name: 'general' })).toBeInTheDocument();
+    expect(screen.getByText('Channel - 2 members')).toBeInTheDocument();
+    expect(screen.getByText('Channel message')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Write a private message' })).toBeInTheDocument();
+  });
+
+  it('explains encrypted search and composer limits without calling server search UI', () => {
+    window.localStorage.clear();
+
+    renderConversationPane({
+      selectedChat: makeChat({ encryptionMode: 'e2ee_v1' }),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'secret',
+    });
+
+    expect(screen.queryByRole('textbox', { name: 'Search this conversation' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Server-side search is unavailable for encrypted conversations/)).toBeInTheDocument();
+    expect(screen.getAllByText('Encrypted conversation').length).toBeGreaterThan(0);
+    expect(screen.getByRole('textbox', { name: 'Write an encrypted message' })).toBeDisabled();
+    expect(screen.getByText('This device needs the conversation secret to send encrypted messages.')).toBeInTheDocument();
+  });
+
+  it('renders advanced search filters and forwards filter changes', async () => {
+    const user = userEvent.setup();
+    const onMessageSearchFiltersChange = vi.fn();
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearchFilters: { senderId: null, type: 'all', from: null, to: null },
+      onMessageSearchFiltersChange,
+    });
+
+    await user.selectOptions(screen.getByLabelText('Search sender filter'), 'user-2');
+    await user.click(screen.getByRole('button', { name: 'Voice' }));
+    await user.type(screen.getByLabelText('Search from date'), '2026-06-01');
+    await user.type(screen.getByLabelText('Search to date'), '2026-06-20');
+
+    expect(onMessageSearchFiltersChange).toHaveBeenCalledWith({ senderId: 'user-2' });
+    expect(onMessageSearchFiltersChange).toHaveBeenCalledWith({ type: 'voice' });
+    expect(onMessageSearchFiltersChange).toHaveBeenCalledWith({ from: '2026-06-01' });
+    expect(onMessageSearchFiltersChange).toHaveBeenCalledWith({ to: '2026-06-20' });
   });
 
   it('announces offline and reconnecting state without hiding the timeline', () => {
@@ -277,7 +339,7 @@ describe('ConversationPane', () => {
     expect(onClearMessageSearch).toHaveBeenCalledTimes(1);
   });
 
-  it('selects only loaded search results as keyboard-operable actions', async () => {
+  it('selects loaded and unloaded search results as keyboard-operable actions', async () => {
     const user = userEvent.setup();
     const onSelectMessageSearchResult = vi.fn();
     const loadedMessage = makeMessage({ _id: 'message-loaded', sender: 'user-2', text: 'Loaded search result' });
@@ -297,8 +359,9 @@ describe('ConversationPane', () => {
     });
 
     await user.click(screen.getByRole('button', { name: /Jump to message from Grace Hopper .*Loaded search result/ }));
+    await user.click(screen.getByRole('button', { name: /Jump to message from You .*Older unloaded result/ }));
 
     expect(onSelectMessageSearchResult).toHaveBeenCalledWith(loadedMessage);
-    expect(screen.queryByRole('button', { name: /Older unloaded result/ })).not.toBeInTheDocument();
+    expect(onSelectMessageSearchResult).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-older' }));
   });
 });

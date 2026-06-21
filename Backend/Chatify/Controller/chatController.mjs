@@ -18,10 +18,22 @@ import {
   unblockDirectChatPeer,
 } from "../Utils/conversationControls.mjs";
 import {
+  buildDirectChatKey,
+  normalizeChatEncryptionMode,
+} from "../Utils/encryptionMode.mjs";
+import {
+  buildConversationOrganizationState,
+  getConversationOrganizationMap,
+  normalizeConversationOrganizationPatch,
+  sortSerializedChatsForRequester,
+  updateConversationOrganization,
+} from "../Utils/conversationOrganization.mjs";
+import {
   buildVisibleMessageFilter,
   MESSAGE_CURSOR_SORT_DESC,
   serializeMessage,
 } from "../Utils/messageState.mjs";
+import { serializeNotificationPreferences } from "../Utils/notificationPreferences.mjs";
 import { logger } from "../Utils/observabilityLogger.mjs";
 
 const projectLatestVisibleMessage = async (chatId, requesterId) => {
@@ -39,19 +51,35 @@ const GROUP_MEMBER_MIN = 3;
 const GROUP_MEMBER_MAX = 10;
 const GROUP_SELECTED_MIN = GROUP_MEMBER_MIN - 1;
 const GROUP_SELECTED_MAX = GROUP_MEMBER_MAX - 1;
-const PUBLIC_CHAT_MEMBER_SELECT = "username firstName lastName profilePic identityMark identityMarkUpdatedAt";
-
-const buildDirectChatKey = (leftMemberId, rightMemberId) => [leftMemberId.toString(), rightMemberId.toString()]
-  .sort()
-  .join(":");
+const PUBLIC_CHAT_MEMBER_SELECT = "username firstName lastName profilePic profileBio identityMark identityMarkUpdatedAt";
 
 const isDuplicateKeyError = (error) => error?.code === 11000;
 
-const findDirectChat = (directKey, memberIds = []) => Chats.findOne({
+const buildDirectEncryptionModeFilter = (encryptionMode) => {
+  const normalizedEncryptionMode = normalizeChatEncryptionMode(encryptionMode);
+
+  if (normalizedEncryptionMode === "standard") {
+    return {
+      $or: [
+        { encryptionMode: "standard" },
+        { encryptionMode: { $exists: false } },
+      ],
+    };
+  }
+
+  return { encryptionMode: normalizedEncryptionMode };
+};
+
+const findDirectChat = (directKey, memberIds = [], encryptionMode) => Chats.findOne({
   isGroupChat: false,
-  $or: [
-    { directKey },
-    { members: { $all: memberIds } },
+  $and: [
+    buildDirectEncryptionModeFilter(encryptionMode),
+    {
+      $or: [
+        { directKey },
+        { members: { $all: memberIds } },
+      ],
+    },
   ],
 })
   .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
@@ -66,16 +94,42 @@ const populateChatPublicFields = async (chat) => {
   return chat;
 };
 
-const serializeChatForRequester = async (chat, requesterId, latestMessage = undefined) => {
+const loadOrganizationContextForRequester = async (requesterId, chatIds) => {
+  const [requester, organizationByChatId] = await Promise.all([
+    User.findById(requesterId).select('notificationPreferences.mutedChatIds').lean(),
+    getConversationOrganizationMap({ userId: requesterId, chatIds }),
+  ]);
+
+  return {
+    mutedChatIds: serializeNotificationPreferences(requester).mutedChatIds,
+    organizationByChatId,
+  };
+};
+
+const serializeChatForRequester = async (
+  chat,
+  requesterId,
+  latestMessage = undefined,
+  organizationContext = null
+) => {
   const chatObject = chat.toObject?.() ?? chat;
   const projectedLatestMessage = latestMessage === undefined
     ? await projectLatestVisibleMessage(chatObject._id, requesterId)
     : latestMessage;
+  const resolvedOrganizationContext = organizationContext
+    ?? await loadOrganizationContextForRequester(requesterId, [chatObject._id]);
+  const chatId = chatObject._id?.toString?.() ?? chatObject._id;
 
   return {
     ...chatObject,
+    encryptionMode: normalizeChatEncryptionMode(chatObject.encryptionMode),
     latestMessage: projectedLatestMessage,
     conversationControls: await buildConversationControls({ chat, userId: requesterId }),
+    organizationState: buildConversationOrganizationState({
+      chatId,
+      organization: resolvedOrganizationContext.organizationByChatId.get(chatId),
+      mutedChatIds: resolvedOrganizationContext.mutedChatIds,
+    }),
   };
 };
 
@@ -109,6 +163,7 @@ const loadChatForRequester = async ({ chatId, requesterId, next }) => {
 
   const chat = await Chats.findById(chatId)
     .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
+    .populate("groupAdmin", PUBLIC_CHAT_MEMBER_SELECT)
     .populate("latestMessage");
 
   if (!chat) {
@@ -213,7 +268,7 @@ const resolveGroupMembers = async ({ memberUsernames, requesterId }) => {
   }
 
   const users = await User.find({ username: { $in: usernameValidation.value } })
-    .select("username firstName lastName profilePic identityMark identityMarkUpdatedAt");
+    .select(PUBLIC_CHAT_MEMBER_SELECT);
   const usersByUsername = new Map(users.map((user) => [user.username, user]));
   const orderedUsers = usernameValidation.value.map((username) => usersByUsername.get(username));
 
@@ -256,6 +311,7 @@ const resolveGroupMembers = async ({ memberUsernames, requesterId }) => {
 
 export const createChat = asyncErrHandler(async (req, res, next) => {
   const { targetUsername, chatName } = req.body ?? {};
+  const encryptionMode = normalizeChatEncryptionMode(req.body?.encryptionMode);
   const requesterId = req.userId?.toString();
 
   if (!requesterId) {
@@ -288,9 +344,9 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
   }
 
   const members = [requesterId, targetUser._id];
-  const directKey = buildDirectChatKey(requesterId, targetUser._id);
+  const directKey = buildDirectChatKey(members, encryptionMode);
 
-  const existingChat = await findDirectChat(directKey, members);
+  const existingChat = await findDirectChat(directKey, members, encryptionMode);
 
   if (existingChat) {
     return respondWithExistingDirectChat(res, existingChat, requesterId);
@@ -299,6 +355,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
   const payload = {
     members,
     directKey,
+    encryptionMode,
     isGroupChat: false,
   };
 
@@ -315,7 +372,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
       throw error;
     }
 
-    const duplicateChat = await findDirectChat(directKey, members);
+    const duplicateChat = await findDirectChat(directKey, members, encryptionMode);
 
     if (!duplicateChat) {
       throw error;
@@ -356,6 +413,7 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
 
 export const createGroupChat = asyncErrHandler(async (req, res, next) => {
   const requesterId = req.userId?.toString();
+  const encryptionMode = normalizeChatEncryptionMode(req.body?.encryptionMode);
 
   if (!requesterId) {
     return next(new CustomError("Not authorized to access this route", 401));
@@ -380,6 +438,7 @@ export const createGroupChat = asyncErrHandler(async (req, res, next) => {
     chatName: groupNameValidation.value,
     members: memberResolution.memberIds,
     isGroupChat: true,
+    encryptionMode,
     groupAdmin: requesterId,
   });
 
@@ -419,18 +478,79 @@ export const createGroupChat = asyncErrHandler(async (req, res, next) => {
 });
 
 export const getAllChats = asyncErrHandler(async (req, res, next) => {
-  const chats = await Chats.find({ members: { $in: [req.userId] } })
+  const chats = await Chats.find({
+    members: { $in: [req.userId] },
+    isSpaceChannel: { $ne: true },
+  })
     .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
     .populate("groupAdmin", PUBLIC_CHAT_MEMBER_SELECT)
     .sort({ updatedAt: -1 });
+  const organizationContext = await loadOrganizationContextForRequester(
+    req.userId,
+    chats.map((chat) => chat._id)
+  );
   const projectedChats = await Promise.all(chats.map(async (chat) => {
-    return serializeChatForRequester(chat, req.userId);
+    return serializeChatForRequester(chat, req.userId, undefined, organizationContext);
   }));
 
   res.status(200).json({
     status: "success",
     data: {
-      chats: projectedChats,
+      chats: sortSerializedChatsForRequester(projectedChats),
+    },
+  });
+});
+
+export const updateChatOrganization = asyncErrHandler(async (req, res, next) => {
+  const { chatId } = req.params;
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const chat = await loadChatForRequester({ chatId, requesterId, next });
+
+  if (!chat) {
+    return;
+  }
+
+  const patch = normalizeConversationOrganizationPatch(req.body ?? {});
+
+  if (!patch.ok) {
+    return next(new CustomError(patch.message, patch.statusCode));
+  }
+
+  await Promise.all([
+    updateConversationOrganization({
+      userId: requesterId,
+      chatId: chat._id,
+      set: patch.set,
+    }),
+    patch.muted === undefined
+      ? Promise.resolve()
+      : User.updateOne(
+        { _id: requesterId },
+        patch.muted
+          ? { $addToSet: { 'notificationPreferences.mutedChatIds': chat._id } }
+          : { $pull: { 'notificationPreferences.mutedChatIds': chat._id } }
+      ),
+  ]);
+
+  const organizationContext = await loadOrganizationContextForRequester(requesterId, [chat._id]);
+  const serializedChat = await serializeChatForRequester(chat, requesterId, undefined, organizationContext);
+
+  emitToUserSockets(requesterId, 'conversation:organization-updated', {
+    chatId: chat._id.toString(),
+    organizationState: serializedChat.organizationState,
+    chat: serializedChat,
+  });
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      chat: serializedChat,
+      organizationState: serializedChat.organizationState,
     },
   });
 });

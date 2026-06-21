@@ -18,6 +18,7 @@ interface MenuHarnessProps {
   activeActionsDisabled?: boolean;
   activeActionsDisabledReason?: string | null;
   isOwn?: boolean;
+  message?: ReturnType<typeof makeMessage>;
 }
 
 const MenuHarness = ({
@@ -32,12 +33,11 @@ const MenuHarness = ({
   activeActionsDisabled = false,
   activeActionsDisabledReason = null,
   isOwn = true,
+  message = makeMessage({ _id: 'message-1', text: 'Copy me' }),
 }: MenuHarnessProps) => {
   const [contextMenu, setContextMenu] = useState<MessageContextMenuState | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
-  const message = makeMessage({ _id: 'message-1', text: 'Copy me' });
-
   const closeMenu = () => {
     setContextMenu(null);
     triggerRef.current?.focus();
@@ -200,5 +200,35 @@ describe('MessageActionMenu', () => {
 
     expect(onReportMessage).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
     expect(onDelete).toHaveBeenCalledWith(false);
+  });
+
+  it('keeps edit disabled for encrypted messages while copy stays available', async () => {
+    const user = userEvent.setup();
+    const onReaction = vi.fn();
+    const onStartEdit = vi.fn();
+    const onCopy = vi.fn();
+
+    render(
+      <MenuHarness
+        onReaction={onReaction}
+        onStartEdit={onStartEdit}
+        onCopy={onCopy}
+        message={makeMessage({
+          _id: 'message-1',
+          text: '',
+          messageType: 'encrypted',
+          encryptionMode: 'e2ee_v1',
+          decryptedText: 'Readable encrypted text',
+        })}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Open message actions' }));
+
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Copy' }));
+
+    expect(onStartEdit).not.toHaveBeenCalled();
+    expect(onCopy).toHaveBeenCalledWith(expect.objectContaining({ decryptedText: 'Readable encrypted text' }));
   });
 });

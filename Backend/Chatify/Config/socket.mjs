@@ -4,6 +4,7 @@ import User from '../Models/userModel.mjs'
 import Message from '../Models/messageModel.mjs'
 import Chats from '../Models/chatModel.mjs'
 import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
+import { assertActiveSessionClaim } from '../Utils/sessionMetadata.mjs'
 import { assertChatMember, assertMessageChatMember, normalizeObjectId } from '../Utils/chatAccess.mjs'
 import { getCallIceConfig } from '../Utils/callIceConfig.mjs'
 import { logger } from '../Utils/observabilityLogger.mjs'
@@ -488,7 +489,7 @@ const respondSocketSuccess = (event, data = {}) => ({
   ...data,
 })
 
-const authenticateSocket = (socket, next) => {
+const authenticateSocket = async (socket, next) => {
   const token = readAccessTokenFromCookieHeader(socket.handshake.headers.cookie)
 
   if (!token) {
@@ -496,8 +497,11 @@ const authenticateSocket = (socket, next) => {
   }
 
   try {
-    const { userId } = verifyAccessToken(token)
+    const { userId, decoded } = verifyAccessToken(token)
+    const sessionId = decoded.sessionId?.toString?.() ?? null
+    await assertActiveSessionClaim({ sessionId, userId })
     socket.data.userId = userId
+    socket.data.sessionId = sessionId
     next()
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
@@ -526,12 +530,14 @@ const getUserChatRooms = async (userId) => {
 const formatUserStatus = (user, isOnline, lastSeen = null) => {
   const isVisibleOnline = user.showOnlineStatus !== false && isOnline === true
   const isCallReachable = isVisibleOnline && getUserSockets(user._id).size > 0
+  const isVisibleProfileStatus = user.showProfileStatus !== false
   const payload = {
     userId: user._id.toString(),
     username: user.username ?? '',
     userName: `${user.firstName} ${user.lastName || ''}`.trim(),
     isOnline: isVisibleOnline,
     isCallReachable,
+    profileStatus: isVisibleProfileStatus ? user.profileStatus ?? '' : '',
   }
 
   if (!isVisibleOnline && user.showLastSeen !== false && lastSeen) {
@@ -570,7 +576,7 @@ const getAuthorizedPresenceSnapshot = async (userId) => {
 
   const contacts = await User.find({
     _id: { $in: contactIds },
-  }).select('username firstName lastName isOnline lastSeen showOnlineStatus showLastSeen')
+  }).select('username firstName lastName isOnline lastSeen showOnlineStatus showLastSeen showProfileStatus profileStatus')
 
   return contacts.map(contact => formatUserStatus(
     contact,
@@ -580,12 +586,12 @@ const getAuthorizedPresenceSnapshot = async (userId) => {
 }
 
 // Helper to broadcast user status to authorized contacts only.
-const broadcastUserStatus = async (userId, isOnline, lastSeen = null) => {
+export const broadcastUserStatus = async (userId, isOnline, lastSeen = null) => {
   try {
-    const user = await User.findById(userId).select('username firstName lastName showOnlineStatus')
+    const user = await User.findById(userId).select('username firstName lastName showOnlineStatus showLastSeen showProfileStatus profileStatus')
     
-    if (!user || !user.showOnlineStatus) {
-      return // User has privacy enabled, don't broadcast
+    if (!user) {
+      return
     }
 
     const statusPayload = formatUserStatus(user, isOnline, lastSeen)

@@ -1,5 +1,6 @@
 import type { User } from '../types/auth';
 import type { AttachmentSummary, Chat, Message, PinnedMessage, SharedAsset } from '../types/chat';
+import type { Space, SpaceChannel } from '../types/space';
 
 export const makeUser = (overrides: Partial<User> = {}): User => ({
   _id: 'user-1',
@@ -96,6 +97,61 @@ export const makeChat = (overrides: Partial<Chat> = {}): Chat => ({
   chatName: undefined,
   isGroupChat: false,
   latestMessage: null,
+  createdAt: '2026-06-08T09:00:00.000Z',
+  updatedAt: '2026-06-08T10:00:00.000Z',
+  ...overrides,
+});
+
+export const makeSpaceChannel = (overrides: Partial<SpaceChannel> = {}): SpaceChannel => ({
+  ...makeChat({
+    _id: 'channel-1',
+    chatName: 'general',
+    isGroupChat: true,
+    isSpaceChannel: true,
+    space: 'space-1',
+    spaceId: 'space-1',
+    channelName: 'general',
+    channelKey: 'general',
+    channelDescription: 'Default channel',
+  }),
+  id: 'channel-1',
+  isGroupChat: true,
+  isSpaceChannel: true,
+  space: 'space-1',
+  spaceId: 'space-1',
+  channelName: 'general',
+  channelKey: 'general',
+  channelDescription: 'Default channel',
+  ...overrides,
+});
+
+export const makeSpace = (overrides: Partial<Space> = {}): Space => ({
+  _id: 'space-1',
+  id: 'space-1',
+  name: 'Launch Room',
+  description: 'Planning and decisions',
+  owner: 'user-1',
+  createdBy: 'user-1',
+  requesterRole: 'owner',
+  canManage: true,
+  members: [
+    {
+      userId: 'user-1',
+      role: 'owner',
+      joinedAt: '2026-06-08T09:00:00.000Z',
+      user: makeUser({ _id: 'user-1', username: 'ada.lovelace' }),
+    },
+    {
+      userId: 'user-2',
+      role: 'member',
+      joinedAt: '2026-06-08T09:05:00.000Z',
+      user: makeUser({ _id: 'user-2', username: 'grace.hopper', firstName: 'Grace', lastName: 'Hopper' }),
+    },
+  ],
+  memberCount: 2,
+  defaultChannel: 'channel-1',
+  defaultChannelId: 'channel-1',
+  channels: [makeSpaceChannel()],
   createdAt: '2026-06-08T09:00:00.000Z',
   updatedAt: '2026-06-08T10:00:00.000Z',
   ...overrides,

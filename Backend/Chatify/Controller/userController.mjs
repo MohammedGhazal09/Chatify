@@ -7,6 +7,7 @@ import multer from 'multer'
 import { randomUUID } from 'node:crypto'
 import {
   emitToUserSockets,
+  broadcastUserStatus,
   isUserOnline as hasActiveSocket,
 } from '../Config/socket.mjs'
 import {
@@ -31,8 +32,16 @@ import {
   validateUsername,
 } from '../Utils/usernameValidation.mjs'
 import { filterUnblockedContactIds } from '../Utils/conversationControls.mjs'
+import {
+  normalizeNotificationPreferencePatch,
+  normalizePushSubscriptionPayload,
+  serializeNotificationPreferences,
+  hashPushEndpoint,
+} from '../Utils/notificationPreferences.mjs'
+import { normalizeProfilePatch } from '../Utils/profileFields.mjs'
 
 const PROFILE_IMAGE_NOT_FOUND = 'Profile image not found';
+const PUBLIC_PROFILE_SELECT = 'username firstName lastName profilePic profileBio profileStatus showProfileStatus identityMark identityMarkUpdatedAt';
 
 const profileImageUpload = multer({
   storage: multer.memoryStorage(),
@@ -85,6 +94,7 @@ const serializeProfileImageUser = (user) => user.toJSON();
 
 const serializePublicIdentityUser = (user) => {
   const serializedUser = serializeIdentityUser(user);
+  const showProfileStatus = user.showProfileStatus !== false;
 
   return {
     _id: serializedUser._id?.toString?.() ?? serializedUser._id,
@@ -92,6 +102,8 @@ const serializePublicIdentityUser = (user) => {
     firstName: serializedUser.firstName,
     lastName: serializedUser.lastName,
     profilePic: serializedUser.profilePic ?? '',
+    profileBio: serializedUser.profileBio ?? '',
+    profileStatus: showProfileStatus ? serializedUser.profileStatus ?? '' : '',
     identityMark: serializedUser.identityMark,
     identityMarkUpdatedAt: serializedUser.identityMarkUpdatedAt ?? null,
   };
@@ -207,6 +219,36 @@ export const getLoggedUser = asyncErrHandler(async (req, res, next) => {
   });
 })
 
+export const updateProfile = asyncErrHandler(async (req, res, next) => {
+  const normalizedPatch = normalizeProfilePatch(req.body ?? {});
+
+  if (!normalizedPatch.ok) {
+    return res.status(normalizedPatch.statusCode).json({
+      status: 'fail',
+      code: normalizedPatch.code,
+      message: normalizedPatch.message,
+    });
+  }
+
+  const user = await User.findById(req.userId);
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  Object.assign(user, normalizedPatch.value);
+  await user.save();
+  await emitIdentityUpdated(user);
+  await broadcastUserStatus(user._id, hasActiveSocket(user._id), user.lastSeen ?? null);
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      user: user.toJSON(),
+    },
+  });
+});
+
 export const setUsername = asyncErrHandler(async (req, res, next) => {
   const validation = validateUsername(req.body?.username);
 
@@ -258,9 +300,12 @@ export const setUsername = asyncErrHandler(async (req, res, next) => {
 });
 
 export const getAllUsers = asyncErrHandler(async (req, res, next) => {
-  const contactIds = await getContactIdsForUser(req.userId);
+  const contactIds = await filterUnblockedContactIds({
+    userId: req.userId,
+    contactIds: await getContactIdsForUser(req.userId),
+  });
   const users = await User.find({ _id: { $in: contactIds } })
-    .select('username firstName lastName profilePic identityMark identityMarkUpdatedAt')
+    .select(PUBLIC_PROFILE_SELECT)
 
   res.status(200).json({
     status: 'success',
@@ -280,7 +325,7 @@ export const lookupUserByUsername = asyncErrHandler(async (req, res, next) => {
   }
 
   const user = await User.findOne({ username: validation.value })
-    .select('username firstName lastName profilePic identityMark identityMarkUpdatedAt')
+    .select(PUBLIC_PROFILE_SELECT)
 
   if (!user) {
     return next(new CustomError('User not found', 404));
@@ -302,7 +347,7 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError('Invalid user id', 400));
   }
 
-  const user = await User.findById(userId).select('username isOnline lastSeen showOnlineStatus showLastSeen firstName lastName profilePic identityMark identityMarkUpdatedAt');
+  const user = await User.findById(userId).select(`isOnline lastSeen showOnlineStatus showLastSeen ${PUBLIC_PROFILE_SELECT}`);
 
   if (!user) {
     return next(new CustomError('User not found', 404));
@@ -324,6 +369,8 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
     firstName: user.firstName,
     lastName: user.lastName,
     profilePic: user.profilePic,
+    profileBio: user.profileBio ?? '',
+    profileStatus: user.showProfileStatus !== false ? user.profileStatus ?? '' : '',
     identityMark: serializeIdentityMark(user),
     identityMarkUpdatedAt: serializeIdentityMark(user).updatedAt,
   };
@@ -345,12 +392,15 @@ export const getOnlineStatus = asyncErrHandler(async (req, res, next) => {
 // Get online users (contacts/chat members only)
 export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
   const userId = req.userId;
-  const contactIds = await getContactIdsForUser(userId);
+  const contactIds = await filterUnblockedContactIds({
+    userId,
+    contactIds: await getContactIdsForUser(userId),
+  });
 
   // Get online status for all contacts
   const contacts = await User.find({
     _id: { $in: contactIds },
-  }).select('username firstName lastName isOnline lastSeen showOnlineStatus showLastSeen profilePic identityMark identityMarkUpdatedAt');
+  }).select(`isOnline lastSeen showOnlineStatus showLastSeen ${PUBLIC_PROFILE_SELECT}`);
 
   const onlineUsers = contacts
     .filter(user => user.showOnlineStatus && user.isOnline)
@@ -360,6 +410,8 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       profilePic: user.profilePic,
+      profileBio: user.profileBio ?? '',
+      profileStatus: user.showProfileStatus !== false ? user.profileStatus ?? '' : '',
       identityMark: serializeIdentityMark(user),
       identityMarkUpdatedAt: serializeIdentityMark(user).updatedAt,
       isOnline: true,
@@ -373,6 +425,8 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       profilePic: user.profilePic,
+      profileBio: user.profileBio ?? '',
+      profileStatus: user.showProfileStatus !== false ? user.profileStatus ?? '' : '',
       identityMark: serializeIdentityMark(user),
       identityMarkUpdatedAt: serializeIdentityMark(user).updatedAt,
     };
@@ -400,7 +454,7 @@ export const getOnlineUsers = asyncErrHandler(async (req, res, next) => {
 
 // Update user privacy settings
 export const updatePrivacySettings = asyncErrHandler(async (req, res, next) => {
-  const { showOnlineStatus, showLastSeen } = req.body;
+  const { showOnlineStatus, showLastSeen, showProfileStatus } = req.body;
 
   const updateData = {};
   if (typeof showOnlineStatus === 'boolean') {
@@ -408,6 +462,9 @@ export const updatePrivacySettings = asyncErrHandler(async (req, res, next) => {
   }
   if (typeof showLastSeen === 'boolean') {
     updateData.showLastSeen = showLastSeen;
+  }
+  if (typeof showProfileStatus === 'boolean') {
+    updateData.showProfileStatus = showProfileStatus;
   }
 
   const user = await User.findByIdAndUpdate(
@@ -420,11 +477,158 @@ export const updatePrivacySettings = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError('User not found', 404));
   }
 
+  await emitIdentityUpdated(user);
+  await broadcastUserStatus(user._id, hasActiveSocket(user._id), user.lastSeen ?? null);
+
   res.status(200).json({
     status: 'success',
     data: {
       showOnlineStatus: user.showOnlineStatus,
       showLastSeen: user.showLastSeen,
+      showProfileStatus: user.showProfileStatus,
+    },
+  });
+});
+
+export const getNotificationPreferences = asyncErrHandler(async (req, res, next) => {
+  const user = await User.findById(req.userId).select('notificationPreferences')
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      preferences: serializeNotificationPreferences(user),
+    },
+  });
+});
+
+export const updateNotificationPreferences = asyncErrHandler(async (req, res, next) => {
+  const normalizedPatch = normalizeNotificationPreferencePatch(req.body ?? {});
+
+  if (!normalizedPatch.ok) {
+    return res.status(normalizedPatch.statusCode).json({
+      status: 'fail',
+      message: normalizedPatch.message,
+    });
+  }
+
+  const update = Object.keys(normalizedPatch.set).length > 0
+    ? { $set: normalizedPatch.set }
+    : {};
+
+  if (normalizedPatch.set['notificationPreferences.emailNotificationsEnabled'] === true) {
+    update.$unset = {
+      'notificationPreferences.emailUnsubscribedAt': '',
+    };
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.userId,
+    update,
+    { new: true, runValidators: true }
+  ).select('notificationPreferences');
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      preferences: serializeNotificationPreferences(user),
+    },
+  });
+});
+
+export const registerPushSubscription = asyncErrHandler(async (req, res, next) => {
+  const normalizedSubscription = normalizePushSubscriptionPayload(req.body ?? {});
+
+  if (!normalizedSubscription.ok) {
+    return res.status(normalizedSubscription.statusCode).json({
+      status: 'fail',
+      message: normalizedSubscription.message,
+    });
+  }
+
+  const user = await User.findById(req.userId)
+    .select('notificationPreferences');
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  const subscription = normalizedSubscription.subscription;
+  const currentSubscriptions = user.notificationPreferences?.pushSubscriptions ?? [];
+  user.notificationPreferences ??= {};
+  user.notificationPreferences.pushSubscriptions = [
+    ...currentSubscriptions.filter((candidate) => candidate.endpointHash !== subscription.endpointHash),
+    subscription,
+  ];
+  user.notificationPreferences.pushEnabled = true;
+  await user.save();
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      preferences: serializeNotificationPreferences(user),
+    },
+  });
+});
+
+export const removePushSubscription = asyncErrHandler(async (req, res, next) => {
+  const endpoint = typeof req.body?.endpoint === 'string' ? req.body.endpoint.trim() : '';
+
+  if (!endpoint) {
+    return res.status(400).json({
+      status: 'fail',
+      message: 'Push endpoint is required',
+    });
+  }
+
+  const user = await User.findById(req.userId)
+    .select('notificationPreferences');
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  const endpointHash = hashPushEndpoint(endpoint);
+  user.notificationPreferences ??= {};
+  user.notificationPreferences.pushSubscriptions = (user.notificationPreferences.pushSubscriptions ?? [])
+    .filter((subscription) => subscription.endpointHash !== endpointHash);
+  await user.save();
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      preferences: serializeNotificationPreferences(user),
+    },
+  });
+});
+
+export const unsubscribeNotificationEmail = asyncErrHandler(async (req, res, next) => {
+  const user = await User.findByIdAndUpdate(
+    req.userId,
+    {
+      $set: {
+        'notificationPreferences.emailNotificationsEnabled': false,
+        'notificationPreferences.emailUnsubscribedAt': new Date(),
+      },
+    },
+    { new: true, runValidators: true }
+  ).select('notificationPreferences');
+
+  if (!user) {
+    return next(new CustomError('User not found', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      preferences: serializeNotificationPreferences(user),
     },
   });
 });

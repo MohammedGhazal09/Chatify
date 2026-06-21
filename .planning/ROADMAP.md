@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and now remediate production-live gaps that proved fixture-backed tests were not enough, including duplicate sends and missing realtime delivery. After the core reconstruction, the roadmap closes release readiness, operational supportability, and product polish without hiding unresolved production or security blockers. The next v2 feature chain promotes group messaging by first introducing unique public usernames, then replacing email-based discovery with username-based contact flows, then adding private groups capped at 10 members.
+Chatify v1.0 reconstructs the existing chat app into a trustworthy real-time messenger. The roadmap moves vertically: first make security and tests block risky work, then authenticate realtime communication, then rebuild message state, then reconstruct the chat UI, then finish the messenger baseline features, then lock reference-driven visual parity across desktop and mobile light/dark variants, then restore full product behavior behind the reference UI, implement real media/detail surfaces, enforce an interaction quality gate, and remediate production-live gaps that proved fixture-backed tests were not enough. After the core reconstruction, the roadmap closes release readiness, operational supportability, group messaging, safety, moderation, and platform-design work without hiding unresolved production or security blockers. The next expansion chain turns the deferred feature recommendations into concrete GSD phases: notification runtime, conversation organization, advanced search, device/session management, opt-in encrypted conversations, richer profiles and presence, bounded spaces, data privacy controls, moderation operations, and localization/RTL.
 
 ## Phases
 
@@ -45,6 +45,16 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 29: Privacy And Encryption Design Spike** - Decide E2EE tradeoffs, key-management, and migration scope before implementation. (design complete 2026-06-19)
 - [x] **Phase 30: External Notifications And Platform Expansion** - Design opt-in notifications, bounded spaces, bots, and integrations. (design complete 2026-06-19)
 - [x] **Phase 31: Admin Moderation UI And Enforcement Workflow** - Build the protected reviewer workspace and enforcement workflow on top of Phase 28. (completed 2026-06-19)
+- [x] **Phase 32: Server-Side Push And Email Notification Runtime** - Implement opt-in push/email delivery with privacy-safe templates, outbox processing, and delivery observability. (completed 2026-06-20)
+- [x] **Phase 33: Conversation Organization And Focus Controls** - Add mute, archive, pin, favorite, unread, and focus filters across direct and group conversations. (completed 2026-06-20)
+- [x] **Phase 34: Advanced Message And Asset Search** - Add scoped search filters for sender, date, media, files, links, voice messages, and jump-to-message navigation. (completed 2026-06-20)
+- [x] **Phase 35: Session And Device Management** - Let users inspect active sessions and devices, revoke sessions, and understand suspicious session activity. (completed 2026-06-20)
+- [x] **Phase 36: Opt-In Encrypted Conversation Mode** - Implement the Phase 29 E2EE decision as a separate opt-in conversation mode without weakening standard conversations. (completed 2026-06-20)
+- [x] **Phase 37: Rich Profiles And Presence Privacy** - Add profile bios/status and user-controlled presence visibility without leaking private identity data. (completed 2026-06-20)
+- [x] **Phase 38: Bounded Spaces And Channels** - Add small private spaces/channels as a conservative community extension on top of trusted group behavior. (completed 2026-06-21)
+- [x] **Phase 39: Data Privacy Controls And Account Portability** - Add export, deletion, retention, and account portability controls with auditable privacy behavior. (completed 2026-06-21)
+- [x] **Phase 40: Moderation Appeals And Reviewer Operations** - Extend moderation with appeals, assignments, enforcement history, and operational review analytics. (completed 2026-06-21)
+- [x] **Phase 41: Localization And RTL Experience** - Add English/Arabic localization, RTL layout support, and bilingual verification gates. (completed 2026-06-21)
 
 ## Phase Details
 
@@ -1083,3 +1093,220 @@ Plans:
 - Start with report triage, notes, status, and scoped enforcement; broad tenant/admin operations remain out of scope.
 - Admin UI must not expose private email addresses or raw report internals unless a later policy explicitly authorizes them.
 - Execution must be inline in the current Codex thread; do not use subagents.
+
+### Phase 32: Server-Side Push And Email Notification Runtime
+
+**Goal:** Users can opt into privacy-safe push and email notifications for new activity, with delivery controlled by server-side preferences, queue/outbox processing, mute/block state, unsubscribe controls, and observable provider outcomes.
+**Requirements**: V2-NOTF-01, V2-NOTF-02, V2-NOTF-03, V2-PLAT-03, SEC-02, BLOCK-02, TEST-05, PROD-04
+**Depends on:** Phase 31
+**Plans:** 3/3 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Users can opt into and out of push and email notifications per supported preference without exposing private message content by default.
+  2. Notification delivery respects mute, block, session, group, unsubscribe, and future E2EE constraints before enqueueing.
+  3. Server-side outbox jobs retry safely, rate-limit provider calls, and record sanitized delivery outcomes.
+  4. Templates use generic privacy-safe copy unless an explicit preview preference is enabled.
+  5. Production and local verification prove notification behavior without committing provider secrets or private payloads.
+
+Plans:
+
+- [x] 32-01 Backend Preferences And Outbox Contract
+- [x] 32-02 Provider Worker And Sanitized Delivery Outcomes
+- [x] 32-03 Frontend Settings Integration And Evidence
+
+### Phase 33: Conversation Organization And Focus Controls
+
+**Goal:** Users can organize busy direct and group conversation lists with mute, archive, pin, favorite, unread-only, and type-based focus controls while preserving delivery, unread, notification, and search correctness.
+**Requirements**: V2-ORG-01, V2-ORG-02, V2-NOTF-03, BLOCK-02, BASE-01, BASE-05, TEST-03, TEST-05
+**Depends on:** Phase 32
+**Plans:** 3/3 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Conversation mute, archive, pin, and favorite state persists per user and does not affect other participants.
+  2. Sidebar filters support unread, direct, group, archived, and favorite views without losing selected conversation context.
+  3. Muted and archived conversations still receive messages correctly while notification and badge behavior reflects user preferences.
+  4. Search and conversation ordering remain deterministic across refresh, reconnect, and mobile drawer flows.
+  5. Frontend and backend tests cover per-user organization state and realtime update edge cases.
+
+Plans:
+
+- [x] 33-01 Backend Organization Contract
+- [x] 33-02 Frontend Focus Controls And Continuity
+- [x] 33-03 Review, Verification, And Traceability
+
+### Phase 34: Advanced Message And Asset Search
+
+**Goal:** Users can find messages and assets with sender, date, media/file/link/voice, and conversation-scope filters, then jump to the matching message without violating membership or attachment authorization boundaries.
+**Requirements**: V2-SEARCH-01, V2-SEARCH-02, MSG-03, MEDIA-02, BASE-02, TEST-03, TEST-05
+**Depends on:** Phase 33
+**Plans:** 3/3 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Search supports sender, date range, text, media, file, link, and voice filters within authorized conversations.
+  2. Results can jump to the matching message while loading nearby history without duplicate or missing messages.
+  3. Deleted-for-self messages, blocked contexts, private attachments, and unauthorized conversations stay excluded.
+  4. Search performance remains bounded through indexed queries or documented pagination limits.
+  5. Browser and request tests cover direct, group, media, and empty-result search behavior.
+
+Plans:
+
+- [x] 34-01 Backend Search Contract And Jump Context
+- [x] 34-02 Frontend Filters And Jump-To-Result
+- [x] 34-03 Review, Verification, And Traceability
+
+### Phase 35: Session And Device Management
+
+**Goal:** Users can inspect active sessions and devices, revoke sessions, log out everywhere, and understand recent session activity through privacy-preserving account security surfaces.
+**Requirements**: V2-SESS-01, V2-SESS-02, V2-SESS-03, AUTH-01, AUTH-02, SEC-02, TEST-01, TEST-03
+**Depends on:** Phase 34
+**Plans:** 4/4 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Session records expose safe device labels, approximate last active time, creation time, and current-session state.
+  2. Users can revoke individual sessions and log out everywhere without breaking CSRF, refresh, or OAuth safety controls.
+  3. Revoked sessions lose HTTP and Socket.IO access predictably and reconcile across tabs.
+  4. Suspicious-session notices avoid leaking sensitive IP, token, cookie, or user-agent details.
+  5. Backend and frontend tests cover revocation, refresh failure, active-session listing, and multi-tab state.
+
+Plans:
+
+- [x] 35-01 Backend Session Inventory And Revocation
+- [x] 35-02 Session-Bound HTTP And Socket Auth
+- [x] 35-03 Frontend Session Management UI
+- [x] 35-04 Review, Verification, And Traceability
+
+### Phase 36: Opt-In Encrypted Conversation Mode
+
+**Goal:** Users can create opt-in encrypted conversations that use separate encrypted payload and attachment handling, clear recovery tradeoffs, generic notifications, and honest limitations for search, moderation, and lost-device recovery.
+**Requirements**: V2-E2EE-01, V2-E2EE-02, V2-E2EE-03, V2-E2EE-04, SEC-01, SEC-02, MSG-03, MSG-04, MEDIA-02, TEST-02
+**Depends on:** Phase 35
+**Plans:** 4/4 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Encrypted conversations are explicitly opt-in and coexist with standard conversations without silently migrating old plaintext history.
+  2. Message and attachment payloads are encrypted before server persistence, with clear metadata boundaries and unsupported feature states.
+  3. Key setup, device changes, backup, rotation, and lost-access flows match the Phase 29 design decision.
+  4. Notifications, search, reporting, and moderation surfaces show honest encrypted-mode limitations.
+  5. Tests prove encrypted-mode authorization and lifecycle behavior without claiming stronger cryptographic properties than implemented.
+
+Plans:
+
+- [x] 36-01 Backend Encrypted Conversation And Message Contract
+- [x] 36-02 Frontend Encryption Helpers And Send/Display Flow
+- [x] 36-03 Limitations, Notifications, Search, And Safety Copy
+- [x] 36-04 Review, Verification, And Traceability
+
+### Phase 37: Rich Profiles And Presence Privacy
+
+**Goal:** Users can personalize public profile surfaces with bio/status fields and control presence visibility, last-seen exposure, and profile privacy without exposing email or unauthorized activity data.
+**Requirements**: V2-PROF-01, V2-PROF-02, V2-PRES-01, V2-PRES-02, V2-PRIV-01, V2-PRIV-02, RT-05, TEST-03
+**Depends on:** Phase 36
+**Plans:** 4/4 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Profile bio, status message, and contact card details persist with validation and privacy-safe display rules.
+  2. Users can control online, last-seen, and status visibility without leaking presence to unauthorized users.
+  3. Direct, group, report, and admin surfaces use consistent public identity data and never expose private emails.
+  4. Presence updates remain accurate across reconnects, blocked users, and hidden visibility settings.
+  5. UI and socket tests cover privacy, fallback, mobile, and group-profile behavior.
+
+Plans:
+
+- [x] 37-01 Backend Profile And Presence Privacy Contract
+- [x] 37-02 Frontend Settings Profile And Privacy Controls
+- [x] 37-03 Conversation Profile Surfaces And Realtime Privacy
+- [x] 37-04 Review, Verification, And Traceability
+
+### Phase 38: Bounded Spaces And Channels
+
+**Goal:** Users can create and participate in small private spaces with scoped channels, membership controls, and safety boundaries that extend group messaging without becoming broad Slack or Discord parity.
+**Requirements**: V2-SPACE-01, V2-SPACE-02, V2-SPACE-03, V2-PLAT-01, V2-MOD-01, V2-ADMIN-02, TEST-02, TEST-05
+**Depends on:** Phase 37
+**Plans:** 4/4 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Spaces have explicit membership, role, invite, and channel boundaries with server-side authorization checks.
+  2. Channel messages, unread counts, attachments, reactions, and notifications reuse the server-truth reliability model.
+  3. Space creation and discovery stay private and invitation-scoped, with no public directory or broad community surface.
+  4. Abuse reporting and moderation workflows support space and channel context without exposing unnecessary private data.
+  5. Bots and integrations remain disabled unless a later runtime permissioning phase explicitly enables them.
+
+Plans:
+
+- [x] 38-01 Backend Space And Channel Data Contract
+- [x] 38-02 Channel Messaging And Realtime Reliability
+- [x] 38-03 Frontend Spaces Workspace And Channel UI
+- [x] 38-04 Review, Verification, And Traceability
+
+### Phase 39: Data Privacy Controls And Account Portability
+
+**Goal:** Users can export account data, request account deletion, understand retention behavior, and manage portability/privacy controls with auditable, secure, and reversible where appropriate workflows.
+**Requirements**: V2-DATA-01, V2-DATA-02, V2-DATA-03, SEC-02, MSG-03, MEDIA-02, V2-E2EE-01, TEST-01
+**Depends on:** Phase 38
+**Plans:** 4/4 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Data export includes account, conversation, media, and moderation-visible records only within the user's authorization boundary.
+  2. Account deletion and retention flows define what is deleted, anonymized, retained for abuse/security, or left as conversation tombstones.
+  3. Export and deletion requests are authenticated, CSRF-protected, rate-limited, and audited without logging private payloads.
+  4. Encrypted conversation data is handled according to the encrypted-mode recovery and export limitations.
+  5. Tests cover export scope, deletion side effects, retention exceptions, and privacy-safe audit records.
+
+Plans:
+
+- [x] 39-01 Backend Account Export And Privacy Audit
+- [x] 39-02 Deletion Request And Retention Contract
+- [x] 39-03 Frontend Privacy And Portability Controls
+- [x] 39-04 Review, Verification, And Traceability
+
+### Phase 40: Moderation Appeals And Reviewer Operations
+
+**Goal:** Moderators can manage appeals, assignments, enforcement history, and operational review analytics while users can understand and appeal enforcement decisions through privacy-safe workflows.
+**Requirements**: V2-MOD-02, V2-ADMIN-03, V2-ADMIN-04, V2-ADMIN-02, SEC-02, TEST-01, TEST-03
+**Depends on:** Phase 39
+**Plans:** 4/4 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Users can submit appeals for supported enforcement actions with clear status and privacy-safe copy.
+  2. Admins can assign reports/appeals, view enforcement history, and track reviewer workload without trusting client role claims.
+  3. Appeal decisions and enforcement changes write immutable audit entries with redacted context.
+  4. Reviewer analytics expose operational counts and aging without leaking private messages, emails, tokens, or report internals.
+  5. Tests cover authorization, redaction, assignment, appeal state transitions, and UI empty/error/loading behavior.
+
+Plans:
+
+- [x] 40-01 Backend Appeal And Assignment Contract
+- [x] 40-02 Reviewer Metrics And Enforcement History APIs
+- [x] 40-03 Frontend Appeals And Reviewer Operations UI
+- [x] 40-04 Review, Verification, And Traceability
+
+### Phase 41: Localization And RTL Experience
+
+**Goal:** Users can use Chatify in English and Arabic with locale-aware copy, RTL layout, form validation, dates/times, and accessibility checks across the core messenger and account workflows.
+**Requirements**: V2-I18N-01, V2-I18N-02, V2-I18N-03, UI-05, AUTH-01, TEST-03, TEST-05
+**Depends on:** Phase 40
+**Plans:** 4/4 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. Core auth, chat, settings, moderation, notification, and privacy surfaces use translatable strings instead of hard-coded English copy.
+  2. Arabic RTL layout works across desktop and mobile without overlapping controls, clipped text, or broken message alignment.
+  3. Dates, times, validation messages, empty states, and notification copy respect the selected locale.
+  4. Accessibility, keyboard, and screen-reader labels remain correct in both supported languages.
+  5. Browser and component tests cover language switching, RTL layout, and representative account/chat workflows.
+
+Plans:
+
+- [x] 41-01 Locale Foundation And Direction Runtime
+- [x] 41-02 Account Settings And Notification Localization
+- [x] 41-03 Chat Admin RTL And Locale Workflow Coverage
+- [x] 41-04 Review Verification And Traceability

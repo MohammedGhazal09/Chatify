@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, RefObject } from 'react';
-import { LoaderCircle, MessageCircle, Plus, Users, X } from 'lucide-react';
+import { LoaderCircle, Lock, MessageCircle, Plus, Users, X } from 'lucide-react';
 import { validateUsername } from '../../../utils/usernameValidation';
-import type { CreateGroupChatPayload } from '../../../types/chat';
+import type { CreateGroupChatPayload, EncryptionMode } from '../../../types/chat';
+
+type NewConversationOptions = {
+  encryptionMode: EncryptionMode;
+};
 
 interface NewChatDialogProps {
   isOpen: boolean;
@@ -12,7 +16,7 @@ interface NewChatDialogProps {
   isGroupSubmitting: boolean;
   openerRef: RefObject<HTMLButtonElement | null>;
   onUsernameChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>, options: NewConversationOptions) => void;
   onCreateGroupSubmit: (payload: CreateGroupChatPayload) => void;
   onClearError: () => void;
   onClose: () => void;
@@ -50,6 +54,7 @@ const NewChatDialog = ({
   const [groupName, setGroupName] = useState('');
   const [memberInput, setMemberInput] = useState('');
   const [memberUsernames, setMemberUsernames] = useState<string[]>([]);
+  const [encryptionMode, setEncryptionMode] = useState<EncryptionMode>('standard');
   const [localError, setLocalError] = useState<string | null>(null);
 
   const activeError = localError ?? error;
@@ -62,6 +67,7 @@ const NewChatDialog = ({
       setGroupName('');
       setMemberInput('');
       setMemberUsernames([]);
+      setEncryptionMode('standard');
       setLocalError(null);
       return;
     }
@@ -176,6 +182,7 @@ const NewChatDialog = ({
     onCreateGroupSubmit({
       chatName: normalizedGroupName,
       memberUsernames,
+      ...(encryptionMode === 'e2ee_v1' ? { encryptionMode } : {}),
     });
   };
 
@@ -247,8 +254,44 @@ const NewChatDialog = ({
           </button>
         </div>
 
+        <fieldset className="mb-4 space-y-2">
+          <legend className="text-xs font-semibold text-[#A8B3AF]">Privacy mode</legend>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setEncryptionMode('standard')}
+              aria-pressed={encryptionMode === 'standard'}
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${
+                encryptionMode === 'standard'
+                  ? 'border-[#14B8A6] bg-[#14B8A6] text-[#101113]'
+                  : 'border-[#2E363C] bg-[#181C20] text-[#A8B3AF] hover:text-[#F4F7F6]'
+              }`}
+            >
+              Standard
+            </button>
+            <button
+              type="button"
+              onClick={() => setEncryptionMode('e2ee_v1')}
+              aria-pressed={encryptionMode === 'e2ee_v1'}
+              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${
+                encryptionMode === 'e2ee_v1'
+                  ? 'border-[#14B8A6] bg-[#14B8A6] text-[#101113]'
+                  : 'border-[#2E363C] bg-[#181C20] text-[#A8B3AF] hover:text-[#F4F7F6]'
+              }`}
+            >
+              <Lock aria-hidden="true" className="h-4 w-4" />
+              Encrypted
+            </button>
+          </div>
+          {encryptionMode === 'e2ee_v1' ? (
+            <p className="rounded-lg border border-[#2E363C] bg-[#181C20] px-3 py-2 text-xs leading-5 text-[#A8B3AF]">
+              This device stores the conversation secret. Other devices need that secret to read encrypted messages, and attachments stay disabled for encrypted conversations.
+            </p>
+          ) : null}
+        </fieldset>
+
         {mode === 'direct' ? (
-        <form onSubmit={onSubmit} className="space-y-3" noValidate>
+        <form onSubmit={(event) => onSubmit(event, { encryptionMode })} className="space-y-3" noValidate>
           <label htmlFor="new-chat-username" className="text-xs font-semibold text-[#A8B3AF]">
             Username
           </label>

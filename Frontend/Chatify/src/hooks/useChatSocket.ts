@@ -10,10 +10,13 @@ import {
   messagesQueryKey,
   onlinePresenceQueryKey,
   pinnedMessagesQueryKey,
+  sortChatsForRequester,
   userSearchQueryKey,
   usersQueryKey,
 } from './useChatQueries';
+import { spaceChannelsQueryKey, spacesQueryKey } from './useSpaceQueries';
 import type { User } from '../types/auth';
+import type { Space } from '../types/space';
 import {
   applyBatchReadInCache,
   applyDeletedMessageInCache,
@@ -45,6 +48,7 @@ import type {
   SocketErrorEvent,
   SocketReadyEvent,
   ConversationControlsUpdatedEvent,
+  ConversationOrganizationUpdatedEvent,
   UserIdentityUpdatedEvent,
   CallActionAck,
   CallIceConfig,
@@ -91,6 +95,10 @@ const CALL_ACK_TIMEOUT_MS = 8000;
 const SOCKET_READY_TIMEOUT_MS = 5000;
 
 type CallEmitPayload = Record<string, unknown>;
+type SpaceRemovedEvent = {
+  spaceId: string;
+  channelIds?: string[];
+};
 
 const isCallEndedActivity = (message: Message) => (
   message.messageType === 'call' && message.callActivity?.result === 'ended'
@@ -99,6 +107,11 @@ const isCallEndedActivity = (message: Message) => (
 const getDefaultNotificationPreferences = (): NotificationPreferences => ({
   soundEnabled: isSoundEnabled(),
   browserNotificationsEnabled: false,
+  pushEnabled: false,
+  emailNotificationsEnabled: false,
+  messagePreviewMode: 'none',
+  emailUnsubscribed: false,
+  pushSubscriptionCount: 0,
   mutedChatIds: [],
 });
 
@@ -142,6 +155,7 @@ const mergeIdentityUser = (candidate: User, updatedUser: User) => (
         ...updatedUser,
         identityMark: updatedUser.identityMark ?? candidate.identityMark,
         identityMarkUpdatedAt: updatedUser.identityMarkUpdatedAt ?? candidate.identityMarkUpdatedAt,
+        profileStatus: updatedUser.profileStatus,
       }
     : candidate
 );
@@ -250,6 +264,7 @@ export const useChatSocket = ({
             isOnline: true,
             isCallReachable: event.isCallReachable === true,
             lastSeen: undefined,
+            profileStatus: event.profileStatus,
           }
         : {
             ...existing,
@@ -258,6 +273,7 @@ export const useChatSocket = ({
             isOnline: false,
             isCallReachable: false,
             lastSeen: event.lastSeen ?? existing?.lastSeen,
+            profileStatus: event.profileStatus,
           };
 
       if (existingIndex < 0) {
@@ -279,6 +295,7 @@ export const useChatSocket = ({
     }
 
     queryClientRef.current.invalidateQueries({ queryKey: chatsQueryKey });
+    queryClientRef.current.invalidateQueries({ queryKey: spacesQueryKey });
     queryClientRef.current.invalidateQueries({ queryKey: ['unreadCounts'] });
 
     if (activeRoomRef.current) {
@@ -348,6 +365,24 @@ export const useChatSocket = ({
     if (!event.conversationControls.canSendMessage) {
       presenceStoreRef.current.clearAllTypingForChat(event.chatId);
     }
+  }, []);
+
+  const handleConversationOrganizationUpdated = useCallback((event: ConversationOrganizationUpdatedEvent) => {
+    queryClientRef.current.setQueryData<Chat[]>(chatsQueryKey, (old) => {
+      if (!old) {
+        return old;
+      }
+
+      return sortChatsForRequester(old.map((chat) => {
+        if (chat._id !== event.chatId) {
+          return chat;
+        }
+
+        return event.chat
+          ? { ...chat, ...event.chat, latestMessage: event.chat.latestMessage ?? chat.latestMessage }
+          : { ...chat, organizationState: event.organizationState };
+      }));
+    });
   }, []);
 
   const handleUserIdentityUpdated = useCallback((event: UserIdentityUpdatedEvent) => {
@@ -738,9 +773,10 @@ export const useChatSocket = ({
           userName: data.userName,
           isOnline: true,
           isCallReachable: data.isCallReachable === true,
+          profileStatus: data.profileStatus,
         });
       } else {
-        presenceStoreRef.current.setUserOffline(data.userId, data.lastSeen);
+        presenceStoreRef.current.setUserOffline(data.userId, data.lastSeen, data.profileStatus);
       }
 
       updatePresenceQueryCache(data);
@@ -780,6 +816,43 @@ export const useChatSocket = ({
           return newMap;
         }
       );
+    };
+
+    const handleSpaceUpsert = (space: Space) => {
+      if (!space?._id) {
+        queryClientRef.current.invalidateQueries({ queryKey: spacesQueryKey });
+        return;
+      }
+
+      queryClientRef.current.setQueryData<Space[]>(spacesQueryKey, (old) => {
+        if (!old) {
+          return [space];
+        }
+
+        return [
+          space,
+          ...old.filter((candidate) => candidate._id !== space._id),
+        ];
+      });
+
+      if (space.channels) {
+        queryClientRef.current.setQueryData(spaceChannelsQueryKey(space._id), space.channels);
+      }
+
+      queryClientRef.current.invalidateQueries({ queryKey: spacesQueryKey });
+      queryClientRef.current.invalidateQueries({ queryKey: spaceChannelsQueryKey(space._id) });
+    };
+
+    const handleSpaceRemoved = (data: SpaceRemovedEvent) => {
+      queryClientRef.current.setQueryData<Space[]>(spacesQueryKey, (old) => (
+        old?.filter((space) => space._id !== data.spaceId) ?? old
+      ));
+      queryClientRef.current.removeQueries({ queryKey: spaceChannelsQueryKey(data.spaceId) });
+
+      data.channelIds?.forEach((channelId) => {
+        queryClientRef.current.removeQueries({ queryKey: messagesQueryKey(channelId) });
+        invalidateMessageDetailQueries(channelId);
+      });
     };
 
     const handleUserTyping = (data: TypingUser) => {
@@ -843,7 +916,11 @@ export const useChatSocket = ({
     socketInstance.on('user:identity-updated', handleUserIdentityUpdated);
     socketInstance.on('chat:new', handleChatNew);
     socketInstance.on('chat:deleted', handleChatDeleted);
+    socketInstance.on('space:new', handleSpaceUpsert);
+    socketInstance.on('space:updated', handleSpaceUpsert);
+    socketInstance.on('space:removed', handleSpaceRemoved);
     socketInstance.on('conversation:controls-updated', handleConversationControlsUpdated);
+    socketInstance.on('conversation:organization-updated', handleConversationOrganizationUpdated);
     socketInstance.on('user:typing', handleUserTyping);
     socketInstance.on('unread:update', handleUnreadUpdate);
 
@@ -862,6 +939,7 @@ export const useChatSocket = ({
         activeRoomRef.current = null;
       }
       socketInstance.off('conversation:controls-updated', handleConversationControlsUpdated);
+      socketInstance.off('conversation:organization-updated', handleConversationOrganizationUpdated);
       socketInstance.off('connect', handleConnect);
       socketInstance.off('socket:ready', handleSocketReady);
       socketInstance.off('disconnect', handleDisconnect);
@@ -886,6 +964,9 @@ export const useChatSocket = ({
       socketInstance.off('user:identity-updated', handleUserIdentityUpdated);
       socketInstance.off('chat:new', handleChatNew);
       socketInstance.off('chat:deleted', handleChatDeleted);
+      socketInstance.off('space:new', handleSpaceUpsert);
+      socketInstance.off('space:updated', handleSpaceUpsert);
+      socketInstance.off('space:removed', handleSpaceRemoved);
       socketInstance.io.off('reconnect', handleReconnect);
       socketInstance.off('user:typing', handleUserTyping);
       socketInstance.off('unread:update', handleUnreadUpdate);
@@ -898,6 +979,7 @@ export const useChatSocket = ({
   }, [
     enabled,
     handleConversationControlsUpdated,
+    handleConversationOrganizationUpdated,
     handleUserIdentityUpdated,
     invalidateMessageDetailQueries,
     isAuthenticated,

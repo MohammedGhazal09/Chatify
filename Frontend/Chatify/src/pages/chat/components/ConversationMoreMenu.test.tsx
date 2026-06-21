@@ -29,6 +29,9 @@ const renderMenu = (overrides: Partial<Parameters<typeof ConversationMoreMenu>[0
     onStartVideoCall: vi.fn(),
     onSearchMessages: vi.fn(),
     onExportChat: vi.fn(),
+    onToggleArchive: vi.fn(),
+    onTogglePin: vi.fn(),
+    onToggleFavorite: vi.fn(),
     onBlockUser: vi.fn(),
     onUnblockUser: vi.fn(),
     onReportConversation: vi.fn(),
@@ -91,6 +94,32 @@ describe('ConversationMoreMenu', () => {
       'title',
       'Restore sound and browser alerts for this conversation'
     );
+  });
+
+  it('toggles archive, pin, and favorite organization actions', async () => {
+    const user = userEvent.setup();
+    const props = renderMenu();
+
+    await user.click(screen.getByRole('menuitem', { name: 'Pin conversation' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Star conversation' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Archive conversation' }));
+
+    expect(props.onTogglePin).toHaveBeenCalledTimes(1);
+    expect(props.onToggleFavorite).toHaveBeenCalledTimes(1);
+    expect(props.onToggleArchive).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledTimes(3);
+  });
+
+  it('uses reversal copy for organized conversations', () => {
+    renderMenu({
+      isPinned: true,
+      isFavorite: true,
+      isArchived: true,
+    });
+
+    expect(screen.getByRole('menuitem', { name: 'Unpin conversation' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Unstar conversation' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Unarchive conversation' })).toBeInTheDocument();
   });
 
   it('reports direct users and group conversations from the overflow menu', async () => {

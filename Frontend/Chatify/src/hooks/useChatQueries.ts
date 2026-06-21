@@ -9,9 +9,14 @@ import type {
   AttachmentSummary,
   Chat,
   ComposerAttachmentDraft,
+  ConversationOrganizationPatch,
+  CreateChatPayload,
   CreateGroupChatPayload,
+  EncryptionMode,
   Message,
+  MessageSearchFilters,
   MessageStatus,
+  MessageSearchType,
   SharedAssetKind,
   UserOnlineStatus,
 } from '../types/chat';
@@ -28,11 +33,64 @@ import {
   upsertMessageInCache,
   type MessagesCacheData,
 } from './messageCache';
+import {
+  encryptMessageText,
+  ensureConversationSecret,
+  hasConversationSecret,
+  isEncryptedConversation,
+} from '../utils/encryptedMessages';
+
+export type NormalizedMessageSearchFilters = {
+  senderId: string | null;
+  type: MessageSearchType;
+  from: string | null;
+  to: string | null;
+};
+
+export const DEFAULT_MESSAGE_SEARCH_FILTERS: NormalizedMessageSearchFilters = {
+  senderId: null,
+  type: 'all',
+  from: null,
+  to: null,
+};
+
+export const normalizeMessageSearchFilters = (
+  filters: MessageSearchFilters = {}
+): NormalizedMessageSearchFilters => ({
+  senderId: filters.senderId || null,
+  type: filters.type ?? 'all',
+  from: filters.from || null,
+  to: filters.to || null,
+});
+
+export const hasActiveMessageSearchFilters = (filters: MessageSearchFilters = {}) => {
+  const normalizedFilters = normalizeMessageSearchFilters(filters);
+
+  return Boolean(
+    normalizedFilters.senderId ||
+    normalizedFilters.type !== 'all' ||
+    normalizedFilters.from ||
+    normalizedFilters.to
+  );
+};
+
+const getMessageSearchFilterKey = (filters: NormalizedMessageSearchFilters) => (
+  [
+    filters.senderId ?? '',
+    filters.type,
+    filters.from ?? '',
+    filters.to ?? '',
+  ].join('|')
+);
 
 // Export query keys for use in other modules
 export const chatsQueryKey = ['chats'] as const;
 export const messagesQueryKey = (chatId: string) => ['messages', chatId] as const;
-export const messageSearchQueryKey = (chatId: string, query: string) => ['messageSearch', chatId, query] as const;
+export const messageSearchQueryKey = (
+  chatId: string,
+  query: string,
+  filters: NormalizedMessageSearchFilters = DEFAULT_MESSAGE_SEARCH_FILTERS
+) => ['messageSearch', chatId, query, filters] as const;
 export const sharedAssetsQueryKey = (chatId: string, kind?: SharedAssetKind) => ['sharedAssets', chatId, kind ?? 'all'] as const;
 export const pinnedMessagesQueryKey = (chatId: string) => ['pinnedMessages', chatId] as const;
 export const onlinePresenceQueryKey = ['onlinePresence'] as const;
@@ -42,6 +100,7 @@ export const userSearchQueryKey = ['userSearch'] as const;
 type SendMessageVariables = {
   chatId: string;
   text: string;
+  encryptionMode?: EncryptionMode;
   clientMessageId?: string;
   attachments?: ComposerAttachmentDraft[];
   optimisticAttachments?: AttachmentSummary[];
@@ -72,21 +131,38 @@ const ensureSendClientMessageId = (variables: SendMessageVariables) => {
   return variables.clientMessageId;
 };
 
-type CreateChatVariables = {
-  targetUsername: string;
-  chatName?: string;
-};
-
 const MESSAGE_SEARCH_DEBOUNCE_MS = 300;
 const MIN_MESSAGE_SEARCH_LENGTH = 2;
 
 const normalizeSearchText = (query: string) => query.trim();
 
 const hasAttachmentFiles = (attachments?: ComposerAttachmentDraft[]) => Boolean(attachments?.length);
+const isEncryptedSend = (encryptionMode?: EncryptionMode) => encryptionMode === 'e2ee_v1';
 
 const getPresenceName = (user: { firstName?: string; lastName?: string }) => (
   `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim()
 );
+
+const getChatSortTime = (chat: Chat) => {
+  const time = Date.parse(chat.updatedAt ?? '');
+  return Number.isFinite(time) ? time : 0;
+};
+
+export const sortChatsForRequester = (chats: Chat[]) => [...chats].sort((left, right) => {
+  const pinnedDelta = Number(right.organizationState?.pinned === true) - Number(left.organizationState?.pinned === true);
+
+  if (pinnedDelta !== 0) {
+    return pinnedDelta;
+  }
+
+  const timeDelta = getChatSortTime(right) - getChatSortTime(left);
+
+  if (timeDelta !== 0) {
+    return timeDelta;
+  }
+
+  return left._id.localeCompare(right._id);
+});
 
 const normalizePresenceSnapshot = (
   contacts: Array<{
@@ -96,6 +172,7 @@ const normalizePresenceSnapshot = (
     isOnline?: boolean;
     isCallReachable?: boolean;
     lastSeen?: string;
+    profileStatus?: string;
   }>
 ): UserOnlineStatus[] => contacts.map((contact) => ({
   userId: contact._id,
@@ -103,6 +180,7 @@ const normalizePresenceSnapshot = (
   isOnline: contact.isOnline === true,
   isCallReachable: contact.isCallReachable === true,
   lastSeen: contact.lastSeen,
+  profileStatus: contact.profileStatus,
 }));
 
 const invalidateDetailQueries = (queryClient: ReturnType<typeof useQueryClient>, chatId: string) => {
@@ -130,7 +208,7 @@ const mergeChatInCache = (queryClient: ReturnType<typeof useQueryClient>, update
       };
     });
 
-    return found ? nextChats : [updatedChat, ...old];
+    return sortChatsForRequester(found ? nextChats : [updatedChat, ...old]);
   });
 };
 
@@ -355,53 +433,133 @@ export const useMessages = (chatId: string | null) => {
   };
 };
 
-export const useMessageSearch = (chatId: string | null, query: string) => {
+export const useMessageSearch = (
+  chatId: string | null,
+  query: string,
+  filters: MessageSearchFilters = DEFAULT_MESSAGE_SEARCH_FILTERS
+) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const trimmedQuery = normalizeSearchText(query);
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const normalizedFilters = normalizeMessageSearchFilters(filters);
+  const normalizedSenderId = normalizedFilters.senderId;
+  const normalizedType = normalizedFilters.type;
+  const normalizedFrom = normalizedFilters.from;
+  const normalizedTo = normalizedFilters.to;
+  const normalizedFiltersKey = getMessageSearchFilterKey(normalizedFilters);
+  const [debouncedSearch, setDebouncedSearch] = useState({
+    query: '',
+    filters: DEFAULT_MESSAGE_SEARCH_FILTERS,
+  });
+  const debouncedFiltersKey = getMessageSearchFilterKey(debouncedSearch.filters);
+  const hasFilters = hasActiveMessageSearchFilters(normalizedFilters);
+  const canSearch = trimmedQuery.length >= MIN_MESSAGE_SEARCH_LENGTH || hasFilters;
   const isBelowMinimum = trimmedQuery.length > 0 && trimmedQuery.length < MIN_MESSAGE_SEARCH_LENGTH;
-  const isDebouncing = trimmedQuery.length >= MIN_MESSAGE_SEARCH_LENGTH && trimmedQuery !== debouncedQuery;
+  const isDebouncing = canSearch && (
+    trimmedQuery !== debouncedSearch.query ||
+    normalizedFiltersKey !== debouncedFiltersKey
+  );
 
   useEffect(() => {
-    if (trimmedQuery.length < MIN_MESSAGE_SEARCH_LENGTH) {
-      setDebouncedQuery('');
+    if (!canSearch) {
+      setDebouncedSearch({
+        query: '',
+        filters: DEFAULT_MESSAGE_SEARCH_FILTERS,
+      });
       return undefined;
     }
 
     const timeoutId = window.setTimeout(() => {
-      setDebouncedQuery(trimmedQuery);
+      setDebouncedSearch({
+        query: trimmedQuery,
+        filters: {
+          senderId: normalizedSenderId,
+          type: normalizedType,
+          from: normalizedFrom,
+          to: normalizedTo,
+        },
+      });
     }, MESSAGE_SEARCH_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [trimmedQuery]);
+  }, [
+    canSearch,
+    normalizedFiltersKey,
+    normalizedFrom,
+    normalizedSenderId,
+    normalizedTo,
+    normalizedType,
+    trimmedQuery,
+  ]);
 
   const queryResult = useQuery({
-    queryKey: messageSearchQueryKey(chatId ?? '', debouncedQuery),
+    queryKey: messageSearchQueryKey(chatId ?? '', debouncedSearch.query, debouncedSearch.filters),
     queryFn: async () => {
-      if (!chatId || debouncedQuery.length < MIN_MESSAGE_SEARCH_LENGTH) {
+      const hasDebouncedFilters = hasActiveMessageSearchFilters(debouncedSearch.filters);
+
+      if (!chatId || (debouncedSearch.query.length < MIN_MESSAGE_SEARCH_LENGTH && !hasDebouncedFilters)) {
         return [];
       }
 
       const response = await messageApi.searchMessages(chatId, {
-        q: debouncedQuery,
+        q: debouncedSearch.query,
         limit: 25,
+        ...debouncedSearch.filters,
       });
 
       return response.data.data.messages;
     },
-    enabled: Boolean(chatId && isAuthenticated && debouncedQuery.length >= MIN_MESSAGE_SEARCH_LENGTH),
+    enabled: Boolean(chatId && isAuthenticated && (
+      debouncedSearch.query.length >= MIN_MESSAGE_SEARCH_LENGTH ||
+      hasActiveMessageSearchFilters(debouncedSearch.filters)
+    )),
   });
 
   return {
     ...queryResult,
     messages: queryResult.data ?? [],
-    normalizedQuery: debouncedQuery,
+    normalizedQuery: debouncedSearch.query,
+    normalizedFilters: debouncedSearch.filters,
     isBelowMinimum,
     isDebouncing,
     isSearching: isDebouncing || queryResult.isLoading || queryResult.isFetching,
   };
+};
+
+export const useMessageContext = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      chatId,
+      messageId,
+      limit = 25,
+    }: {
+      chatId: string;
+      messageId: string;
+      limit?: number;
+    }) => {
+      const response = await messageApi.getMessageContext(chatId, messageId, { limit });
+      return response.data.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<MessagesQueryData>(messagesQueryKey(variables.chatId), (old) => {
+        const mergedCache = prependMessagesInCache(old, data.messages);
+
+        return {
+          ...mergedCache,
+          pagination: {
+            ...(mergedCache.pagination ?? {}),
+            hasMore: data.cursor.hasMore,
+            limit: data.cursor.limit,
+            nextCursor: data.cursor.nextCursor,
+          },
+          cursor: data.cursor,
+        };
+      });
+    },
+  });
 };
 
 export const useSendMessage = () => {
@@ -442,8 +600,9 @@ export const useSendMessage = () => {
       }
 
       const clientMessageId = ensureSendClientMessageId(variables);
+      const encryptedSend = isEncryptedSend(variables.encryptionMode);
       const normalizedText = normalizeOutgoingMessageText(variables.text, {
-        allowEmpty: hasAttachmentFiles(variables.attachments),
+        allowEmpty: !encryptedSend && hasAttachmentFiles(variables.attachments),
       });
 
       if (!normalizedText.ok) {
@@ -451,6 +610,30 @@ export const useSendMessage = () => {
       }
 
       const hasAttachments = hasAttachmentFiles(variables.attachments);
+
+      if (encryptedSend) {
+        if (hasAttachments) {
+          throw new Error('Encrypted conversations do not support attachment upload yet.');
+        }
+
+        const encryptedPayload = await encryptMessageText({
+          chatId: variables.chatId,
+          text: normalizedText.text,
+          encryptionMode: 'e2ee_v1',
+        });
+        const response = await messageApi.createMessage({
+          chatId: variables.chatId,
+          text: '',
+          clientMessageId,
+          encryptedPayload,
+        });
+
+        return {
+          ...response.data.data.message,
+          decryptedText: normalizedText.text,
+        };
+      }
+
       const abortController = hasAttachments ? new AbortController() : null;
 
       if (abortController) {
@@ -517,15 +700,24 @@ export const useSendMessage = () => {
       }
 
       const clientMessageId = ensureSendClientMessageId(variables);
+      const encryptedSend = isEncryptedSend(variables.encryptionMode);
       const normalizedText = normalizeOutgoingMessageText(variables.text, {
-        allowEmpty: hasAttachmentFiles(variables.attachments),
+        allowEmpty: !encryptedSend && hasAttachmentFiles(variables.attachments),
       });
 
       if (!normalizedText.ok) {
         throw new Error(normalizedText.message);
       }
 
+      if (encryptedSend && hasAttachmentFiles(variables.attachments)) {
+        throw new Error('Encrypted conversations do not support attachment upload yet.');
+      }
+
       const { chatId } = variables;
+      if (encryptedSend && !hasConversationSecret(chatId)) {
+        throw new Error('This device needs the conversation secret to send encrypted messages.');
+      }
+
       await queryClient.cancelQueries({ queryKey: messagesQueryKey(chatId) });
       const previousData = queryClient.getQueryData<MessagesQueryData>(messagesQueryKey(chatId));
       const previousChats = queryClient.getQueryData<Chat[]>(chatsQueryKey);
@@ -533,8 +725,11 @@ export const useSendMessage = () => {
       const optimisticMessage = createOptimisticMessage({
         chatId,
         senderId: user._id,
-        text: normalizedText.text,
+        text: encryptedSend ? '' : normalizedText.text,
         clientMessageId,
+        messageType: encryptedSend ? 'encrypted' : 'text',
+        encryptionMode: encryptedSend ? 'e2ee_v1' : 'standard',
+        decryptedText: encryptedSend ? normalizedText.text : undefined,
         attachments: variables.optimisticAttachments,
         localFiles: variables.attachments?.map((attachment) => attachment.file),
         localDrafts: variables.attachments,
@@ -630,12 +825,16 @@ export const usePinnedMessages = (chatId: string | null) => {
 export const useCreateChat = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<Chat, unknown, CreateChatVariables>({
+  return useMutation<Chat, unknown, CreateChatPayload>({
     mutationFn: async (payload) => {
       const response = await chatApi.createChat(payload);
       return response.data.data.chat;
     },
-    onSuccess: (chat) => {
+    onSuccess: (chat, variables) => {
+      if (variables.encryptionMode === 'e2ee_v1' || isEncryptedConversation(chat)) {
+        ensureConversationSecret(chat._id);
+      }
+
       queryClient.setQueryData<Chat[]>(chatsQueryKey, (old) => {
         if (!old) {
           return [chat];
@@ -645,10 +844,10 @@ export const useCreateChat = () => {
         if (existingIndex !== -1) {
           const updatedChats = [...old];
           updatedChats[existingIndex] = chat;
-          return updatedChats;
+          return sortChatsForRequester(updatedChats);
         }
 
-        return [chat, ...old];
+        return sortChatsForRequester([chat, ...old]);
       });
     },
     onSettled: () => {
@@ -665,17 +864,35 @@ export const useCreateGroupChat = () => {
       const response = await chatApi.createGroupChat(payload);
       return response.data.data.chat;
     },
-    onSuccess: (chat) => {
+    onSuccess: (chat, variables) => {
+      if (variables.encryptionMode === 'e2ee_v1' || isEncryptedConversation(chat)) {
+        ensureConversationSecret(chat._id);
+      }
+
       queryClient.setQueryData<Chat[]>(chatsQueryKey, (old) => {
         if (!old) {
           return [chat];
         }
 
-        return [chat, ...old.filter((existingChat) => existingChat._id !== chat._id)];
+        return sortChatsForRequester([chat, ...old.filter((existingChat) => existingChat._id !== chat._id)]);
       });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+};
+
+export const useUpdateChatOrganization = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<Chat, unknown, { chatId: string; patch: ConversationOrganizationPatch }>({
+    mutationFn: async ({ chatId, patch }) => {
+      const response = await chatApi.updateChatOrganization(chatId, patch);
+      return response.data.data.chat;
+    },
+    onSuccess: (chat) => {
+      mergeChatInCache(queryClient, chat);
     },
   });
 };

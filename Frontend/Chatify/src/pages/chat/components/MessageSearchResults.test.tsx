@@ -20,7 +20,7 @@ describe('MessageSearchResults', () => {
         isError={false}
         isBelowMinimum
         onClear={onClear}
-        onSelectLoadedResult={vi.fn()}
+        onSelectResult={vi.fn()}
       />
     );
 
@@ -31,10 +31,21 @@ describe('MessageSearchResults', () => {
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 
-  it('lets loaded results jump while keeping unloaded results read-only', async () => {
+  it('lets loaded and unloaded results jump', async () => {
     const user = userEvent.setup();
-    const onSelectLoadedResult = vi.fn();
+    const onSelectResult = vi.fn();
     const loadedMessage = makeMessage({ _id: 'message-loaded', sender: 'user-2', text: 'Launch result already loaded' });
+    const unloadedMessage = makeMessage({
+      _id: 'message-older',
+      sender: 'user-2',
+      text: 'Older launch result',
+      searchMatch: {
+        kind: 'file',
+        label: 'File attachment',
+        attachmentName: 'launch-plan.pdf',
+        attachmentKind: 'file',
+      },
+    });
 
     render(
       <MessageSearchResults
@@ -43,25 +54,27 @@ describe('MessageSearchResults', () => {
         currentUserId="user-1"
         messages={[
           loadedMessage,
-          makeMessage({ _id: 'message-older', sender: 'user-2', text: 'Older launch result' }),
+          unloadedMessage,
         ]}
         loadedMessageIds={new Set(['message-loaded'])}
+        jumpingMessageId="message-older"
         isLoading={false}
         isError={false}
         isBelowMinimum={false}
         onClear={vi.fn()}
-        onSelectLoadedResult={onSelectLoadedResult}
+        onSelectResult={onSelectResult}
       />
     );
 
     expect(screen.getByText('2 results')).toBeInTheDocument();
     expect(screen.getByText('In view')).toBeInTheDocument();
+    expect(screen.getByText('launch-plan.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Loading message context...')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Jump to message from Grace Hopper .*Launch result already loaded/ }));
 
-    expect(onSelectLoadedResult).toHaveBeenCalledWith(loadedMessage);
-    expect(screen.queryByRole('button', { name: /Older launch result/ })).not.toBeInTheDocument();
-    expect(screen.getByText('Load older history to jump to this message.')).toBeInTheDocument();
+    expect(onSelectResult).toHaveBeenCalledWith(loadedMessage);
+    expect(screen.getByRole('button', { name: /Older launch result/ })).toBeDisabled();
   });
 
   it('renders loading, error, and empty states', () => {
@@ -73,7 +86,7 @@ describe('MessageSearchResults', () => {
       loadedMessageIds: new Set<string>(),
       isBelowMinimum: false,
       onClear: vi.fn(),
-      onSelectLoadedResult: vi.fn(),
+      onSelectResult: vi.fn(),
     };
 
     const { rerender } = render(<MessageSearchResults {...baseProps} isLoading isError={false} />);
@@ -85,5 +98,26 @@ describe('MessageSearchResults', () => {
 
     rerender(<MessageSearchResults {...baseProps} isLoading={false} isError={false} />);
     expect(screen.getByText('No message matches')).toBeInTheDocument();
+  });
+
+  it('shows encrypted-conversation search limitation without rendering ciphertext matches', () => {
+    render(
+      <MessageSearchResults
+        query="secret"
+        selectedChat={makeChat({ encryptionMode: 'e2ee_v1' })}
+        currentUserId="user-1"
+        messages={[makeMessage({ text: 'PRIVATE_CIPHERTEXT_MARKER' })]}
+        loadedMessageIds={new Set()}
+        isLoading={false}
+        isError={false}
+        isBelowMinimum={false}
+        onClear={vi.fn()}
+        onSelectResult={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Search unavailable for encrypted conversations')).toBeInTheDocument();
+    expect(screen.getByText('Server-side search cannot read encrypted message text on this conversation.')).toBeInTheDocument();
+    expect(screen.queryByText('PRIVATE_CIPHERTEXT_MARKER')).not.toBeInTheDocument();
   });
 });

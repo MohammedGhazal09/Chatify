@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'crypto';
 import Session from '../Models/sessionModel.mjs';
 import User from '../Models/userModel.mjs';
 import { CustomError } from './customError.mjs';
+import { buildSessionMetadataFromRequest } from './sessionMetadata.mjs';
 
 export const ACCESS_TOKEN_COOKIE = 'accessToken';
 export const REFRESH_TOKEN_COOKIE = 'refreshToken';
@@ -39,18 +40,26 @@ export const hashRefreshToken = (token) => (
   createHash('sha256').update(token).digest('base64url')
 );
 
-export const createAccessToken = (user) => jsonwebtoken.sign(
-  {
+export const createAccessToken = (user, session = null) => {
+  const payload = {
     userId: user._id.toString(),
     type: 'access',
     jti: randomUUID(),
-  },
-  process.env.SECRET_JWT_KEY,
-  {
-    algorithm: 'HS256',
-    expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+  };
+
+  if (session?._id) {
+    payload.sessionId = session._id.toString();
   }
-);
+
+  return jsonwebtoken.sign(
+    payload,
+    process.env.SECRET_JWT_KEY,
+    {
+      algorithm: 'HS256',
+      expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+    }
+  );
+};
 
 const createOpaqueRefreshToken = () => randomBytes(48).toString('base64url');
 
@@ -70,7 +79,12 @@ export const clearSessionCookies = (res) => {
 
 export const readRefreshTokenFromRequest = (req) => req.cookies?.[REFRESH_TOKEN_COOKIE] ?? null;
 
-const createRefreshSession = async ({ user, rememberMe = false, familyId = randomUUID() }) => {
+const createRefreshSession = async ({
+  user,
+  rememberMe = false,
+  familyId = randomUUID(),
+  metadata = {},
+}) => {
   const refreshToken = createOpaqueRefreshToken();
   const refreshTokenHash = hashRefreshToken(refreshToken);
   const expiresAt = new Date(Date.now() + getRefreshMaxAge(rememberMe));
@@ -80,6 +94,9 @@ const createRefreshSession = async ({ user, rememberMe = false, familyId = rando
     refreshTokenHash,
     familyId,
     rememberMe,
+    deviceLabel: metadata.deviceLabel,
+    userAgentHash: metadata.userAgentHash,
+    ipHash: metadata.ipHash,
     expiresAt,
     lastUsedAt: new Date(),
   });
@@ -87,16 +104,20 @@ const createRefreshSession = async ({ user, rememberMe = false, familyId = rando
   return { refreshToken, refreshTokenHash, session };
 };
 
-export const issueSessionCookies = async ({ user, res, rememberMe = false }) => {
-  const accessToken = createAccessToken(user);
-  const { refreshToken, session } = await createRefreshSession({ user, rememberMe });
+export const issueSessionCookies = async ({ user, res, rememberMe = false, req = null }) => {
+  const { refreshToken, session } = await createRefreshSession({
+    user,
+    rememberMe,
+    metadata: buildSessionMetadataFromRequest(req),
+  });
+  const accessToken = createAccessToken(user, session);
 
   setSessionCookies(res, { accessToken, refreshToken, rememberMe });
 
   return { accessToken, refreshToken, session };
 };
 
-export const rotateSessionCookies = async ({ refreshToken, res }) => {
+export const rotateSessionCookies = async ({ refreshToken, res, req = null }) => {
   if (!refreshToken) {
     throw new CustomError('Refresh token required', 401);
   }
@@ -159,7 +180,6 @@ export const rotateSessionCookies = async ({ refreshToken, res }) => {
     throw new CustomError('User not found', 404);
   }
 
-  const accessToken = createAccessToken(user);
   const {
     refreshToken: nextRefreshToken,
     refreshTokenHash: nextRefreshTokenHash,
@@ -168,7 +188,13 @@ export const rotateSessionCookies = async ({ refreshToken, res }) => {
     user,
     rememberMe: claimedSession.rememberMe,
     familyId: claimedSession.familyId,
+    metadata: {
+      deviceLabel: claimedSession.deviceLabel || buildSessionMetadataFromRequest(req).deviceLabel,
+      userAgentHash: claimedSession.userAgentHash ?? buildSessionMetadataFromRequest(req).userAgentHash,
+      ipHash: claimedSession.ipHash ?? buildSessionMetadataFromRequest(req).ipHash,
+    },
   });
+  const accessToken = createAccessToken(user, nextSession);
 
   await Session.updateOne(
     { _id: claimedSession._id },

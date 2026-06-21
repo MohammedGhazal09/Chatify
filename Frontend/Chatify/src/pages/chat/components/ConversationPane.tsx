@@ -1,7 +1,15 @@
 import type { ChangeEvent, KeyboardEventHandler, RefObject } from 'react';
-import { Ban, ShieldCheck, X } from 'lucide-react';
+import { Ban, Lock, ShieldCheck, X } from 'lucide-react';
 import type { MessageUploadState } from '../../../hooks/useChatQueries';
-import type { Chat, ComposerSendPayload, ConversationControls, Message, UserOnlineStatus } from '../../../types/chat';
+import type {
+  Chat,
+  ComposerSendPayload,
+  ConversationControls,
+  Message,
+  MessageSearchFilters,
+  MessageSearchType,
+  UserOnlineStatus,
+} from '../../../types/chat';
 import type { User } from '../../../types/auth';
 import TypingIndicator from '../../../components/TypingIndicator';
 import { getChatTitle } from '../utils/chatDisplay';
@@ -11,6 +19,7 @@ import ConversationHeader from './ConversationHeader';
 import MessageComposer from './MessageComposer';
 import MessageList from './MessageList';
 import MessageSearchResults from './MessageSearchResults';
+import { hasConversationSecret, isEncryptedConversation } from '../../../utils/encryptedMessages';
 
 interface ConversationPaneProps {
   selectedChat: Chat | null;
@@ -33,6 +42,7 @@ interface ConversationPaneProps {
   callDisabledReason?: string | null;
   videoCallDisabledReason?: string | null;
   messageSearch: string;
+  messageSearchFilters: MessageSearchFilters;
   messageSearchInputRef: RefObject<HTMLInputElement | null>;
   messageSearchButtonRef: RefObject<HTMLButtonElement | null>;
   moreButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -41,6 +51,7 @@ interface ConversationPaneProps {
   isMessageSearchLoading: boolean;
   isMessageSearchError: boolean;
   isMessageSearchBelowMinimum: boolean;
+  jumpingMessageId?: string | null;
   loadedMessageIds: ReadonlySet<string>;
   editingMessageId: string | null;
   editText: string;
@@ -67,6 +78,7 @@ interface ConversationPaneProps {
   onToggleConversationDetails: () => void;
   onToggleMessageSearch: () => void;
   onMessageSearchChange: (value: string) => void;
+  onMessageSearchFiltersChange: (patch: Partial<MessageSearchFilters>) => void;
   onClearMessageSearch: () => void;
   onSelectMessageSearchResult: (message: Message) => void;
   onExportChat: () => void;
@@ -94,6 +106,30 @@ interface ConversationPaneProps {
 
 type MessageListProps = Parameters<typeof MessageList>[0];
 
+const MESSAGE_SEARCH_TYPES: Array<{ value: MessageSearchType; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'text', label: 'Text' },
+  { value: 'link', label: 'Links' },
+  { value: 'media', label: 'Media' },
+  { value: 'file', label: 'Files' },
+  { value: 'voice', label: 'Voice' },
+];
+
+const getMemberLabel = (member: User, currentUserId?: string) => {
+  if (member._id === currentUserId) {
+    return 'You';
+  }
+
+  return `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim() || member.username || 'Unknown member';
+};
+
+const hasActiveSearchFilters = (filters: MessageSearchFilters) => Boolean(
+  filters.senderId ||
+  (filters.type && filters.type !== 'all') ||
+  filters.from ||
+  filters.to
+);
+
 const ConversationPane = ({
   selectedChat,
   selectedChatId,
@@ -115,6 +151,7 @@ const ConversationPane = ({
   callDisabledReason,
   videoCallDisabledReason,
   messageSearch,
+  messageSearchFilters,
   messageSearchInputRef,
   messageSearchButtonRef,
   moreButtonRef,
@@ -123,6 +160,7 @@ const ConversationPane = ({
   isMessageSearchLoading,
   isMessageSearchError,
   isMessageSearchBelowMinimum,
+  jumpingMessageId = null,
   loadedMessageIds,
   editingMessageId,
   editText,
@@ -149,6 +187,7 @@ const ConversationPane = ({
   onToggleConversationDetails,
   onToggleMessageSearch,
   onMessageSearchChange,
+  onMessageSearchFiltersChange,
   onClearMessageSearch,
   onSelectMessageSearchResult,
   onExportChat,
@@ -173,8 +212,13 @@ const ConversationPane = ({
   onCancelReply,
   onCancelComposerUpload,
 }: ConversationPaneProps) => {
-  const isMessageSearchActive = showMessageSearch && Boolean(messageSearch.trim());
+  const isMessageSearchActive = showMessageSearch && (
+    Boolean(messageSearch.trim()) ||
+    hasActiveSearchFilters(messageSearchFilters)
+  );
   const isConversationBlocked = conversationControls?.canSendMessage === false;
+  const encryptedConversation = isEncryptedConversation(selectedChat);
+  const missingEncryptionSecret = encryptedConversation && !hasConversationSecret(selectedChat?._id);
 
   if (!selectedChat) {
     return (
@@ -231,7 +275,27 @@ const ConversationPane = ({
         onExportChat={onExportChat}
       />
 
-      {showMessageSearch && (
+      {showMessageSearch && encryptedConversation ? (
+        <div className="border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-3 md:px-8">
+          <div className="flex items-start justify-between gap-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] px-3 py-3 text-sm text-[var(--chat-text-muted)]" role="status">
+            <div className="flex min-w-0 gap-2">
+              <Lock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--chat-accent)]" />
+              <p>
+                Server-side search is unavailable for encrypted conversations. Search can return after local encrypted indexing is supported.
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close message search"
+              title="Close search"
+              onClick={onToggleMessageSearch}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--chat-radius-sm)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel)] hover:text-[var(--chat-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : showMessageSearch ? (
         <div className="border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-2 md:px-8">
           <div className="relative">
             <input
@@ -256,8 +320,73 @@ const ConversationPane = ({
               <X aria-hidden="true" className="h-4 w-4" />
             </button>
           </div>
+          <div className="mt-2 grid gap-2 text-xs text-[var(--chat-text-muted)] xl:grid-cols-[minmax(10rem,14rem)_1fr_minmax(8rem,10rem)_minmax(8rem,10rem)]">
+            <label className="flex min-w-0 flex-col gap-1 font-semibold">
+              <span>Sender</span>
+              <select
+                value={messageSearchFilters.senderId ?? ''}
+                onChange={(event) => onMessageSearchFiltersChange({ senderId: event.target.value || null })}
+                className="h-9 rounded-[var(--chat-radius-sm)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-2 text-sm font-medium text-[var(--chat-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                aria-label="Search sender filter"
+              >
+                <option value="">Anyone</option>
+                {selectedChat.members.map((member) => (
+                  <option key={member._id} value={member._id}>
+                    {getMemberLabel(member, currentUserId)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <fieldset className="min-w-0">
+              <legend className="mb-1 font-semibold">Type</legend>
+              <div className="flex min-h-9 flex-wrap gap-1">
+                {MESSAGE_SEARCH_TYPES.map((option) => {
+                  const isActive = (messageSearchFilters.type ?? 'all') === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => onMessageSearchFiltersChange({ type: option.value })}
+                      className={`min-h-8 rounded-[var(--chat-radius-sm)] border px-2 text-xs font-semibold transition ${
+                        isActive
+                          ? 'border-[var(--chat-accent)] bg-[var(--chat-accent-soft)] text-[var(--chat-accent)]'
+                          : 'border-[var(--chat-border)] bg-[var(--chat-input-bg)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-text)]'
+                      } focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <label className="flex min-w-0 flex-col gap-1 font-semibold">
+              <span>From</span>
+              <input
+                type="date"
+                value={messageSearchFilters.from ?? ''}
+                onChange={(event) => onMessageSearchFiltersChange({ from: event.target.value || null })}
+                className="h-9 rounded-[var(--chat-radius-sm)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-2 text-sm font-medium text-[var(--chat-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                aria-label="Search from date"
+              />
+            </label>
+
+            <label className="flex min-w-0 flex-col gap-1 font-semibold">
+              <span>To</span>
+              <input
+                type="date"
+                value={messageSearchFilters.to ?? ''}
+                onChange={(event) => onMessageSearchFiltersChange({ to: event.target.value || null })}
+                className="h-9 rounded-[var(--chat-radius-sm)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-2 text-sm font-medium text-[var(--chat-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                aria-label="Search to date"
+              />
+            </label>
+          </div>
         </div>
-      )}
+      ) : null}
 
       {(isOffline || isReconnecting) && (
         <div
@@ -292,8 +421,9 @@ const ConversationPane = ({
           isLoading={isMessageSearchLoading}
           isError={isMessageSearchError}
           isBelowMinimum={isMessageSearchBelowMinimum}
+          jumpingMessageId={jumpingMessageId}
           onClear={onClearMessageSearch}
-          onSelectLoadedResult={onSelectMessageSearchResult}
+          onSelectResult={onSelectMessageSearchResult}
         />
       ) : (
         <MessageList
@@ -342,8 +472,11 @@ const ConversationPane = ({
               ? 'Your session expired. Sign in again to continue.'
               : conversationControls?.canSendMessage === false
                 ? sendDisabledReason ?? 'Conversation activity is disabled.'
-                : sendDisabledReason ?? null
+                : missingEncryptionSecret
+                  ? 'This device needs the conversation secret to send encrypted messages.'
+                  : sendDisabledReason ?? null
         }
+        isEncryptedConversation={encryptedConversation}
         emojiPickerRef={emojiPickerRef}
         showDisabledReason={!isConversationBlocked}
         onChange={onComposerChange}

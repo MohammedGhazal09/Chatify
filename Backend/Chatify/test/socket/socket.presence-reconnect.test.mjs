@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import User from '../../Models/userModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
-import { signupWithAgent } from '../helpers/authAgent.mjs';
+import { getCsrfForAgent, signupWithAgent } from '../helpers/authAgent.mjs';
 import {
   connectSocketForSignup,
   connectSocketWithReady,
@@ -173,19 +173,60 @@ describe('Socket.IO presence and reconnect contract', () => {
     expect(storedUser.isOnline).toBe(true);
   });
 
-  it('suppresses presence broadcasts when showOnlineStatus is disabled', async () => {
+  it('broadcasts redacted offline presence when showOnlineStatus is disabled', async () => {
     const { server, memberOne, memberTwo } = await setupPresenceScenario({ hideMemberOne: true });
     const memberTwoSocket = await connectTrackedSignup(server.url, memberTwo);
-    const hiddenPresencePromise = waitForNoMatchingSocketEvent(
-      memberTwoSocket.socket,
-      'user:status-change',
-      (payload) => payload.userId === memberOne.user._id.toString(),
-      700
-    );
+    const hiddenPresencePromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change', 1000);
 
     await connectTrackedSignup(server.url, memberOne);
+    const hiddenPresence = await hiddenPresencePromise;
 
-    expect(await hiddenPresencePromise).toBeUndefined();
+    expect(hiddenPresence).toMatchObject({
+      userId: memberOne.user._id.toString(),
+      userName: 'Presence One',
+      isOnline: false,
+      isCallReachable: false,
+    });
+  });
+
+  it('clears stale online and profile status state when privacy settings are hidden', async () => {
+    const { server, memberOne, memberTwo } = await setupPresenceScenario();
+    await User.findByIdAndUpdate(memberOne.user._id, {
+      profileStatus: 'Deep work only',
+    });
+    const memberTwoSocket = await connectTrackedSignup(server.url, memberTwo);
+    const onlinePromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change', 1000);
+    await connectTrackedSignup(server.url, memberOne);
+    const online = await onlinePromise;
+
+    expect(online).toMatchObject({
+      userId: memberOne.user._id.toString(),
+      isOnline: true,
+      isCallReachable: true,
+      profileStatus: 'Deep work only',
+    });
+
+    const hiddenPromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change', 1000);
+    const csrfToken = await getCsrfForAgent(memberOne.agent);
+    await memberOne.agent
+      .patch('/api/user/privacy-settings')
+      .set('X-CSRF-Token', csrfToken)
+      .send({
+        showOnlineStatus: false,
+        showLastSeen: false,
+        showProfileStatus: false,
+      })
+      .expect(200);
+    const hidden = await hiddenPromise;
+
+    expect(hidden).toMatchObject({
+      userId: memberOne.user._id.toString(),
+      isOnline: false,
+      isCallReachable: false,
+      profileStatus: '',
+    });
+    expect(hidden.lastSeen).toBeUndefined();
+    expect(JSON.stringify(hidden)).not.toContain('Deep work only');
   });
 
   it('emits socket readiness again on reconnect with joined chats and authorized presence snapshot', async () => {

@@ -1,5 +1,5 @@
 import  axiosInstance from './axios';
-import type { LoginData, SignupData, User } from '../types/auth';
+import type { ActiveSession, LoginData, SignupData, User } from '../types/auth';
 
 export const authApi = {
   fetchCSRFToken: () => axiosInstance.get('/api/csrf-token'),
@@ -13,6 +13,12 @@ export const authApi = {
   login: (data: LoginData) => axiosInstance.post('/api/auth/login', data),
   
   logout: () => axiosInstance.post('/api/auth/logout'),
+
+  getActiveSessions: () => axiosInstance.get<{ status: string; data: { sessions: ActiveSession[] } }>('/api/auth/sessions'),
+
+  revokeSession: (sessionId: string) => axiosInstance.delete<{ status: string; data: { session: ActiveSession } }>(`/api/auth/sessions/${sessionId}`),
+
+  revokeAllSessions: () => axiosInstance.post<{ status: string; data: { revokedCount: number } }>('/api/auth/sessions/revoke-all'),
   
   refreshToken: () => axiosInstance.post('/api/auth/refresh-token'),
 

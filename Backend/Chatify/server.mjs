@@ -3,6 +3,7 @@ import app from './app.mjs'
 import DBConfig from './Config/DBConfig.mjs'
 import {createServer} from 'http'
 import { initSocket } from './Config/socket.mjs'
+import { startNotificationOutboxWorker } from './Services/notificationService.mjs'
 
 const PORT = process.env.PORT || process.env.PORT_NUMBER || 5000;
   const httpServer = createServer(app)
@@ -11,5 +12,6 @@ const PORT = process.env.PORT || process.env.PORT_NUMBER || 5000;
   httpServer.listen(PORT, () => {
     console.log(`Socket.io server running on port ${PORT}`);
   })
+  startNotificationOutboxWorker()
 
   export {io, httpServer as server}

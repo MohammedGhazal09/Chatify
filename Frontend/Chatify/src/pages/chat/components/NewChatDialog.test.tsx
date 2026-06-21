@@ -6,9 +6,11 @@ import { describe, expect, it, vi } from 'vitest';
 import NewChatDialog from './NewChatDialog';
 
 interface DialogHarnessProps {
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: ComponentProps<typeof NewChatDialog>['onSubmit'];
   onCreateGroupSubmit?: ComponentProps<typeof NewChatDialog>['onCreateGroupSubmit'];
 }
+
+type DirectSubmitOptions = Parameters<ComponentProps<typeof NewChatDialog>['onSubmit']>[1];
 
 const DialogHarness = ({ onSubmit, onCreateGroupSubmit = vi.fn() }: DialogHarnessProps) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -59,6 +61,12 @@ describe('NewChatDialog', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
 
     await user.click(usernameInput);
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(within(dialog).getByRole('button', { name: 'Encrypted' })).toHaveFocus();
+
+    await user.keyboard('{Shift>}{Tab}{/Shift}');
+    expect(within(dialog).getByRole('button', { name: 'Standard' })).toHaveFocus();
+
     await user.keyboard('{Shift>}{Tab}{/Shift}');
     expect(within(dialog).getByRole('button', { name: 'Group' })).toHaveFocus();
 
@@ -129,6 +137,45 @@ describe('NewChatDialog', () => {
     expect(onCreateGroupSubmit).toHaveBeenCalledWith({
       chatName: 'Project Relay',
       memberUsernames: ['grace.hopper', 'alan.turing'],
+    });
+  });
+
+  it('submits encrypted mode only when the user selects it', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn((event: FormEvent<HTMLFormElement>, options: DirectSubmitOptions) => {
+      void options;
+      event.preventDefault();
+    });
+    const onCreateGroupSubmit = vi.fn();
+
+    render(
+      <DialogHarness
+        onSubmit={onSubmit}
+        onCreateGroupSubmit={onCreateGroupSubmit}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'New chat' }));
+    await user.click(screen.getByRole('button', { name: 'Encrypted' }));
+    expect(screen.getByText(/This device stores the conversation secret/)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Username'), 'encrypted.friend');
+    await user.click(screen.getByRole('button', { name: 'Start or continue chat' }));
+
+    expect(onSubmit.mock.calls[0][1]).toEqual({ encryptionMode: 'e2ee_v1' });
+
+    await user.click(screen.getByRole('button', { name: 'Group' }));
+    await user.type(screen.getByLabelText('Group name'), 'Encrypted Room');
+    await user.type(screen.getByLabelText('Member username'), 'grace.hopper');
+    await user.click(screen.getByRole('button', { name: 'Add group member' }));
+    await user.type(screen.getByLabelText('Member username'), 'alan.turing');
+    await user.keyboard('{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Create group' }));
+
+    expect(onCreateGroupSubmit).toHaveBeenCalledWith({
+      chatName: 'Encrypted Room',
+      memberUsernames: ['grace.hopper', 'alan.turing'],
+      encryptionMode: 'e2ee_v1',
     });
   });
 });

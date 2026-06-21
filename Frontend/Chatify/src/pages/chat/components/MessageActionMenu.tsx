@@ -54,6 +54,11 @@ const MessageActionMenu = ({
 
   const message = messages.find((item) => item._id === contextMenu.messageId);
   const canDeleteForMe = Boolean(message && !message.optimisticState);
+  const messageIsEncrypted = message?.messageType === 'encrypted' || message?.encryptionMode === 'e2ee_v1';
+  const editDisabled = activeActionsDisabled || messageIsEncrypted;
+  const editDisabledReason = messageIsEncrypted
+    ? 'Encrypted messages cannot be edited in this release.'
+    : activeActionsDisabledReason ?? undefined;
 
   return (
     <div
@@ -122,9 +127,9 @@ const MessageActionMenu = ({
       {contextMenu.isOwn && (
         <button
           type="button"
-          onClick={() => onStartEdit(contextMenu.messageId, message?.text || '')}
-          disabled={activeActionsDisabled}
-          title={activeActionsDisabledReason ?? undefined}
+          onClick={() => onStartEdit(contextMenu.messageId, message?.decryptedText ?? message?.text ?? '')}
+          disabled={editDisabled}
+          title={editDisabledReason}
           className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:text-[#6B7378] focus:outline-none focus-visible:bg-[#181C20]"
         >
           Edit

@@ -131,6 +131,19 @@ describe('MessageBubble', () => {
     expect(screen.queryByText('PDF - 280 KB')).not.toBeInTheDocument();
   });
 
+  it('marks Arabic and mixed-direction message text with automatic direction', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({ text: 'مرحبا من Chatify' })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    expect(screen.getByText('مرحبا من Chatify')).toHaveAttribute('dir', 'auto');
+  });
+
   it('renders file attachments with in-app open and protected download actions', async () => {
     const user = userEvent.setup();
     const onOpenAttachmentPreview = vi.fn();
@@ -278,6 +291,62 @@ describe('MessageBubble', () => {
     expect(screen.getByText('Video call ended after 2m 05s')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open message actions' })).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /Message/ })).not.toBeInTheDocument();
+  });
+
+  it('renders locally decrypted encrypted messages without exposing ciphertext', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          text: '',
+          messageType: 'encrypted',
+          encryptionMode: 'e2ee_v1',
+          decryptedText: 'Readable local secret text',
+          encryptedPayload: {
+            ciphertext: 'PRIVATE_CIPHERTEXT_MARKER',
+            iv: 'iv',
+            algorithm: 'AES-GCM',
+            keyVersion: 1,
+            senderDeviceId: 'device-1',
+            encryptedAt: '2026-06-20T00:00:00.000Z',
+          },
+        })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    expect(screen.getByText('Readable local secret text')).toBeInTheDocument();
+    expect(screen.getByText('Encrypted')).toBeInTheDocument();
+    expect(screen.queryByText('PRIVATE_CIPHERTEXT_MARKER')).not.toBeInTheDocument();
+  });
+
+  it('shows a missing-secret state for encrypted messages this device cannot decrypt', async () => {
+    window.localStorage.clear();
+
+    render(
+      <MessageBubble
+        message={makeMessage({
+          text: '',
+          messageType: 'encrypted',
+          encryptionMode: 'e2ee_v1',
+          encryptedPayload: {
+            ciphertext: 'ciphertext',
+            iv: 'iv',
+            algorithm: 'AES-GCM',
+            keyVersion: 1,
+            senderDeviceId: 'device-1',
+            encryptedAt: '2026-06-20T00:00:00.000Z',
+          },
+        })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+      />
+    );
+
+    expect(await screen.findByText('This device needs the conversation secret to read encrypted messages.')).toBeInTheDocument();
+    expect(screen.queryByText('ciphertext')).not.toBeInTheDocument();
   });
 
   it('does not render attachment previews on deleted-for-everyone tombstones', () => {

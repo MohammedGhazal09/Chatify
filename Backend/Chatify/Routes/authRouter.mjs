@@ -5,12 +5,16 @@ import {
   logout, 
   refreshToken, 
   isAuthenticated,
+  listActiveSessions,
+  revokeSession,
+  revokeAllSessions,
   forgotPassword,
   resetPassword,
   verifyResetCode,
   finalizeOAuth
 } from "../Controller/authController.mjs";
 import { authLimiter, sessionCheckLimiter, refreshTokenLimiter } from "../Middlewares/rateLimiters.mjs";
+import protect from "../Middlewares/protectRoutes.mjs";
 
 const router = Router();
 
@@ -29,6 +33,11 @@ router.route("/oauth/finalize").get(authLimiter, finalizeOAuth);
 
 // Token refresh - moderate rate limiting (30 req/15 min)
 router.route("/refresh-token").post(refreshTokenLimiter, refreshToken);
+
+// Session management - protected by active session auth
+router.route("/sessions").get(protect, listActiveSessions);
+router.route("/sessions/revoke-all").post(protect, revokeAllSessions);
+router.route("/sessions/:sessionId").delete(protect, revokeSession);
 
 // Logout - no rate limiting
 router.route("/logout").post(logout);

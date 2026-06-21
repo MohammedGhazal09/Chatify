@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { normalizeChatEncryptionMode } from './encryptionMode.mjs';
 
 export const MAX_MESSAGE_TEXT_LENGTH = 1000;
 export const MAX_REACTION_TEXT_LENGTH = 32;
@@ -8,6 +9,20 @@ export const MAX_MESSAGE_HISTORY_LIMIT = 100;
 export const DEFAULT_MESSAGE_SEARCH_LIMIT = 25;
 export const MAX_MESSAGE_SEARCH_LIMIT = 25;
 export const MIN_MESSAGE_SEARCH_QUERY_LENGTH = 2;
+export const MESSAGE_SEARCH_TYPES = Object.freeze({
+  ALL: 'all',
+  TEXT: 'text',
+  MEDIA: 'media',
+  FILE: 'file',
+  LINK: 'link',
+  VOICE: 'voice',
+});
+export const MESSAGE_SEARCH_ATTACHMENT_TYPES = Object.freeze([
+  MESSAGE_SEARCH_TYPES.MEDIA,
+  MESSAGE_SEARCH_TYPES.FILE,
+  MESSAGE_SEARCH_TYPES.VOICE,
+]);
+export const URL_TEXT_REGEX_SOURCE = String.raw`https?:\/\/[^\s<>"']+|www\.[^\s<>"']+`;
 export const MESSAGE_STATUS = Object.freeze({
   SENT: 'sent',
   DELIVERED: 'delivered',
@@ -16,6 +31,7 @@ export const MESSAGE_STATUS = Object.freeze({
 export const MESSAGE_TYPE = Object.freeze({
   TEXT: 'text',
   CALL: 'call',
+  ENCRYPTED: 'encrypted',
 });
 export const MESSAGE_STATUS_RANK = Object.freeze({
   [MESSAGE_STATUS.SENT]: 0,
@@ -147,7 +163,135 @@ export const serializeCallActivity = (callActivity = null) => {
     endedAt: serializeDate(callActivity.endedAt),
     durationSeconds: Number.isFinite(Number(callActivity.durationSeconds))
       ? Number(callActivity.durationSeconds)
-      : null,
+    : null,
+  };
+};
+
+const MAX_ENCRYPTED_PAYLOAD_FIELD_LENGTH = 64_000;
+const MAX_ENCRYPTED_DEVICE_ID_LENGTH = 128;
+
+const normalizeEncryptedStringField = (
+  value,
+  fieldName,
+  maxLength = MAX_ENCRYPTED_PAYLOAD_FIELD_LENGTH
+) => {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+
+  if (!normalized) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `${fieldName} is required for encrypted messages`,
+    };
+  }
+
+  if (normalized.length > maxLength) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `${fieldName} is too large`,
+    };
+  }
+
+  return { ok: true, value: normalized };
+};
+
+export const normalizeEncryptedPayload = (value) => {
+  let payload = value;
+
+  if (typeof value === 'string') {
+    try {
+      payload = JSON.parse(value);
+    } catch {
+      return {
+        ok: false,
+        statusCode: 400,
+        message: 'Encrypted payload must be valid JSON',
+      };
+    }
+  }
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Encrypted payload is required',
+    };
+  }
+
+  const ciphertext = normalizeEncryptedStringField(payload.ciphertext, 'ciphertext');
+  if (!ciphertext.ok) return ciphertext;
+
+  const iv = normalizeEncryptedStringField(payload.iv, 'iv', 512);
+  if (!iv.ok) return iv;
+
+  const senderDeviceId = normalizeEncryptedStringField(
+    payload.senderDeviceId,
+    'senderDeviceId',
+    MAX_ENCRYPTED_DEVICE_ID_LENGTH
+  );
+  if (!senderDeviceId.ok) return senderDeviceId;
+
+  if (payload.algorithm !== 'AES-GCM') {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Encrypted payload algorithm is unsupported',
+    };
+  }
+
+  const keyVersion = Number(payload.keyVersion);
+  if (!Number.isInteger(keyVersion) || keyVersion < 1 || keyVersion > 9999) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Encrypted payload keyVersion is invalid',
+    };
+  }
+
+  const encryptedAt = payload.encryptedAt ? new Date(payload.encryptedAt) : new Date();
+  if (Number.isNaN(encryptedAt.getTime())) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Encrypted payload timestamp is invalid',
+    };
+  }
+
+  const normalizedPayload = {
+    ciphertext: ciphertext.value,
+    iv: iv.value,
+    algorithm: 'AES-GCM',
+    keyVersion,
+    senderDeviceId: senderDeviceId.value,
+    encryptedAt,
+  };
+
+  if (typeof payload.authTag === 'string' && payload.authTag.trim()) {
+    normalizedPayload.authTag = payload.authTag.trim().slice(0, 512);
+  }
+
+  if (payload.attachmentManifest && typeof payload.attachmentManifest === 'object') {
+    normalizedPayload.attachmentManifest = payload.attachmentManifest;
+  }
+
+  return { ok: true, payload: normalizedPayload };
+};
+
+export const serializeEncryptedPayload = (payload = null) => {
+  if (!payload) {
+    return null;
+  }
+
+  return {
+    ciphertext: payload.ciphertext ?? null,
+    iv: payload.iv ?? null,
+    authTag: payload.authTag ?? null,
+    algorithm: payload.algorithm ?? null,
+    keyVersion: Number.isFinite(Number(payload.keyVersion)) ? Number(payload.keyVersion) : null,
+    senderDeviceId: payload.senderDeviceId ?? null,
+    encryptedAt: serializeDate(payload.encryptedAt),
+    attachmentManifest: payload.attachmentManifest ?? null,
   };
 };
 
@@ -161,6 +305,8 @@ export const serializeMessage = (message) => {
     sender: toIdString(plainMessage.sender),
     text: plainMessage.text ?? '',
     messageType: plainMessage.messageType ?? MESSAGE_TYPE.TEXT,
+    encryptionMode: normalizeChatEncryptionMode(plainMessage.encryptionMode),
+    encryptedPayload: serializeEncryptedPayload(plainMessage.encryptedPayload),
     callActivity: serializeCallActivity(plainMessage.callActivity),
     read: Boolean(plainMessage.read),
     status: plainMessage.status ?? MESSAGE_STATUS.SENT,
@@ -254,6 +400,118 @@ export const normalizeMessageSearchLimit = (value) => {
   }
 
   return Math.min(parsedLimit, MAX_MESSAGE_SEARCH_LIMIT);
+};
+
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const normalizeSearchDate = (value, label, { endOfDay = false } = {}) => {
+  if (value === undefined || value === null || value === '') {
+    return { ok: true, date: null };
+  }
+
+  if (typeof value !== 'string') {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `Invalid ${label} date`,
+    };
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `Invalid ${label} date`,
+    };
+  }
+
+  if (endOfDay && DATE_ONLY_PATTERN.test(value)) {
+    date.setUTCHours(23, 59, 59, 999);
+  }
+
+  return { ok: true, date };
+};
+
+export const normalizeMessageSearchFilters = (queryParams = {}) => {
+  const query = typeof queryParams.q === 'string' ? queryParams.q.trim() : '';
+  const type = typeof queryParams.type === 'string' && queryParams.type.trim()
+    ? queryParams.type.trim().toLowerCase()
+    : MESSAGE_SEARCH_TYPES.ALL;
+  const allowedTypes = new Set(Object.values(MESSAGE_SEARCH_TYPES));
+
+  if (!allowedTypes.has(type)) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Invalid message search type',
+    };
+  }
+
+  const senderId = queryParams.senderId ? toObjectId(queryParams.senderId) : null;
+
+  if (queryParams.senderId && !senderId) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Invalid sender filter',
+    };
+  }
+
+  const fromResult = normalizeSearchDate(queryParams.from, 'from');
+
+  if (!fromResult.ok) {
+    return fromResult;
+  }
+
+  const toResult = normalizeSearchDate(queryParams.to, 'to', { endOfDay: true });
+
+  if (!toResult.ok) {
+    return toResult;
+  }
+
+  if (fromResult.date && toResult.date && fromResult.date.getTime() > toResult.date.getTime()) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: 'Search start date must be before end date',
+    };
+  }
+
+  if (query.length > 0 && query.length < MIN_MESSAGE_SEARCH_QUERY_LENGTH) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `Search query must be at least ${MIN_MESSAGE_SEARCH_QUERY_LENGTH} characters`,
+    };
+  }
+
+  const hasAdvancedFilters = Boolean(
+    senderId ||
+    fromResult.date ||
+    toResult.date ||
+    type !== MESSAGE_SEARCH_TYPES.ALL
+  );
+
+  if (!query && !hasAdvancedFilters) {
+    return {
+      ok: false,
+      statusCode: 400,
+      message: `Search query must be at least ${MIN_MESSAGE_SEARCH_QUERY_LENGTH} characters or include a filter`,
+    };
+  }
+
+  return {
+    ok: true,
+    query,
+    escapedQuery: query ? escapeRegexLiteral(query) : '',
+    type,
+    senderId,
+    from: fromResult.date,
+    to: toResult.date,
+    hasAdvancedFilters,
+  };
 };
 
 export const encodeMessageCursor = (message) => {

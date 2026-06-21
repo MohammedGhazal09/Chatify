@@ -3,27 +3,43 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { AxiosProgressEvent } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { chatApi } from '../api/chatApi';
 import { messageApi } from '../api/messageApi';
 import { userApi } from '../api/userApi';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { makeMessage, makeUser } from '../test/chatFixtures';
+import { makeChat, makeMessage, makeUser } from '../test/chatFixtures';
+import { ensureConversationSecret, hasConversationSecret } from '../utils/encryptedMessages';
 import {
+  chatsQueryKey,
   messageSearchQueryKey,
   messagesQueryKey,
   pinnedMessagesQueryKey,
   sharedAssetsQueryKey,
+  sortChatsForRequester,
+  useCreateChat,
+  useMessageContext,
   useMessageSearch,
   useOnlinePresence,
   usePinnedMessages,
   useSendMessage,
   useSharedAssets,
+  useUpdateChatOrganization,
 } from './useChatQueries';
+
+vi.mock('../api/chatApi', () => ({
+  chatApi: {
+    createChat: vi.fn(),
+    createGroupChat: vi.fn(),
+    updateChatOrganization: vi.fn(),
+  },
+}));
 
 vi.mock('../api/messageApi', () => ({
   messageApi: {
     createMessage: vi.fn(),
     searchMessages: vi.fn(),
+    getMessageContext: vi.fn(),
     getSharedAssets: vi.fn(),
     getPinnedMessages: vi.fn(),
   },
@@ -45,6 +61,7 @@ describe('useMessageSearch', () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
+    window.localStorage.clear();
     queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -71,6 +88,28 @@ describe('useMessageSearch', () => {
         },
       },
     } as Awaited<ReturnType<typeof messageApi.searchMessages>>);
+    vi.mocked(messageApi.getMessageContext).mockResolvedValue({
+      data: {
+        status: 'message context fetched successfully',
+        data: {
+          targetMessageId: 'message-context',
+          messages: [
+            makeMessage({ _id: 'message-context-before', text: 'Before context', createdAt: '2026-06-08T09:59:00.000Z' }),
+            makeMessage({ _id: 'message-context', text: 'Context target', createdAt: '2026-06-08T10:00:00.000Z' }),
+          ],
+          cursor: {
+            nextCursor: 'cursor-context',
+            hasMore: true,
+            limit: 25,
+          },
+          context: {
+            hasMoreBefore: true,
+            hasMoreAfter: false,
+            limit: 25,
+          },
+        },
+      },
+    } as Awaited<ReturnType<typeof messageApi.getMessageContext>>);
     vi.mocked(messageApi.getSharedAssets).mockResolvedValue({
       data: {
         status: 'shared assets fetched successfully',
@@ -181,6 +220,10 @@ describe('useMessageSearch', () => {
       expect(messageApi.searchMessages).toHaveBeenCalledWith('chat-1', {
         q: 'search',
         limit: 25,
+        senderId: null,
+        type: 'all',
+        from: null,
+        to: null,
       });
     });
 
@@ -195,6 +238,68 @@ describe('useMessageSearch', () => {
       expect.objectContaining({ _id: 'message-search' }),
     ]);
     expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toBeUndefined();
+  });
+
+  it('searches with filters even when the text query is empty', async () => {
+    const { result } = renderHook(() => useMessageSearch('chat-1', '', {
+      senderId: 'user-2',
+      type: 'voice',
+      from: '2026-06-01',
+      to: '2026-06-20',
+    }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    expect(result.current.isBelowMinimum).toBe(false);
+
+    await waitFor(() => {
+      expect(messageApi.searchMessages).toHaveBeenCalledWith('chat-1', {
+        q: '',
+        limit: 25,
+        senderId: 'user-2',
+        type: 'voice',
+        from: '2026-06-01',
+        to: '2026-06-20',
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.messages[0]?._id).toBe('message-search');
+    });
+  });
+
+  it('merges message context windows into the durable cache for unloaded search jumps', async () => {
+    const { result } = renderHook(() => useMessageContext(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    queryClient.setQueryData(messagesQueryKey('chat-1'), {
+      messages: [
+        makeMessage({ _id: 'message-existing', text: 'Existing newer', createdAt: '2026-06-08T10:05:00.000Z' }),
+      ],
+      cursor: { nextCursor: null, hasMore: false, limit: 50 },
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        chatId: 'chat-1',
+        messageId: 'message-context',
+        limit: 25,
+      });
+    });
+
+    expect(messageApi.getMessageContext).toHaveBeenCalledWith('chat-1', 'message-context', { limit: 25 });
+    expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toMatchObject({
+      messages: [
+        expect.objectContaining({ _id: 'message-context-before' }),
+        expect.objectContaining({ _id: 'message-context' }),
+        expect.objectContaining({ _id: 'message-existing' }),
+      ],
+      cursor: {
+        nextCursor: 'cursor-context',
+        hasMore: true,
+        limit: 25,
+      },
+    });
   });
 
   it('scopes shared asset and pinned-message queries by chat id and kind', async () => {
@@ -293,12 +398,144 @@ describe('useMessageSearch', () => {
       isCallReachable: true,
     });
   });
+
+  it('sorts pinned conversations before newer unpinned conversations', () => {
+    const pinned = makeChat({
+      _id: 'chat-pinned',
+      updatedAt: '2026-06-08T08:00:00.000Z',
+      organizationState: {
+        muted: false,
+        archived: false,
+        pinned: true,
+        favorite: false,
+      },
+    });
+    const newer = makeChat({
+      _id: 'chat-newer',
+      updatedAt: '2026-06-08T11:00:00.000Z',
+      organizationState: {
+        muted: false,
+        archived: false,
+        pinned: false,
+        favorite: false,
+      },
+    });
+
+    expect(sortChatsForRequester([newer, pinned]).map((chat) => chat._id)).toEqual([
+      'chat-pinned',
+      'chat-newer',
+    ]);
+  });
+
+  it('merges server-backed conversation organization updates into the chat cache', async () => {
+    const initialChat = makeChat({
+      _id: 'chat-1',
+      organizationState: {
+        muted: false,
+        archived: false,
+        pinned: false,
+        favorite: false,
+      },
+    });
+    const updatedChat = {
+      ...initialChat,
+      organizationState: {
+        muted: true,
+        archived: true,
+        pinned: true,
+        favorite: true,
+      },
+    };
+    queryClient.setQueryData(chatsQueryKey, [initialChat]);
+    vi.mocked(chatApi.updateChatOrganization).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          chat: updatedChat,
+        },
+      },
+    } as Awaited<ReturnType<typeof chatApi.updateChatOrganization>>);
+
+    const { result } = renderHook(() => useUpdateChatOrganization(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        chatId: 'chat-1',
+        patch: {
+          muted: true,
+          archived: true,
+          pinned: true,
+          favorite: true,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(chatApi.updateChatOrganization).toHaveBeenCalledWith('chat-1', {
+        muted: true,
+        archived: true,
+        pinned: true,
+        favorite: true,
+      });
+    });
+    expect(queryClient.getQueryData(chatsQueryKey)).toEqual([
+      expect.objectContaining({
+        organizationState: {
+          muted: true,
+          archived: true,
+          pinned: true,
+          favorite: true,
+        },
+      }),
+    ]);
+  });
+
+  it('creates encrypted conversations and stores the local conversation secret', async () => {
+    const encryptedChat = makeChat({
+      _id: 'chat-encrypted',
+      encryptionMode: 'e2ee_v1',
+    });
+    vi.mocked(chatApi.createChat).mockResolvedValueOnce({
+      data: {
+        status: 'chat created successfully',
+        data: {
+          chat: encryptedChat,
+        },
+      },
+    } as Awaited<ReturnType<typeof chatApi.createChat>>);
+
+    const { result } = renderHook(() => useCreateChat(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        targetUsername: 'grace.hopper',
+        encryptionMode: 'e2ee_v1',
+      });
+    });
+
+    expect(chatApi.createChat).toHaveBeenCalledWith({
+      targetUsername: 'grace.hopper',
+      encryptionMode: 'e2ee_v1',
+    });
+    expect(hasConversationSecret('chat-encrypted')).toBe(true);
+    expect(queryClient.getQueryData(chatsQueryKey)).toEqual([
+      expect.objectContaining({
+        _id: 'chat-encrypted',
+        encryptionMode: 'e2ee_v1',
+      }),
+    ]);
+  });
 });
 
 describe('useSendMessage', () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
+    window.localStorage.clear();
     queryClient = new QueryClient({
       defaultOptions: {
         mutations: {
@@ -412,6 +649,100 @@ describe('useSendMessage', () => {
         }),
       ],
     });
+  });
+
+  it('encrypts e2ee sends without passing plaintext text to the message API', async () => {
+    ensureConversationSecret('chat-1');
+    vi.mocked(messageApi.createMessage).mockResolvedValue({
+      data: {
+        status: 'message created successfully',
+        data: {
+          message: makeMessage({
+            _id: 'message-encrypted',
+            chatId: 'chat-1',
+            sender: 'user-1',
+            text: '',
+            clientMessageId: 'client-encrypted',
+            messageType: 'encrypted',
+            encryptionMode: 'e2ee_v1',
+            encryptedPayload: {
+              ciphertext: 'server-ciphertext',
+              iv: 'server-iv',
+              algorithm: 'AES-GCM',
+              keyVersion: 1,
+              senderDeviceId: 'device-1',
+              encryptedAt: '2026-06-20T00:00:00.000Z',
+            },
+          }),
+        },
+      },
+    } as Awaited<ReturnType<typeof messageApi.createMessage>>);
+
+    const { result } = renderHook(() => useSendMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        chatId: 'chat-1',
+        text: ' Private encrypted text ',
+        clientMessageId: 'client-encrypted',
+        encryptionMode: 'e2ee_v1',
+      });
+    });
+
+    await waitFor(() => {
+      expect(messageApi.createMessage).toHaveBeenCalledTimes(1);
+    });
+
+    const [payload] = vi.mocked(messageApi.createMessage).mock.calls[0];
+    expect(payload).toMatchObject({
+      chatId: 'chat-1',
+      text: '',
+      clientMessageId: 'client-encrypted',
+      encryptedPayload: expect.objectContaining({
+        algorithm: 'AES-GCM',
+        keyVersion: 1,
+        ciphertext: expect.any(String),
+        iv: expect.any(String),
+      }),
+    });
+    expect(JSON.stringify(payload)).not.toContain('Private encrypted text');
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toMatchObject({
+        messages: [
+          expect.objectContaining({
+            _id: 'message-encrypted',
+            text: '',
+            messageType: 'encrypted',
+            encryptionMode: 'e2ee_v1',
+            decryptedText: 'Private encrypted text',
+          }),
+        ],
+      });
+    });
+  });
+
+  it('blocks encrypted sends when the local conversation secret is missing', async () => {
+    const { result } = renderHook(() => useSendMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        chatId: 'chat-1',
+        text: 'Secret missing',
+        clientMessageId: 'client-missing-secret',
+        encryptionMode: 'e2ee_v1',
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    expect(messageApi.createMessage).not.toHaveBeenCalled();
+    expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toBeUndefined();
   });
 
   it('aborts in-flight attachment uploads by client message id', async () => {

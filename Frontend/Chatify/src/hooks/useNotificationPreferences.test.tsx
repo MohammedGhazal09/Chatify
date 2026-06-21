@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { userApi } from '../api/userApi';
 import { LEGACY_SOUND_STORAGE_KEY } from '../utils/sounds';
 import {
   getNotificationPreferencesStorageKey,
@@ -7,9 +8,38 @@ import {
   useNotificationPreferences,
 } from './useNotificationPreferences';
 
+vi.mock('../api/userApi', () => ({
+  userApi: {
+    getNotificationPreferences: vi.fn(),
+    updateNotificationPreferences: vi.fn(),
+    registerPushSubscription: vi.fn(),
+    removePushSubscription: vi.fn(),
+  },
+}));
+
+const mockUserApi = vi.mocked(userApi);
+
+const makeServerPreferences = (overrides = {}) => ({
+  pushEnabled: false,
+  emailNotificationsEnabled: false,
+  messagePreviewMode: 'none' as const,
+  emailUnsubscribed: false,
+  pushSubscriptionCount: 0,
+  mutedChatIds: [],
+  ...overrides,
+});
+
 describe('useNotificationPreferences', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    mockUserApi.getNotificationPreferences.mockRejectedValue(new Error('offline'));
+    mockUserApi.updateNotificationPreferences.mockImplementation(async (patch) => ({
+      data: {
+        data: {
+          preferences: makeServerPreferences(patch),
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof userApi.updateNotificationPreferences>>));
   });
 
   afterEach(() => {
@@ -108,6 +138,11 @@ describe('useNotificationPreferences', () => {
     expect(readNotificationPreferences('user-1')).toEqual({
       soundEnabled: true,
       browserNotificationsEnabled: false,
+      pushEnabled: false,
+      emailNotificationsEnabled: false,
+      messagePreviewMode: 'none',
+      emailUnsubscribed: false,
+      pushSubscriptionCount: 0,
       mutedChatIds: ['chat-1'],
     });
   });
@@ -140,7 +175,49 @@ describe('useNotificationPreferences', () => {
     expect(result.current.preferences).toEqual({
       soundEnabled: true,
       browserNotificationsEnabled: false,
+      pushEnabled: false,
+      emailNotificationsEnabled: false,
+      messagePreviewMode: 'none',
+      emailUnsubscribed: false,
+      pushSubscriptionCount: 0,
       mutedChatIds: [],
     });
+  });
+
+  it('hydrates server-owned push and email preferences when available', async () => {
+    mockUserApi.getNotificationPreferences.mockResolvedValueOnce({
+      data: {
+        data: {
+          preferences: makeServerPreferences({
+            pushEnabled: true,
+            emailNotificationsEnabled: true,
+            pushSubscriptionCount: 1,
+            mutedChatIds: ['chat-server'],
+          }),
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof userApi.getNotificationPreferences>>);
+
+    const { result } = renderHook(() => useNotificationPreferences('user-1'));
+
+    await waitFor(() => {
+      expect(result.current.pushEnabled).toBe(true);
+      expect(result.current.emailNotificationsEnabled).toBe(true);
+      expect(result.current.pushSubscriptionCount).toBe(1);
+      expect(result.current.mutedChatIds).toEqual(['chat-server']);
+    });
+  });
+
+  it('saves server-owned email notification preferences', async () => {
+    const { result } = renderHook(() => useNotificationPreferences('user-1'));
+
+    await act(async () => {
+      await result.current.setEmailNotificationsEnabled(true);
+    });
+
+    expect(mockUserApi.updateNotificationPreferences).toHaveBeenCalledWith({
+      emailNotificationsEnabled: true,
+    });
+    expect(result.current.emailNotificationsEnabled).toBe(true);
   });
 });

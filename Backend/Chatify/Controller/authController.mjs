@@ -1,4 +1,5 @@
 import User from '../Models/userModel.mjs';
+import Session from '../Models/sessionModel.mjs';
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import {CustomError} from '../Utils/customError.mjs';
 import jsonwebtoken from 'jsonwebtoken'
@@ -22,6 +23,11 @@ import {
   buildUsernameConflict,
   validateUsername,
 } from '../Utils/usernameValidation.mjs';
+import {
+  assertActiveSessionClaim,
+  findActiveSession,
+  serializeSessionForUser,
+} from '../Utils/sessionMetadata.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 const FRONTEND_URL = isProd 
@@ -134,7 +140,7 @@ export const signup =asyncErrHandler( async (req, res, next) => {
     authProvider: 'local',
   })
 
-  await issueSessionCookies({ user, res, rememberMe: false });
+  await issueSessionCookies({ user, res, rememberMe: false, req });
   return res.status(201).json({
     success: true,
     message: 'User created successfully',
@@ -161,7 +167,7 @@ export const login = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401))
   }
 
-  await issueSessionCookies({ user, res, rememberMe });
+  await issueSessionCookies({ user, res, rememberMe, req });
 
   return res.status(200).json({
     status:"success",
@@ -183,6 +189,7 @@ export const refreshToken = asyncErrHandler(async (req, res, next) => {
   await rotateSessionCookies({
     refreshToken: readRefreshTokenFromRequest(req),
     res,
+    req,
   });
 
   return res.status(200).json({ status: 'success', message: 'Token refreshed successfully' });
@@ -194,7 +201,11 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
 
   if (token) {
     try {
-      verifyAccessToken(token);
+      const { decoded, userId } = verifyAccessToken(token);
+      await assertActiveSessionClaim({
+        sessionId: decoded.sessionId?.toString?.() ?? null,
+        userId,
+      });
       isValid = true;
     } catch {
       isValid = false;
@@ -207,6 +218,103 @@ export const isAuthenticated = asyncErrHandler(async (req, res, next) => {
     token: isValid
   })
 })
+
+export const listActiveSessions = asyncErrHandler(async (req, res) => {
+  if (!req.userId) {
+    return res.status(401).json({
+      status: 'fail',
+      message: 'Authentication required',
+    });
+  }
+
+  const now = new Date();
+  const sessions = await Session.find({
+    userId: req.userId,
+    revokedAt: null,
+    expiresAt: { $gt: now },
+  })
+    .sort({ lastUsedAt: -1, createdAt: -1 })
+    .limit(50);
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      sessions: sessions.map((session) => serializeSessionForUser(session, req.sessionId)),
+    },
+  });
+});
+
+export const revokeSession = asyncErrHandler(async (req, res) => {
+  if (!req.userId) {
+    return res.status(401).json({
+      status: 'fail',
+      message: 'Authentication required',
+    });
+  }
+
+  if (req.params.sessionId === req.sessionId) {
+    return res.status(400).json({
+      status: 'fail',
+      message: 'Use logout to end the current session',
+    });
+  }
+
+  const session = await findActiveSession({
+    sessionId: req.params.sessionId,
+    userId: req.userId,
+  });
+
+  if (!session) {
+    return res.status(404).json({
+      status: 'fail',
+      message: 'Session not found',
+    });
+  }
+
+  session.revokedAt = new Date();
+  session.lastUsedAt = new Date();
+  await session.save();
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      session: serializeSessionForUser(session, req.sessionId),
+    },
+  });
+});
+
+export const revokeAllSessions = asyncErrHandler(async (req, res) => {
+  if (!req.userId) {
+    return res.status(401).json({
+      status: 'fail',
+      message: 'Authentication required',
+    });
+  }
+
+  const now = new Date();
+  const result = await Session.updateMany(
+    {
+      userId: req.userId,
+      revokedAt: null,
+      expiresAt: { $gt: now },
+    },
+    {
+      $set: {
+        revokedAt: now,
+        lastUsedAt: now,
+      },
+    }
+  );
+
+  clearSessionCookies(res);
+
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      revokedCount: result.modifiedCount ?? 0,
+    },
+  });
+});
 
 // Helper function for OAuth callbacks
 const createOAuthCallback = (provider) => {
@@ -296,7 +404,7 @@ export const finalizeOAuth = asyncErrHandler(async (req, res) => {
       return redirectOAuthFailure(res);
     }
 
-    await issueSessionCookies({ user, res, rememberMe: false });
+    await issueSessionCookies({ user, res, rememberMe: false, req });
     clearOAuthStateCookie(res);
 
     return res.redirect(buildFrontendUrl('/', { auth: 'success' }));

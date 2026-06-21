@@ -25,6 +25,10 @@ export type CreateOptimisticMessageInput = {
   senderId: string;
   text: string;
   clientMessageId: string;
+  messageType?: Message['messageType'];
+  encryptionMode?: Message['encryptionMode'];
+  encryptedPayload?: Message['encryptedPayload'];
+  decryptedText?: string;
   attachments?: Message['attachments'];
   localFiles?: File[];
   localDrafts?: ComposerAttachmentDraft[];
@@ -172,6 +176,10 @@ export const mergeCanonicalMessage = (existing: Message | undefined, incoming: M
     chatId: incoming.chatId ?? existing?.chatId ?? contentSource.chatId,
     sender: incoming.sender ?? existing?.sender ?? contentSource.sender,
     text: deletedForEveryone ? '' : (preferIncomingContent ? incoming.text : existing?.text ?? incoming.text ?? ''),
+    messageType: incoming.messageType ?? existing?.messageType ?? contentSource.messageType,
+    encryptionMode: incoming.encryptionMode ?? existing?.encryptionMode ?? contentSource.encryptionMode,
+    encryptedPayload: incoming.encryptedPayload ?? existing?.encryptedPayload ?? contentSource.encryptedPayload,
+    decryptedText: incoming.decryptedText ?? existing?.decryptedText ?? contentSource.decryptedText,
     read: Boolean(existing?.read || incoming.read || status === 'read'),
     status,
     deliveredAt: existing?.deliveredAt ?? incoming.deliveredAt ?? null,
@@ -286,6 +294,10 @@ export const createOptimisticMessage = ({
   senderId,
   text,
   clientMessageId,
+  messageType = 'text',
+  encryptionMode,
+  encryptedPayload = null,
+  decryptedText,
   attachments = [],
   localFiles = [],
   localDrafts = [],
@@ -296,6 +308,10 @@ export const createOptimisticMessage = ({
   chatId,
   sender: senderId,
   text,
+  messageType,
+  encryptionMode,
+  encryptedPayload,
+  decryptedText,
   read: false,
   status: 'sent',
   readBy: [],

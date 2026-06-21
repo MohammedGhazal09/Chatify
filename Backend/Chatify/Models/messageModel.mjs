@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { CHAT_ENCRYPTION_MODES } from "../Utils/encryptionMode.mjs";
 
 const readBySchema = new mongoose.Schema({
   user: {
@@ -101,6 +102,39 @@ const callActivitySchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+const encryptedPayloadSchema = new mongoose.Schema({
+  ciphertext: {
+    type: String,
+    trim: true,
+  },
+  iv: {
+    type: String,
+    trim: true,
+  },
+  authTag: {
+    type: String,
+    trim: true,
+  },
+  algorithm: {
+    type: String,
+    enum: ["AES-GCM"],
+  },
+  keyVersion: {
+    type: Number,
+    min: 1,
+  },
+  senderDeviceId: {
+    type: String,
+    trim: true,
+  },
+  encryptedAt: {
+    type: Date,
+  },
+  attachmentManifest: {
+    type: mongoose.Schema.Types.Mixed,
+  },
+}, { _id: false });
+
 const messageSchema = new mongoose.Schema({
   chatId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -118,6 +152,7 @@ const messageSchema = new mongoose.Schema({
     type: String,
     required() {
       return this.messageType !== "call"
+        && this.messageType !== "encrypted"
         && !this.deletedForEveryone
         && (!this.attachments || this.attachments.length === 0);
     },
@@ -126,8 +161,20 @@ const messageSchema = new mongoose.Schema({
   },
   messageType: {
     type: String,
-    enum: ["text", "call"],
+    enum: ["text", "call", "encrypted"],
     default: "text",
+  },
+  encryptionMode: {
+    type: String,
+    enum: Object.values(CHAT_ENCRYPTION_MODES),
+    default: CHAT_ENCRYPTION_MODES.STANDARD,
+  },
+  encryptedPayload: {
+    type: encryptedPayloadSchema,
+  },
+  encryptedPayloadFingerprint: {
+    type: String,
+    select: false,
   },
   callActivity: {
     type: callActivitySchema,
@@ -198,10 +245,24 @@ const messageSchema = new mongoose.Schema({
   versionKey: false,
 });
 
+messageSchema.pre("validate", function validateEncryptedMessage(next) {
+  if (this.messageType === "encrypted") {
+    this.encryptionMode = CHAT_ENCRYPTION_MODES.E2EE_V1;
+    this.text = "";
+
+    if (!this.encryptedPayload?.ciphertext || !this.encryptedPayload?.iv) {
+      this.invalidate("encryptedPayload", "Encrypted messages require an encrypted payload");
+    }
+  }
+
+  next();
+});
+
 // Index for efficient queries on chat messages
 messageSchema.index({ chatId: 1, createdAt: 1 });
 messageSchema.index({ chatId: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ chatId: 1, sender: 1, status: 1 });
+messageSchema.index({ chatId: 1, sender: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ chatId: 1, pinned: 1, pinnedAt: -1 });
 messageSchema.index({ chatId: 1, messageType: 1, createdAt: -1 });
 messageSchema.index(

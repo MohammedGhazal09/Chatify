@@ -7,12 +7,25 @@ vi.mock('../../../api/apiOrigin', () => ({
   resolveApiBaseUrl: vi.fn(() => 'https://backend.test'),
 }));
 
-const renderDetailContent = (profilePic = '/api/user/user-2/profile-image?v=1') => {
+const renderDetailContent = ({
+  profilePic = '/api/user/user-2/profile-image?v=1',
+  profileBio,
+  memberProfileStatus,
+  presenceProfileStatus,
+}: {
+  profilePic?: string;
+  profileBio?: string;
+  memberProfileStatus?: string;
+  presenceProfileStatus?: string;
+} = {}) => {
   const otherMember = makeUser({
     _id: 'user-2',
     firstName: 'Grace',
     lastName: 'Hopper',
     profilePic,
+    profileBio,
+    profileStatus: memberProfileStatus,
+    email: 'grace@example.com',
   });
   const selectedChat = makeChat({
     members: [
@@ -26,7 +39,7 @@ const renderDetailContent = (profilePic = '/api/user/user-2/profile-image?v=1') 
       selectedChat={selectedChat}
       currentUserId="user-1"
       otherMember={otherMember}
-      otherMemberStatus={{ userId: 'user-2', isOnline: true }}
+      otherMemberStatus={{ userId: 'user-2', isOnline: true, profileStatus: presenceProfileStatus }}
       pinnedMessages={[]}
       sharedFiles={[]}
       sharedMedia={[]}
@@ -69,7 +82,7 @@ describe('ConversationDetailContent', () => {
   });
 
   it('falls back to abstract identity when the detail image fails to load', () => {
-    renderDetailContent('/api/user/user-2/profile-image?v=broken');
+    renderDetailContent({ profilePic: '/api/user/user-2/profile-image?v=broken' });
 
     fireEvent.error(screen.getByRole('img', { name: 'Grace Hopper profile picture' }));
 
@@ -84,6 +97,21 @@ describe('ConversationDetailContent', () => {
     expect(screen.getByText('No voice messages')).toBeInTheDocument();
     expect(screen.queryByText('voice-sample.webm')).not.toBeInTheDocument();
     expect(screen.queryByText('delivery-metrics.xlsx')).not.toBeInTheDocument();
+  });
+
+  it('renders public bio and visible profile status without exposing account email', () => {
+    renderDetailContent({
+      profileBio: 'Building reliable chat tools.',
+      memberProfileStatus: 'Do not show stale member status',
+      presenceProfileStatus: 'Available for focused work',
+    });
+
+    expect(screen.getByText('Profile')).toBeInTheDocument();
+    expect(screen.getByText('Bio')).toBeInTheDocument();
+    expect(screen.getByText('Building reliable chat tools.')).toBeInTheDocument();
+    expect(screen.getAllByText('Available for focused work').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Do not show stale member status')).not.toBeInTheDocument();
+    expect(screen.queryByText('grace@example.com')).not.toBeInTheDocument();
   });
 
   it('renders persisted voice assets in the voice section', () => {

@@ -78,6 +78,61 @@ describe("abuse reporting and moderation review", () => {
       .expect(404);
   });
 
+  it("adds privacy-safe space channel context to report snapshots", async () => {
+    const owner = await signupWithAgent({
+      firstName: "Space",
+      lastName: "ReporterOwner",
+      username: "space.report.owner",
+      email: "space-report-owner@example.test",
+    });
+    const member = await signupWithAgent({
+      firstName: "Space",
+      lastName: "ReporterMember",
+      username: "space.report.member",
+      email: "space-report-member@example.test",
+    });
+    const created = await owner.agent
+      .post("/api/space")
+      .send({
+        name: "Moderation Space",
+        memberUsernames: [member.user.username],
+      })
+      .expect(201);
+    const spaceId = created.body.data.space._id;
+    const channelId = created.body.data.channel._id;
+    const messageResponse = await owner.agent
+      .post("/api/message/new-message")
+      .send({
+        chatId: channelId,
+        text: "Channel report context includes owner@example.test",
+        clientMessageId: "space-report-message-1",
+      })
+      .expect(201);
+
+    const response = await member.agent
+      .post("/api/moderation/reports")
+      .send({
+        targetType: "message",
+        messageId: messageResponse.body.data.message._id,
+        reason: "privacy",
+      })
+      .expect(201);
+    const serialized = JSON.stringify(response.body);
+
+    expect(response.body.data.report.context.chat).toMatchObject({
+      chatId: channelId,
+      isGroupChat: true,
+      isSpaceChannel: true,
+      spaceId,
+      channelId,
+      channelName: "general",
+      memberCount: 2,
+    });
+    expect(response.body.data.report.context.message.textPreview).toContain("[redacted-email]");
+    expect(serialized).not.toContain(owner.user.email);
+    expect(serialized).not.toContain(member.user.email);
+  });
+
   it("requires CSRF protection on unsafe report creation", async () => {
     const { reporter, message } = await setupDirectReportScenario();
     const csrfToken = await getCsrfForAgent(reporter.agent);

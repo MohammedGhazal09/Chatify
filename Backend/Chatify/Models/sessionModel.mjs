@@ -22,6 +22,22 @@ const sessionSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    deviceLabel: {
+      type: String,
+      trim: true,
+      maxlength: 80,
+      default: 'Unknown device',
+    },
+    userAgentHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    ipHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
     expiresAt: {
       type: Date,
       required: true,
@@ -48,6 +64,7 @@ const sessionSchema = new mongoose.Schema(
 
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 sessionSchema.index({ userId: 1, revokedAt: 1, expiresAt: 1 });
+sessionSchema.index({ userId: 1, lastUsedAt: -1 });
 
 const Session = mongoose.model('Sessions', sessionSchema);
 

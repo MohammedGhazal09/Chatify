@@ -1,0 +1,278 @@
+export type LocaleCode = 'en' | 'ar';
+export type LocaleDirection = 'ltr' | 'rtl';
+
+export interface LocaleMeta {
+  code: LocaleCode;
+  label: string;
+  nativeName: string;
+  direction: LocaleDirection;
+  dateLocale: string;
+}
+
+export const LOCALE_STORAGE_KEY = 'chatify_locale';
+export const DEFAULT_LOCALE: LocaleCode = 'en';
+
+export const supportedLocales: Record<LocaleCode, LocaleMeta> = {
+  en: {
+    code: 'en',
+    label: 'English',
+    nativeName: 'English',
+    direction: 'ltr',
+    dateLocale: 'en-US',
+  },
+  ar: {
+    code: 'ar',
+    label: 'Arabic',
+    nativeName: 'العربية',
+    direction: 'rtl',
+    dateLocale: 'ar',
+  },
+};
+
+const englishTranslations = {
+  'app.name': 'Chatify',
+  'common.unknown': 'Unknown',
+  'common.loading': 'Loading...',
+  'common.error': 'Something went wrong.',
+  'settings.title': 'Settings',
+  'settings.account.title': 'Account',
+  'settings.account.username': 'Username',
+  'settings.account.email': 'Email',
+  'settings.language.title': 'Language',
+  'settings.language.description': 'Choose the language used in Chatify.',
+  'settings.language.english': 'English',
+  'settings.language.arabic': 'Arabic',
+  'settings.language.current': 'Current language: {language}',
+  'settings.privacy.title': 'Privacy and portability',
+  'settings.privacy.description': 'Export your account data or schedule a reversible deletion request.',
+  'settings.accountSafety.title': 'Account safety',
+  'settings.accountSafety.description': 'Review eligible moderation outcomes and submit an appeal when available.',
+  'settings.security.title': 'Account security',
+  'settings.security.description': 'Review active devices and sign out sessions you no longer use.',
+  'settings.notifications.title': 'Notifications',
+  'settings.notifications.sound': 'Sound',
+  'settings.notifications.browser': 'Browser notifications',
+  'settings.notifications.push': 'Push notifications',
+  'settings.notifications.email': 'Email notifications',
+  'admin.moderation.eyebrow': 'Admin',
+  'admin.moderation.title': 'Moderation',
+  'admin.moderation.refresh': 'Refresh',
+  'admin.moderation.summaryLabel': 'Reviewer operations summary',
+  'admin.moderation.loadingSummary': 'Loading operations summary',
+  'admin.moderation.summaryUnavailable': 'Operations summary unavailable',
+  'admin.moderation.openReports': 'Open reports',
+  'admin.moderation.openAppeals': 'Open appeals',
+  'admin.moderation.unassigned': 'Unassigned',
+  'admin.moderation.assignedToMe': 'Assigned to me',
+  'admin.moderation.oldestOpen': 'Oldest open',
+  'admin.moderation.unknownAge': 'Unknown age',
+  'admin.moderation.accessRequiredTitle': 'Admin access required',
+  'admin.moderation.accessRequiredDescription': 'This workspace is restricted to moderation admins.',
+  'admin.moderation.backToChat': 'Back to chat',
+  'admin.moderation.reportQueue': 'Report queue',
+  'admin.moderation.reportStatusFilters': 'Report status filters',
+  'admin.moderation.reportDetail': 'Report detail',
+  'admin.moderation.loadingReports': 'Loading reports',
+  'admin.moderation.reportsUnavailable': 'Reports unavailable',
+  'admin.moderation.couldNotLoadReports': 'Could not load moderation reports.',
+  'admin.moderation.noReports': 'No reports match this filter',
+  'admin.moderation.selectReport': 'Select a report',
+  'admin.moderation.loadingDetail': 'Loading detail',
+  'admin.moderation.reportedTarget': 'Reported target',
+  'admin.moderation.noReportedUser': 'No reported user',
+  'admin.moderation.reporterFallback': 'Reporter {id}',
+  'admin.moderation.reportButtonLabel': '{priority} priority {targetType} report from {reporter}',
+  'admin.moderation.fromReporter': 'From {reporter} - {reason}',
+  'admin.moderation.reportedBy': 'Reported by {reporter} - {date}',
+  'admin.moderation.reason': 'Reason',
+  'admin.moderation.chat': 'Chat',
+  'admin.moderation.message': 'Message',
+  'admin.moderation.notLinked': 'Not linked',
+  'admin.moderation.reporterDetails': 'Reporter details',
+  'admin.moderation.redactedMessageContext': 'Redacted message context',
+  'admin.moderation.noMessagePreview': 'No message preview stored',
+  'admin.moderation.assignment': 'Assignment',
+  'admin.moderation.assignToMe': 'Assign to me',
+  'admin.moderation.assignedToYou': 'Assigned to you.',
+  'admin.moderation.couldNotAssign': 'Could not assign this report.',
+  'admin.moderation.enforcementHistory': 'Enforcement history',
+  'admin.moderation.loadingHistory': 'Loading history',
+  'admin.moderation.noPriorEnforcement': 'No prior enforcement.',
+  'admin.moderation.appealReview': 'Appeal review',
+  'admin.moderation.appeal': 'Appeal',
+  'admin.moderation.appealStatus': 'Appeal status',
+  'admin.moderation.appealReviewerNote': 'Appeal reviewer note',
+  'admin.moderation.saveAppealReview': 'Save appeal review',
+  'admin.moderation.appealReviewSaved': 'Appeal review saved.',
+  'admin.moderation.couldNotSaveAppealReview': 'Could not save appeal review.',
+  'admin.moderation.status': 'Status',
+  'admin.moderation.enforcement': 'Enforcement',
+  'admin.moderation.reviewerNote': 'Reviewer note',
+  'admin.moderation.saveReview': 'Save review',
+  'admin.moderation.reviewSaved': 'Review saved.',
+  'admin.moderation.couldNotSaveReview': 'Could not save the moderation review.',
+  'admin.moderation.auditTrail': 'Audit trail',
+  'admin.moderation.noReviewEvents': 'No review events recorded.',
+  'admin.moderation.status.open': 'Open',
+  'admin.moderation.status.reviewed': 'Reviewed',
+  'admin.moderation.status.dismissed': 'Dismissed',
+  'admin.moderation.status.actionTaken': 'Action taken',
+  'admin.moderation.status.all': 'All',
+  'admin.moderation.status.underReview': 'Under review',
+  'admin.moderation.status.acceptAppeal': 'Accept appeal',
+  'admin.moderation.status.rejectAppeal': 'Reject appeal',
+  'admin.moderation.priority.high': 'High',
+  'admin.moderation.priority.medium': 'Medium',
+  'admin.moderation.priority.normal': 'Normal',
+  'admin.moderation.action.none': 'No enforcement',
+  'admin.moderation.action.warned': 'Warn user',
+  'admin.moderation.action.restricted': 'Restrict messaging',
+  'admin.moderation.action.restrictionLifted': 'Lift restriction',
+  'admin.moderation.action.contentRemoved': 'Remove reported content',
+  'admin.moderation.action.accountReview': 'Account review',
+  'date.unknown': 'Unknown',
+} as const;
+
+export type TranslationKey = keyof typeof englishTranslations;
+type TranslationValues = Record<string, string | number>;
+
+const arabicTranslations: Record<TranslationKey, string> = {
+  'app.name': 'Chatify',
+  'common.unknown': 'غير معروف',
+  'common.loading': 'جار التحميل...',
+  'common.error': 'حدث خطأ.',
+  'settings.title': 'الإعدادات',
+  'settings.account.title': 'الحساب',
+  'settings.account.username': 'اسم المستخدم',
+  'settings.account.email': 'البريد الإلكتروني',
+  'settings.language.title': 'اللغة',
+  'settings.language.description': 'اختر اللغة المستخدمة في Chatify.',
+  'settings.language.english': 'الإنجليزية',
+  'settings.language.arabic': 'العربية',
+  'settings.language.current': 'اللغة الحالية: {language}',
+  'settings.privacy.title': 'الخصوصية ونقل البيانات',
+  'settings.privacy.description': 'صدّر بيانات حسابك أو جدولة طلب حذف قابل للتراجع.',
+  'settings.accountSafety.title': 'سلامة الحساب',
+  'settings.accountSafety.description': 'راجع نتائج الإشراف المؤهلة وقدّم اعتراضاً عند توفره.',
+  'settings.security.title': 'أمان الحساب',
+  'settings.security.description': 'راجع الأجهزة النشطة وسجّل الخروج من الجلسات التي لم تعد تستخدمها.',
+  'settings.notifications.title': 'الإشعارات',
+  'settings.notifications.sound': 'الصوت',
+  'settings.notifications.browser': 'إشعارات المتصفح',
+  'settings.notifications.push': 'الإشعارات الفورية',
+  'settings.notifications.email': 'إشعارات البريد الإلكتروني',
+  'admin.moderation.eyebrow': 'المشرف',
+  'admin.moderation.title': 'الإشراف',
+  'admin.moderation.refresh': 'تحديث',
+  'admin.moderation.summaryLabel': 'ملخص عمليات المراجعين',
+  'admin.moderation.loadingSummary': 'جار تحميل ملخص العمليات',
+  'admin.moderation.summaryUnavailable': 'ملخص العمليات غير متاح',
+  'admin.moderation.openReports': 'البلاغات المفتوحة',
+  'admin.moderation.openAppeals': 'الاعتراضات المفتوحة',
+  'admin.moderation.unassigned': 'غير معيّن',
+  'admin.moderation.assignedToMe': 'معيّن لي',
+  'admin.moderation.oldestOpen': 'الأقدم المفتوح',
+  'admin.moderation.unknownAge': 'عمر غير معروف',
+  'admin.moderation.accessRequiredTitle': 'مطلوب وصول المشرف',
+  'admin.moderation.accessRequiredDescription': 'مساحة العمل هذه مخصصة لمشرفي المراجعة فقط.',
+  'admin.moderation.backToChat': 'العودة إلى المحادثة',
+  'admin.moderation.reportQueue': 'قائمة البلاغات',
+  'admin.moderation.reportStatusFilters': 'مرشحات حالة البلاغات',
+  'admin.moderation.reportDetail': 'تفاصيل البلاغ',
+  'admin.moderation.loadingReports': 'جار تحميل البلاغات',
+  'admin.moderation.reportsUnavailable': 'البلاغات غير متاحة',
+  'admin.moderation.couldNotLoadReports': 'تعذر تحميل بلاغات الإشراف.',
+  'admin.moderation.noReports': 'لا توجد بلاغات تطابق هذا المرشح',
+  'admin.moderation.selectReport': 'اختر بلاغاً',
+  'admin.moderation.loadingDetail': 'جار تحميل التفاصيل',
+  'admin.moderation.reportedTarget': 'الهدف المبلّغ عنه',
+  'admin.moderation.noReportedUser': 'لا يوجد مستخدم مبلّغ عنه',
+  'admin.moderation.reporterFallback': 'المبلّغ {id}',
+  'admin.moderation.reportButtonLabel': 'بلاغ {targetType} بأولوية {priority} من {reporter}',
+  'admin.moderation.fromReporter': 'من {reporter} - {reason}',
+  'admin.moderation.reportedBy': 'أبلغ عنه {reporter} - {date}',
+  'admin.moderation.reason': 'السبب',
+  'admin.moderation.chat': 'المحادثة',
+  'admin.moderation.message': 'الرسالة',
+  'admin.moderation.notLinked': 'غير مرتبط',
+  'admin.moderation.reporterDetails': 'تفاصيل المبلّغ',
+  'admin.moderation.redactedMessageContext': 'سياق الرسالة المنقح',
+  'admin.moderation.noMessagePreview': 'لا توجد معاينة رسالة محفوظة',
+  'admin.moderation.assignment': 'التعيين',
+  'admin.moderation.assignToMe': 'عيّن لي',
+  'admin.moderation.assignedToYou': 'تم التعيين لك.',
+  'admin.moderation.couldNotAssign': 'تعذر تعيين هذا البلاغ.',
+  'admin.moderation.enforcementHistory': 'سجل الإجراءات',
+  'admin.moderation.loadingHistory': 'جار تحميل السجل',
+  'admin.moderation.noPriorEnforcement': 'لا توجد إجراءات سابقة.',
+  'admin.moderation.appealReview': 'مراجعة الاعتراض',
+  'admin.moderation.appeal': 'اعتراض',
+  'admin.moderation.appealStatus': 'حالة الاعتراض',
+  'admin.moderation.appealReviewerNote': 'ملاحظة مراجع الاعتراض',
+  'admin.moderation.saveAppealReview': 'حفظ مراجعة الاعتراض',
+  'admin.moderation.appealReviewSaved': 'تم حفظ مراجعة الاعتراض.',
+  'admin.moderation.couldNotSaveAppealReview': 'تعذر حفظ مراجعة الاعتراض.',
+  'admin.moderation.status': 'الحالة',
+  'admin.moderation.enforcement': 'الإجراء',
+  'admin.moderation.reviewerNote': 'ملاحظة المراجع',
+  'admin.moderation.saveReview': 'حفظ المراجعة',
+  'admin.moderation.reviewSaved': 'تم حفظ المراجعة.',
+  'admin.moderation.couldNotSaveReview': 'تعذر حفظ مراجعة الإشراف.',
+  'admin.moderation.auditTrail': 'سجل التدقيق',
+  'admin.moderation.noReviewEvents': 'لا توجد أحداث مراجعة مسجلة.',
+  'admin.moderation.status.open': 'مفتوح',
+  'admin.moderation.status.reviewed': 'تمت المراجعة',
+  'admin.moderation.status.dismissed': 'مرفوض',
+  'admin.moderation.status.actionTaken': 'تم اتخاذ إجراء',
+  'admin.moderation.status.all': 'الكل',
+  'admin.moderation.status.underReview': 'قيد المراجعة',
+  'admin.moderation.status.acceptAppeal': 'قبول الاعتراض',
+  'admin.moderation.status.rejectAppeal': 'رفض الاعتراض',
+  'admin.moderation.priority.high': 'عالية',
+  'admin.moderation.priority.medium': 'متوسطة',
+  'admin.moderation.priority.normal': 'عادية',
+  'admin.moderation.action.none': 'بدون إجراء',
+  'admin.moderation.action.warned': 'تحذير المستخدم',
+  'admin.moderation.action.restricted': 'تقييد المراسلة',
+  'admin.moderation.action.restrictionLifted': 'رفع التقييد',
+  'admin.moderation.action.contentRemoved': 'إزالة المحتوى المبلّغ عنه',
+  'admin.moderation.action.accountReview': 'مراجعة الحساب',
+  'date.unknown': 'غير معروف',
+};
+
+export const translations: Record<LocaleCode, Record<TranslationKey, string>> = {
+  en: englishTranslations,
+  ar: arabicTranslations,
+};
+
+export const isLocaleCode = (value: unknown): value is LocaleCode => (
+  typeof value === 'string' && value in supportedLocales
+);
+
+export const resolveLocale = (value: unknown): LocaleCode => (
+  isLocaleCode(value) ? value : DEFAULT_LOCALE
+);
+
+export const getLocaleMeta = (locale: LocaleCode): LocaleMeta => supportedLocales[locale];
+
+export const interpolateTranslation = (
+  template: string,
+  values?: TranslationValues
+) => {
+  if (!values) {
+    return template;
+  }
+
+  return template.replace(/\{(\w+)\}/g, (match, key) => (
+    Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match
+  ));
+};
+
+export const translate = (
+  locale: LocaleCode,
+  key: TranslationKey,
+  values?: TranslationValues
+) => interpolateTranslation(
+  translations[locale]?.[key] ?? translations[DEFAULT_LOCALE][key] ?? key,
+  values
+);

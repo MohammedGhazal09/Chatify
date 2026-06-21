@@ -18,6 +18,8 @@ vi.mock('../api/userApi', () => ({
     uploadProfileImage: vi.fn(),
     removeProfileImage: vi.fn(),
     updateIdentityMark: vi.fn(),
+    updateProfile: vi.fn(),
+    updatePrivacySettings: vi.fn(),
   },
 }));
 
@@ -157,6 +159,81 @@ describe('useProfileImageMutation', () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: onlinePresenceQueryKey });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: usersQueryKey });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: userSearchQueryKey });
+  });
+
+  it('updates the auth store and invalidates identity-dependent queries after profile text changes', async () => {
+    const updatedUser = makeUser({
+      profileBio: 'Building reliable chat tools.',
+      profileStatus: 'Available for focused work',
+    });
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries');
+
+    vi.mocked(userApi.updateProfile).mockResolvedValue(
+      makeResponse(updatedUser) as Awaited<ReturnType<typeof userApi.updateProfile>>
+    );
+
+    const { result } = renderHook(() => useProfileImageMutation(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.updateProfile.mutateAsync({
+        profileBio: 'Building reliable chat tools.',
+        profileStatus: 'Available for focused work',
+      });
+    });
+
+    expect(userApi.updateProfile).toHaveBeenCalledWith({
+      profileBio: 'Building reliable chat tools.',
+      profileStatus: 'Available for focused work',
+    });
+    expect(useAuthStore.getState().user?.profileBio).toBe('Building reliable chat tools.');
+    expect(queryClient.getQueryData(authQueryKey)).toMatchObject({
+      profileStatus: 'Available for focused work',
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: authQueryKey });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: chatsQueryKey });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: onlinePresenceQueryKey });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: usersQueryKey });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: userSearchQueryKey });
+  });
+
+  it('merges privacy settings into the current auth user', async () => {
+    vi.mocked(userApi.updatePrivacySettings).mockResolvedValue({
+      data: {
+        status: 'success',
+        data: {
+          showOnlineStatus: false,
+          showLastSeen: true,
+          showProfileStatus: false,
+        },
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as Awaited<ReturnType<typeof userApi.updatePrivacySettings>>);
+
+    const { result } = renderHook(() => useProfileImageMutation(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.updatePrivacySettings.mutateAsync({
+        showOnlineStatus: false,
+        showProfileStatus: false,
+      });
+    });
+
+    expect(userApi.updatePrivacySettings).toHaveBeenCalledWith({
+      showOnlineStatus: false,
+      showProfileStatus: false,
+    });
+    expect(useAuthStore.getState().user).toMatchObject({
+      showOnlineStatus: false,
+      showLastSeen: true,
+      showProfileStatus: false,
+    });
   });
 
   it('leaves the previous current user image intact when upload fails', async () => {

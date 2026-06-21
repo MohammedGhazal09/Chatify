@@ -29,6 +29,12 @@ export const MODERATION_ENFORCEMENT_TARGETS = Object.freeze([
   "message",
   "conversation",
 ]);
+export const MODERATION_APPEAL_STATUSES = Object.freeze([
+  "open",
+  "under_review",
+  "accepted",
+  "rejected",
+]);
 
 const reportedUserSnapshotSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "Users" },
@@ -39,6 +45,10 @@ const reportedUserSnapshotSchema = new mongoose.Schema({
 const chatSnapshotSchema = new mongoose.Schema({
   chatId: { type: mongoose.Schema.Types.ObjectId, ref: "Chats" },
   isGroupChat: { type: Boolean },
+  isSpaceChannel: { type: Boolean },
+  spaceId: { type: mongoose.Schema.Types.ObjectId, ref: "Spaces" },
+  channelId: { type: mongoose.Schema.Types.ObjectId, ref: "Chats" },
+  channelName: { type: String, trim: true, maxlength: 80 },
   memberCount: { type: Number, min: 0 },
 }, { _id: false, versionKey: false });
 
@@ -116,6 +126,58 @@ const auditTrailSchema = new mongoose.Schema({
   enforcement: enforcementSnapshotSchema,
 }, { _id: false, versionKey: false });
 
+const assignmentHistorySchema = new mongoose.Schema({
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+    required: true,
+  },
+  assignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+    required: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+}, { _id: false, versionKey: false });
+
+const appealSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+    required: true,
+  },
+  status: {
+    type: String,
+    enum: MODERATION_APPEAL_STATUSES,
+    default: "open",
+    index: true,
+  },
+  reason: {
+    type: String,
+    trim: true,
+    maxlength: 1000,
+    required: true,
+  },
+  reviewerNote: {
+    type: String,
+    trim: true,
+    maxlength: 1000,
+  },
+  reviewedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+  },
+  reviewedAt: {
+    type: Date,
+  },
+}, {
+  timestamps: true,
+  versionKey: false,
+});
+
 const abuseReportSchema = new mongoose.Schema({
   reporter: {
     type: mongoose.Schema.Types.ObjectId,
@@ -174,6 +236,26 @@ const abuseReportSchema = new mongoose.Schema({
   reviewedAt: {
     type: Date,
   },
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+    index: true,
+  },
+  assignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+  },
+  assignedAt: {
+    type: Date,
+  },
+  assignmentHistory: {
+    type: [assignmentHistorySchema],
+    default: [],
+  },
+  appeals: {
+    type: [appealSchema],
+    default: [],
+  },
   context: {
     type: reportContextSchema,
     default: {},
@@ -191,6 +273,8 @@ abuseReportSchema.index({ chat: 1, createdAt: -1 });
 abuseReportSchema.index({ message: 1, createdAt: -1 });
 abuseReportSchema.index({ reportedUser: 1, createdAt: -1 });
 abuseReportSchema.index({ status: 1, createdAt: -1 });
+abuseReportSchema.index({ assignedTo: 1, status: 1, createdAt: -1 });
+abuseReportSchema.index({ "appeals.user": 1, "appeals.status": 1 });
 
 const AbuseReport = mongoose.model("AbuseReports", abuseReportSchema);
 

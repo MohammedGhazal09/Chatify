@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import multer from 'multer';
+import { createHash } from 'node:crypto';
 import Attachment from '../Models/attachmentModel.mjs';
 import Message from '../Models/messageModel.mjs';
 import Chats from '../Models/chatModel.mjs';
@@ -31,12 +32,17 @@ import {
   normalizeClientMessageId,
   normalizeMessageHistoryLimit,
   normalizeMessageSearchLimit,
-  normalizeMessageSearchQuery,
+  normalizeMessageSearchFilters,
   normalizeMessageText,
+  normalizeEncryptedPayload,
   normalizeReactionEmoji,
   parseMessageCursor,
+  MESSAGE_SEARCH_ATTACHMENT_TYPES,
+  MESSAGE_SEARCH_TYPES,
   MESSAGE_STATUS,
+  MESSAGE_CURSOR_SORT_ASC,
   MESSAGE_CURSOR_SORT_DESC,
+  URL_TEXT_REGEX_SOURCE,
   buildStatusPatch,
   serializeAttachmentSummary,
   serializeMessage,
@@ -44,17 +50,219 @@ import {
   toObjectId,
 } from '../Utils/messageState.mjs';
 import { assertConversationActivityAllowed } from '../Utils/conversationControls.mjs';
+import { CHAT_ENCRYPTION_MODES, isEncryptedConversation } from '../Utils/encryptionMode.mjs';
 import { logger } from '../Utils/observabilityLogger.mjs';
+import { enqueueMessageNotifications } from '../Services/notificationService.mjs';
 
 const PINNED_MESSAGES_LIMIT = 50;
 const SHARED_ASSET_CURSOR_SORT_DESC = Object.freeze({ createdAt: -1, _id: -1 });
 const PRIVATE_ATTACHMENT_ERROR = 'Attachment not found';
+const MESSAGE_CONTEXT_LIMIT = 25;
 
 const respondWithChatAccessError = (res, statusCode, message) => {
   res.status(statusCode).json({
     status: 'fail',
     message,
   });
+};
+
+const isAttachmentSearchType = (type) => MESSAGE_SEARCH_ATTACHMENT_TYPES.includes(type);
+
+const buildSearchDateFilter = ({ from, to }) => {
+  if (!from && !to) {
+    return {};
+  }
+
+  const createdAt = {};
+
+  if (from) {
+    createdAt.$gte = from;
+  }
+
+  if (to) {
+    createdAt.$lte = to;
+  }
+
+  return { createdAt };
+};
+
+const getAttachmentSearchMatches = async ({ chatId, type, escapedQuery }) => {
+  const typedAttachmentQuery = {
+    chatId,
+    status: 'active',
+  };
+
+  if (isAttachmentSearchType(type)) {
+    typedAttachmentQuery.kind = type;
+  }
+
+  const shouldLoadTypedAttachments = isAttachmentSearchType(type);
+  const shouldLoadNameMatches = Boolean(escapedQuery) && (
+    type === MESSAGE_SEARCH_TYPES.ALL ||
+    isAttachmentSearchType(type)
+  );
+  const [typedAttachments, namedAttachments] = await Promise.all([
+    shouldLoadTypedAttachments
+      ? Attachment.find(typedAttachmentQuery).select('messageId displayName kind').lean()
+      : Promise.resolve([]),
+    shouldLoadNameMatches
+      ? Attachment.find({
+        ...typedAttachmentQuery,
+        displayName: { $regex: escapedQuery, $options: 'i' },
+      }).select('messageId displayName kind').lean()
+      : Promise.resolve([]),
+  ]);
+  const typedMessageIds = typedAttachments.map((attachment) => attachment.messageId);
+  const namedMessageIds = namedAttachments.map((attachment) => attachment.messageId);
+  const attachmentsByMessageId = new Map();
+
+  [...typedAttachments, ...namedAttachments].forEach((attachment) => {
+    const messageId = attachment.messageId?.toString?.();
+
+    if (!messageId || attachmentsByMessageId.has(messageId)) {
+      return;
+    }
+
+    attachmentsByMessageId.set(messageId, attachment);
+  });
+
+  return {
+    typedMessageIds,
+    namedMessageIds,
+    attachmentsByMessageId,
+  };
+};
+
+const buildMessageSearchFilter = ({ chat, filters, attachmentMatches }) => {
+  const messageFilter = {
+    ...buildVisibleMessageFilter({
+      chatId: chat._id,
+      userId: filters.userObjectId,
+      includeTombstones: false,
+    }),
+    ...buildSearchDateFilter(filters),
+  };
+  const andClauses = [];
+
+  if (filters.senderId) {
+    messageFilter.sender = filters.senderId;
+  }
+
+  if (filters.type === MESSAGE_SEARCH_TYPES.TEXT) {
+    messageFilter.messageType = 'text';
+    andClauses.push({ text: { $ne: '' } });
+  }
+
+  if (filters.type === MESSAGE_SEARCH_TYPES.LINK) {
+    andClauses.push({ text: { $regex: URL_TEXT_REGEX_SOURCE, $options: 'i' } });
+  }
+
+  if (isAttachmentSearchType(filters.type)) {
+    andClauses.push({ _id: { $in: attachmentMatches.typedMessageIds } });
+  }
+
+  if (filters.escapedQuery) {
+    const searchOr = [{ text: { $regex: filters.escapedQuery, $options: 'i' } }];
+
+    if (
+      filters.type === MESSAGE_SEARCH_TYPES.ALL ||
+      isAttachmentSearchType(filters.type)
+    ) {
+      searchOr.push({ _id: { $in: attachmentMatches.namedMessageIds } });
+    }
+
+    andClauses.push({ $or: searchOr });
+  }
+
+  if (andClauses.length > 0) {
+    messageFilter.$and = andClauses;
+  }
+
+  return messageFilter;
+};
+
+const findUrlMatch = (text = '') => text.match(new RegExp(URL_TEXT_REGEX_SOURCE, 'i'))?.[0] ?? null;
+
+const buildSearchMatch = ({ message, filters, attachmentMatches }) => {
+  const messageText = message.text ?? '';
+  const lowerText = messageText.toLowerCase();
+  const lowerQuery = filters.query.toLowerCase();
+  const attachment = attachmentMatches.attachmentsByMessageId.get(message._id.toString());
+
+  if (filters.type === MESSAGE_SEARCH_TYPES.LINK) {
+    const url = findUrlMatch(messageText);
+
+    return {
+      kind: 'link',
+      label: 'Link',
+      text: url,
+    };
+  }
+
+  if (filters.query && lowerText.includes(lowerQuery)) {
+    return {
+      kind: 'text',
+      label: 'Message text',
+      text: filters.query,
+    };
+  }
+
+  if (attachment) {
+    return {
+      kind: attachment.kind,
+      label: `${attachment.kind[0].toUpperCase()}${attachment.kind.slice(1)} attachment`,
+      attachmentName: attachment.displayName,
+      attachmentKind: attachment.kind,
+    };
+  }
+
+  if (filters.type === MESSAGE_SEARCH_TYPES.TEXT) {
+    return {
+      kind: 'text',
+      label: 'Text message',
+      text: filters.query || null,
+    };
+  }
+
+  return {
+    kind: 'message',
+    label: 'Message',
+    text: filters.query || null,
+  };
+};
+
+const serializeSearchMessage = ({ message, filters, attachmentMatches }) => ({
+  ...serializeMessage(message),
+  searchMatch: buildSearchMatch({ message, filters, attachmentMatches }),
+});
+
+const serializeSearchFilters = (filters) => ({
+  query: filters.query,
+  type: filters.type,
+  senderId: filters.senderId?.toString?.() ?? null,
+  from: filters.from?.toISOString?.() ?? null,
+  to: filters.to?.toISOString?.() ?? null,
+});
+
+const buildMessageWindowRangeFilter = ({ targetMessage, direction }) => {
+  const createdAt = targetMessage.createdAt;
+  const id = targetMessage._id;
+
+  if (direction === 'before') {
+    return {
+      $or: [
+        { createdAt: { $lt: createdAt } },
+        { createdAt, _id: { $lt: id } },
+      ],
+    };
+  }
+
+  return {
+    $or: [
+      { createdAt: { $gt: createdAt } },
+      { createdAt, _id: { $gt: id } },
+    ],
+  };
 };
 
 const attachmentUpload = multer({
@@ -285,10 +493,34 @@ const storeMessageAttachments = async ({
 };
 
 const getMessageAttachmentFingerprint = (message) => message.attachmentFingerprint ?? '';
+const getEncryptedPayloadFingerprint = (message) => message.encryptedPayloadFingerprint ?? '';
 
-const isSameIdempotentPayload = ({ message, text, attachmentFingerprint }) => (
-  message.text === text && getMessageAttachmentFingerprint(message) === attachmentFingerprint
-);
+const fingerprintEncryptedPayload = (payload) => createHash('sha256')
+  .update(JSON.stringify({
+    ciphertext: payload.ciphertext,
+    iv: payload.iv,
+    authTag: payload.authTag ?? null,
+    algorithm: payload.algorithm,
+    keyVersion: payload.keyVersion,
+    senderDeviceId: payload.senderDeviceId,
+    encryptedAt: payload.encryptedAt?.toISOString?.() ?? new Date(payload.encryptedAt).toISOString(),
+    attachmentManifest: payload.attachmentManifest ?? null,
+  }))
+  .digest('hex');
+
+const isSameIdempotentPayload = ({
+  message,
+  text,
+  attachmentFingerprint,
+  encryptedPayloadFingerprint = null,
+}) => {
+  if (message.messageType === 'encrypted') {
+    return encryptedPayloadFingerprint
+      && getEncryptedPayloadFingerprint(message) === encryptedPayloadFingerprint;
+  }
+
+  return message.text === text && getMessageAttachmentFingerprint(message) === attachmentFingerprint;
+};
 
 const logDeliveryLifecycle = (stage, metadata = {}) => {
   if (process.env.CHATIFY_DELIVERY_DIAGNOSTICS !== '1') {
@@ -550,6 +782,174 @@ const promoteMessageReadState = async ({ message, chat, userObjectId }) => {
   return { changed: false, message, readEntry: null };
 };
 
+const createEncryptedMessage = async ({
+  req,
+  res,
+  chat,
+  userObjectId,
+  clientMessageId,
+  incomingFiles,
+  text,
+}) => {
+  if (incomingFiles.length > 0) {
+    res.status(400).json({
+      status: 'fail',
+      code: 'encrypted_attachments_unavailable',
+      message: 'Encrypted attachment upload is not available in this release.',
+    });
+    return true;
+  }
+
+  if (typeof text === 'string' && text.trim().length > 0) {
+    res.status(400).json({
+      status: 'fail',
+      code: 'encrypted_plaintext_rejected',
+      message: 'Encrypted conversations require encryptedPayload and cannot send plaintext text.',
+    });
+    return true;
+  }
+
+  const normalizedEncryptedPayload = normalizeEncryptedPayload(req.body?.encryptedPayload);
+
+  if (!normalizedEncryptedPayload.ok) {
+    res.status(normalizedEncryptedPayload.statusCode).json({
+      status: 'fail',
+      code: 'encrypted_payload_invalid',
+      message: normalizedEncryptedPayload.message,
+    });
+    return true;
+  }
+
+  const normalizedClientMessageId = normalizeClientMessageId(clientMessageId);
+
+  if (!normalizedClientMessageId.ok) {
+    res.status(normalizedClientMessageId.statusCode).json({
+      status: 'fail',
+      message: normalizedClientMessageId.message,
+    });
+    return true;
+  }
+
+  if (!normalizedClientMessageId.clientMessageId) {
+    res.status(400).json({
+      status: 'fail',
+      message: 'clientMessageId is required',
+    });
+    return true;
+  }
+
+  const encryptedPayloadFingerprint = fingerprintEncryptedPayload(normalizedEncryptedPayload.payload);
+  const idempotencyFilter = {
+    chatId: chat._id,
+    sender: userObjectId,
+    clientMessageId: normalizedClientMessageId.clientMessageId,
+  };
+  const existingMessage = await Message.findOne(idempotencyFilter).select('+encryptedPayloadFingerprint');
+
+  if (existingMessage) {
+    if (!isSameIdempotentPayload({
+      message: existingMessage,
+      encryptedPayloadFingerprint,
+    })) {
+      res.status(409).json({
+        status: 'fail',
+        message: 'clientMessageId already exists with different encrypted payload',
+      });
+      return true;
+    }
+
+    const serializedMessage = await finalizeMessageCreate({
+      chat,
+      message: existingMessage,
+      senderId: userObjectId,
+      clientMessageId: normalizedClientMessageId.clientMessageId,
+      idempotent: true,
+    });
+
+    res.status(200).json({
+      status: 'message already created',
+      data: {
+        message: serializedMessage,
+        idempotent: true,
+      },
+    });
+    return true;
+  }
+
+  let message;
+
+  try {
+    message = await Message.create({
+      chatId: chat._id,
+      sender: userObjectId,
+      clientMessageId: normalizedClientMessageId.clientMessageId,
+      text: '',
+      messageType: 'encrypted',
+      encryptionMode: CHAT_ENCRYPTION_MODES.E2EE_V1,
+      encryptedPayload: normalizedEncryptedPayload.payload,
+      encryptedPayloadFingerprint,
+      status: 'sent',
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      const duplicateMessage = await Message.findOne(idempotencyFilter).select('+encryptedPayloadFingerprint');
+
+      if (duplicateMessage && isSameIdempotentPayload({
+        message: duplicateMessage,
+        encryptedPayloadFingerprint,
+      })) {
+        const serializedMessage = await finalizeMessageCreate({
+          chat,
+          message: duplicateMessage,
+          senderId: userObjectId,
+          clientMessageId: normalizedClientMessageId.clientMessageId,
+          idempotent: true,
+        });
+
+        res.status(200).json({
+          status: 'message already created',
+          data: {
+            message: serializedMessage,
+            idempotent: true,
+          },
+        });
+        return true;
+      }
+    }
+
+    throw error;
+  }
+
+  const serializedMessage = await finalizeMessageCreate({
+    chat,
+    message,
+    senderId: userObjectId,
+    clientMessageId: normalizedClientMessageId.clientMessageId,
+  });
+
+  try {
+    await enqueueMessageNotifications({
+      chat,
+      message,
+      senderId: userObjectId,
+    });
+  } catch (error) {
+    logger.error('notification.enqueue_failed', {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      error,
+    });
+  }
+
+  res.status(201).json({
+    status: 'message created successfully',
+    data: {
+      message: serializedMessage,
+    },
+  });
+  return true;
+};
+
 export const newMessage = asyncErrorHandler(async (req, res) => {
   const { chatId, text, clientMessageId } = req.body ?? {};
   const incomingFiles = Array.isArray(req.files) ? req.files : [];
@@ -580,6 +980,19 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
   }
 
   if (!(await ensureMessagingAllowedByModeration({ userObjectId, res }))) {
+    return;
+  }
+
+  if (isEncryptedConversation(chat.encryptionMode)) {
+    await createEncryptedMessage({
+      req,
+      res,
+      chat,
+      userObjectId,
+      clientMessageId,
+      incomingFiles,
+      text,
+    });
     return;
   }
 
@@ -755,6 +1168,20 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     clientMessageId: normalizedClientMessageId.clientMessageId,
   });
 
+  try {
+    await enqueueMessageNotifications({
+      chat,
+      message,
+      senderId: userObjectId,
+    });
+  } catch (error) {
+    logger.error('notification.enqueue_failed', {
+      chatId: chat._id.toString(),
+      messageId: message._id.toString(),
+      error,
+    });
+  }
+
   res.status(201).json({
     status: 'message created successfully',
     data: {
@@ -855,43 +1282,140 @@ export const searchMessages = asyncErrorHandler(async (req, res) => {
     return;
   }
 
-  const normalizedQuery = normalizeMessageSearchQuery(req.query.q);
-
-  if (!normalizedQuery.ok) {
-    res.status(normalizedQuery.statusCode).json({
+  if (isEncryptedConversation(chat.encryptionMode)) {
+    res.status(400).json({
       status: 'fail',
-      message: normalizedQuery.message,
+      code: 'encrypted_search_unavailable',
+      message: 'Server-side search is not available for encrypted conversations.',
     });
     return;
   }
 
+  const normalizedFilters = normalizeMessageSearchFilters(req.query);
+
+  if (!normalizedFilters.ok) {
+    res.status(normalizedFilters.statusCode).json({
+      status: 'fail',
+      message: normalizedFilters.message,
+    });
+    return;
+  }
+
+  const filters = {
+    ...normalizedFilters,
+    userObjectId,
+  };
   const limit = normalizeMessageSearchLimit(req.query.limit);
-  const visibleMessageFilter = buildVisibleMessageFilter({
+  const attachmentMatches = await getAttachmentSearchMatches({
     chatId: chat._id,
-    userId: userObjectId,
-    includeTombstones: false,
+    type: filters.type,
+    escapedQuery: filters.escapedQuery,
   });
-  const matchingAttachmentMessageIds = await Attachment.distinct('messageId', {
-    chatId: chat._id,
-    status: 'active',
-    displayName: { $regex: normalizedQuery.escapedQuery, $options: 'i' },
-  });
-  const messages = await Message.find({
-    ...visibleMessageFilter,
-    $or: [
-      { text: { $regex: normalizedQuery.escapedQuery, $options: 'i' } },
-      { _id: { $in: matchingAttachmentMessageIds } },
-    ],
-  })
+  const messageFilter = buildMessageSearchFilter({ chat, filters, attachmentMatches });
+  const messages = await Message.find(messageFilter)
     .sort(MESSAGE_CURSOR_SORT_DESC)
     .limit(limit);
 
   res.status(200).json({
     status: 'messages searched successfully',
     data: {
-      messages: messages.map((message) => serializeMessage(message)),
-      query: normalizedQuery.query,
+      messages: messages.map((message) => serializeSearchMessage({ message, filters, attachmentMatches })),
+      query: filters.query,
       limit,
+      filters: serializeSearchFilters(filters),
+    },
+  });
+});
+
+export const getMessageContext = asyncErrorHandler(async (req, res) => {
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const chat = await loadChatForUser(req.params.chatId, userObjectId, res, {
+    privateResourceMessage: 'Forbidden or not found',
+  });
+
+  if (!chat) {
+    return;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(req.params.messageId)) {
+    respondWithChatAccessError(res, 400, 'Invalid message id');
+    return;
+  }
+
+  const targetMessageId = new mongoose.Types.ObjectId(req.params.messageId);
+  const visibleMessageFilter = buildVisibleMessageFilter({
+    chatId: chat._id,
+    userId: userObjectId,
+    includeTombstones: false,
+  });
+  const targetMessage = await Message.findOne({
+    ...visibleMessageFilter,
+    _id: targetMessageId,
+  });
+
+  if (!targetMessage) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  const requestedLimit = normalizeMessageHistoryLimit(req.query.limit);
+  const limit = Math.min(requestedLimit, MESSAGE_CONTEXT_LIMIT);
+  const beforeLimit = Math.floor((limit - 1) / 2);
+  const afterLimit = Math.max(limit - 1 - beforeLimit, 0);
+  const [olderMessagesDesc, newerMessages] = await Promise.all([
+    beforeLimit > 0
+      ? Message.find({
+        ...visibleMessageFilter,
+        ...buildMessageWindowRangeFilter({ targetMessage, direction: 'before' }),
+      })
+        .sort(MESSAGE_CURSOR_SORT_DESC)
+        .limit(beforeLimit)
+      : Promise.resolve([]),
+    afterLimit > 0
+      ? Message.find({
+        ...visibleMessageFilter,
+        ...buildMessageWindowRangeFilter({ targetMessage, direction: 'after' }),
+      })
+        .sort(MESSAGE_CURSOR_SORT_ASC)
+        .limit(afterLimit)
+      : Promise.resolve([]),
+  ]);
+  const olderMessages = [...olderMessagesDesc].reverse();
+  const messages = [...olderMessages, targetMessage, ...newerMessages];
+  const hasMoreBefore = beforeLimit > 0 && olderMessagesDesc.length === beforeLimit;
+  const hasMoreAfter = afterLimit > 0 && newerMessages.length === afterLimit;
+  const nextCursor = hasMoreBefore && messages.length > 0
+    ? encodeMessageCursor(messages[0])
+    : null;
+
+  res.status(200).json({
+    status: 'message context fetched successfully',
+    data: {
+      targetMessageId: targetMessage._id.toString(),
+      messages: messages.map((message) => serializeMessage(message)),
+      cursor: {
+        nextCursor,
+        hasMore: hasMoreBefore,
+        limit,
+      },
+      context: {
+        hasMoreBefore,
+        hasMoreAfter,
+        limit,
+      },
     },
   });
 });
@@ -1746,6 +2270,15 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
     res.status(400).json({
       status: 'fail',
       message: 'Deleted messages cannot be edited',
+    });
+    return;
+  }
+
+  if (message.messageType === 'encrypted') {
+    res.status(400).json({
+      status: 'fail',
+      code: 'encrypted_edit_unavailable',
+      message: 'Encrypted messages cannot be edited in this release.',
     });
     return;
   }

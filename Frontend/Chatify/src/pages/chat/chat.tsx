@@ -24,30 +24,44 @@ import {
   useUnreadCounts,
   useToggleReaction,
   useMessageSearch,
+  useMessageContext,
   useSharedAssets,
   usePinnedMessages,
   usePinMessage,
   useUnpinMessage,
+  useUpdateChatOrganization,
   useBlockChatPeer,
   useUnblockChatPeer,
   useOnlinePresence,
 } from '../../hooks/useChatQueries';
+import {
+  useCreateSpace,
+  useCreateSpaceChannel,
+  useSpaceChannels,
+  useSpaces,
+} from '../../hooks/useSpaceQueries';
 import { useChatSocket } from '../../hooks/useChatSocket';
 import { useCallController } from '../../hooks/useCallController';
 import { useSubmitAbuseReport } from '../../hooks/useModerationReports';
 import type {
   BatchReadEvent,
   AttachmentSummary,
+  Chat,
   ComposerAttachmentDraft,
   ComposerSendPayload,
   ConversationControls,
+  ConversationFocusFilter,
+  ConversationOrganizationPatch,
   CreateGroupChatPayload,
+  EncryptionMode,
   Message,
   MessageDeletedEvent,
   MessageEditedEvent,
   MessageReactionEvent,
+  MessageSearchFilters,
   MessageStatusUpdateEvent,
 } from '../../types/chat';
+import type { CreateSpaceChannelPayload, CreateSpacePayload, SpaceChannel } from '../../types/space';
 import {
   ChatContextRail,
   CallOverlay,
@@ -58,8 +72,10 @@ import {
   ConversationDetailDrawer,
   ConversationPane,
   MessageActionMenu,
+  SpacesSidebar,
 } from './components';
 import type { AttachmentPreviewTarget } from './components/AttachmentPreviewModal';
+import type { SidebarWorkspaceMode } from './components/ChatSidebar';
 import { createClientMessageId, MAX_MESSAGE_TEXT_LENGTH } from '../../hooks/messageCache';
 import { useChatTheme } from './hooks/useChatTheme';
 import { useChatViewState } from './hooks/useChatViewState';
@@ -71,6 +87,10 @@ import {
 import { getChatTitle, getOtherMember } from './utils/chatDisplay';
 import { buildSendDraftKey } from './sendDraftGuard';
 import { validateUsername } from '../../utils/usernameValidation';
+import {
+  isEncryptedConversation,
+  isEncryptedMessage,
+} from '../../utils/encryptedMessages';
 import './chat.css';
 
 const DETAIL_RAIL_MEDIA_QUERY = '(min-width: 1280px)';
@@ -106,6 +126,15 @@ const useDebounce = (callback: () => void, delay: number) => {
 const INVALID_USERNAME_COPY = 'Enter a valid username.';
 const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the username and try again.';
 const GENERIC_GROUP_CHAT_ERROR_COPY = 'We could not create that group. Check the usernames and try again.';
+const GENERIC_SPACE_ERROR_COPY = 'We could not create that space. Check the usernames and try again.';
+const GENERIC_CHANNEL_ERROR_COPY = 'We could not create that channel. Check the name and try again.';
+const DEFAULT_MESSAGE_SEARCH_FILTERS: MessageSearchFilters = {
+  senderId: null,
+  type: 'all',
+  from: null,
+  to: null,
+};
+const ENCRYPTED_ATTACHMENT_UNAVAILABLE_COPY = 'Encrypted conversations do not support attachment upload yet.';
 
 const getConversationDisabledReason = (controls?: ConversationControls) => {
   if (!controls || controls.canSendMessage) {
@@ -194,6 +223,8 @@ const ChatPage = () => {
   const shouldAutoScrollRef = useRef(true);
   const previousLastMessageKeyRef = useRef<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [jumpingMessageId, setJumpingMessageId] = useState<string | null>(null);
+  const [messageSearchFilters, setMessageSearchFilters] = useState<MessageSearchFilters>(DEFAULT_MESSAGE_SEARCH_FILTERS);
   const [composerResetToken, setComposerResetToken] = useState(0);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const [isDetailRailOpen, setIsDetailRailOpen] = useState(() => isDesktopDetailRailViewport());
@@ -201,14 +232,32 @@ const ChatPage = () => {
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
-  const [favoriteChatIds, setFavoriteChatIds] = useState<string[]>([]);
+  const [conversationFilter, setConversationFilter] = useState<ConversationFocusFilter>('all');
   const [attachmentPreview, setAttachmentPreview] = useState<AttachmentPreviewTarget | null>(null);
   const [activeComposerUploadId, setActiveComposerUploadId] = useState<string | null>(null);
-  const favoriteStorageKey = user?._id ? `chatify_favorite_chats_${user._id}` : null;
+  const [sidebarWorkspaceMode, setSidebarWorkspaceMode] = useState<SidebarWorkspaceMode>('conversations');
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [createSpaceError, setCreateSpaceError] = useState<string | null>(null);
+  const [createChannelError, setCreateChannelError] = useState<string | null>(null);
   const chatTheme = useChatTheme(user?._id);
   const notificationPreferences = useNotificationPreferences(user?._id);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
+  const { data: spaces, isLoading: isSpacesLoading, isError: spacesError, refetch: refetchSpaces } = useSpaces();
+  const selectedSpace = useMemo(
+    () => spaces?.find((space) => space._id === selectedSpaceId) ?? null,
+    [selectedSpaceId, spaces]
+  );
+  const {
+    data: spaceChannels,
+    isLoading: isSpaceChannelsLoading,
+    isError: spaceChannelsError,
+    refetch: refetchSpaceChannels,
+  } = useSpaceChannels(selectedSpaceId);
+  const visibleSpaceChannels = useMemo(
+    () => spaceChannels ?? selectedSpace?.channels ?? [],
+    [selectedSpace?.channels, spaceChannels]
+  );
   const {
     messages,
     isLoading: isMessagesLoading,
@@ -226,23 +275,47 @@ const ChatPage = () => {
   const sendMessage = useSendMessage();
   const createChat = useCreateChat();
   const createGroupChat = useCreateGroupChat();
+  const createSpace = useCreateSpace();
+  const createSpaceChannel = useCreateSpaceChannel();
   const markMessagesAsReadMutation = useMarkMessagesAsRead();
   const deleteMessageMutation = useDeleteMessage();
   const editMessageMutation = useEditMessage();
   const toggleReactionMutation = useToggleReaction();
   const pinMessageMutation = usePinMessage();
   const unpinMessageMutation = useUnpinMessage();
+  const updateChatOrganizationMutation = useUpdateChatOrganization();
   const blockChatPeerMutation = useBlockChatPeer();
   const unblockChatPeerMutation = useUnblockChatPeer();
   const submitAbuseReportMutation = useSubmitAbuseReport();
 
-  const chatIds = useMemo(() => chats?.map((chat) => chat._id) ?? [], [chats]);
+  const accessibleSpaceChannels = useMemo(() => {
+    const channelsById = new Map<string, SpaceChannel>();
+
+    spaces?.forEach((space) => {
+      space.channels?.forEach((channel) => {
+        channelsById.set(channel._id, channel);
+      });
+    });
+    spaceChannels?.forEach((channel) => {
+      channelsById.set(channel._id, channel);
+    });
+
+    return Array.from(channelsById.values());
+  }, [spaceChannels, spaces]);
+  const selectableChats = useMemo<Chat[]>(
+    () => [...(chats ?? []), ...accessibleSpaceChannels],
+    [accessibleSpaceChannels, chats]
+  );
+  const chatIds = useMemo(
+    () => Array.from(new Set(selectableChats.map((chat) => chat._id))),
+    [selectableChats]
+  );
   const { data: unreadCounts } = useUnreadCounts(chatIds);
 
   useSelectedChatPersistence({
     userId: user?._id,
-    chats,
-    isChatsLoading,
+    chats: selectableChats,
+    isChatsLoading: isChatsLoading || isSpacesLoading || Boolean(selectedSpaceId && isSpaceChannelsLoading),
     selectedChatId,
     setSelectedChatId,
   });
@@ -251,22 +324,83 @@ const ChatPage = () => {
   markMessagesAsReadRef.current = markMessagesAsReadMutation.mutate;
 
   const selectedChat = useMemo(
-    () => chats?.find((chat) => chat._id === selectedChatId) ?? null,
-    [chats, selectedChatId]
+    () => selectableChats.find((chat) => chat._id === selectedChatId) ?? null,
+    [selectableChats, selectedChatId]
   );
-  const isSelectedChatFavorite = Boolean(selectedChatId && favoriteChatIds.includes(selectedChatId));
-  const isSelectedChatMuted = Boolean(selectedChatId && notificationPreferences.isChatMuted(selectedChatId));
+
+  useEffect(() => {
+    if (!spaces?.length) {
+      if (selectedSpaceId) {
+        setSelectedSpaceId(null);
+      }
+      return;
+    }
+
+    if (!selectedSpaceId || !spaces.some((space) => space._id === selectedSpaceId)) {
+      setSelectedSpaceId(spaces[0]._id);
+    }
+  }, [selectedSpaceId, spaces]);
+
+  useEffect(() => {
+    const selectedChatSpaceId = selectedChat?.spaceId ?? selectedChat?.space;
+
+    if (!selectedChat?.isSpaceChannel || !selectedChatSpaceId || selectedChatSpaceId === selectedSpaceId) {
+      return;
+    }
+
+    setSelectedSpaceId(selectedChatSpaceId);
+    setSidebarWorkspaceMode('spaces');
+  }, [selectedChat, selectedSpaceId]);
+
+  useEffect(() => {
+    if (
+      sidebarWorkspaceMode !== 'spaces' ||
+      !selectedSpaceId ||
+      visibleSpaceChannels.length === 0
+    ) {
+      return;
+    }
+
+    if (visibleSpaceChannels.some((channel) => channel._id === selectedChatId)) {
+      return;
+    }
+
+    const defaultChannel = visibleSpaceChannels.find((channel) => channel._id === selectedSpace?.defaultChannelId) ?? visibleSpaceChannels[0];
+    setSelectedChatId(defaultChannel._id);
+  }, [
+    selectedChatId,
+    selectedSpace?.defaultChannelId,
+    selectedSpaceId,
+    setSelectedChatId,
+    sidebarWorkspaceMode,
+    visibleSpaceChannels,
+  ]);
+
+  const isSelectedChatFavorite = selectedChat?.organizationState?.favorite === true;
+  const isSelectedChatMuted = selectedChat?.organizationState?.muted ?? Boolean(
+    selectedChatId && notificationPreferences.isChatMuted(selectedChatId)
+  );
+  const isSelectedChatArchived = selectedChat?.organizationState?.archived === true;
+  const isSelectedChatPinned = selectedChat?.organizationState?.pinned === true;
   const conversationControls = selectedChat?.conversationControls;
+  const isSelectedChatEncrypted = isEncryptedConversation(selectedChat);
   const activeConversationDisabledReason = getConversationDisabledReason(conversationControls);
   const isConversationControlPending = blockChatPeerMutation.isPending || unblockChatPeerMutation.isPending;
+  const isConversationOrganizationPending = updateChatOrganizationMutation.isPending;
   const otherMember = selectedChat ? getOtherMember(selectedChat, user?._id) : null;
   const otherMemberStatus = otherMember ? onlineUsers.get(otherMember._id) ?? null : null;
   const allMessages = useMemo(() => messages ?? [], [messages]);
   const messageSearchQuery = showMessageSearch ? messageSearch : '';
-  const messageSearchResult = useMessageSearch(selectedChatId, messageSearchQuery);
-  const sharedFilesQuery = useSharedAssets(selectedChatId, 'file');
-  const sharedMediaQuery = useSharedAssets(selectedChatId, 'media');
-  const sharedVoiceQuery = useSharedAssets(selectedChatId, 'voice');
+  const activeMessageSearchFilters = showMessageSearch ? messageSearchFilters : DEFAULT_MESSAGE_SEARCH_FILTERS;
+  const messageSearchResult = useMessageSearch(
+    isSelectedChatEncrypted ? null : selectedChatId,
+    messageSearchQuery,
+    activeMessageSearchFilters
+  );
+  const messageContextMutation = useMessageContext();
+  const sharedFilesQuery = useSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'file');
+  const sharedMediaQuery = useSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'media');
+  const sharedVoiceQuery = useSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'voice');
   const pinnedMessagesQuery = usePinnedMessages(selectedChatId);
   const loadedMessageIds = useMemo(() => new Set(allMessages.map((message) => message._id)), [allMessages]);
   const activeComposerUploadState = activeComposerUploadId
@@ -280,37 +414,6 @@ const ChatPage = () => {
     }
     setHighlightedMessageId(null);
   }, []);
-
-  useEffect(() => {
-    if (!favoriteStorageKey) {
-      setFavoriteChatIds([]);
-      return;
-    }
-
-    try {
-      const storedFavorites = window.localStorage.getItem(favoriteStorageKey);
-      const parsedFavorites = storedFavorites ? JSON.parse(storedFavorites) : [];
-      setFavoriteChatIds(Array.isArray(parsedFavorites)
-        ? parsedFavorites.filter((chatId): chatId is string => typeof chatId === 'string')
-        : []
-      );
-    } catch (error) {
-      console.warn('Could not load favorite conversations:', error);
-      setFavoriteChatIds([]);
-    }
-  }, [favoriteStorageKey]);
-
-  const persistFavoriteChatIds = useCallback((updater: (current: string[]) => string[]) => {
-    setFavoriteChatIds((currentFavorites) => {
-      const nextFavorites = updater(currentFavorites);
-
-      if (favoriteStorageKey) {
-        window.localStorage.setItem(favoriteStorageKey, JSON.stringify(nextFavorites));
-      }
-
-      return nextFavorites;
-    });
-  }, [favoriteStorageKey]);
 
   const buildOptimisticAttachments = useCallback((
     payload: ComposerSendPayload,
@@ -560,15 +663,20 @@ const ChatPage = () => {
     setSelectedChatId(null);
     setSearchQuery('');
     setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
     setShowMessageSearch(false);
     setIsTyping(false);
     setIsSidebarOpen(false);
     setIsNewChatOpen(false);
+    setSidebarWorkspaceMode('conversations');
+    setSelectedSpaceId(null);
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(false);
     setAttachmentPreview(null);
     setNewChatUsername('');
     setCreateChatError(null);
+    setCreateSpaceError(null);
+    setCreateChannelError(null);
     clearPresenceState();
     replaceSelectedChatUrl(null);
   }, [
@@ -579,6 +687,7 @@ const ChatPage = () => {
     setIsSidebarOpen,
     setIsTyping,
     setMessageSearch,
+    setMessageSearchFilters,
     setNewChatUsername,
     setSearchQuery,
     setSelectedChatId,
@@ -817,6 +926,7 @@ const ChatPage = () => {
         } else if (showMessageSearch) {
           setShowMessageSearch(false);
           setMessageSearch('');
+          setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
           window.requestAnimationFrame(() => {
             messageSearchButtonRef.current?.focus();
           });
@@ -894,12 +1004,18 @@ const ChatPage = () => {
     const sourceText = payload?.text ?? messageInput;
     const normalizedMessageInput = sourceText.trim();
     const attachmentDrafts = payload?.attachments ?? [];
+    const selectedEncryptionMode: EncryptionMode = selectedChat?.encryptionMode ?? 'standard';
 
     if (
       !selectedChatId ||
       (!normalizedMessageInput && attachmentDrafts.length === 0) ||
       normalizedMessageInput.length > MAX_MESSAGE_TEXT_LENGTH
     ) {
+      return;
+    }
+
+    if (selectedEncryptionMode === 'e2ee_v1' && attachmentDrafts.length > 0) {
+      showToast(ENCRYPTED_ATTACHMENT_UNAVAILABLE_COPY, 'error');
       return;
     }
 
@@ -927,6 +1043,7 @@ const ChatPage = () => {
       {
         chatId: selectedChatId,
         text: sourceText,
+        encryptionMode: selectedEncryptionMode,
         clientMessageId,
         attachments: attachmentDrafts,
         optimisticAttachments,
@@ -1024,6 +1141,13 @@ const ChatPage = () => {
   const handleStartEdit = (messageId: string, currentText: string) => {
     if (activeConversationDisabledReason) {
       showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
+    const message = allMessages.find((item) => item._id === messageId);
+    if (message && isEncryptedMessage(message)) {
+      showToast('Encrypted messages cannot be edited in this release.', 'error');
       closeContextMenu();
       return;
     }
@@ -1140,7 +1264,9 @@ const ChatPage = () => {
     const chatTitle = getChatTitle(selectedChat, user?._id);
     const exportData = allMessages.map((message) => ({
       sender: message.sender === user?._id ? 'You' : chatTitle,
-      text: message.text,
+      text: isEncryptedMessage(message)
+        ? message.decryptedText ?? '[Encrypted message unavailable on this device]'
+        : message.text,
       time: new Date(message.createdAt).toLocaleString(),
     }));
 
@@ -1165,7 +1291,10 @@ const ChatPage = () => {
     });
   };
 
-  const handleCreateChatSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateChatSubmit = (
+    event: FormEvent<HTMLFormElement>,
+    options: { encryptionMode: EncryptionMode } = { encryptionMode: 'standard' }
+  ) => {
     event.preventDefault();
     const usernameValidation = validateUsername(newChatUsername);
 
@@ -1177,7 +1306,10 @@ const ChatPage = () => {
     setCreateChatError(null);
 
     createChat.mutate(
-      { targetUsername: usernameValidation.value },
+      {
+        targetUsername: usernameValidation.value,
+        ...(options.encryptionMode === 'e2ee_v1' ? { encryptionMode: options.encryptionMode } : {}),
+      },
       {
         onSuccess: (chat) => {
           setSelectedChatId(chat._id);
@@ -1217,6 +1349,56 @@ const ChatPage = () => {
     });
   };
 
+  const handleCreateSpaceSubmit = (payload: CreateSpacePayload) => {
+    setCreateSpaceError(null);
+
+    createSpace.mutate(payload, {
+      onSuccess: ({ space, channel }) => {
+        setSidebarWorkspaceMode('spaces');
+        setSelectedSpaceId(space._id);
+        const defaultChannel = channel
+          ?? space.channels?.find((candidate) => (
+            candidate._id === space.defaultChannelId ||
+            candidate._id === space.defaultChannel
+          ))
+          ?? space.channels?.[0];
+
+        if (defaultChannel) {
+          setSelectedChatId(defaultChannel._id);
+        }
+        setCreateSpaceError(null);
+        showToast('Space created.', 'success');
+      },
+      onError: (error) => {
+        setCreateSpaceError(getRequestErrorMessage(error, GENERIC_SPACE_ERROR_COPY));
+      },
+    });
+  };
+
+  const handleCreateSpaceChannelSubmit = (payload: CreateSpaceChannelPayload) => {
+    if (!selectedSpaceId) {
+      setCreateChannelError('Select a space before creating a channel.');
+      return;
+    }
+
+    setCreateChannelError(null);
+
+    createSpaceChannel.mutate(
+      { spaceId: selectedSpaceId, payload },
+      {
+        onSuccess: (channel) => {
+          setSidebarWorkspaceMode('spaces');
+          setSelectedChatId(channel._id);
+          setCreateChannelError(null);
+          showToast('Channel created.', 'success');
+        },
+        onError: (error) => {
+          setCreateChannelError(getRequestErrorMessage(error, GENERIC_CHANNEL_ERROR_COPY));
+        },
+      }
+    );
+  };
+
   const [enterToSend] = useLocalStorage('chatify_enter_to_send', true);
 
   const handleComposerKeyDown = (event: Parameters<KeyboardEventHandler<HTMLTextAreaElement>>[0], payload: ComposerSendPayload) => {
@@ -1227,7 +1409,35 @@ const ChatPage = () => {
   };
 
   const handleSelectChat = (chatId: string) => {
+    setSidebarWorkspaceMode('conversations');
     setSelectedChatId(chatId);
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    setShowMessageSearch(false);
+    setIsSidebarOpen(false);
+  };
+
+  const handleSelectSpace = (spaceId: string) => {
+    setSidebarWorkspaceMode('spaces');
+    setSelectedSpaceId(spaceId);
+    const space = spaces?.find((candidate) => candidate._id === spaceId);
+    const channels = space?.channels ?? [];
+    const defaultChannel = channels.find((channel) => channel._id === space?.defaultChannelId) ?? channels[0];
+
+    if (defaultChannel) {
+      setSelectedChatId(defaultChannel._id);
+      setMessageSearch('');
+      setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+      setShowMessageSearch(false);
+    }
+  };
+
+  const handleSelectChannel = (channelId: string) => {
+    setSidebarWorkspaceMode('spaces');
+    setSelectedChatId(channelId);
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    setShowMessageSearch(false);
     setIsSidebarOpen(false);
   };
 
@@ -1246,6 +1456,7 @@ const ChatPage = () => {
 
     if (!nextState) {
       setMessageSearch('');
+      setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
     }
 
     setShowMessageSearch(nextState);
@@ -1260,19 +1471,44 @@ const ChatPage = () => {
 
   const handleClearMessageSearch = () => {
     setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
     window.requestAnimationFrame(() => {
       messageSearchInputRef.current?.focus();
     });
   };
 
-  const handleJumpToMessage = useCallback((messageId: string) => {
+  const handleMessageSearchFiltersChange = useCallback((patch: Partial<MessageSearchFilters>) => {
+    setMessageSearchFilters((currentFilters) => ({
+      ...currentFilters,
+      ...patch,
+    }));
+  }, []);
+
+  const handleJumpToMessage = useCallback(async (messageId: string) => {
     if (!loadedMessageIds.has(messageId)) {
-      showToast('That message is not loaded yet.', 'info');
-      return;
+      if (!selectedChatId) {
+        return;
+      }
+
+      setJumpingMessageId(messageId);
+
+      try {
+        await messageContextMutation.mutateAsync({
+          chatId: selectedChatId,
+          messageId,
+          limit: 25,
+        });
+      } catch {
+        showToast('We could not load that message. It may no longer be visible.', 'error');
+        return;
+      } finally {
+        setJumpingMessageId((currentMessageId) => currentMessageId === messageId ? null : currentMessageId);
+      }
     }
 
     setShowMessageSearch(false);
     setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
     clearHighlightedMessage();
     setHighlightedMessageId(messageId);
     messageHighlightTimeoutRef.current = setTimeout(() => {
@@ -1281,13 +1517,23 @@ const ChatPage = () => {
     }, 1200);
 
     window.requestAnimationFrame(() => {
-      const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${messageId}"]`);
-      messageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.requestAnimationFrame(() => {
+        const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${messageId}"]`);
+        messageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
     });
-  }, [clearHighlightedMessage, loadedMessageIds, setMessageSearch, setShowMessageSearch, showToast]);
+  }, [
+    clearHighlightedMessage,
+    loadedMessageIds,
+    messageContextMutation,
+    selectedChatId,
+    setMessageSearch,
+    setShowMessageSearch,
+    showToast,
+  ]);
 
   const handleSelectMessageSearchResult = (message: Message) => {
-    handleJumpToMessage(message._id);
+    void handleJumpToMessage(message._id);
   };
 
   const handleAppendEmoji = (emoji: string) => {
@@ -1303,35 +1549,85 @@ const ChatPage = () => {
     setAttachmentPreview(attachment);
   }, [showToast]);
 
-  const handleToggleFavorite = useCallback(() => {
+  const updateSelectedChatOrganization = useCallback((
+    patch: ConversationOrganizationPatch,
+    successCopy: string,
+    errorCopy: string
+  ) => {
     if (!selectedChatId) {
       return;
     }
 
-    persistFavoriteChatIds((currentFavorites) => (
-      currentFavorites.includes(selectedChatId)
-        ? currentFavorites.filter((chatId) => chatId !== selectedChatId)
-        : [...currentFavorites, selectedChatId]
-    ));
-  }, [persistFavoriteChatIds, selectedChatId]);
+    updateChatOrganizationMutation.mutate(
+      { chatId: selectedChatId, patch },
+      {
+        onSuccess: () => {
+          showToast(successCopy, 'success');
+        },
+        onError: (error) => {
+          showToast(getRequestErrorMessage(error, errorCopy), 'error');
+        },
+      }
+    );
+  }, [selectedChatId, showToast, updateChatOrganizationMutation]);
+
+  const handleToggleFavorite = useCallback(() => {
+    updateSelectedChatOrganization(
+      { favorite: !isSelectedChatFavorite },
+      isSelectedChatFavorite ? 'Conversation unstarred.' : 'Conversation starred.',
+      'Could not update starred conversation.'
+    );
+  }, [isSelectedChatFavorite, updateSelectedChatOrganization]);
+
+  const handleTogglePinned = useCallback(() => {
+    updateSelectedChatOrganization(
+      { pinned: !isSelectedChatPinned },
+      isSelectedChatPinned ? 'Conversation unpinned.' : 'Conversation pinned.',
+      'Could not update pinned conversation.'
+    );
+  }, [isSelectedChatPinned, updateSelectedChatOrganization]);
+
+  const handleToggleArchived = useCallback(() => {
+    updateSelectedChatOrganization(
+      { archived: !isSelectedChatArchived },
+      isSelectedChatArchived ? 'Conversation unarchived.' : 'Conversation archived.',
+      'Could not update archived conversation.'
+    );
+  }, [isSelectedChatArchived, updateSelectedChatOrganization]);
 
   const handleToggleSelectedChatMute = useCallback(() => {
     if (!selectedChatId) {
       return;
     }
 
-    if (notificationPreferences.isChatMuted(selectedChatId)) {
+    if (isSelectedChatMuted) {
       notificationPreferences.unmuteChat(selectedChatId);
-      showToast('Conversation unmuted. Alerts are on for this chat.', 'info');
+      updateSelectedChatOrganization(
+        { muted: false },
+        'Conversation unmuted. Alerts are on for this chat.',
+        'Could not save conversation mute.'
+      );
       return;
     }
 
     notificationPreferences.muteChat(selectedChatId);
-    showToast('Conversation muted. Alerts are off for this chat.', 'info');
-  }, [notificationPreferences, selectedChatId, showToast]);
+    updateSelectedChatOrganization(
+      { muted: true },
+      'Conversation muted. Alerts are off for this chat.',
+      'Could not save conversation mute.'
+    );
+  }, [isSelectedChatMuted, notificationPreferences, selectedChatId, updateSelectedChatOrganization]);
 
   const handleCopyMessage = (message: Message) => {
-    navigator.clipboard.writeText(message.text);
+    const textToCopy = message.decryptedText ?? message.text;
+
+    if (isEncryptedMessage(message) && !textToCopy) {
+      showToast('This device needs the conversation secret before copying this encrypted message.', 'error');
+      closeContextMenu();
+      return;
+    }
+
+    navigator.clipboard.writeText(textToCopy);
     closeContextMenu();
   };
 
@@ -1359,7 +1655,8 @@ const ChatPage = () => {
     sendMessage.mutate(
       {
         chatId: message.chatId,
-        text: message.text,
+        text: message.decryptedText ?? message.text,
+        encryptionMode: message.encryptionMode ?? selectedChat?.encryptionMode ?? 'standard',
         clientMessageId: message.clientMessageId,
         attachments: retryAttachments,
         optimisticAttachments: message.attachments,
@@ -1586,6 +1883,7 @@ const ChatPage = () => {
             isLoading={isChatsLoading}
             isError={chatsError}
             searchQuery={searchQuery}
+            activeFilter={conversationFilter}
             isNewChatOpen={isNewChatOpen}
             newChatUsername={newChatUsername}
             createChatError={createChatError}
@@ -1596,6 +1894,7 @@ const ChatPage = () => {
             onlineUsers={onlineUsers}
             newChatButtonRef={newChatButtonRef}
             onSearchChange={setSearchQuery}
+            onFilterChange={setConversationFilter}
             onSelectChat={handleSelectChat}
             onCloseSidebar={() => setIsSidebarOpen(false)}
             onOpenSettings={() => setIsSettingsOpen(true)}
@@ -1606,6 +1905,33 @@ const ChatPage = () => {
             onCreateGroupSubmit={handleCreateGroupSubmit}
             onClearCreateChatError={() => setCreateChatError(null)}
             onRefetchChats={() => refetchChats()}
+            workspaceMode={sidebarWorkspaceMode}
+            onWorkspaceModeChange={(mode) => setSidebarWorkspaceMode(mode)}
+            spacesPanel={(
+              <SpacesSidebar
+                spaces={spaces}
+                channels={visibleSpaceChannels}
+                selectedSpaceId={selectedSpaceId}
+                selectedChannelId={selectedChatId}
+                isSpacesLoading={isSpacesLoading}
+                isSpacesError={spacesError}
+                isChannelsLoading={isSpaceChannelsLoading && visibleSpaceChannels.length === 0}
+                isChannelsError={spaceChannelsError && visibleSpaceChannels.length === 0}
+                isCreatingSpace={createSpace.isPending}
+                isCreatingChannel={createSpaceChannel.isPending}
+                createSpaceError={createSpaceError}
+                createChannelError={createChannelError}
+                unreadCounts={unreadCounts}
+                onSelectSpace={handleSelectSpace}
+                onSelectChannel={handleSelectChannel}
+                onCreateSpace={handleCreateSpaceSubmit}
+                onCreateChannel={handleCreateSpaceChannelSubmit}
+                onClearCreateSpaceError={() => setCreateSpaceError(null)}
+                onClearCreateChannelError={() => setCreateChannelError(null)}
+                onRefetchSpaces={() => refetchSpaces()}
+                onRefetchChannels={() => refetchSpaceChannels()}
+              />
+            )}
           />
         )}
         conversation={(
@@ -1629,6 +1955,7 @@ const ChatPage = () => {
           callDisabledReason={audioAvailability.reason}
           videoCallDisabledReason={videoAvailability.reason}
           messageSearch={messageSearch}
+          messageSearchFilters={messageSearchFilters}
           messageSearchInputRef={messageSearchInputRef}
           messageSearchButtonRef={messageSearchButtonRef}
           moreButtonRef={moreButtonRef}
@@ -1637,6 +1964,7 @@ const ChatPage = () => {
           isMessageSearchLoading={messageSearchResult.isSearching}
           isMessageSearchError={messageSearchResult.isError}
           isMessageSearchBelowMinimum={messageSearchResult.isBelowMinimum}
+          jumpingMessageId={jumpingMessageId}
           loadedMessageIds={loadedMessageIds}
           highlightedMessageId={highlightedMessageId}
           editingMessageId={editingMessageId}
@@ -1664,6 +1992,7 @@ const ChatPage = () => {
           onToggleConversationDetails={handleToggleDetails}
           onToggleMessageSearch={handleToggleMessageSearch}
           onMessageSearchChange={setMessageSearch}
+          onMessageSearchFiltersChange={handleMessageSearchFiltersChange}
           onClearMessageSearch={handleClearMessageSearch}
           onSelectMessageSearchResult={handleSelectMessageSearchResult}
           onExportChat={handleExportChat}
@@ -1786,7 +2115,10 @@ const ChatPage = () => {
               conversationControls={conversationControls}
               canExport={allMessages.length > 0}
               isMuted={isSelectedChatMuted}
-              isActionPending={isConversationControlPending}
+              isArchived={isSelectedChatArchived}
+              isPinned={isSelectedChatPinned}
+              isFavorite={isSelectedChatFavorite}
+              isActionPending={isConversationControlPending || isConversationOrganizationPending}
               callDisabledReason={audioAvailability.reason}
               videoCallDisabledReason={videoAvailability.reason}
               onOpenDetails={handleOpenDetails}
@@ -1795,6 +2127,9 @@ const ChatPage = () => {
               onSearchMessages={handleToggleMessageSearch}
               onExportChat={handleExportChat}
               onToggleMute={handleToggleSelectedChatMute}
+              onToggleArchive={handleToggleArchived}
+              onTogglePin={handleTogglePinned}
+              onToggleFavorite={handleToggleFavorite}
               onBlockUser={handleBlockPeer}
               onUnblockUser={handleUnblockPeer}
               onReportConversation={handleReportConversation}

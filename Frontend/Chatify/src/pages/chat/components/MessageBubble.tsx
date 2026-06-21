@@ -1,11 +1,12 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { MoreHorizontal, Phone, PhoneMissed, PhoneOff, RefreshCw, Video } from 'lucide-react';
+import { Lock, MoreHorizontal, Phone, PhoneMissed, PhoneOff, RefreshCw, Video } from 'lucide-react';
 import MessageStatus from '../../../components/MessageStatus';
 import type { CallActivity, Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
 import AttachmentPreview from './AttachmentPreview';
 import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
+import { decryptMessageText, isEncryptedMessage } from '../../../utils/encryptedMessages';
 
 interface MessageBubbleProps {
   message: Message;
@@ -110,6 +111,46 @@ const getMemberDisplayName = (members: Chat['members'], senderId: string) => {
   return `${member.firstName} ${member.lastName}`.trim() || member.username || 'Unknown member';
 };
 
+type EncryptedDisplayState = 'idle' | 'decrypting' | 'missing-secret' | 'invalid-payload' | 'decrypt-failed';
+
+const getEncryptedStateCopy = (state: EncryptedDisplayState) => {
+  switch (state) {
+    case 'decrypting':
+      return 'Decrypting encrypted message...';
+    case 'missing-secret':
+      return 'This device needs the conversation secret to read encrypted messages.';
+    case 'invalid-payload':
+      return 'Encrypted message payload is unavailable.';
+    case 'decrypt-failed':
+      return 'Encrypted message could not be decrypted on this device.';
+    default:
+      return null;
+  }
+};
+
+const EncryptedMessageContent = ({ text, state }: { text: string; state: EncryptedDisplayState }) => {
+  const stateCopy = getEncryptedStateCopy(state);
+
+  if (text) {
+    return (
+      <div className="space-y-1">
+        <p className="whitespace-pre-wrap break-words" dir="auto">{text}</p>
+        <p className="inline-flex items-center gap-1 text-xs text-current opacity-80">
+          <Lock aria-hidden="true" className="h-3 w-3" />
+          <span>Encrypted</span>
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <p className="inline-flex items-start gap-2 text-sm italic text-current opacity-85" role={state === 'decrypt-failed' || state === 'invalid-payload' ? 'alert' : 'status'}>
+      <Lock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>{stateCopy ?? 'Encrypted message unavailable.'}</span>
+    </p>
+  );
+};
+
 const MessageBubble = memo(({
   message,
   isOwnMessage,
@@ -147,6 +188,52 @@ const MessageBubble = memo(({
     return Array.from(groups.entries()).map(([emoji, count]) => ({ emoji, count }));
   }, [message.reactions]);
 
+  const encryptedMessage = isEncryptedMessage(message);
+  const [decryptedText, setDecryptedText] = useState<string | null>(message.decryptedText ?? null);
+  const [encryptedDisplayState, setEncryptedDisplayState] = useState<EncryptedDisplayState>('idle');
+
+  useEffect(() => {
+    if (!encryptedMessage || message.deletedForEveryone) {
+      setDecryptedText(null);
+      setEncryptedDisplayState('idle');
+      return undefined;
+    }
+
+    if (message.decryptedText) {
+      setDecryptedText(message.decryptedText);
+      setEncryptedDisplayState('idle');
+      return undefined;
+    }
+
+    let isCanceled = false;
+    setDecryptedText(null);
+    setEncryptedDisplayState('decrypting');
+
+    void decryptMessageText(message.chatId, message.encryptedPayload).then((result) => {
+      if (isCanceled) {
+        return;
+      }
+
+      if (result.ok) {
+        setDecryptedText(result.text);
+        setEncryptedDisplayState('idle');
+        return;
+      }
+
+      setEncryptedDisplayState(result.reason);
+    });
+
+    return () => {
+      isCanceled = true;
+    };
+  }, [
+    encryptedMessage,
+    message.chatId,
+    message.decryptedText,
+    message.deletedForEveryone,
+    message.encryptedPayload,
+  ]);
+
   if (message.messageType === 'call') {
     return <CallActivityRow message={message} />;
   }
@@ -168,13 +255,14 @@ const MessageBubble = memo(({
       ? 'text-white/90'
       : 'text-[var(--chat-text-soft)]';
   const senderDisplayName = isGroupChat ? getMemberDisplayName(members, message.sender) : null;
+  const displayText = encryptedMessage ? message.decryptedText ?? decryptedText ?? '' : message.text;
 
   return (
     <div
       className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} ${isHighlighted ? 'message-search-highlight' : ''}`}
       data-message-id={message._id}
       onContextMenu={onContextMenu ? (event) => onContextMenu(event, message) : undefined}
-      onDoubleClick={onDoubleClick && isOwnMessage ? () => onDoubleClick(message) : undefined}
+      onDoubleClick={onDoubleClick && isOwnMessage && !encryptedMessage ? () => onDoubleClick(message) : undefined}
     >
       <div className={`message-bubble-wrap group flex max-w-[calc(100vw-32px)] flex-col ${isOwnMessage ? 'message-bubble-wrap--own' : 'message-bubble-wrap--received'}`}>
         {senderDisplayName && (
@@ -200,9 +288,11 @@ const MessageBubble = memo(({
           </button>
           {message.deletedForEveryone ? (
             <p className="italic text-[#A8B3AF]">This message was deleted</p>
+          ) : encryptedMessage ? (
+            <EncryptedMessageContent text={displayText} state={encryptedDisplayState} />
           ) : (
             <>
-              {message.text.trim() && <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+              {message.text.trim() && <p className="whitespace-pre-wrap break-words" dir="auto">{message.text}</p>}
               {visibleAttachments.map((attachment) => (
                 <AttachmentPreview
                   key={attachment.attachmentId}

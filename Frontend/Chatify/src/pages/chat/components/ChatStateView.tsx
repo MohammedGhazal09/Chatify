@@ -35,8 +35,8 @@ const ChatStateView = ({
       aria-live={liveMode}
     >
       {icon ? <div className="text-2xl" aria-hidden="true">{icon}</div> : null}
-      <h2 className="text-lg font-bold leading-tight text-[var(--chat-text)]">{heading}</h2>
-      <p className="max-w-[420px] text-sm leading-5">{body}</p>
+      <h2 className="text-lg font-bold leading-tight text-[var(--chat-text)]" dir="auto">{heading}</h2>
+      <p className="max-w-[420px] text-sm leading-5" dir="auto">{body}</p>
       {(primaryAction || secondaryAction) && (
         <div className="mt-2 flex w-full max-w-[420px] flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-center">
           {secondaryAction && (

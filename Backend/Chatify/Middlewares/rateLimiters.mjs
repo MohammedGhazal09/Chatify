@@ -66,3 +66,12 @@ export const moderationReviewLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+export const privacyRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skip: skipInTests,
+  message: { status: 'error', message: 'Too many privacy requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

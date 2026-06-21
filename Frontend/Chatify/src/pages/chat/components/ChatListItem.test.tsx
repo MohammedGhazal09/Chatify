@@ -81,4 +81,25 @@ describe('ChatListItem', () => {
     expect(screen.getByLabelText('Conversation muted')).toBeInTheDocument();
     expect(screen.getByText('4')).toBeInTheDocument();
   });
+
+  it('shows pinned, starred, and archived organization indicators', () => {
+    render(
+      <ChatListItem
+        chat={makeChat()}
+        title="Grace Hopper"
+        avatarUser={makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper' })}
+        isActive={false}
+        isOnline={false}
+        isPinned
+        isFavorite
+        isArchived
+        unreadCount={0}
+        onSelect={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Conversation pinned')).toBeInTheDocument();
+    expect(screen.getByLabelText('Conversation starred')).toBeInTheDocument();
+    expect(screen.getByLabelText('Conversation archived')).toBeInTheDocument();
+  });
 });

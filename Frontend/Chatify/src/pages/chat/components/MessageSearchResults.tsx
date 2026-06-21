@@ -1,6 +1,7 @@
 import { LoaderCircle, X } from 'lucide-react';
 import type { Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
+import { isEncryptedConversation } from '../../../utils/encryptedMessages';
 
 interface MessageSearchResultsProps {
   query: string;
@@ -11,8 +12,9 @@ interface MessageSearchResultsProps {
   isLoading: boolean;
   isError: boolean;
   isBelowMinimum: boolean;
+  jumpingMessageId?: string | null;
   onClear: () => void;
-  onSelectLoadedResult: (message: Message) => void;
+  onSelectResult: (message: Message) => void;
 }
 
 const normalizeQuery = (query: string) => query.trim().toLowerCase();
@@ -26,11 +28,13 @@ const MessageSearchResults = ({
   isLoading,
   isError,
   isBelowMinimum,
+  jumpingMessageId = null,
   onClear,
-  onSelectLoadedResult,
+  onSelectResult,
 }: MessageSearchResultsProps) => {
   const normalizedQuery = normalizeQuery(query);
   const statusText = getSearchStatusText({ isBelowMinimum, isLoading, isError, count: messages.length });
+  const encryptedConversation = isEncryptedConversation(selectedChat);
 
   const getSenderLabel = (message: Message) => {
     if (message.sender === currentUserId) {
@@ -58,7 +62,12 @@ const MessageSearchResults = ({
         </button>
       </div>
 
-      {isBelowMinimum ? (
+      {encryptedConversation ? (
+        <div className="space-y-1 text-sm" role="status">
+          <p className="font-semibold text-[var(--chat-text)]">Search unavailable for encrypted conversations</p>
+          <p className="text-[var(--chat-text-muted)]">Server-side search cannot read encrypted message text on this conversation.</p>
+        </div>
+      ) : isBelowMinimum ? (
         <div className="space-y-1 text-sm" role="status">
           <p className="font-semibold text-[var(--chat-text)]">Keep typing</p>
           <p className="text-[var(--chat-text-muted)]">Type at least 2 characters to search this conversation.</p>
@@ -77,13 +86,20 @@ const MessageSearchResults = ({
         <ul className="-mx-4 divide-y divide-[var(--chat-border)] border-y border-[var(--chat-border)] md:-mx-8">
           {messages.map((message) => {
             const isLoaded = loadedMessageIds.has(message._id);
+            const isJumping = jumpingMessageId === message._id;
             const senderLabel = getSenderLabel(message);
             const timestampLabel = formatTimestamp(message.createdAt);
             const ariaLabel = `Jump to message from ${senderLabel} at ${timestampLabel}: ${message.text}`;
+            const matchLabel = getMatchLabel(message);
             const metadata = (
               <div className="flex min-w-0 items-center justify-between gap-3 text-xs text-[var(--chat-text-soft)]">
                 <span className="truncate font-semibold text-[var(--chat-text-muted)]">{senderLabel}</span>
                 <span className="flex shrink-0 items-center gap-2">
+                  {matchLabel && (
+                    <span className="rounded bg-[var(--chat-panel-subtle)] px-1.5 py-0.5 font-semibold text-[var(--chat-text-muted)]">
+                      {matchLabel}
+                    </span>
+                  )}
                   {isLoaded && (
                     <span className="rounded bg-[var(--chat-accent-soft)] px-1.5 py-0.5 font-semibold text-[var(--chat-accent)]">
                       In view
@@ -96,27 +112,23 @@ const MessageSearchResults = ({
 
             return (
               <li key={message._id}>
-                {isLoaded ? (
-                  <button
-                    type="button"
-                    onClick={() => onSelectLoadedResult(message)}
-                    className="flex min-h-14 w-full flex-col justify-center px-4 py-3 text-left text-sm text-[var(--chat-text)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--chat-focus)] md:px-8"
-                    aria-label={ariaLabel}
-                  >
-                    {metadata}
-                    <span className="mt-1 leading-5 text-[var(--chat-text)]">
-                      <SearchSnippet text={message.text} query={normalizedQuery} />
-                    </span>
-                  </button>
-                ) : (
-                  <div className="flex min-h-14 flex-col justify-center px-4 py-3 text-sm text-[var(--chat-text)] md:min-h-16 md:px-8">
-                    {metadata}
-                    <span className="mt-1 leading-5">
-                      <SearchSnippet text={message.text} query={normalizedQuery} />
-                    </span>
-                    <p className="mt-1 text-xs text-[var(--chat-text-soft)]">Load older history to jump to this message.</p>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => onSelectResult(message)}
+                  disabled={isJumping}
+                  className="flex min-h-14 w-full flex-col justify-center px-4 py-3 text-left text-sm text-[var(--chat-text)] hover:bg-[var(--chat-panel-subtle)] disabled:cursor-wait disabled:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--chat-focus)] md:px-8"
+                  aria-label={ariaLabel}
+                >
+                  {metadata}
+                  <span className="mt-1 leading-5 text-[var(--chat-text)]">
+                    <SearchSnippet text={message.text || message.searchMatch?.attachmentName || ''} query={normalizedQuery} />
+                  </span>
+                  {!isLoaded && (
+                    <p className="mt-1 text-xs text-[var(--chat-text-soft)]">
+                      {isJumping ? 'Loading message context...' : 'Load and jump to this message.'}
+                    </p>
+                  )}
+                </button>
               </li>
             );
           })}
@@ -129,6 +141,14 @@ const MessageSearchResults = ({
       )}
     </section>
   );
+};
+
+const getMatchLabel = (message: Message) => {
+  if (message.searchMatch?.attachmentName) {
+    return message.searchMatch.attachmentName;
+  }
+
+  return message.searchMatch?.label ?? null;
 };
 
 const getSearchStatusText = ({

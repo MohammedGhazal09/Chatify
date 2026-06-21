@@ -219,6 +219,28 @@ describe('authenticated Socket.IO handshake', () => {
     });
   });
 
+  it('rejects a socket whose session was revoked after token issue', async () => {
+    const server = await startServer();
+    const signup = await signupWithAgent({ firstName: 'Revoked', lastName: 'Socket' });
+    const staleCookieHeader = extractCookieHeader(signup.response);
+    const csrfToken = await getCsrfForAgent(signup.agent);
+
+    await signup.agent
+      .post('/api/auth/sessions/revoke-all')
+      .set('X-CSRF-Token', csrfToken)
+      .expect(200);
+
+    const socket = trackSocket(connectSocketWithCookie(server.url, staleCookieHeader));
+    const errorPromise = waitForSocketEvent(socket, 'connect_error');
+
+    socket.connect();
+    const error = await errorPromise;
+
+    expect(error.message).toBe('Socket authentication invalid');
+    expect(error.data).toMatchObject({ code: 'socket_auth_invalid' });
+    expect(socket.connected).toBe(false);
+  });
+
   it('rejects a websocket handshake from a disallowed origin before authentication', async () => {
     const server = await startServer();
     const signup = await signupWithAgent({ firstName: 'Origin', lastName: 'Blocked' });

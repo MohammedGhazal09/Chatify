@@ -1,5 +1,5 @@
 import OnlineStatus from '../../../components/OnlineStatus';
-import { BellOff } from 'lucide-react';
+import { Archive, BellOff, Pin, Star } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
@@ -12,11 +12,26 @@ interface ChatListItemProps {
   isActive: boolean;
   isOnline: boolean;
   isMuted?: boolean;
+  isPinned?: boolean;
+  isFavorite?: boolean;
+  isArchived?: boolean;
   unreadCount: number;
   onSelect: () => void;
 }
 
-const ChatListItem = ({ chat, title, avatarUser, isActive, isOnline, isMuted = false, unreadCount, onSelect }: ChatListItemProps) => {
+const ChatListItem = ({
+  chat,
+  title,
+  avatarUser,
+  isActive,
+  isOnline,
+  isMuted = false,
+  isPinned = false,
+  isFavorite = false,
+  isArchived = false,
+  unreadCount,
+  onSelect,
+}: ChatListItemProps) => {
   const timestamp = chat.latestMessage
     ? formatTimestamp(chat.latestMessage.updatedAt)
     : formatTimestamp(chat.updatedAt);
@@ -49,6 +64,33 @@ const ChatListItem = ({ chat, title, avatarUser, isActive, isOnline, isMuted = f
                 >
                   <BellOff aria-hidden="true" className="h-3 w-3" />
                   <span className="sr-only">Muted</span>
+                </span>
+              )}
+              {isPinned && (
+                <span
+                  className="inline-grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--chat-accent-soft)] text-[var(--chat-accent)]"
+                  title="Pinned"
+                  aria-label="Conversation pinned"
+                >
+                  <Pin aria-hidden="true" className="h-3 w-3" />
+                </span>
+              )}
+              {isFavorite && (
+                <span
+                  className="inline-grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--chat-warning)_14%,var(--chat-panel-subtle))] text-[var(--chat-warning)]"
+                  title="Starred"
+                  aria-label="Conversation starred"
+                >
+                  <Star aria-hidden="true" className="h-3 w-3" fill="currentColor" />
+                </span>
+              )}
+              {isArchived && (
+                <span
+                  className="inline-grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--chat-panel-subtle)] text-[var(--chat-text-muted)]"
+                  title="Archived"
+                  aria-label="Conversation archived"
+                >
+                  <Archive aria-hidden="true" className="h-3 w-3" />
                 </span>
               )}
             </span>

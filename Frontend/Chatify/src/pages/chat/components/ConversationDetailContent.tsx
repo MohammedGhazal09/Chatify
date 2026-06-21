@@ -4,6 +4,7 @@ import {
   ExternalLink,
   FileText,
   LoaderCircle,
+  Lock,
   MoreHorizontal,
   Phone,
   Pin,
@@ -21,6 +22,7 @@ import { messageApi } from '../../../api/messageApi';
 import OnlineStatus from '../../../components/OnlineStatus';
 import type { User } from '../../../types/auth';
 import type { Chat, ConversationControls, PinnedMessage, SharedAsset, UserOnlineStatus } from '../../../types/chat';
+import { isEncryptedConversation } from '../../../utils/encryptedMessages';
 import { formatFileSize } from '../utils/attachmentDisplay';
 import { getChatTitle } from '../utils/chatDisplay';
 import AttachmentPreview from './AttachmentPreview';
@@ -104,7 +106,10 @@ const ConversationDetailContent = ({
   onUnpinMessage,
 }: ConversationDetailContentProps) => {
   const title = getChatTitle(selectedChat, currentUserId);
+  const encryptedConversation = isEncryptedConversation(selectedChat);
   const isMember = Boolean(currentUserId && selectedChat.members.some((member) => member._id === currentUserId));
+  const profileBio = getVisibleProfileBio(otherMember);
+  const profileStatus = getVisibleProfileStatus(otherMember, otherMemberStatus);
   const socketStatus = isOffline
     ? { value: 'Offline', tone: 'warning' as const }
     : isReconnecting
@@ -126,7 +131,14 @@ const ConversationDetailContent = ({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="truncate text-xl font-bold text-[var(--chat-text)]">{title}</h2>
-              {selectedChat.isGroupChat ? (
+              {encryptedConversation ? (
+                <p className="inline-flex items-center gap-1 text-sm text-[var(--chat-text-muted)]">
+                  <Lock aria-hidden="true" className="h-4 w-4 text-[var(--chat-accent)]" />
+                  <span>
+                    Encrypted conversation{selectedChat.isGroupChat ? ` - ${selectedChat.members.length} members` : ''}
+                  </span>
+                </p>
+              ) : selectedChat.isGroupChat ? (
                 <p className="text-sm text-[var(--chat-text-muted)]">
                   {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
                 </p>
@@ -135,12 +147,20 @@ const ConversationDetailContent = ({
                   Checking availability
                 </p>
               ) : otherMember ? (
-                <OnlineStatus
-                  isOnline={otherMemberStatus?.isOnline ?? false}
-                  lastSeen={otherMemberStatus?.lastSeen}
-                  showText
-                  showDot
-                />
+                <div className="flex min-w-0 items-center gap-2 text-sm text-[var(--chat-text-muted)]">
+                  <OnlineStatus
+                    isOnline={otherMemberStatus?.isOnline ?? false}
+                    lastSeen={otherMemberStatus?.lastSeen}
+                    showText
+                    showDot
+                  />
+                  {profileStatus && (
+                    <>
+                      <span className="text-[var(--chat-text-soft)]" aria-hidden="true">/</span>
+                      <span className="truncate" title={profileStatus}>{profileStatus}</span>
+                    </>
+                  )}
+                </div>
               ) : null}
             </div>
             <button
@@ -176,13 +196,33 @@ const ConversationDetailContent = ({
           disabledReason={videoCallDisabledReason}
           onClick={onStartVideoCall}
         />
-        <ContextAction label="Search messages" icon={<Search aria-hidden="true" className="h-5 w-5" />} onClick={onSearchMessages} />
+        <ContextAction
+          label="Search messages"
+          icon={<Search aria-hidden="true" className="h-5 w-5" />}
+          disabledReason={encryptedConversation ? 'Server-side search is unavailable for encrypted conversations.' : null}
+          onClick={onSearchMessages}
+        />
         <ContextAction label="More conversation actions" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} onClick={onOpenMoreMenu} />
       </div>
+      {encryptedConversation && (
+        <div className="mt-3 flex items-start gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] px-3 py-2 text-sm text-[var(--chat-text-muted)]" role="status">
+          <Lock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--chat-accent)]" />
+          <p>This device needs the conversation secret to read encrypted messages. Attachments stay unavailable until encrypted upload is supported.</p>
+        </div>
+      )}
       <CallAvailabilityNotice
         callDisabledReason={callDisabledReason}
         videoCallDisabledReason={videoCallDisabledReason}
       />
+
+      {otherMember && (
+        <RailSection title="Profile">
+          <ProfileSummary
+            bio={profileBio}
+            status={profileStatus}
+          />
+        </RailSection>
+      )}
 
       <RailSection title="Pinned messages" count={pinnedMessages.length}>
         <DetailState
@@ -330,6 +370,49 @@ const ConversationDetailContent = ({
 
 const getMemberDisplayName = (member: User) => (
   `${member.firstName} ${member.lastName ?? ''}`.trim() || member.username || 'Unknown user'
+);
+
+const getVisibleProfileBio = (member: User | null) => (
+  typeof member?.profileBio === 'string' ? member.profileBio.trim() : ''
+);
+
+const getVisibleProfileStatus = (
+  member: User | null,
+  status: UserOnlineStatus | null
+) => {
+  const source = status ? status.profileStatus : member?.profileStatus;
+
+  return typeof source === 'string' ? source.trim() : '';
+};
+
+const ProfileSummary = ({
+  bio,
+  status,
+}: {
+  bio: string;
+  status: string;
+}) => {
+  if (!bio && !status) {
+    return <DetailStateBox>No profile details shared.</DetailStateBox>;
+  }
+
+  return (
+    <div className="space-y-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] p-3">
+      {status && (
+        <ProfileSummaryRow label="Status" value={status} />
+      )}
+      {bio && (
+        <ProfileSummaryRow label="Bio" value={bio} />
+      )}
+    </div>
+  );
+};
+
+const ProfileSummaryRow = ({ label, value }: { label: string; value: string }) => (
+  <div className="min-w-0">
+    <p className="text-xs font-semibold uppercase text-[var(--chat-text-soft)]">{label}</p>
+    <p className="mt-1 break-words text-sm leading-5 text-[var(--chat-text)]">{value}</p>
+  </div>
 );
 
 const BlockedPeopleSection = ({

@@ -1,7 +1,8 @@
 import type { User } from './auth';
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
-export type MessageType = 'text' | 'call';
+export type MessageType = 'text' | 'call' | 'encrypted';
+export type EncryptionMode = 'standard' | 'e2ee_v1';
 export type CallMode = 'audio' | 'video';
 export type CallStatus =
   | 'ringing'
@@ -146,6 +147,17 @@ export interface ComposerSendPayload {
   attachments: ComposerAttachmentDraft[];
 }
 
+export interface EncryptedPayload {
+  ciphertext: string;
+  iv: string;
+  authTag?: string | null;
+  algorithm: 'AES-GCM';
+  keyVersion: number;
+  senderDeviceId: string;
+  encryptedAt: string;
+  attachmentManifest?: Record<string, unknown> | null;
+}
+
 export interface Message {
   _id: string;
   clientMessageId?: string | null;
@@ -153,6 +165,9 @@ export interface Message {
   sender: string;
   text: string;
   messageType?: MessageType;
+  encryptionMode?: EncryptionMode;
+  encryptedPayload?: EncryptedPayload | null;
+  decryptedText?: string;
   callActivity?: CallActivity | null;
   read: boolean;
   status: MessageStatus;
@@ -172,6 +187,7 @@ export interface Message {
   pinned?: boolean;
   pinnedBy?: string | null;
   pinnedAt?: string | null;
+  searchMatch?: MessageSearchMatch;
   optimisticState?: 'sending' | 'failed';
   errorMessage?: string;
   createdAt: string;
@@ -193,42 +209,86 @@ export interface CursorPaginationInfo {
   limit: number;
 }
 
+export type MessageSearchType = 'all' | 'text' | 'media' | 'file' | 'link' | 'voice';
+
+export interface MessageSearchFilters {
+  senderId?: string | null;
+  type?: MessageSearchType;
+  from?: string | null;
+  to?: string | null;
+}
+
+export interface MessageSearchMatch {
+  kind: 'message' | 'text' | 'link' | AttachmentKind;
+  label: string;
+  text?: string | null;
+  attachmentName?: string;
+  attachmentKind?: AttachmentKind;
+}
+
 export type MessagingDisabledReason = 'blocked_by_me' | 'blocked_me' | null;
 
 export interface ConversationControls {
   isDirectChat: boolean;
-  peerId: string | null;
+  peerId?: string | null;
   canSendMessage: boolean;
   canBlockUser: boolean;
   canUnblockUser: boolean;
-  blockedByMe: boolean;
-  blockedMe: boolean;
-  messagingDisabledReason: MessagingDisabledReason;
+  blockedByMe?: boolean;
+  blockedMe?: boolean;
+  messagingDisabledReason?: MessagingDisabledReason;
+}
+
+export interface ConversationOrganizationState {
+  muted: boolean;
+  archived: boolean;
+  pinned: boolean;
+  favorite: boolean;
 }
 
 export interface Chat {
   _id: string;
+  id?: string;
   members: User[];
-  unReadMessages: number;
+  unReadMessages?: number;
   chatName?: string;
   isGroupChat: boolean;
+  isSpaceChannel?: boolean;
+  space?: string;
+  spaceId?: string;
+  channelName?: string;
+  channelKey?: string;
+  channelDescription?: string;
+  encryptionMode?: EncryptionMode;
   latestMessage?: Message | null;
   groupAdmin?: User;
   groupImage?: string;
   groupDescription?: string;
   conversationControls?: ConversationControls;
+  organizationState?: ConversationOrganizationState;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface ConversationOrganizationPatch {
+  muted?: boolean;
+  archived?: boolean;
+  pinned?: boolean;
+  favorite?: boolean;
+}
+
+export type ConversationFocusFilter = 'all' | 'unread' | 'direct' | 'group' | 'archived' | 'favorite';
+
 export interface CreateChatPayload {
   targetUsername: string;
   chatName?: string;
+  encryptionMode?: EncryptionMode;
 }
 
 export interface CreateGroupChatPayload {
   chatName: string;
   memberUsernames: string[];
+  encryptionMode?: EncryptionMode;
 }
 
 export interface NewMessagePayload {
@@ -236,6 +296,7 @@ export interface NewMessagePayload {
   text: string;
   clientMessageId: string;
   attachments?: MessageUploadAttachment[];
+  encryptedPayload?: EncryptedPayload;
 }
 
 export interface SharedAsset {
@@ -282,6 +343,7 @@ export interface UserOnlineStatus {
   isOnline: boolean;
   isCallReachable?: boolean;
   lastSeen?: string;
+  profileStatus?: string;
 }
 
 export interface UserStatusChangeEvent {
@@ -291,6 +353,7 @@ export interface UserStatusChangeEvent {
   isOnline: boolean;
   isCallReachable?: boolean;
   lastSeen?: string;
+  profileStatus?: string;
 }
 
 // Typing indicator types
@@ -385,6 +448,12 @@ export interface SocketErrorEvent {
 export interface ConversationControlsUpdatedEvent {
   chatId: string;
   conversationControls: ConversationControls;
+}
+
+export interface ConversationOrganizationUpdatedEvent {
+  chatId: string;
+  organizationState: ConversationOrganizationState;
+  chat?: Chat;
 }
 
 export interface UserIdentityUpdatedEvent {

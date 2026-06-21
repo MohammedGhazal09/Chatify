@@ -1,6 +1,11 @@
 import axiosInstance from './axios';
 import type { AxiosResponse } from 'axios';
-import type { Chat, CreateChatPayload, CreateGroupChatPayload } from '../types/chat';
+import type {
+  Chat,
+  ConversationOrganizationPatch,
+  CreateChatPayload,
+  CreateGroupChatPayload,
+} from '../types/chat';
 
 interface ChatResponse {
   status: string;
@@ -26,6 +31,12 @@ export const chatApi = {
 
   getAllChats: (): Promise<AxiosResponse<ChatsResponse>> =>
     axiosInstance.get('/api/chat/get-all-chats'),
+
+  updateChatOrganization: (
+    chatId: string,
+    payload: ConversationOrganizationPatch
+  ): Promise<AxiosResponse<ChatResponse>> =>
+    axiosInstance.patch(`/api/chat/${chatId}/organization`, payload),
 
   blockChatPeer: (chatId: string): Promise<AxiosResponse<ChatResponse>> =>
     axiosInstance.post(`/api/chat/${chatId}/block`),

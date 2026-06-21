@@ -40,4 +40,16 @@ describe('ChatStateView', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Conversation unavailable');
   });
+
+  it('allows bidirectional state copy to resolve from the text content', () => {
+    render(
+      <ChatStateView
+        heading="انتهت الجلسة"
+        body="سجّل الدخول مرة أخرى للمتابعة."
+      />
+    );
+
+    expect(screen.getByRole('heading', { name: 'انتهت الجلسة' })).toHaveAttribute('dir', 'auto');
+    expect(screen.getByText('سجّل الدخول مرة أخرى للمتابعة.')).toHaveAttribute('dir', 'auto');
+  });
 });

@@ -30,7 +30,11 @@ describe('ConversationHeader', () => {
         selectedChat={chat}
         title="IN-8B21"
         otherMember={chat.members[1]}
-        otherMemberStatus={{ userId: 'user-2', isOnline: true }}
+        otherMemberStatus={{
+          userId: 'user-2',
+          isOnline: true,
+          profileStatus: 'Available for focused work',
+        }}
         showMessageSearch={false}
         showConversationMoreMenu={false}
         showConversationDetails={false}
@@ -48,6 +52,7 @@ describe('ConversationHeader', () => {
 
     expect(screen.getByText('IN-8B21')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'IN 8B21 profile picture' })).toHaveAttribute('src', 'https://example.com/avatar.png');
+    expect(screen.getByText('Available for focused work')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Open conversations' }));
     await user.click(screen.getByRole('button', { name: 'Call' }));

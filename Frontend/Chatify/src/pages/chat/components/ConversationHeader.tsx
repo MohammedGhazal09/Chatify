@@ -1,10 +1,11 @@
 import OnlineStatus, { OnlineDot } from '../../../components/OnlineStatus';
-import { ArrowLeft, MoreVertical, PanelRightClose, PanelRightOpen, Phone, Search, Video } from 'lucide-react';
+import { ArrowLeft, Hash, Lock, MoreVertical, PanelRightClose, PanelRightOpen, Phone, Search, Video } from 'lucide-react';
 import { useId } from 'react';
 import type { RefObject } from 'react';
 import type { User } from '../../../types/auth';
 import type { Chat, UserOnlineStatus } from '../../../types/chat';
 import UserAvatar from './UserAvatar';
+import { isEncryptedConversation } from '../../../utils/encryptedMessages';
 
 interface ConversationHeaderProps {
   selectedChat: Chat;
@@ -54,6 +55,9 @@ const ConversationHeader = ({
   const videoCallReasonId = useId();
   const DetailsIcon = showConversationDetails ? PanelRightClose : PanelRightOpen;
   const detailsLabel = showConversationDetails ? 'Close conversation details' : 'Open conversation details';
+  const encryptedConversation = isEncryptedConversation(selectedChat);
+  const isSpaceChannel = selectedChat.isSpaceChannel === true;
+  const profileStatus = getVisibleProfileStatus(otherMember, otherMemberStatus);
 
   return (
     <div className="flex min-h-20 min-w-0 max-w-full items-center gap-3 overflow-hidden border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-3 text-[var(--chat-text)] md:px-8">
@@ -77,10 +81,26 @@ const ConversationHeader = ({
           <OnlineDot isOnline={otherMemberStatus?.isOnline ?? false} size="sm" />
         </div>
       )}
+      {isSpaceChannel && !otherMember ? (
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[var(--chat-radius-md)] bg-[var(--chat-accent-soft)] text-[var(--chat-accent)] md:h-14 md:w-14">
+          <Hash aria-hidden="true" className="h-5 w-5" />
+        </div>
+      ) : null}
 
       <div className="min-w-0 flex-1">
         <h2 className="truncate text-lg font-bold text-[var(--chat-text)] md:text-xl" title={title}>{title}</h2>
-        {selectedChat.isGroupChat ? (
+        {encryptedConversation ? (
+          <p className="inline-flex items-center gap-1 text-xs font-medium text-[var(--chat-text-muted)]">
+            <Lock aria-hidden="true" className="h-3.5 w-3.5 text-[var(--chat-accent)]" />
+            <span>
+              Encrypted conversation{selectedChat.isGroupChat ? ` - ${selectedChat.members.length} members` : ''}
+            </span>
+          </p>
+        ) : isSpaceChannel ? (
+          <p className="text-xs font-medium text-[var(--chat-text-muted)]">
+            Channel - {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
+          </p>
+        ) : selectedChat.isGroupChat ? (
           <p className="text-xs font-medium text-[var(--chat-text-muted)]">
             {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
           </p>
@@ -89,12 +109,20 @@ const ConversationHeader = ({
             Checking availability
           </p>
         ) : otherMember ? (
-          <OnlineStatus
-            isOnline={otherMemberStatus?.isOnline ?? false}
-            lastSeen={otherMemberStatus?.lastSeen}
-            showText
-            showDot={false}
-          />
+          <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-[var(--chat-text-muted)]">
+            <OnlineStatus
+              isOnline={otherMemberStatus?.isOnline ?? false}
+              lastSeen={otherMemberStatus?.lastSeen}
+              showText
+              showDot={false}
+            />
+            {profileStatus && (
+              <>
+                <span className="text-[var(--chat-text-soft)]" aria-hidden="true">/</span>
+                <span className="truncate" title={profileStatus}>{profileStatus}</span>
+              </>
+            )}
+          </div>
         ) : null}
       </div>
 
@@ -161,6 +189,17 @@ const ConversationHeader = ({
       </button>
     </div>
   );
+};
+
+const getVisibleProfileStatus = (
+  otherMember: User | null,
+  otherMemberStatus: UserOnlineStatus | null
+) => {
+  const source = otherMemberStatus
+    ? otherMemberStatus.profileStatus
+    : otherMember?.profileStatus;
+
+  return typeof source === 'string' ? source.trim() : '';
 };
 
 export default ConversationHeader;

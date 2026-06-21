@@ -126,15 +126,73 @@
 - **V2-PLAT-02**: Bots and integrations require scoped permissions, audit trails, revocation, and abuse controls before runtime execution.
 - **V2-PLAT-03**: External notification delivery respects opt-in preferences, mute/block state, privacy-safe templates, and unsubscribe controls.
 
+### Notification Runtime
+
+- **V2-NOTF-02**: User can manage push and email notification subscriptions, preferences, unsubscribe state, and per-conversation notification behavior.
+- **V2-NOTF-03**: Server-side notification delivery uses an observable queue/outbox with privacy-safe templates, retries, rate limits, and sanitized provider outcomes.
+
+### Conversation Organization
+
+- **V2-ORG-01**: User can mute, archive, pin, and favorite conversations as per-user state without changing other participants' conversation state.
+- **V2-ORG-02**: User can filter conversations by unread, direct, group, archived, and favorite views without losing selected conversation continuity.
+
+### Advanced Search
+
+- **V2-SEARCH-01**: User can search authorized messages by sender, date range, text, media, file, link, and voice-message filters.
+- **V2-SEARCH-02**: User can jump from a search result to the matching message while preserving pagination, visibility, and authorization boundaries.
+
+### Session And Device Security
+
+- **V2-SESS-01**: User can view active sessions and devices with safe device labels, current-session state, and approximate activity metadata.
+- **V2-SESS-02**: User can revoke individual sessions and log out everywhere, with HTTP and Socket.IO access revoked consistently.
+- **V2-SESS-03**: User can understand suspicious session activity through privacy-preserving notices that do not expose token, cookie, or raw device details.
+
+### Encrypted Conversations
+
+- **V2-E2EE-02**: User can create opt-in encrypted conversations that store encrypted message and attachment payloads separately from standard plaintext conversations.
+- **V2-E2EE-03**: Encrypted conversation key setup, backup, rotation, device changes, and lost-access behavior follow the approved Phase 29 design.
+- **V2-E2EE-04**: Encrypted conversations expose honest limitations for search, notifications, moderation, reporting, and account recovery.
+
+### Profiles And Presence
+
+- **V2-PROF-01**: User can manage public profile bio, status, and contact-card details with validation and safe fallbacks.
+- **V2-PROF-02**: Profile surfaces expose only approved public identity data and never expose private email addresses in discovery or conversation contexts.
+- **V2-PRES-01**: User can control online, last-seen, and status visibility without leaking presence to unauthorized users.
+- **V2-PRES-02**: Presence privacy remains consistent across reconnects, blocked users, direct chats, group chats, and future spaces.
+
+### Spaces And Channels
+
+- **V2-SPACE-01**: User can create and participate in small private spaces with scoped channels after group messaging remains reliable.
+- **V2-SPACE-02**: Space membership, roles, invites, and channel access are server-authorized and private by default.
+- **V2-SPACE-03**: Channel messages, unread counts, receipts, attachments, reactions, and notifications use the same server-truth reliability model as direct and group messages.
+
+### Data Privacy And Portability
+
+- **V2-DATA-01**: User can export authorized account, conversation, media, and moderation-visible data in a portable format.
+- **V2-DATA-02**: User can request account deletion with clear retention, anonymization, conversation tombstone, and abuse/security exception behavior.
+- **V2-DATA-03**: Export, deletion, and retention workflows are authenticated, CSRF-protected, rate-limited, audited, and privacy-preserving.
+
+### Moderation Operations
+
+- **V2-MOD-02**: User can appeal supported enforcement actions and see appeal status through a privacy-safe workflow.
+- **V2-ADMIN-03**: Admin can assign reports and appeals, view enforcement history, and manage reviewer workload from protected moderation surfaces.
+- **V2-ADMIN-04**: Admin can inspect moderation operations metrics without exposing private messages, emails, tokens, or report internals.
+
+### Localization And RTL
+
+- **V2-I18N-01**: Core account, chat, settings, moderation, notification, and privacy surfaces use translatable strings.
+- **V2-I18N-02**: Arabic RTL layout works across desktop and mobile without overlapping controls, clipped text, or broken message alignment.
+- **V2-I18N-03**: Dates, times, validation messages, empty states, notification copy, accessibility labels, and keyboard flows respect the selected locale.
+
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
 | Native mobile apps | Web-first reconstruction comes before platform expansion. |
-| End-to-end encryption implementation | Phase 29 must first settle message storage, key management, recovery, moderation, and notification tradeoffs. |
+| Default end-to-end encryption for all existing conversations | Phase 36 scopes E2EE as an opt-in conversation mode; retroactive migration of all existing plaintext conversations and Signal-grade parity remain out of scope. |
 | Payments or monetization | Not relevant to the approved messenger reconstruction goal. |
-| Full Slack/Discord feature parity | Phase 30 may define bounded channels, bots, and integrations; broad clone-style parity remains out of scope. |
-| Large admin suite | Phase 31 promotes the first moderation operations workflow; broad tenant/admin operations remain later. |
+| Full Slack/Discord feature parity | Phase 38 scopes small private spaces/channels only; broad clone-style parity remains out of scope. |
+| Broad tenant/admin suite | Phases 31 and 40 cover moderation operations; tenant administration, billing, and organization-wide governance remain later. |
 
 ## Traceability
 
@@ -215,21 +273,52 @@
 | V2-GRP-02 | Phase 22 | Complete |
 | V2-GRP-03 | Phase 22 | Complete |
 | V2-GRP-04 | Phase 22, Phase 23, Phase 24, Phase 25 | Complete |
-| V2-NOTF-01 | Phase 30 | Designed; implementation deferred |
+| V2-NOTF-01 | Phase 30, Phase 32 | Complete |
 | V2-MOD-01 | Phase 28 | Complete |
 | V2-ADMIN-01 | Phase 28 | Complete |
 | V2-ADMIN-02 | Phase 31 | Complete |
-| V2-E2EE-01 | Phase 29 | Designed; implementation deferred |
-| V2-PLAT-01 | Phase 30 | Designed; implementation deferred |
+| V2-E2EE-01 | Phase 29, Phase 36 | Complete |
+| V2-PLAT-01 | Phase 30, Phase 38 | Complete |
 | V2-PLAT-02 | Phase 30 | Designed; implementation deferred |
-| V2-PLAT-03 | Phase 30 | Designed; implementation deferred |
+| V2-PLAT-03 | Phase 30, Phase 32 | Complete |
+| V2-NOTF-02 | Phase 32 | Complete |
+| V2-NOTF-03 | Phase 32 | Complete |
+| V2-ORG-01 | Phase 33 | Complete |
+| V2-ORG-02 | Phase 33 | Complete |
+| V2-SEARCH-01 | Phase 34 | Complete |
+| V2-SEARCH-02 | Phase 34 | Complete |
+| V2-SESS-01 | Phase 35 | Complete |
+| V2-SESS-02 | Phase 35 | Complete |
+| V2-SESS-03 | Phase 35 | Complete |
+| V2-E2EE-02 | Phase 36 | Complete for encrypted text payloads; encrypted attachments remain deferred |
+| V2-E2EE-03 | Phase 36 | Complete for device-local secret scope; backup, rotation, and cross-device recovery remain deferred |
+| V2-E2EE-04 | Phase 36 | Complete |
+| V2-PROF-01 | Phase 37 | Complete |
+| V2-PROF-02 | Phase 37 | Complete |
+| V2-PRES-01 | Phase 37 | Complete |
+| V2-PRES-02 | Phase 37 | Complete |
+| V2-SPACE-01 | Phase 38 | Complete |
+| V2-SPACE-02 | Phase 38 | Complete |
+| V2-SPACE-03 | Phase 38 | Complete |
+| V2-DATA-01 | Phase 39 | Complete |
+| V2-DATA-02 | Phase 39 | Complete for request/retention contract; deletion worker remains operational hardening |
+| V2-DATA-03 | Phase 39 | Complete |
+| V2-MOD-02 | Phase 40 | Complete |
+| V2-ADMIN-03 | Phase 40 | Complete |
+| V2-ADMIN-04 | Phase 40 | Complete |
+| V2-I18N-01 | Phase 41 | Complete for locale foundation and representative account/chat/settings/moderation/privacy surfaces; remaining legacy copy can migrate incrementally |
+| V2-I18N-02 | Phase 41 | Complete for tested Settings/admin RTL document direction and message text bidi; full screenshot matrix remains release-candidate work |
+| V2-I18N-03 | Phase 41 | Complete for locale provider, Settings/admin dates, language switching, and tested accessibility labels; native translation review remains recommended |
 
 **Coverage:**
 
 - v1 requirements: 64 total
 - Mapped to phases: 64
 - Unmapped: 0
+- post-v1/v2 requirements: 47 total
+- post-v1/v2 mapped to phases: 47
+- post-v1/v2 planned future implementation requirements: 3
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-20 after Phase 23 closure and milestone traceability reconciliation*
+*Last updated: 2026-06-21 after completing Phase 41 localization and RTL experience traceability*

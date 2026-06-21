@@ -16,6 +16,7 @@ const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSideba
     isLoading: false,
     isError: false,
     searchQuery: '',
+    activeFilter: 'all',
     isNewChatOpen: false,
     newChatUsername: '',
     createChatError: null,
@@ -24,7 +25,10 @@ const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSideba
     unreadCounts: new Map(),
     onlineUsers: new Map(),
     newChatButtonRef: createRef<HTMLButtonElement>(),
+    workspaceMode: 'conversations',
+    spacesPanel: <div>Spaces panel</div>,
     onSearchChange: vi.fn(),
+    onFilterChange: vi.fn(),
     onSelectChat: vi.fn(),
     onCloseSidebar: vi.fn(),
     onOpenSettings: vi.fn(),
@@ -35,6 +39,7 @@ const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSideba
     onCreateGroupSubmit: vi.fn(),
     onClearCreateChatError: vi.fn(),
     onRefetchChats: vi.fn(),
+    onWorkspaceModeChange: vi.fn(),
     ...overrides,
 });
 
@@ -77,6 +82,8 @@ describe('ChatSidebar', () => {
     expect(screen.getByText('No conversations yet')).toBeInTheDocument();
     expect(screen.getByText('Start a direct chat by username when you are ready to message.')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Conversations' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Spaces' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByText('Authenticated private chat')).toBeInTheDocument();
     expect(screen.queryByText('End-to-end encrypted')).not.toBeInTheDocument();
 
@@ -85,6 +92,34 @@ describe('ChatSidebar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Close conversations' }));
     expect(onCloseSidebar).toHaveBeenCalledTimes(1);
+  });
+
+  it('switches to the spaces workspace without rendering conversation controls', async () => {
+    const user = userEvent.setup();
+    const onWorkspaceModeChange = vi.fn();
+    const { rerender } = render(
+      <ChatSidebar
+        {...makeSidebarProps({
+          onWorkspaceModeChange,
+        })}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Spaces' }));
+
+    expect(onWorkspaceModeChange).toHaveBeenCalledWith('spaces');
+
+    rerender(
+      <ChatSidebar
+        {...makeSidebarProps({
+          workspaceMode: 'spaces',
+          spacesPanel: <div>Authorized spaces</div>,
+        })}
+      />
+    );
+
+    expect(screen.getByText('Authorized spaces')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Search conversations' })).not.toBeInTheDocument();
   });
 
   it('renders stable skeleton rows while loading chats', () => {
@@ -165,6 +200,102 @@ describe('ChatSidebar', () => {
 
     expect(screen.getByLabelText('Conversation muted')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('renders organization filters and switches focus views', async () => {
+    const user = userEvent.setup();
+    const onFilterChange = vi.fn();
+    const directChat = makeChat({
+      _id: 'chat-direct',
+      latestMessage: makeMessage({ text: 'Direct update' }),
+    });
+    const groupChat = makeChat({
+      _id: 'chat-group',
+      chatName: 'Launch Group',
+      isGroupChat: true,
+      latestMessage: makeMessage({ text: 'Group update' }),
+    });
+
+    renderSidebar({
+      chats: [directChat, groupChat],
+      activeFilter: 'direct',
+      onFilterChange,
+    });
+
+    expect(screen.getByRole('button', { name: 'Direct' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    expect(screen.queryByText('Launch Group')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Groups' }));
+    expect(onFilterChange).toHaveBeenCalledWith('group');
+  });
+
+  it('orders pinned conversations first and shows starred and archived indicators', () => {
+    const pinnedChat = makeChat({
+      _id: 'chat-pinned',
+      latestMessage: makeMessage({ text: 'Pinned note' }),
+      updatedAt: '2026-06-08T08:00:00.000Z',
+      organizationState: {
+        muted: false,
+        archived: false,
+        pinned: true,
+        favorite: true,
+      },
+    });
+    const newerChat = makeChat({
+      _id: 'chat-newer',
+      members: [
+        makeUser({ _id: 'user-1', firstName: 'Ada', lastName: 'Lovelace' }),
+        makeUser({ _id: 'user-3', firstName: 'Nora', lastName: 'Stone' }),
+      ],
+      latestMessage: makeMessage({ text: 'Newer note' }),
+      updatedAt: '2026-06-08T11:00:00.000Z',
+    });
+    const archivedChat = makeChat({
+      _id: 'chat-archived',
+      chatName: 'Archived Group',
+      isGroupChat: true,
+      organizationState: {
+        muted: false,
+        archived: true,
+        pinned: false,
+        favorite: false,
+      },
+    });
+
+    renderSidebar({
+      chats: [newerChat, archivedChat, pinnedChat],
+      activeFilter: 'all',
+    });
+
+    const rows = screen.getAllByRole('button', { name: /Grace Hopper|Nora Stone/ });
+    expect(rows[0]).toHaveTextContent('Grace Hopper');
+    expect(screen.getByLabelText('Conversation pinned')).toBeInTheDocument();
+    expect(screen.getByLabelText('Conversation starred')).toBeInTheDocument();
+    expect(screen.queryByText('Archived Group')).not.toBeInTheDocument();
+  });
+
+  it('keeps a selected archived conversation visible in the all view', () => {
+    const archivedChat = makeChat({
+      _id: 'chat-archived',
+      chatName: 'Archived Group',
+      isGroupChat: true,
+      organizationState: {
+        muted: false,
+        archived: true,
+        pinned: false,
+        favorite: false,
+      },
+    });
+
+    renderSidebar({
+      chats: [archivedChat],
+      selectedChatId: archivedChat._id,
+      activeFilter: 'all',
+    });
+
+    expect(screen.getByText('Archived Group')).toBeInTheDocument();
+    expect(screen.getByLabelText('Conversation archived')).toBeInTheDocument();
   });
 
   it('filters conversations by title and latest visible snippet without matching member email', () => {

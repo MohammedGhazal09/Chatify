@@ -28,6 +28,8 @@ export interface User {
   email?: string;
   username?: string;
   profilePic?: string;
+  profileBio?: string;
+  profileStatus?: string;
   role?: 'user' | 'admin';
   identityMark?: IdentityMark;
   identityMarkUpdatedAt?: string | null;
@@ -38,6 +40,7 @@ export interface User {
   lastSeen?: string;
   showOnlineStatus?: boolean;
   showLastSeen?: boolean;
+  showProfileStatus?: boolean;
 }
 
 export interface LoginData {
@@ -52,6 +55,16 @@ export interface SignupData {
   username: string;
   email: string;
   password: string;
+}
+
+export interface ActiveSession {
+  id: string;
+  current: boolean;
+  deviceLabel: string;
+  rememberMe: boolean;
+  createdAt: string | null;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
 }
 
 // export interface AuthContextType {

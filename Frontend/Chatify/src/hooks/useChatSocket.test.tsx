@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io } from 'socket.io-client';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { makeAttachment, makeChat, makeMessage, makeUser } from '../test/chatFixtures';
+import { makeAttachment, makeChat, makeMessage, makeSpace, makeSpaceChannel, makeUser } from '../test/chatFixtures';
 import { isSoundEnabled, playCallEndedSound, playNotificationSound } from '../utils/sounds';
 import type { CallSessionPayload, Chat, ConversationControls, UserOnlineStatus } from '../types/chat';
 import {
@@ -16,6 +16,7 @@ import {
   userSearchQueryKey,
   usersQueryKey,
 } from './useChatQueries';
+import { spaceChannelsQueryKey, spacesQueryKey } from './useSpaceQueries';
 import type { MessagesCacheData } from './messageCache';
 import { useChatSocket } from './useChatSocket';
 
@@ -533,6 +534,98 @@ describe('useChatSocket', () => {
     });
   });
 
+  it('keeps realtime space membership events scoped to space caches', async () => {
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const removeQueriesSpy = vi.spyOn(queryClient, 'removeQueries');
+    const channel = makeSpaceChannel({ _id: 'channel-general', spaceId: 'space-1', space: 'space-1' });
+    const space = makeSpace({
+      _id: 'space-1',
+      name: 'Launch Room',
+      channels: [channel],
+    });
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('space:new', space);
+    });
+
+    expect(queryClient.getQueryData(spacesQueryKey)).toEqual([
+      expect.objectContaining({ _id: 'space-1', name: 'Launch Room' }),
+    ]);
+    expect(queryClient.getQueryData(spaceChannelsQueryKey('space-1'))).toEqual([
+      expect.objectContaining({ _id: 'channel-general' }),
+    ]);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: spacesQueryKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: spaceChannelsQueryKey('space-1') });
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('space:removed', {
+        spaceId: 'space-1',
+        channelIds: ['channel-general'],
+      });
+    });
+
+    expect(queryClient.getQueryData(spacesQueryKey)).toEqual([]);
+    expect(removeQueriesSpy).toHaveBeenCalledWith({ queryKey: spaceChannelsQueryKey('space-1') });
+    expect(removeQueriesSpy).toHaveBeenCalledWith({ queryKey: messagesQueryKey('channel-general') });
+  });
+
+  it('applies same-user organization updates to the chat cache', async () => {
+    queryClient.setQueryData(chatsQueryKey, [
+      makeChat({
+        _id: 'chat-1',
+        updatedAt: '2026-06-08T10:00:00.000Z',
+        organizationState: {
+          muted: false,
+          archived: false,
+          pinned: false,
+          favorite: false,
+        },
+      }),
+      makeChat({
+        _id: 'chat-2',
+        updatedAt: '2026-06-08T11:00:00.000Z',
+      }),
+    ]);
+
+    renderHook(() => useChatSocket({ chatId: 'chat-1' }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(socketMockState.sockets[0]?.emit).toHaveBeenCalledWith('chat:join', 'chat-1');
+    });
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('conversation:organization-updated', {
+        chatId: 'chat-1',
+        organizationState: {
+          muted: true,
+          archived: true,
+          pinned: true,
+          favorite: true,
+        },
+      });
+    });
+
+    expect(queryClient.getQueryData<Chat[]>(chatsQueryKey)?.[0]).toMatchObject({
+      _id: 'chat-1',
+      organizationState: {
+        muted: true,
+        archived: true,
+        pinned: true,
+        favorite: true,
+      },
+    });
+  });
+
   it('applies realtime identity updates to chat member and user caches', async () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
     const updatedPeer = makeUser({
@@ -541,6 +634,8 @@ describe('useChatSocket', () => {
       lastName: 'Hopper',
       email: 'grace@example.com',
       profilePic: '',
+      profileBio: 'Building reliable chat tools.',
+      profileStatus: 'Available for focused work',
       identityMark: {
         source: 'custom',
         label: 'Relay Grid',
@@ -573,6 +668,8 @@ describe('useChatSocket', () => {
 
     expect(queryClient.getQueryData<Chat[]>(chatsQueryKey)?.[0]?.members[1]).toMatchObject({
       _id: 'user-2',
+      profileBio: 'Building reliable chat tools.',
+      profileStatus: 'Available for focused work',
       identityMark: expect.objectContaining({
         source: 'custom',
         label: 'Relay Grid',
@@ -580,10 +677,26 @@ describe('useChatSocket', () => {
     });
     expect(queryClient.getQueryData<ReturnType<typeof makeUser>[]>(usersQueryKey)?.[0]).toMatchObject({
       _id: 'user-2',
+      profileBio: 'Building reliable chat tools.',
+      profileStatus: 'Available for focused work',
       identityMark: expect.objectContaining({
         initials: 'RG',
       }),
     });
+
+    const hiddenStatusPeer = { ...updatedPeer };
+    delete hiddenStatusPeer.profileStatus;
+
+    act(() => {
+      socketMockState.sockets[0]?.trigger('user:identity-updated', {
+        userId: 'user-2',
+        user: hiddenStatusPeer,
+        chatIds: ['chat-1'],
+      });
+    });
+
+    expect(queryClient.getQueryData<Chat[]>(chatsQueryKey)?.[0]?.members[1]?.profileStatus).toBeUndefined();
+    expect(queryClient.getQueryData<ReturnType<typeof makeUser>[]>(usersQueryKey)?.[0]?.profileStatus).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: usersQueryKey });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: userSearchQueryKey });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: onlinePresenceQueryKey });
@@ -707,6 +820,11 @@ describe('useChatSocket', () => {
       notificationPreferences: {
         soundEnabled: true,
         browserNotificationsEnabled: true,
+        pushEnabled: false,
+        emailNotificationsEnabled: false,
+        messagePreviewMode: 'none',
+        emailUnsubscribed: false,
+        pushSubscriptionCount: 0,
         mutedChatIds: [],
       },
       onBackgroundMessageAlert,
@@ -765,6 +883,11 @@ describe('useChatSocket', () => {
       notificationPreferences: {
         soundEnabled: true,
         browserNotificationsEnabled: true,
+        pushEnabled: false,
+        emailNotificationsEnabled: false,
+        messagePreviewMode: 'none',
+        emailUnsubscribed: false,
+        pushSubscriptionCount: 0,
         mutedChatIds: ['chat-2'],
       },
       onBackgroundMessageAlert,
@@ -808,6 +931,11 @@ describe('useChatSocket', () => {
       notificationPreferences: {
         soundEnabled: true,
         browserNotificationsEnabled: true,
+        pushEnabled: false,
+        emailNotificationsEnabled: false,
+        messagePreviewMode: 'none',
+        emailUnsubscribed: false,
+        pushSubscriptionCount: 0,
         mutedChatIds: [],
       },
       onBackgroundMessageAlert,
@@ -1007,6 +1135,7 @@ describe('useChatSocket', () => {
         isOnline: false,
         isCallReachable: false,
         lastSeen: '2026-06-14T01:00:00.000Z',
+        profileStatus: 'Cached status',
       },
     ]);
 
@@ -1024,6 +1153,7 @@ describe('useChatSocket', () => {
         userName: 'Realtime Contact',
         isOnline: true,
         isCallReachable: true,
+        profileStatus: 'Available for focused work',
       });
     });
 
@@ -1031,6 +1161,7 @@ describe('useChatSocket', () => {
       userName: 'Realtime Contact',
       isOnline: true,
       isCallReachable: true,
+      profileStatus: 'Available for focused work',
     });
     expect(queryClient.getQueryData<UserOnlineStatus[]>(onlinePresenceQueryKey)).toEqual([
       expect.objectContaining({
@@ -1038,6 +1169,7 @@ describe('useChatSocket', () => {
         userName: 'Realtime Contact',
         isOnline: true,
         isCallReachable: true,
+        profileStatus: 'Available for focused work',
       }),
     ]);
 
@@ -1055,6 +1187,7 @@ describe('useChatSocket', () => {
       isCallReachable: false,
       lastSeen: '2026-06-14T01:05:00.000Z',
     });
+    expect(usePresenceStore.getState().onlineUsers.get('user-2')?.profileStatus).toBeUndefined();
     expect(queryClient.getQueryData<UserOnlineStatus[]>(onlinePresenceQueryKey)).toEqual([
       expect.objectContaining({
         userId: 'user-2',
@@ -1063,6 +1196,7 @@ describe('useChatSocket', () => {
         lastSeen: '2026-06-14T01:05:00.000Z',
       }),
     ]);
+    expect(queryClient.getQueryData<UserOnlineStatus[]>(onlinePresenceQueryKey)?.[0]?.profileStatus).toBeUndefined();
   });
 
   it('publishes disconnect state and blocks call emits while disconnected', async () => {

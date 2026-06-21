@@ -7,6 +7,8 @@ import { broadcastSessionEvent } from './useSessionBroadcast'
 import type { LoginData, SignupData } from '../types/auth'
 import { useEffect } from 'react'
 
+export const activeSessionsQueryKey = ['activeSessions'] as const
+
 // Initialize auth check on app load
 export const useAuthInit = () => {
   const setUser = useAuthStore((state) => state.setUser)
@@ -108,6 +110,46 @@ export const useLogout = () => {
       queryClient.clear()
       broadcastSessionEvent('logout', 'user')
     }
+  })
+}
+
+export const useActiveSessions = (enabled = true) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
+  return useQuery({
+    queryKey: activeSessionsQueryKey,
+    queryFn: async () => {
+      const response = await authApi.getActiveSessions()
+      return response.data.data.sessions
+    },
+    enabled: enabled && isAuthenticated,
+  })
+}
+
+export const useRevokeSession = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (sessionId: string) => authApi.revokeSession(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: activeSessionsQueryKey })
+    },
+  })
+}
+
+export const useRevokeAllSessions = () => {
+  const logout = useAuthStore((state) => state.logout)
+  const queryClient = useQueryClient()
+  const clearPresenceState = () => usePresenceStore.getState().clearPresenceState()
+
+  return useMutation({
+    mutationFn: () => authApi.revokeAllSessions(),
+    onSuccess: () => {
+      clearPresenceState()
+      logout()
+      queryClient.clear()
+      broadcastSessionEvent('logout', 'remote')
+    },
   })
 }
 

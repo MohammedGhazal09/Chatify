@@ -3,6 +3,7 @@ import AbuseReport, {
   ABUSE_REPORT_REASONS,
   ABUSE_REPORT_STATUSES,
   ABUSE_REPORT_TARGET_TYPES,
+  MODERATION_APPEAL_STATUSES,
   MODERATION_ACTIONS,
 } from "../Models/abuseReportModel.mjs";
 import Attachment from "../Models/attachmentModel.mjs";
@@ -19,12 +20,15 @@ import {
 } from "../Utils/messageState.mjs";
 import { logger } from "../Utils/observabilityLogger.mjs";
 
-const PUBLIC_USER_SELECT = "username firstName lastName profilePic identityMark identityMarkUpdatedAt";
+const PUBLIC_USER_SELECT = "username firstName lastName profilePic profileBio identityMark identityMarkUpdatedAt";
 const REPORT_LIST_LIMIT = 50;
 const TEXT_PREVIEW_LIMIT = 180;
 const MODERATION_RESTRICTION_MS = 7 * 24 * 60 * 60 * 1000;
 const HIGH_PRIORITY_REASONS = new Set(["illegal", "privacy"]);
 const MEDIUM_PRIORITY_REASONS = new Set(["harassment", "impersonation"]);
+const APPEALABLE_ACTIONS = new Set(["warned", "restricted", "content_removed"]);
+const ACTIVE_APPEAL_STATUSES = new Set(["open", "under_review"]);
+const APPEAL_REVIEW_STATUSES = ["under_review", "accepted", "rejected"];
 const ENFORCEMENT_ACTIONS = new Set([
   "warned",
   "restricted",
@@ -34,6 +38,12 @@ const ENFORCEMENT_ACTIONS = new Set([
 const REPORT_IDENTITY_POPULATE = [
   { path: "reporter", select: PUBLIC_USER_SELECT },
   { path: "reportedUser", select: PUBLIC_USER_SELECT },
+  { path: "assignedTo", select: PUBLIC_USER_SELECT },
+  { path: "assignedBy", select: PUBLIC_USER_SELECT },
+  { path: "assignmentHistory.assignedTo", select: PUBLIC_USER_SELECT },
+  { path: "assignmentHistory.assignedBy", select: PUBLIC_USER_SELECT },
+  { path: "appeals.user", select: PUBLIC_USER_SELECT },
+  { path: "appeals.reviewedBy", select: PUBLIC_USER_SELECT },
 ];
 
 const countUnreadForUser = (chatId, userId) => (
@@ -176,6 +186,36 @@ const serializeEnforcement = (enforcement) => enforcement
     }
   : undefined;
 
+const serializeAssignmentHistory = (entry) => {
+  const source = entry?.toObject?.() ?? entry;
+
+  return {
+    assignedTo: serializeObjectId(source?.assignedTo),
+    assignedToIdentity: serializeIdentity(source?.assignedTo, null, "Assigned admin"),
+    assignedBy: serializeObjectId(source?.assignedBy),
+    assignedByIdentity: serializeIdentity(source?.assignedBy, null, "Assigning admin"),
+    createdAt: source?.createdAt,
+  };
+};
+
+const serializeAppeal = (appeal) => {
+  const source = appeal?.toObject?.() ?? appeal;
+
+  return {
+    _id: serializeObjectId(source?._id),
+    user: serializeObjectId(source?.user),
+    userIdentity: serializeIdentity(source?.user, null, "Appeal user"),
+    status: source?.status,
+    reason: source?.reason ?? "",
+    reviewerNote: source?.reviewerNote ?? "",
+    reviewedBy: serializeObjectId(source?.reviewedBy),
+    reviewedByIdentity: serializeIdentity(source?.reviewedBy, null, "Reviewer"),
+    reviewedAt: source?.reviewedAt,
+    createdAt: source?.createdAt,
+    updatedAt: source?.updatedAt,
+  };
+};
+
 const serializeReport = (report) => {
   const source = report.toObject?.() ?? report;
   const reporterId = serializeObjectId(source.reporter);
@@ -195,8 +235,14 @@ const serializeReport = (report) => {
     chat: serializeObjectId(source.chat),
     message: serializeObjectId(source.message),
     reviewedBy: serializeObjectId(source.reviewedBy),
+    assignedTo: serializeObjectId(source.assignedTo),
+    assignedToIdentity: serializeIdentity(source.assignedTo, null, "Assigned admin"),
+    assignedBy: serializeObjectId(source.assignedBy),
+    assignedAt: source.assignedAt,
     priority: buildReportPriority(source),
     enforcement: serializeEnforcement(source.enforcement),
+    assignmentHistory: (source.assignmentHistory ?? []).map(serializeAssignmentHistory),
+    appeals: (source.appeals ?? []).map(serializeAppeal),
     context: {
       ...source.context,
       reportedUser: source.context?.reportedUser
@@ -209,6 +255,8 @@ const serializeReport = (report) => {
         ? {
             ...source.context.chat,
             chatId: serializeObjectId(source.context.chat.chatId),
+            spaceId: serializeObjectId(source.context.chat.spaceId),
+            channelId: serializeObjectId(source.context.chat.channelId),
           }
         : undefined,
       message: source.context?.message
@@ -225,6 +273,69 @@ const serializeReport = (report) => {
       enforcement: serializeEnforcement(entry.enforcement),
     })),
   };
+};
+
+const serializeUserEnforcement = (report, userId) => {
+  const source = report.toObject?.() ?? report;
+  const appeals = source.appeals ?? [];
+  const requesterAppeals = appeals
+    .filter((appeal) => serializeObjectId(appeal.user) === userId.toString())
+    .map(serializeAppeal);
+
+  return {
+    _id: serializeObjectId(source._id),
+    targetType: source.targetType,
+    reason: source.reason,
+    status: source.status,
+    moderationAction: source.moderationAction,
+    enforcement: serializeEnforcement(source.enforcement),
+    reviewedAt: source.reviewedAt,
+    createdAt: source.createdAt,
+    appeal: requesterAppeals.at(-1) ?? null,
+    canAppeal: APPEALABLE_ACTIONS.has(source.moderationAction) &&
+      !requesterAppeals.some((appeal) => ACTIVE_APPEAL_STATUSES.has(appeal.status)),
+  };
+};
+
+const serializeEnforcementHistoryItem = (report) => {
+  const source = report.toObject?.() ?? report;
+
+  return {
+    _id: serializeObjectId(source._id),
+    targetType: source.targetType,
+    reason: source.reason,
+    status: source.status,
+    moderationAction: source.moderationAction,
+    moderationNote: source.moderationNote ?? "",
+    enforcement: serializeEnforcement(source.enforcement),
+    reviewedBy: serializeObjectId(source.reviewedBy),
+    reviewedAt: source.reviewedAt,
+    appeals: (source.appeals ?? []).map(serializeAppeal),
+    createdAt: source.createdAt,
+  };
+};
+
+const assertReportAppealableByUser = (report, userId) => {
+  if (
+    !report ||
+    report.status !== "action_taken" ||
+    !APPEALABLE_ACTIONS.has(report.moderationAction) ||
+    !report.reportedUser?.equals?.(userId)
+  ) {
+    throw new CustomError("Appealable enforcement not found", 404);
+  }
+};
+
+const buildCountMap = (rows, allowedKeys) => {
+  const counts = Object.fromEntries(allowedKeys.map((key) => [key, 0]));
+
+  for (const row of rows) {
+    if (row?._id in counts) {
+      counts[row._id] = row.count;
+    }
+  }
+
+  return counts;
 };
 
 const loadUserForReport = async (userId, message = "User not found") => {
@@ -302,11 +413,22 @@ const assertReportedUserInChat = ({ chat, reporterObjectId, reportedUserObjectId
   }
 };
 
-const buildChatContext = (chat) => ({
-  chatId: chat._id,
-  isGroupChat: chat.isGroupChat === true,
-  memberCount: chat.members?.length ?? 0,
-});
+const buildChatContext = (chat) => {
+  const context = {
+    chatId: chat._id,
+    isGroupChat: chat.isGroupChat === true,
+    isSpaceChannel: chat.isSpaceChannel === true,
+    memberCount: chat.members?.length ?? 0,
+  };
+
+  if (chat.isSpaceChannel === true) {
+    context.spaceId = chat.space;
+    context.channelId = chat._id;
+    context.channelName = normalizeOptionalText(chat.channelName ?? chat.chatName, 80);
+  }
+
+  return context;
+};
 
 const buildMessageContext = (message) => ({
   messageId: message._id,
@@ -499,6 +621,195 @@ export const getAbuseReport = asyncErrHandler(async (req, res, next) => {
     status: "success",
     data: {
       report: serializeReport(report),
+    },
+  });
+});
+
+export const listMyModerationEnforcements = asyncErrHandler(async (req, res, next) => {
+  const requesterObjectId = toObjectId(req.userId);
+
+  if (!requesterObjectId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const reports = await AbuseReport.find({
+    reportedUser: requesterObjectId,
+    status: "action_taken",
+    moderationAction: { $in: Array.from(APPEALABLE_ACTIONS) },
+  })
+    .sort({ reviewedAt: -1, createdAt: -1 })
+    .limit(REPORT_LIST_LIMIT);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      enforcements: reports.map((report) => serializeUserEnforcement(report, requesterObjectId)),
+    },
+  });
+});
+
+export const submitModerationAppeal = asyncErrHandler(async (req, res, next) => {
+  const requesterObjectId = toObjectId(req.userId);
+  const reportObjectId = toObjectId(req.params?.reportId);
+
+  if (!requesterObjectId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  if (!reportObjectId) {
+    return next(new CustomError("Appealable enforcement not found", 404));
+  }
+
+  const report = await AbuseReport.findById(reportObjectId);
+
+  try {
+    assertReportAppealableByUser(report, requesterObjectId);
+  } catch (error) {
+    return next(error);
+  }
+
+  const hasActiveAppeal = (report.appeals ?? []).some((appeal) => (
+    appeal.user?.equals?.(requesterObjectId) &&
+    ACTIVE_APPEAL_STATUSES.has(appeal.status)
+  ));
+
+  if (hasActiveAppeal) {
+    return next(new CustomError("An appeal is already open for this enforcement", 409));
+  }
+
+  const reason = normalizeOptionalText(req.body?.reason, 1000);
+
+  if (!reason) {
+    return next(new CustomError("Appeal reason is required", 400));
+  }
+
+  report.appeals.push({
+    user: requesterObjectId,
+    status: "open",
+    reason,
+  });
+  await report.save();
+
+  const appeal = report.appeals.at(-1);
+
+  res.status(201).json({
+    status: "success",
+    data: {
+      enforcement: serializeUserEnforcement(report, requesterObjectId),
+      appeal: serializeAppeal(appeal),
+    },
+  });
+});
+
+export const assignAbuseReport = asyncErrHandler(async (req, res, next) => {
+  const reportObjectId = toObjectId(req.params?.reportId);
+
+  if (!reportObjectId) {
+    return next(new CustomError("Report not found", 404));
+  }
+
+  const assigneeObjectId = req.body?.assignedTo
+    ? toObjectId(req.body.assignedTo)
+    : toObjectId(req.adminUserId);
+
+  if (!assigneeObjectId) {
+    return next(new CustomError("Assigned admin is invalid", 400));
+  }
+
+  const [report, assignee] = await Promise.all([
+    AbuseReport.findById(reportObjectId),
+    User.findById(assigneeObjectId).select(`${PUBLIC_USER_SELECT} +role`),
+  ]);
+
+  if (!report) {
+    return next(new CustomError("Report not found", 404));
+  }
+
+  if (!assignee || assignee.role !== "admin") {
+    return next(new CustomError("Assigned admin not found", 404));
+  }
+
+  const assignedAt = new Date();
+  report.assignedTo = assignee._id;
+  report.assignedBy = req.adminUserId;
+  report.assignedAt = assignedAt;
+  report.assignmentHistory.push({
+    assignedTo: assignee._id,
+    assignedBy: req.adminUserId,
+    createdAt: assignedAt,
+  });
+
+  await report.save();
+  await report.populate(REPORT_IDENTITY_POPULATE);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      report: serializeReport(report),
+    },
+  });
+});
+
+export const getModerationOpsSummary = asyncErrHandler(async (req, res) => {
+  const adminObjectId = toObjectId(req.adminUserId);
+  const now = new Date();
+
+  const [
+    statusRows,
+    appealRows,
+    unassignedOpen,
+    assignedToMeOpen,
+    oldestOpen,
+  ] = await Promise.all([
+    AbuseReport.aggregate([
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]),
+    AbuseReport.aggregate([
+      { $unwind: "$appeals" },
+      { $group: { _id: "$appeals.status", count: { $sum: 1 } } },
+    ]),
+    AbuseReport.countDocuments({ status: "open", assignedTo: { $exists: false } }),
+    AbuseReport.countDocuments({ status: "open", assignedTo: adminObjectId }),
+    AbuseReport.findOne({ status: "open" }).sort({ createdAt: 1 }).select("createdAt").lean(),
+  ]);
+
+  const oldestOpenAgeMinutes = oldestOpen?.createdAt
+    ? Math.max(1, Math.floor((now.getTime() - new Date(oldestOpen.createdAt).getTime()) / 60000))
+    : 0;
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      summary: {
+        reportsByStatus: buildCountMap(statusRows, ABUSE_REPORT_STATUSES),
+        appealsByStatus: buildCountMap(appealRows, MODERATION_APPEAL_STATUSES),
+        unassignedOpen,
+        assignedToMeOpen,
+        oldestOpenAgeMinutes,
+      },
+    },
+  });
+});
+
+export const getUserEnforcementHistory = asyncErrHandler(async (req, res, next) => {
+  const userObjectId = toObjectId(req.params?.userId);
+
+  if (!userObjectId) {
+    return next(new CustomError("User not found", 404));
+  }
+
+  const reports = await AbuseReport.find({
+    reportedUser: userObjectId,
+    status: "action_taken",
+  })
+    .sort({ reviewedAt: -1, createdAt: -1 })
+    .limit(REPORT_LIST_LIMIT)
+    .populate(REPORT_IDENTITY_POPULATE);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      history: reports.map(serializeEnforcementHistoryItem),
     },
   });
 });
@@ -736,6 +1047,59 @@ export const reviewAbuseReport = asyncErrHandler(async (req, res, next) => {
     status: "success",
     data: {
       report: serializeReport(report),
+    },
+  });
+});
+
+export const reviewModerationAppeal = asyncErrHandler(async (req, res, next) => {
+  const reportObjectId = toObjectId(req.params?.reportId);
+
+  if (!reportObjectId) {
+    return next(new CustomError("Report not found", 404));
+  }
+
+  const report = await AbuseReport.findById(reportObjectId);
+
+  if (!report) {
+    return next(new CustomError("Report not found", 404));
+  }
+
+  const appeal = report.appeals.id(req.params?.appealId);
+
+  if (!appeal) {
+    return next(new CustomError("Appeal not found", 404));
+  }
+
+  const nextAppealStatus = normalizeEnumValue(req.body?.status, APPEAL_REVIEW_STATUSES);
+
+  if (!nextAppealStatus) {
+    return next(new CustomError("Appeal status is invalid", 400));
+  }
+
+  const reviewerNote = normalizeOptionalText(req.body?.reviewerNote, 1000);
+  const reviewedAt = new Date();
+
+  appeal.status = nextAppealStatus;
+  appeal.reviewerNote = reviewerNote;
+  appeal.reviewedBy = req.adminUserId;
+  appeal.reviewedAt = reviewedAt;
+  report.auditTrail.push({
+    actor: req.adminUserId,
+    status: report.status,
+    moderationAction: report.moderationAction,
+    note: normalizeOptionalText(`Appeal ${nextAppealStatus}. ${reviewerNote}`, 1000),
+    enforcement: report.enforcement,
+    createdAt: reviewedAt,
+  });
+
+  await report.save();
+  await report.populate(REPORT_IDENTITY_POPULATE);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      report: serializeReport(report),
+      appeal: serializeAppeal(appeal),
     },
   });
 });

@@ -2,6 +2,7 @@ import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
 import jwt from "jsonwebtoken";
 import { CustomError } from "../Utils/customError.mjs";
 import { readAccessTokenFromRequest, verifyAccessToken } from "../Utils/authToken.mjs";
+import { assertActiveSessionClaim } from "../Utils/sessionMetadata.mjs";
 
 const protect = asyncErrHandler(async (req, res, next) => {
   const token = readAccessTokenFromRequest(req);
@@ -24,6 +25,16 @@ const protect = asyncErrHandler(async (req, res, next) => {
     }
   }
   req.userId = decoded.userId;
+  req.sessionId = decoded.sessionId?.toString?.() ?? null;
+
+  try {
+    await assertActiveSessionClaim({
+      sessionId: req.sessionId,
+      userId: req.userId,
+    });
+  } catch (error) {
+    return next(error);
+  }
   
   next();
 });

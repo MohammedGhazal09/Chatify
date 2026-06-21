@@ -1,6 +1,20 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { Ban, Bell, BellOff, Download, Flag, Info, Phone, Search, ShieldCheck, Video } from 'lucide-react';
+import {
+  Archive,
+  Ban,
+  Bell,
+  BellOff,
+  Download,
+  Flag,
+  Info,
+  Phone,
+  Pin,
+  Search,
+  ShieldCheck,
+  Star,
+  Video,
+} from 'lucide-react';
 import type { ConversationControls } from '../../../types/chat';
 
 interface ConversationMoreMenuProps {
@@ -9,6 +23,9 @@ interface ConversationMoreMenuProps {
   conversationControls?: ConversationControls;
   canExport: boolean;
   isMuted?: boolean;
+  isArchived?: boolean;
+  isPinned?: boolean;
+  isFavorite?: boolean;
   isActionPending: boolean;
   callDisabledReason?: string | null;
   videoCallDisabledReason?: string | null;
@@ -18,6 +35,9 @@ interface ConversationMoreMenuProps {
   onSearchMessages: () => void;
   onExportChat: () => void;
   onToggleMute?: () => void;
+  onToggleArchive?: () => void;
+  onTogglePin?: () => void;
+  onToggleFavorite?: () => void;
   onBlockUser: () => void;
   onUnblockUser: () => void;
   onReportConversation: () => void;
@@ -50,6 +70,9 @@ const ConversationMoreMenu = ({
   conversationControls,
   canExport,
   isMuted = false,
+  isArchived = false,
+  isPinned = false,
+  isFavorite = false,
   isActionPending,
   callDisabledReason,
   videoCallDisabledReason,
@@ -59,6 +82,9 @@ const ConversationMoreMenu = ({
   onSearchMessages,
   onExportChat,
   onToggleMute,
+  onToggleArchive,
+  onTogglePin,
+  onToggleFavorite,
   onBlockUser,
   onUnblockUser,
   onReportConversation,
@@ -162,6 +188,24 @@ const ConversationMoreMenu = ({
         label={isMuted ? 'Unmute conversation' : 'Mute conversation'}
         title={isMuted ? 'Restore sound and browser alerts for this conversation' : 'Suppress sound and browser alerts for this conversation'}
         onSelect={() => runAndClose(onToggleMute ?? (() => undefined))}
+      />
+      <MenuItem
+        icon={<Pin aria-hidden="true" className="h-4 w-4" fill={isPinned ? 'currentColor' : 'none'} />}
+        label={isPinned ? 'Unpin conversation' : 'Pin conversation'}
+        disabled={isActionPending}
+        onSelect={() => runAndClose(onTogglePin ?? (() => undefined))}
+      />
+      <MenuItem
+        icon={<Star aria-hidden="true" className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />}
+        label={isFavorite ? 'Unstar conversation' : 'Star conversation'}
+        disabled={isActionPending}
+        onSelect={() => runAndClose(onToggleFavorite ?? (() => undefined))}
+      />
+      <MenuItem
+        icon={<Archive aria-hidden="true" className="h-4 w-4" />}
+        label={isArchived ? 'Unarchive conversation' : 'Archive conversation'}
+        disabled={isActionPending}
+        onSelect={() => runAndClose(onToggleArchive ?? (() => undefined))}
       />
       <MenuDivider />
       <MenuItem

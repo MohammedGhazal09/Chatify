@@ -43,6 +43,7 @@ interface ComposerHarnessProps {
   onSend: (payload: ComposerSendPayload) => void;
   sendDisabledReason?: string | null;
   isSendError?: boolean;
+  isEncryptedConversation?: boolean;
   showEmojiPicker?: boolean;
   uploadState?: MessageUploadState;
   onCancelUpload?: () => void;
@@ -52,6 +53,7 @@ const ComposerHarness = ({
   onSend,
   sendDisabledReason = null,
   isSendError = false,
+  isEncryptedConversation = false,
   showEmojiPicker = false,
   uploadState,
   onCancelUpload,
@@ -77,6 +79,7 @@ const ComposerHarness = ({
       showEmojiPicker={showEmojiPicker}
       isSending={false}
       isSendError={isSendError}
+      isEncryptedConversation={isEncryptedConversation}
       sendDisabledReason={sendDisabledReason}
       uploadState={uploadState}
       emojiPickerRef={emojiPickerRef}
@@ -390,6 +393,25 @@ describe('MessageComposer', () => {
 
     expect(screen.getByText('script.exe has an unsupported file type.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  });
+
+  it('disables plaintext attachment controls in encrypted conversations while allowing text send', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn();
+    render(<ComposerHarness onSend={onSend} isEncryptedConversation />);
+
+    expect(screen.getByText('Encrypted conversation')).toBeInTheDocument();
+    expect(screen.getByText('Attachments and voice messages are unavailable until encrypted upload is supported.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Attach file' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Record voice message' })).toBeDisabled();
+
+    await user.type(screen.getByRole('textbox', { name: 'Write an encrypted message' }), 'secret text');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(onSend).toHaveBeenCalledWith({
+      text: 'secret text',
+      attachments: [],
+    });
   });
 
   it('creates and revokes local object URLs for selected media previews', async () => {

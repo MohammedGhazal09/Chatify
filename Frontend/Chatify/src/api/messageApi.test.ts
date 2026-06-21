@@ -37,6 +37,27 @@ describe('messageApi', () => {
     expect(axiosMock.post).toHaveBeenCalledWith('/api/message/new-message', payload);
   });
 
+  it('keeps encrypted sends as JSON envelopes without plaintext text', () => {
+    const payload = {
+      chatId: 'chat-1',
+      text: '',
+      clientMessageId: 'client-encrypted',
+      encryptedPayload: {
+        ciphertext: 'ciphertext-only',
+        iv: 'iv-only',
+        algorithm: 'AES-GCM' as const,
+        keyVersion: 1,
+        senderDeviceId: 'device-1',
+        encryptedAt: '2026-06-20T00:00:00.000Z',
+      },
+    };
+
+    messageApi.createMessage(payload);
+
+    expect(axiosMock.post).toHaveBeenCalledWith('/api/message/new-message', payload);
+    expect(JSON.stringify(axiosMock.post.mock.calls[0][1])).not.toContain('PRIVATE_TEXT_MARKER');
+  });
+
   it('sends attachment payloads as multipart FormData', () => {
     const file = new File(['hello'], 'message-states-spec.pdf', { type: 'application/pdf' });
 
@@ -109,6 +130,27 @@ describe('messageApi', () => {
     expect(axiosMock.delete).toHaveBeenCalledWith('/api/message/message-1/pin');
     expect(messageApi.getAttachmentPreviewUrl('attachment 1')).toContain('/api/message/attachments/attachment%201/preview');
     expect(messageApi.getAttachmentDownloadUrl('attachment 1')).toContain('/api/message/attachments/attachment%201/download');
+  });
+
+  it('builds advanced search and message context routes', () => {
+    messageApi.searchMessages('chat-1', {
+      q: 'launch',
+      limit: 10,
+      senderId: 'user-2',
+      type: 'media',
+      from: '2026-06-01',
+      to: '2026-06-20',
+    });
+    messageApi.getMessageContext('chat-1', 'message-9', { limit: 15 });
+
+    expect(axiosMock.get).toHaveBeenNthCalledWith(
+      1,
+      '/api/message/search/chat-1?q=launch&limit=10&senderId=user-2&type=media&from=2026-06-01&to=2026-06-20'
+    );
+    expect(axiosMock.get).toHaveBeenNthCalledWith(
+      2,
+      '/api/message/context/chat-1/message-9?limit=15'
+    );
   });
 
   it('builds protected attachment URLs from the resolved API origin', () => {
