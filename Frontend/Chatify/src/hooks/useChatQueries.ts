@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatApi } from '../api/chatApi';
 import { messageApi } from '../api/messageApi';
 import { userApi } from '../api/userApi';
@@ -17,6 +17,7 @@ import type {
   MessageSearchFilters,
   MessageStatus,
   MessageSearchType,
+  SharedAsset,
   SharedAssetKind,
   UserOnlineStatus,
 } from '../types/chat';
@@ -92,6 +93,11 @@ export const messageSearchQueryKey = (
   filters: NormalizedMessageSearchFilters = DEFAULT_MESSAGE_SEARCH_FILTERS
 ) => ['messageSearch', chatId, query, filters] as const;
 export const sharedAssetsQueryKey = (chatId: string, kind?: SharedAssetKind) => ['sharedAssets', chatId, kind ?? 'all'] as const;
+export const paginatedSharedAssetsQueryKey = (
+  chatId: string,
+  kind: SharedAssetKind,
+  limit: number
+) => ['sharedAssetsInfinite', chatId, kind, limit] as const;
 export const pinnedMessagesQueryKey = (chatId: string) => ['pinnedMessages', chatId] as const;
 export const onlinePresenceQueryKey = ['onlinePresence'] as const;
 export const usersQueryKey = ['users'] as const;
@@ -185,6 +191,7 @@ const normalizePresenceSnapshot = (
 
 const invalidateDetailQueries = (queryClient: ReturnType<typeof useQueryClient>, chatId: string) => {
   queryClient.invalidateQueries({ queryKey: ['sharedAssets', chatId] });
+  queryClient.invalidateQueries({ queryKey: ['sharedAssetsInfinite', chatId] });
   queryClient.invalidateQueries({ queryKey: pinnedMessagesQueryKey(chatId) });
 };
 
@@ -777,6 +784,7 @@ export const useSendMessage = () => {
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
       if (hasAttachmentFiles(variables.attachments)) {
         queryClient.invalidateQueries({ queryKey: ['sharedAssets', variables.chatId] });
+        queryClient.invalidateQueries({ queryKey: ['sharedAssetsInfinite', variables.chatId] });
       }
     },
   });
@@ -801,6 +809,49 @@ export const useSharedAssets = (chatId: string | null, kind?: SharedAssetKind) =
       const response = await messageApi.getSharedAssets(chatId, { kind, limit: 12 });
       return response.data.data.assets ?? response.data.data.sharedAssets ?? [];
     },
+    enabled: Boolean(chatId && isAuthenticated),
+  });
+};
+
+type SharedAssetsPage = {
+  assets: SharedAsset[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+export const usePaginatedSharedAssets = (
+  chatId: string | null,
+  kind: SharedAssetKind,
+  limit = 50
+) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useInfiniteQuery({
+    queryKey: paginatedSharedAssetsQueryKey(chatId ?? '', kind, limit),
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }): Promise<SharedAssetsPage> => {
+      if (!chatId) {
+        return {
+          assets: [],
+          nextCursor: null,
+          hasMore: false,
+        };
+      }
+
+      const cursor = typeof pageParam === 'string' ? pageParam : null;
+      const response = await messageApi.getSharedAssets(chatId, { kind, cursor, limit });
+      const data = response.data.data;
+      const cursorData = data.cursor;
+
+      return {
+        assets: data.assets ?? data.sharedAssets ?? [],
+        nextCursor: cursorData.nextCursor ?? data.nextCursor ?? null,
+        hasMore: cursorData.hasMore ?? data.hasMore ?? false,
+      };
+    },
+    getNextPageParam: (lastPage) => (
+      lastPage.hasMore ? lastPage.nextCursor : undefined
+    ),
     enabled: Boolean(chatId && isAuthenticated),
   });
 };

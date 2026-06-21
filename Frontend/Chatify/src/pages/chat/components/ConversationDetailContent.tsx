@@ -1,10 +1,9 @@
 import {
-  Ban,
   Download,
   ExternalLink,
   FileText,
-  LoaderCircle,
   Lock,
+  Mic,
   MoreHorizontal,
   Phone,
   Pin,
@@ -28,7 +27,6 @@ import { getChatTitle } from '../utils/chatDisplay';
 import AttachmentPreview from './AttachmentPreview';
 import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
 import UserAvatar from './UserAvatar';
-import VoiceMessagePlayer from './VoiceMessagePlayer';
 
 export interface ConversationDetailContentProps {
   selectedChat: Chat;
@@ -53,7 +51,6 @@ export interface ConversationDetailContentProps {
   isReconnecting: boolean;
   isOffline: boolean;
   conversationControls?: ConversationControls;
-  isConversationControlPending: boolean;
   isFavorite?: boolean;
   callDisabledReason?: string | null;
   videoCallDisabledReason?: string | null;
@@ -63,7 +60,7 @@ export interface ConversationDetailContentProps {
   onSearchMessages: () => void;
   onOpenMoreMenu: () => void;
   onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
-  onUnblockUser: () => void;
+  onOpenVoiceMessages: () => void;
   onJumpToMessage: (messageId: string) => void;
   onUnpinMessage: (messageId: string) => void;
 }
@@ -91,7 +88,6 @@ const ConversationDetailContent = ({
   isReconnecting,
   isOffline,
   conversationControls,
-  isConversationControlPending,
   isFavorite = false,
   callDisabledReason,
   videoCallDisabledReason,
@@ -101,7 +97,7 @@ const ConversationDetailContent = ({
   onSearchMessages,
   onOpenMoreMenu,
   onOpenAttachmentPreview,
-  onUnblockUser,
+  onOpenVoiceMessages,
   onJumpToMessage,
   onUnpinMessage,
 }: ConversationDetailContentProps) => {
@@ -304,32 +300,11 @@ const ConversationDetailContent = ({
           errorCopy="Voice messages unavailable"
           emptyCopy="No voice messages"
         >
-          {sharedVoice.map((asset) => (
-            <div key={asset.attachmentId} className="min-w-0">
-              <VoiceMessagePlayer attachment={asset} compact />
-              <button
-                type="button"
-                onClick={() => onJumpToMessage(asset.messageId)}
-                className="mt-1 w-full truncate rounded-[var(--chat-radius-md)] px-1 py-1 text-xs text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-                aria-label={`Jump to ${asset.displayName}`}
-              >
-                Jump
-              </button>
-            </div>
-          ))}
+          <VoiceMessagesSummary
+            count={sharedVoice.length}
+            onOpenVoiceMessages={onOpenVoiceMessages}
+          />
         </DetailState>
-      </RailSection>
-
-      <RailSection
-        title="Blocked people"
-        count={conversationControls?.blockedByMe || conversationControls?.blockedMe ? 1 : 0}
-      >
-        <BlockedPeopleSection
-          conversationControls={conversationControls}
-          displayName={otherMember ? getMemberDisplayName(otherMember) : title}
-          isActionPending={isConversationControlPending}
-          onUnblockUser={onUnblockUser}
-        />
       </RailSection>
 
       <RailSection title="Conversation security">
@@ -367,10 +342,6 @@ const ConversationDetailContent = ({
     </>
   );
 };
-
-const getMemberDisplayName = (member: User) => (
-  `${member.firstName} ${member.lastName ?? ''}`.trim() || member.username || 'Unknown user'
-);
 
 const getVisibleProfileBio = (member: User | null) => (
   typeof member?.profileBio === 'string' ? member.profileBio.trim() : ''
@@ -415,59 +386,6 @@ const ProfileSummaryRow = ({ label, value }: { label: string; value: string }) =
   </div>
 );
 
-const BlockedPeopleSection = ({
-  conversationControls,
-  displayName,
-  isActionPending,
-  onUnblockUser,
-}: {
-  conversationControls?: ConversationControls;
-  displayName: string;
-  isActionPending: boolean;
-  onUnblockUser: () => void;
-}) => {
-  if (!conversationControls?.isDirectChat) {
-    return <DetailStateBox>Blocking controls are available for direct conversations.</DetailStateBox>;
-  }
-
-  if (!conversationControls.blockedByMe && !conversationControls.blockedMe) {
-    return <DetailStateBox>No blocked people in this conversation.</DetailStateBox>;
-  }
-
-  const statusCopy = conversationControls.blockedByMe
-    ? 'Blocked by you'
-    : 'Activity blocked by this person';
-  const detailCopy = conversationControls.blockedByMe
-    ? 'New activity is paused until you unblock them.'
-    : 'You cannot send new activity until this person unblocks the conversation.';
-
-  return (
-    <div className="rounded-[var(--chat-radius-md)] border border-[color-mix(in_srgb,var(--chat-warning)_38%,var(--chat-border))] bg-[color-mix(in_srgb,var(--chat-warning)_10%,var(--chat-panel))] p-3">
-      <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] bg-[color-mix(in_srgb,var(--chat-warning)_18%,var(--chat-panel))] text-[var(--chat-warning)]">
-          <Ban aria-hidden="true" className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-[var(--chat-text)]">{displayName}</p>
-          <p className="mt-1 text-xs font-semibold text-[var(--chat-warning)]">{statusCopy}</p>
-          <p className="mt-1 text-sm leading-5 text-[var(--chat-text-muted)]">{detailCopy}</p>
-        </div>
-      </div>
-      {conversationControls.blockedByMe && (
-        <button
-          type="button"
-          onClick={onUnblockUser}
-          disabled={isActionPending}
-          className="mt-3 inline-flex min-h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] px-3 py-2 text-sm font-semibold text-[var(--chat-own-text)] hover:bg-[var(--chat-accent-strong)] disabled:cursor-not-allowed disabled:bg-[var(--chat-panel-subtle)] disabled:text-[var(--chat-text-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-        >
-          {isActionPending && <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />}
-          {isActionPending ? 'Unblocking...' : 'Unblock user'}
-        </button>
-      )}
-    </div>
-  );
-};
-
 const ContextAction = ({
   label,
   title,
@@ -500,6 +418,31 @@ const ContextAction = ({
     </button>
   );
 };
+
+const VoiceMessagesSummary = ({
+  count,
+  onOpenVoiceMessages,
+}: {
+  count: number;
+  onOpenVoiceMessages: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onOpenVoiceMessages}
+    className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-2 text-left text-sm text-[var(--chat-text)] hover:border-[var(--chat-border-strong)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+    aria-label="Show voice messages"
+  >
+    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] bg-[var(--chat-panel-subtle)] text-[var(--chat-accent)]">
+      <Mic aria-hidden="true" className="h-5 w-5" />
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className="block truncate font-semibold">Show voice messages</span>
+      <span className="block truncate text-xs text-[var(--chat-text-muted)]">
+        {count} voice message{count === 1 ? '' : 's'}
+      </span>
+    </span>
+  </button>
+);
 
 const CallAvailabilityNotice = ({
   callDisabledReason,

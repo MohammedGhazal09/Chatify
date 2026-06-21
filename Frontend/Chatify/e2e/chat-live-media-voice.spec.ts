@@ -17,23 +17,23 @@ test.describe('Phase 12 live media and voice', () => {
     const rail = page.getByTestId('chat-context-rail');
     await expect(rail).toBeVisible();
     await expect(rail.getByRole('heading', { name: 'Voice messages' })).toBeVisible();
-    await expect(rail.getByText('phase12-relay-check-in.webm')).toBeVisible();
+    await rail.getByRole('button', { name: 'Show voice messages' }).click();
 
-    await expect(rail.getByRole('button', { name: 'Play phase12-relay-check-in.webm' })).toBeVisible();
-    await expect(rail.getByRole('link', { name: 'Download phase12-relay-check-in.webm' })).toHaveAttribute(
+    const voiceDialog = page.getByRole('dialog', { name: 'Voice messages' });
+    await expect(voiceDialog).toBeVisible();
+    await expect(voiceDialog.getByText('phase12-relay-check-in.webm')).toBeVisible();
+    await expect(voiceDialog.getByRole('button', { name: 'Play phase12-relay-check-in.webm' })).toBeVisible();
+    await expect(voiceDialog.getByRole('link', { name: 'Download phase12-relay-check-in.webm' })).toHaveAttribute(
       'href',
       /\/api\/message\/attachments\/phase12-attachment-relay-voice\/download$/
     );
 
-    const audio = rail.locator('audio[src$="/api/message/attachments/phase12-attachment-relay-voice/preview"]');
+    const audio = voiceDialog.locator('audio[src$="/api/message/attachments/phase12-attachment-relay-voice/preview"]');
     await expect(audio).toHaveAttribute('crossorigin', 'use-credentials');
     await expectNoForbiddenUserFacingEvidence(page);
     await page.screenshot({ path: phase12ArtifactPath('12-ui-review-desktop-voice.png') });
-    await rail.locator('.overflow-y-auto').evaluate((element) => {
-      element.scrollTop = element.scrollHeight;
-    });
-    await expect(rail.getByRole('heading', { name: 'Voice messages' })).toBeInViewport();
-    await page.screenshot({ path: phase12ArtifactPath('12-ui-review-desktop-voice-scrolled.png') });
+    await voiceDialog.getByRole('button', { name: 'Close voice messages', exact: true }).click();
+    await expect(voiceDialog).not.toBeVisible();
   });
 
   test('keeps persisted voice assets usable in the mobile detail drawer', async ({ page }) => {
@@ -52,8 +52,12 @@ test.describe('Phase 12 live media and voice', () => {
       element.scrollTop = element.scrollHeight;
     });
     await expect(dialog.getByRole('heading', { name: 'Voice messages' })).toBeInViewport();
-    await expect(dialog.getByText('phase12-relay-check-in.webm')).toBeVisible();
-    await expect(dialog.getByRole('link', { name: 'Download phase12-relay-check-in.webm' })).toHaveAttribute(
+    await dialog.getByRole('button', { name: 'Show voice messages' }).click();
+
+    const voiceDialog = page.getByRole('dialog', { name: 'Voice messages' });
+    await expect(voiceDialog).toBeVisible();
+    await expect(voiceDialog.getByText('phase12-relay-check-in.webm')).toBeVisible();
+    await expect(voiceDialog.getByRole('link', { name: 'Download phase12-relay-check-in.webm' })).toHaveAttribute(
       'href',
       /\/api\/message\/attachments\/phase12-attachment-relay-voice\/download$/
     );

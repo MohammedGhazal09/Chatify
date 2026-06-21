@@ -26,6 +26,7 @@ import {
   useMessageSearch,
   useMessageContext,
   useSharedAssets,
+  usePaginatedSharedAssets,
   usePinnedMessages,
   usePinMessage,
   useUnpinMessage,
@@ -73,6 +74,7 @@ import {
   ConversationPane,
   MessageActionMenu,
   SpacesSidebar,
+  VoiceMessagesModal,
 } from './components';
 import type { AttachmentPreviewTarget } from './components/AttachmentPreviewModal';
 import type { SidebarWorkspaceMode } from './components/ChatSidebar';
@@ -228,6 +230,7 @@ const ChatPage = () => {
   const [composerResetToken, setComposerResetToken] = useState(0);
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const [isDetailRailOpen, setIsDetailRailOpen] = useState(() => isDesktopDetailRailViewport());
+  const [isVoiceMessagesModalOpen, setIsVoiceMessagesModalOpen] = useState(false);
   const [isConversationMoreOpen, setIsConversationMoreOpen] = useState(false);
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
@@ -400,8 +403,19 @@ const ChatPage = () => {
   const messageContextMutation = useMessageContext();
   const sharedFilesQuery = useSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'file');
   const sharedMediaQuery = useSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'media');
-  const sharedVoiceQuery = useSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'voice');
+  const sharedVoiceQuery = usePaginatedSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'voice', 50);
   const pinnedMessagesQuery = usePinnedMessages(selectedChatId);
+  const {
+    data: sharedVoiceData,
+    isLoading: isSharedVoiceLoading,
+    isError: isSharedVoiceError,
+    hasNextPage: hasMoreVoiceAssets,
+    isFetchingNextPage: isFetchingMoreVoiceAssets,
+    fetchNextPage: fetchNextVoiceAssetsPage,
+  } = sharedVoiceQuery;
+  const sharedVoiceAssets = useMemo(() => (
+    sharedVoiceData?.pages.flatMap((page) => page.assets) ?? []
+  ), [sharedVoiceData]);
   const loadedMessageIds = useMemo(() => new Set(allMessages.map((message) => message._id)), [allMessages]);
   const activeComposerUploadState = activeComposerUploadId
     ? sendMessage.uploadStates[activeComposerUploadId]
@@ -672,6 +686,7 @@ const ChatPage = () => {
     setSelectedSpaceId(null);
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(false);
+    setIsVoiceMessagesModalOpen(false);
     setAttachmentPreview(null);
     setNewChatUsername('');
     setCreateChatError(null);
@@ -727,6 +742,7 @@ const ChatPage = () => {
   useEffect(() => {
     clearHighlightedMessage();
     setAttachmentPreview(null);
+    setIsVoiceMessagesModalOpen(false);
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(isDesktopDetailRailViewport());
     setIsConversationMoreOpen(false);
@@ -1549,6 +1565,22 @@ const ChatPage = () => {
     setAttachmentPreview(attachment);
   }, [showToast]);
 
+  const handleOpenVoiceMessages = useCallback(() => {
+    setIsVoiceMessagesModalOpen(true);
+  }, []);
+
+  const handleLoadOlderVoiceMessages = useCallback(() => {
+    if (hasMoreVoiceAssets && !isFetchingMoreVoiceAssets) {
+      void fetchNextVoiceAssetsPage();
+    }
+  }, [fetchNextVoiceAssetsPage, hasMoreVoiceAssets, isFetchingMoreVoiceAssets]);
+
+  const handleJumpToVoiceMessage = useCallback((messageId: string) => {
+    setIsVoiceMessagesModalOpen(false);
+    setIsDetailDrawerOpen(false);
+    handleJumpToMessage(messageId);
+  }, [handleJumpToMessage]);
+
   const updateSelectedChatOrganization = useCallback((
     patch: ConversationOrganizationPatch,
     successCopy: string,
@@ -2029,21 +2061,20 @@ const ChatPage = () => {
           pinnedMessages={pinnedMessagesQuery.data ?? []}
           sharedFiles={sharedFilesQuery.data ?? []}
           sharedMedia={sharedMediaQuery.data ?? []}
-          sharedVoice={sharedVoiceQuery.data ?? []}
+          sharedVoice={sharedVoiceAssets}
           isPinnedLoading={pinnedMessagesQuery.isLoading}
           isSharedFilesLoading={sharedFilesQuery.isLoading}
           isSharedMediaLoading={sharedMediaQuery.isLoading}
-          isSharedVoiceLoading={sharedVoiceQuery.isLoading}
+          isSharedVoiceLoading={isSharedVoiceLoading}
           isPinnedError={pinnedMessagesQuery.isError}
           isSharedFilesError={sharedFilesQuery.isError}
           isSharedMediaError={sharedMediaQuery.isError}
-          isSharedVoiceError={sharedVoiceQuery.isError}
+          isSharedVoiceError={isSharedVoiceError}
           isAuthenticated={isAuthenticated}
           isSocketConnected={isSocketConnected}
           isReconnecting={isReconnecting}
           isOffline={isOffline}
           conversationControls={conversationControls}
-          isConversationControlPending={isConversationControlPending}
           isFavorite={isSelectedChatFavorite}
           callDisabledReason={audioAvailability.reason}
           videoCallDisabledReason={videoAvailability.reason}
@@ -2054,7 +2085,7 @@ const ChatPage = () => {
           onSearchMessages={handleToggleMessageSearch}
           onOpenMoreMenu={handleOpenMoreMenuFromDetails}
           onOpenAttachmentPreview={handleOpenAttachmentPreview}
-          onUnblockUser={handleUnblockPeer}
+          onOpenVoiceMessages={handleOpenVoiceMessages}
           onJumpToMessage={handleJumpToMessage}
           onUnpinMessage={handleUnpinMessage}
         />
@@ -2072,21 +2103,20 @@ const ChatPage = () => {
               pinnedMessages={pinnedMessagesQuery.data ?? []}
               sharedFiles={sharedFilesQuery.data ?? []}
               sharedMedia={sharedMediaQuery.data ?? []}
-              sharedVoice={sharedVoiceQuery.data ?? []}
+              sharedVoice={sharedVoiceAssets}
               isPinnedLoading={pinnedMessagesQuery.isLoading}
               isSharedFilesLoading={sharedFilesQuery.isLoading}
               isSharedMediaLoading={sharedMediaQuery.isLoading}
-              isSharedVoiceLoading={sharedVoiceQuery.isLoading}
+              isSharedVoiceLoading={isSharedVoiceLoading}
               isPinnedError={pinnedMessagesQuery.isError}
               isSharedFilesError={sharedFilesQuery.isError}
               isSharedMediaError={sharedMediaQuery.isError}
-              isSharedVoiceError={sharedVoiceQuery.isError}
+              isSharedVoiceError={isSharedVoiceError}
               isAuthenticated={isAuthenticated}
               isSocketConnected={isSocketConnected}
               isReconnecting={isReconnecting}
               isOffline={isOffline}
               conversationControls={conversationControls}
-              isConversationControlPending={isConversationControlPending}
               isFavorite={isSelectedChatFavorite}
               callDisabledReason={audioAvailability.reason}
               videoCallDisabledReason={videoAvailability.reason}
@@ -2100,7 +2130,7 @@ const ChatPage = () => {
               }}
               onOpenMoreMenu={handleOpenMoreMenuFromDetails}
               onOpenAttachmentPreview={handleOpenAttachmentPreview}
-              onUnblockUser={handleUnblockPeer}
+              onOpenVoiceMessages={handleOpenVoiceMessages}
               onJumpToMessage={(messageId) => {
                 setIsDetailDrawerOpen(false);
                 handleJumpToMessage(messageId);
@@ -2173,6 +2203,17 @@ const ChatPage = () => {
           <AttachmentPreviewModal
             attachment={attachmentPreview}
             onClose={() => setAttachmentPreview(null)}
+          />
+          <VoiceMessagesModal
+            isOpen={isVoiceMessagesModalOpen}
+            assets={sharedVoiceAssets}
+            isLoading={isSharedVoiceLoading}
+            isError={isSharedVoiceError}
+            hasMore={Boolean(hasMoreVoiceAssets)}
+            isFetchingMore={isFetchingMoreVoiceAssets}
+            onLoadMore={handleLoadOlderVoiceMessages}
+            onClose={() => setIsVoiceMessagesModalOpen(false)}
+            onJumpToMessage={handleJumpToVoiceMessage}
           />
         </>
       )}

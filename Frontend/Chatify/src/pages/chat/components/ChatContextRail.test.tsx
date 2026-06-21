@@ -47,7 +47,6 @@ describe('ChatContextRail', () => {
         blockedMe: false,
         messagingDisabledReason: null,
       } satisfies ConversationControls,
-      isConversationControlPending: false,
       isFavorite: false,
       onToggleFavorite: vi.fn(),
       onStartAudioCall: vi.fn(),
@@ -55,7 +54,7 @@ describe('ChatContextRail', () => {
       onSearchMessages: vi.fn(),
       onOpenMoreMenu: vi.fn(),
       onOpenAttachmentPreview: vi.fn(),
-      onUnblockUser: vi.fn(),
+      onOpenVoiceMessages: vi.fn(),
       onJumpToMessage: vi.fn(),
       onUnpinMessage: vi.fn(),
       ...overrides,
@@ -76,6 +75,7 @@ describe('ChatContextRail', () => {
     const onStartVideoCall = vi.fn();
     const onToggleFavorite = vi.fn();
     const onOpenAttachmentPreview = vi.fn();
+    const onOpenVoiceMessages = vi.fn();
     renderRail({
       onSearchMessages,
       onOpenMoreMenu,
@@ -85,6 +85,7 @@ describe('ChatContextRail', () => {
       onStartVideoCall,
       onToggleFavorite,
       onOpenAttachmentPreview,
+      onOpenVoiceMessages,
     });
 
     expect(screen.getByRole('complementary', { name: 'Conversation details' })).toBeInTheDocument();
@@ -98,13 +99,14 @@ describe('ChatContextRail', () => {
     expect(screen.getByText('Shared files')).toBeInTheDocument();
     expect(screen.getByText('Shared media')).toBeInTheDocument();
     expect(screen.getByText('Voice messages')).toBeInTheDocument();
-    expect(screen.getByText('Blocked people')).toBeInTheDocument();
-    expect(screen.getByText('No blocked people in this conversation.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show voice messages' })).toBeEnabled();
+    expect(screen.queryByText('voice-message.webm')).not.toBeInTheDocument();
+    expect(screen.queryByText('Blocked people')).not.toBeInTheDocument();
+    expect(screen.queryByText('No blocked people in this conversation.')).not.toBeInTheDocument();
     expect(screen.getByText('Conversation security')).toBeInTheDocument();
     expect(screen.getByText('Retry logic note')).toBeInTheDocument();
     expect(screen.getByText('message-states-spec.pdf')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'diagram.png' })).toBeInTheDocument();
-    expect(screen.getByText('voice-message.webm')).toBeInTheDocument();
     expect(screen.queryByText('Pinning is not available in this phase.')).not.toBeInTheDocument();
     expect(screen.queryByText('File sharing is planned for Phase 08.')).not.toBeInTheDocument();
     expect(screen.queryByText('Media sharing is planned for Phase 08.')).not.toBeInTheDocument();
@@ -124,6 +126,7 @@ describe('ChatContextRail', () => {
     await user.click(screen.getByRole('button', { name: 'Star conversation' }));
     await user.click(screen.getByRole('button', { name: 'Search messages' }));
     await user.click(screen.getByRole('button', { name: 'More conversation actions' }));
+    await user.click(screen.getByRole('button', { name: 'Show voice messages' }));
     await user.click(screen.getByRole('button', { name: 'Retry logic note' }));
     await user.click(screen.getByRole('button', { name: 'Unpin Retry logic note' }));
     await user.click(screen.getByRole('button', { name: 'Open message-states-spec.pdf' }));
@@ -133,6 +136,7 @@ describe('ChatContextRail', () => {
     expect(onToggleFavorite).toHaveBeenCalledTimes(1);
     expect(onSearchMessages).toHaveBeenCalledTimes(1);
     expect(onOpenMoreMenu).toHaveBeenCalledTimes(1);
+    expect(onOpenVoiceMessages).toHaveBeenCalledTimes(1);
     expect(onJumpToMessage).toHaveBeenCalledWith('message-pin');
     expect(onUnpinMessage).toHaveBeenCalledWith('message-pin');
     expect(onOpenAttachmentPreview).toHaveBeenCalledTimes(2);
@@ -140,9 +144,7 @@ describe('ChatContextRail', () => {
     expect(onOpenAttachmentPreview).toHaveBeenCalledWith(expect.objectContaining({ attachmentId: 'media-1' }));
   });
 
-  it('lists blocked people and unblocks from conversation details', async () => {
-    const user = userEvent.setup();
-    const onUnblockUser = vi.fn();
+  it('omits blocked people from conversation details even when the direct chat is blocked', () => {
     const blockedControls: ConversationControls = {
       isDirectChat: true,
       peerId: 'user-2',
@@ -156,15 +158,12 @@ describe('ChatContextRail', () => {
 
     renderRail({
       conversationControls: blockedControls,
-      onUnblockUser,
     });
 
-    expect(screen.getByText('Blocked people')).toBeInTheDocument();
-    expect(screen.getByText('Blocked by you')).toBeInTheDocument();
-    expect(screen.getByText('New activity is paused until you unblock them.')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Unblock user' }));
-    expect(onUnblockUser).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Blocked people')).not.toBeInTheDocument();
+    expect(screen.queryByText('Blocked by you')).not.toBeInTheDocument();
+    expect(screen.queryByText('New activity is paused until you unblock them.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Unblock user' })).not.toBeInTheDocument();
   });
 
   it('does not render when the rail is closed', () => {
@@ -239,7 +238,6 @@ describe('ChatContextRail', () => {
         isSocketConnected={false}
         isReconnecting={false}
         isOffline
-        isConversationControlPending={false}
         onToggleFavorite={vi.fn()}
         callDisabledReason="Realtime connection is unavailable."
         videoCallDisabledReason="Realtime connection is unavailable."
@@ -248,7 +246,7 @@ describe('ChatContextRail', () => {
         onSearchMessages={vi.fn()}
         onOpenMoreMenu={vi.fn()}
         onOpenAttachmentPreview={vi.fn()}
-        onUnblockUser={vi.fn()}
+        onOpenVoiceMessages={vi.fn()}
         onJumpToMessage={vi.fn()}
         onUnpinMessage={vi.fn()}
       />

@@ -25,7 +25,6 @@ const baseProps = {
   isSocketConnected: true,
   isReconnecting: false,
   isOffline: false,
-  isConversationControlPending: false,
   isFavorite: false,
   onToggleFavorite: vi.fn(),
   onStartAudioCall: vi.fn(),
@@ -33,7 +32,7 @@ const baseProps = {
   onSearchMessages: vi.fn(),
   onOpenMoreMenu: vi.fn(),
   onOpenAttachmentPreview: vi.fn(),
-  onUnblockUser: vi.fn(),
+  onOpenVoiceMessages: vi.fn(),
   onJumpToMessage: vi.fn(),
   onUnpinMessage: vi.fn(),
 };
@@ -47,6 +46,7 @@ describe('ConversationDetailDrawer', () => {
     const onJumpToMessage = vi.fn();
     const onStartAudioCall = vi.fn();
     const onStartVideoCall = vi.fn();
+    const onOpenVoiceMessages = vi.fn();
 
     render(
       <ConversationDetailDrawer
@@ -57,6 +57,7 @@ describe('ConversationDetailDrawer', () => {
         onStartVideoCall={onStartVideoCall}
         onSearchMessages={onSearchMessages}
         onOpenMoreMenu={onOpenMoreMenu}
+        onOpenVoiceMessages={onOpenVoiceMessages}
         onJumpToMessage={onJumpToMessage}
       />
     );
@@ -66,12 +67,14 @@ describe('ConversationDetailDrawer', () => {
     expect(screen.getByText('Pinned retry note')).toBeInTheDocument();
     expect(screen.getByText('delivery-matrix.xlsx')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'diagram.png' })).toBeInTheDocument();
-    expect(screen.getByText('voice-message.webm')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show voice messages' })).toBeEnabled();
+    expect(screen.queryByText('voice-message.webm')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Call' }));
     await user.click(screen.getByRole('button', { name: 'Video call' }));
     await user.click(screen.getByRole('button', { name: 'Search messages' }));
     await user.click(screen.getByRole('button', { name: 'More conversation actions' }));
+    await user.click(screen.getByRole('button', { name: 'Show voice messages' }));
     await user.click(screen.getByRole('button', { name: 'Pinned retry note' }));
     await user.keyboard('{Escape}');
 
@@ -79,6 +82,7 @@ describe('ConversationDetailDrawer', () => {
     expect(onStartVideoCall).toHaveBeenCalledTimes(1);
     expect(onSearchMessages).toHaveBeenCalledTimes(1);
     expect(onOpenMoreMenu).toHaveBeenCalledTimes(1);
+    expect(onOpenVoiceMessages).toHaveBeenCalledTimes(1);
     expect(onJumpToMessage).toHaveBeenCalledWith('message-pin');
     expect(onClose).toHaveBeenCalledTimes(1);
   });

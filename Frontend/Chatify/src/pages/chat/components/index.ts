@@ -16,6 +16,7 @@ export { default as ConversationPane } from './ConversationPane';
 export { default as UserAvatar } from './UserAvatar';
 export { default as IdentityMark } from './IdentityMark';
 export { default as VoiceMessagePlayer } from './VoiceMessagePlayer';
+export { default as VoiceMessagesModal } from './VoiceMessagesModal';
 export { default as MessageActionMenu } from './MessageActionMenu';
 export { default as MessageBubble } from './MessageBubble';
 export { default as MessageComposer } from './MessageComposer';
