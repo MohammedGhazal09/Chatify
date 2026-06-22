@@ -298,6 +298,29 @@ describe('ChatSidebar', () => {
     expect(screen.getByLabelText('Conversation archived')).toBeInTheDocument();
   });
 
+  it('removes a selected conversation from starred when it is no longer starred', () => {
+    const unstarredChat = makeChat({
+      _id: 'chat-unstarred',
+      chatName: 'Unstarred Group',
+      isGroupChat: true,
+      organizationState: {
+        muted: false,
+        archived: false,
+        pinned: false,
+        favorite: false,
+      },
+    });
+
+    renderSidebar({
+      chats: [unstarredChat],
+      selectedChatId: unstarredChat._id,
+      activeFilter: 'favorite',
+    });
+
+    expect(screen.queryByText('Unstarred Group')).not.toBeInTheDocument();
+    expect(screen.getByText('No starred conversations')).toBeInTheDocument();
+  });
+
   it('filters conversations by title and latest visible snippet without matching member email', () => {
     const launchChat = makeChat({
       _id: 'chat-launch',

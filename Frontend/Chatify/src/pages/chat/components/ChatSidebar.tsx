@@ -194,7 +194,7 @@ const ChatSidebar = ({
     const matchesSearch = !normalizedQuery || title.includes(normalizedQuery) || latestSnippet.includes(normalizedQuery);
     const unreadCount = unreadCounts?.get(chat._id) ?? 0;
     const matchesFilter = matchesFocusFilter(chat, activeFilter, unreadCount);
-    const shouldKeepSelectedChatVisible = chat._id === selectedChatId && !normalizedQuery;
+    const shouldKeepSelectedChatVisible = activeFilter === 'all' && chat._id === selectedChatId && !normalizedQuery;
 
     return matchesSearch && (matchesFilter || shouldKeepSelectedChatVisible);
   }) : undefined;
