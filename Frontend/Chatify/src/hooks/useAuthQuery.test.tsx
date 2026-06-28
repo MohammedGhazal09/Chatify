@@ -12,6 +12,7 @@ import type { ActiveSession } from '../types/auth';
 import { SESSION_BROADCAST_STORAGE_KEY } from './useSessionBroadcast';
 import {
   activeSessionsQueryKey,
+  useAuthInit,
   useActiveSessions,
   useLogout,
   useRevokeAllSessions,
@@ -21,6 +22,10 @@ import {
 
 vi.mock('../api/authApi', () => ({
   authApi: {
+    fetchCSRFToken: vi.fn(),
+    checkAuth: vi.fn(),
+    getLoggedUser: vi.fn(),
+    refreshToken: vi.fn(),
     logout: vi.fn(),
     getActiveSessions: vi.fn(),
     revokeSession: vi.fn(),
@@ -68,6 +73,60 @@ const activeSessions: ActiveSession[] = [
     expiresAt: '2026-06-20T12:30:00.000Z',
   },
 ];
+
+describe('useAuthInit', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+    vi.mocked(authApi.fetchCSRFToken).mockResolvedValue({
+      data: {},
+      status: 204,
+      statusText: 'No Content',
+      headers: {},
+      config: {},
+    } as AxiosResponse);
+    vi.mocked(authApi.checkAuth).mockResolvedValue({
+      data: { token: false },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as AxiosResponse);
+    useAuthStore.setState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: true,
+    });
+    window.history.pushState(null, '', '/login');
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    vi.restoreAllMocks();
+  });
+
+  it('does not call the protected logged-user endpoint for anonymous visitors', async () => {
+    renderHook(() => useAuthInit(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().isLoading).toBe(false);
+    });
+
+    expect(authApi.checkAuth).toHaveBeenCalledTimes(1);
+    expect(authApi.refreshToken).not.toHaveBeenCalled();
+    expect(authApi.getLoggedUser).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user).toBeNull();
+  });
+});
 
 describe('useLogout', () => {
   let queryClient: QueryClient;

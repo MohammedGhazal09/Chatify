@@ -14,6 +14,7 @@ import { usePresenceStore } from '../../store/presenceStore';
 import { useLogout } from '../../hooks/useAuthQuery';
 import {
   useChats,
+  useContacts,
   useCreateChat,
   useCreateGroupChat,
   useMessages,
@@ -38,6 +39,7 @@ import {
 import {
   useCreateSpace,
   useCreateSpaceChannel,
+  useJoinSpace,
   useSpaceChannels,
   useSpaces,
 } from '../../hooks/useSpaceQueries';
@@ -62,7 +64,7 @@ import type {
   MessageSearchFilters,
   MessageStatusUpdateEvent,
 } from '../../types/chat';
-import type { CreateSpaceChannelPayload, CreateSpacePayload, SpaceChannel } from '../../types/space';
+import type { CreateSpaceChannelPayload, CreateSpacePayload, JoinSpacePayload, SpaceChannel } from '../../types/space';
 import {
   ChatContextRail,
   CallOverlay,
@@ -74,6 +76,7 @@ import {
   ConversationPane,
   MessageActionMenu,
   SpacesSidebar,
+  StartConversationDialog,
   VoiceMessagesModal,
 } from './components';
 import type { AttachmentPreviewTarget } from './components/AttachmentPreviewModal';
@@ -129,6 +132,7 @@ const INVALID_USERNAME_COPY = 'Enter a valid username.';
 const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the username and try again.';
 const GENERIC_GROUP_CHAT_ERROR_COPY = 'We could not create that group. Check the usernames and try again.';
 const GENERIC_SPACE_ERROR_COPY = 'We could not create that space. Check the usernames and try again.';
+const GENERIC_JOIN_SPACE_ERROR_COPY = 'We could not join that space. Check the join code and try again.';
 const GENERIC_CHANNEL_ERROR_COPY = 'We could not create that channel. Check the name and try again.';
 const DEFAULT_MESSAGE_SEARCH_FILTERS: MessageSearchFilters = {
   senderId: null,
@@ -242,10 +246,18 @@ const ChatPage = () => {
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [createSpaceError, setCreateSpaceError] = useState<string | null>(null);
   const [createChannelError, setCreateChannelError] = useState<string | null>(null);
+  const [joinSpaceError, setJoinSpaceError] = useState<string | null>(null);
+  const [isStartConversationOpen, setIsStartConversationOpen] = useState(false);
   const chatTheme = useChatTheme(user?._id);
   const notificationPreferences = useNotificationPreferences(user?._id);
 
   const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
+  const {
+    data: contacts,
+    isLoading: isContactsLoading,
+    isError: isContactsError,
+    refetch: refetchContacts,
+  } = useContacts(isStartConversationOpen);
   const { data: spaces, isLoading: isSpacesLoading, isError: spacesError, refetch: refetchSpaces } = useSpaces();
   const selectedSpace = useMemo(
     () => spaces?.find((space) => space._id === selectedSpaceId) ?? null,
@@ -280,6 +292,7 @@ const ChatPage = () => {
   const createGroupChat = useCreateGroupChat();
   const createSpace = useCreateSpace();
   const createSpaceChannel = useCreateSpaceChannel();
+  const joinSpace = useJoinSpace();
   const markMessagesAsReadMutation = useMarkMessagesAsRead();
   const deleteMessageMutation = useDeleteMessage();
   const editMessageMutation = useEditMessage();
@@ -314,10 +327,14 @@ const ChatPage = () => {
     [selectableChats]
   );
   const { data: unreadCounts } = useUnreadCounts(chatIds);
+  const selectableChatsForPersistence = useMemo(
+    () => (sidebarWorkspaceMode === 'spaces' ? selectableChats : (chats ?? [])),
+    [chats, selectableChats, sidebarWorkspaceMode]
+  );
 
   useSelectedChatPersistence({
     userId: user?._id,
-    chats: selectableChats,
+    chats: selectableChatsForPersistence,
     isChatsLoading: isChatsLoading || isSpacesLoading || Boolean(selectedSpaceId && isSpaceChannelsLoading),
     selectedChatId,
     setSelectedChatId,
@@ -332,6 +349,10 @@ const ChatPage = () => {
   );
 
   useEffect(() => {
+    if (sidebarWorkspaceMode !== 'spaces') {
+      return;
+    }
+
     if (!spaces?.length) {
       if (selectedSpaceId) {
         setSelectedSpaceId(null);
@@ -342,7 +363,7 @@ const ChatPage = () => {
     if (!selectedSpaceId || !spaces.some((space) => space._id === selectedSpaceId)) {
       setSelectedSpaceId(spaces[0]._id);
     }
-  }, [selectedSpaceId, spaces]);
+  }, [selectedSpaceId, sidebarWorkspaceMode, spaces]);
 
   useEffect(() => {
     const selectedChatSpaceId = selectedChat?.spaceId ?? selectedChat?.space;
@@ -1349,6 +1370,33 @@ const ChatPage = () => {
     );
   };
 
+  const handleSelectContact = (username: string) => {
+    createChat.mutate(
+      { targetUsername: username },
+      {
+        onSuccess: (chat) => {
+          setIsStartConversationOpen(false);
+          setSidebarWorkspaceMode('conversations');
+          setSelectedChatId(chat._id);
+          setIsSidebarOpen(false);
+        },
+        onError: (error) => {
+          showToast(getRequestErrorMessage(error, GENERIC_NEW_CHAT_ERROR_COPY), 'error');
+        },
+      }
+    );
+  };
+
+  const handleStartNewChatFromContacts = () => {
+    setIsStartConversationOpen(false);
+    // Ensure the sidebar (which hosts NewChatDialog) is on-screen; on mobile it is
+    // translated off-canvas when closed, which would position the dialog off-screen.
+    setIsSidebarOpen(true);
+    if (!isNewChatOpen) {
+      handleToggleNewChat();
+    }
+  };
+
   const handleCreateGroupSubmit = (payload: CreateGroupChatPayload) => {
     setCreateChatError(null);
 
@@ -1391,6 +1439,30 @@ const ChatPage = () => {
     });
   };
 
+  const handleJoinSpaceSubmit = (payload: JoinSpacePayload) => {
+    setJoinSpaceError(null);
+
+    joinSpace.mutate(payload, {
+      onSuccess: (space) => {
+        setSidebarWorkspaceMode('spaces');
+        setSelectedSpaceId(space._id);
+        const defaultChannel = space.channels?.find((candidate) => (
+          candidate._id === space.defaultChannelId ||
+          candidate._id === space.defaultChannel
+        )) ?? space.channels?.[0];
+
+        if (defaultChannel) {
+          setSelectedChatId(defaultChannel._id);
+        }
+        setJoinSpaceError(null);
+        showToast('Joined space.', 'success');
+      },
+      onError: (error) => {
+        setJoinSpaceError(getRequestErrorMessage(error, GENERIC_JOIN_SPACE_ERROR_COPY));
+      },
+    });
+  };
+
   const handleCreateSpaceChannelSubmit = (payload: CreateSpaceChannelPayload) => {
     if (!selectedSpaceId) {
       setCreateChannelError('Select a space before creating a channel.');
@@ -1426,11 +1498,37 @@ const ChatPage = () => {
 
   const handleSelectChat = (chatId: string) => {
     setSidebarWorkspaceMode('conversations');
+    setSelectedSpaceId(null);
     setSelectedChatId(chatId);
     setMessageSearch('');
     setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
     setShowMessageSearch(false);
     setIsSidebarOpen(false);
+  };
+
+  const handleWorkspaceModeChange = (mode: SidebarWorkspaceMode) => {
+    setSidebarWorkspaceMode(mode);
+
+    if (mode !== 'conversations') {
+      return;
+    }
+
+    setSelectedSpaceId(null);
+    setCreateChannelError(null);
+    setJoinSpaceError(null);
+
+    if (!selectedChat?.isSpaceChannel) {
+      return;
+    }
+
+    const nextChatId = chats?.[0]?._id ?? null;
+    setSelectedChatId(nextChatId);
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    setShowMessageSearch(false);
+    setIsDetailDrawerOpen(false);
+    setIsDetailRailOpen(false);
+    replaceSelectedChatUrl(nextChatId);
   };
 
   const handleSelectSpace = (spaceId: string) => {
@@ -1897,11 +1995,12 @@ const ChatPage = () => {
   }
 
   return (
-    <div
+    <main
       className="chat-theme-root"
       data-testid="chat-root"
       data-chat-theme={chatTheme.theme}
     >
+      <h1 className="sr-only">Chatify messenger</h1>
       <ChatShell
         isSidebarOpen={isSidebarOpen}
         onCloseSidebar={() => setIsSidebarOpen(false)}
@@ -1938,7 +2037,7 @@ const ChatPage = () => {
             onClearCreateChatError={() => setCreateChatError(null)}
             onRefetchChats={() => refetchChats()}
             workspaceMode={sidebarWorkspaceMode}
-            onWorkspaceModeChange={(mode) => setSidebarWorkspaceMode(mode)}
+            onWorkspaceModeChange={handleWorkspaceModeChange}
             spacesPanel={(
               <SpacesSidebar
                 spaces={spaces}
@@ -1951,15 +2050,20 @@ const ChatPage = () => {
                 isChannelsError={spaceChannelsError && visibleSpaceChannels.length === 0}
                 isCreatingSpace={createSpace.isPending}
                 isCreatingChannel={createSpaceChannel.isPending}
+                isJoiningSpace={joinSpace.isPending}
                 createSpaceError={createSpaceError}
                 createChannelError={createChannelError}
+                joinSpaceError={joinSpaceError}
                 unreadCounts={unreadCounts}
                 onSelectSpace={handleSelectSpace}
                 onSelectChannel={handleSelectChannel}
                 onCreateSpace={handleCreateSpaceSubmit}
                 onCreateChannel={handleCreateSpaceChannelSubmit}
+                onJoinSpace={handleJoinSpaceSubmit}
+                onExitSpaces={() => handleWorkspaceModeChange('conversations')}
                 onClearCreateSpaceError={() => setCreateSpaceError(null)}
                 onClearCreateChannelError={() => setCreateChannelError(null)}
+                onClearJoinSpaceError={() => setJoinSpaceError(null)}
                 onRefetchSpaces={() => refetchSpaces()}
                 onRefetchChannels={() => refetchSpaceChannels()}
               />
@@ -2014,10 +2118,12 @@ const ChatPage = () => {
           isOffline={isOffline}
           isSessionExpired={isSessionExpired}
           isReconnecting={isReconnecting}
+          hasConversations={Boolean(chats && chats.length > 0)}
           messagesContainerRef={messagesContainerRef}
           messagesEndRef={messagesEndRef}
           emojiPickerRef={emojiPickerRef}
           onOpenSidebar={() => setIsSidebarOpen(true)}
+          onOpenContacts={() => setIsStartConversationOpen(true)}
           onStartAudioCall={handleStartAudioCall}
           onStartVideoCall={handleStartVideoCall}
           onToggleConversationMoreMenu={handleToggleConversationMoreMenu}
@@ -2183,6 +2289,18 @@ const ChatPage = () => {
             onReportMessage={handleReportMessage}
             onClose={closeContextMenu}
           />
+          <StartConversationDialog
+            isOpen={isStartConversationOpen}
+            contacts={contacts}
+            isLoading={isContactsLoading}
+            isError={isContactsError}
+            isCreatingChat={createChat.isPending}
+            onlineUsers={onlineUsers}
+            onSelectContact={handleSelectContact}
+            onStartNewChat={handleStartNewChatFromContacts}
+            onRetry={() => refetchContacts()}
+            onClose={() => setIsStartConversationOpen(false)}
+          />
           <SettingsModal
             isOpen={isSettingsOpen}
             onClose={() => setIsSettingsOpen(false)}
@@ -2218,7 +2336,7 @@ const ChatPage = () => {
         </>
       )}
     />
-    </div>
+    </main>
   );
 };
 

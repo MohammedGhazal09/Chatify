@@ -112,7 +112,7 @@ const onSubmit = async (data: SignupFormData) => {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
+    <main className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-green-500/10 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-green-400/5 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
@@ -149,6 +149,7 @@ const onSubmit = async (data: SignupFormData) => {
                     id="firstName"
                     {...register('firstName')}
                     type="text"
+                    autoComplete="given-name"
                     placeholder="Ahmed"
                     disabled={isSubmitting}
                     className={`w-full bg-gray-800 border ${errors.firstName ? 'border-red-500' : 'border-gray-700'} rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
@@ -169,6 +170,7 @@ const onSubmit = async (data: SignupFormData) => {
                     id="lastName"
                     {...register('lastName')}
                     type="text"
+                    autoComplete="family-name"
                     placeholder="Musa"
                     disabled={isSubmitting}
                     className={`w-full bg-gray-800 border ${errors.lastName ? 'border-red-500' : 'border-gray-700'} rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
@@ -190,6 +192,7 @@ const onSubmit = async (data: SignupFormData) => {
                   id="username"
                   {...register('username')}
                   type="text"
+                  autoComplete="username"
                   placeholder="ahmed.musa"
                   disabled={isSubmitting}
                   aria-invalid={errors.username ? 'true' : 'false'}
@@ -197,7 +200,7 @@ const onSubmit = async (data: SignupFormData) => {
                   className={`w-full bg-gray-800 border ${errors.username ? 'border-red-500' : 'border-gray-700'} rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
                 />
               </div>
-              <p id="username-helper" className="text-gray-500 text-sm mt-1">
+              <p id="username-helper" className="text-gray-400 text-sm mt-1">
                 Use 3-24 letters, numbers, dots, or underscores.
               </p>
               {errors.username && (
@@ -215,6 +218,7 @@ const onSubmit = async (data: SignupFormData) => {
                   id="email"
                   {...register('email')}
                   type="email"
+                  autoComplete="email"
                   placeholder="n@example.com"
                   disabled={isSubmitting}
                   className={`w-full bg-gray-800 border ${errors.email ? 'border-red-500' : 'border-gray-700'} rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
@@ -235,15 +239,17 @@ const onSubmit = async (data: SignupFormData) => {
                   id="password"
                   {...register('password')}
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   placeholder="********"
                   disabled={isSubmitting}
-                  className={`w-full bg-gray-800 border ${errors.password ? 'border-red-500' : 'border-gray-700'} rounded-xl pl-11 pr-11 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
+                  className={`w-full bg-gray-800 border ${errors.password ? 'border-red-500' : 'border-gray-700'} rounded-xl pl-11 pr-14 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="cursor-pointer absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  aria-pressed={showPassword}
+                  className="cursor-pointer absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-gray-500 transition-colors hover:bg-gray-700/70 hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
                 >
                   {showPassword ? <EyeOff className='cursor-pointer' size={18} /> : <Eye className='cursor-pointer' size={18} />}
                 </button>
@@ -280,7 +286,7 @@ const onSubmit = async (data: SignupFormData) => {
           {/* Divider */}
           <div className="my-6 flex items-center">
             <div className="flex-1 border-t border-gray-700"></div>
-            <span className="px-4 text-sm text-gray-500">or continue with</span>
+            <span className="px-4 text-sm text-gray-400">or continue with</span>
             <div className="flex-1 border-t border-gray-700"></div>
           </div>
 
@@ -289,6 +295,7 @@ const onSubmit = async (data: SignupFormData) => {
             {socialButtons.map(({ icon: Icon, label, color, onClick }) => (
               <button
                 key={label}
+                type="button"
                 onClick={onClick}
                 className={`flex items-center justify-center p-3 border border-gray-700 rounded-xl bg-gray-800/50 hover:bg-gray-700 ${color} transition-all transform hover:scale-105 active:scale-95 cursor-pointer`}
                 title={`Continue with ${label}`}
@@ -302,7 +309,7 @@ const onSubmit = async (data: SignupFormData) => {
 
         {/* Footer */}
         <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-400">
             Already have an account?{' '}
             <Link
               to="/login"
@@ -315,7 +322,7 @@ const onSubmit = async (data: SignupFormData) => {
         <div className="absolute -top-20 -right-20 w-40 h-40 bg-green-500/5 rounded-full blur-2xl animate-pulse"></div>
         <div className="absolute -bottom-20 -left-20 w-32 h-32 bg-green-400/5 rounded-full blur-2xl animate-pulse" style={{animationDelay: '3s'}}></div>
       </div>
-    </div>
+    </main>
   );
 };
 

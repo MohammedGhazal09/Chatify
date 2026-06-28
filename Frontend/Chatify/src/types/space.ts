@@ -35,6 +35,7 @@ export interface Space {
   defaultChannel?: string;
   defaultChannelId?: string;
   channels?: SpaceChannel[];
+  joinCode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +44,10 @@ export interface CreateSpacePayload {
   name: string;
   description?: string;
   memberUsernames?: string[];
+}
+
+export interface JoinSpacePayload {
+  joinCode: string;
 }
 
 export interface AddSpaceMemberPayload {

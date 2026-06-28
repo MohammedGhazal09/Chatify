@@ -6,6 +6,7 @@ import type {
   AddSpaceMemberPayload,
   CreateSpaceChannelPayload,
   CreateSpacePayload,
+  JoinSpacePayload,
   Space,
   SpaceChannel,
 } from '../types/space';
@@ -163,6 +164,23 @@ export const useCreateSpace = () => {
       if (channel) {
         upsertChannelInCache(queryClient, nextSpace._id, channel);
       }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: spacesQueryKey });
+    },
+  });
+};
+
+export const useJoinSpace = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<Space, unknown, JoinSpacePayload>({
+    mutationFn: async (payload) => {
+      const response = await spaceApi.joinSpace(payload);
+      return normalizeSpace(response.data.data.space);
+    },
+    onSuccess: (space) => {
+      upsertSpaceInCache(queryClient, space);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: spacesQueryKey });

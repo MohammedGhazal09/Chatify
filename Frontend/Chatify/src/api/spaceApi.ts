@@ -4,6 +4,7 @@ import type {
   AddSpaceMemberPayload,
   CreateSpaceChannelPayload,
   CreateSpacePayload,
+  JoinSpacePayload,
   Space,
   SpaceChannel,
 } from '../types/space';
@@ -46,6 +47,9 @@ export const spaceApi = {
 
   createSpace: (payload: CreateSpacePayload): Promise<AxiosResponse<SpaceResponse>> =>
     axiosInstance.post('/api/space', payload),
+
+  joinSpace: (payload: JoinSpacePayload): Promise<AxiosResponse<SpaceResponse>> =>
+    axiosInstance.post('/api/space/join', payload),
 
   addSpaceMember: (
     spaceId: string,

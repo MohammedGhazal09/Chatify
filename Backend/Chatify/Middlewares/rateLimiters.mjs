@@ -75,3 +75,13 @@ export const privacyRequestLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Throttle self-serve space join attempts to bound join-code guessing.
+export const spaceJoinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  skip: skipInTests,
+  message: { status: 'error', message: 'Too many join attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});

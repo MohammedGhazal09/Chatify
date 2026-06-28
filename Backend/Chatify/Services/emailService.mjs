@@ -38,7 +38,7 @@ export const sendPasswordResetEmail = async (email, resetCode) => {
     const htmlTemplate = HTMLTemplate(resetCode);
     return await sendBrevoEmail({
       to: email,
-      subject: 'Chatify Password Reset Code',
+      subject: 'Reset your Chatify password',
       htmlContent: htmlTemplate,
     });
   } catch (error) {

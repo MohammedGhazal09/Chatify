@@ -13,6 +13,7 @@ import {
   PUBLIC_SPACE_MEMBER_SELECT,
   canManageSpace,
   findSpaceMember,
+  generateJoinCode,
   normalizeChannelKey,
   normalizeSpaceRole,
   serializeChannel,
@@ -20,6 +21,7 @@ import {
   toIdString,
   validateChannelDescription,
   validateChannelName,
+  validateJoinCode,
   validateMemberUsernames,
   validateSpaceDescription,
   validateSpaceName,
@@ -30,6 +32,28 @@ const SPACE_NOT_FOUND_MESSAGE = 'Space not found';
 const SPACE_MEMBER_ERROR = 'We could not update that space member. Check the username and try again.';
 
 const isDuplicateKeyError = (error) => error?.code === 11000;
+
+const JOIN_CODE_MAX_ATTEMPTS = 5;
+
+// Relies on the unique joinCode index as the source of truth and retries on the rare
+// collision, rather than a check-then-create that has a time-of-check/time-of-use gap.
+const createSpaceWithUniqueJoinCode = async (attributes) => {
+  for (let attempt = 0; attempt < JOIN_CODE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await Spaces.create({ ...attributes, joinCode: generateJoinCode() });
+    } catch (error) {
+      // joinCode is the only unique index on Spaces, so a duplicate-key error here is a
+      // code collision; regenerate and retry until the final attempt.
+      if (isDuplicateKeyError(error) && attempt < JOIN_CODE_MAX_ATTEMPTS - 1) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new CustomError('Could not generate a unique join code. Please try again.', 500);
+};
 
 const populateSpacePublicFields = async (space) => {
   await space.populate('members.user', PUBLIC_SPACE_MEMBER_SELECT);
@@ -225,7 +249,7 @@ export const createSpace = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError(memberResolution.message, memberResolution.statusCode ?? 400));
   }
 
-  const space = await Spaces.create({
+  const space = await createSpaceWithUniqueJoinCode({
     name: nameValidation.value,
     description: descriptionValidation.value,
     owner: requesterId,
@@ -346,6 +370,106 @@ export const getSpace = asyncErrHandler(async (req, res, next) => {
     status: 'success',
     data: {
       space: serializeSpace(space, { requesterId, channels }),
+    },
+  });
+});
+
+export const joinSpace = asyncErrHandler(async (req, res, next) => {
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError('Not authorized to access this route', 401));
+  }
+
+  const codeValidation = validateJoinCode(req.body?.joinCode);
+  if (!codeValidation.ok) {
+    return next(new CustomError(codeValidation.message, codeValidation.statusCode ?? 400));
+  }
+
+  const space = await Spaces.findOne({ joinCode: codeValidation.value });
+
+  if (!space) {
+    return next(new CustomError(SPACE_NOT_FOUND_MESSAGE, 404));
+  }
+
+  if (findSpaceMember(space, requesterId)) {
+    return next(new CustomError('You are already a member of this space.', 409));
+  }
+
+  if ((space.members ?? []).length >= SPACE_LIMITS.members) {
+    return next(new CustomError(`Spaces can have up to ${SPACE_LIMITS.members} members.`, 400));
+  }
+
+  // Respect blocks between the joiner and the space owner without revealing the space exists.
+  const ownerId = toIdString(space.owner);
+  const unblockedIds = await filterUnblockedContactIds({
+    userId: requesterId,
+    contactIds: [ownerId],
+  });
+
+  if (unblockedIds.length !== 1) {
+    return next(new CustomError(SPACE_NOT_FOUND_MESSAGE, 404));
+  }
+
+  // Add the member atomically: only push when the requester is not already a member
+  // and the space is under its cap. This prevents lost updates and cap bypass when
+  // multiple users join the same space concurrently.
+  const joinedSpace = await Spaces.findOneAndUpdate(
+    {
+      _id: space._id,
+      'members.user': { $ne: requesterId },
+      [`members.${SPACE_LIMITS.members - 1}`]: { $exists: false },
+    },
+    // Set joinedAt explicitly: schema defaults are not applied to $push in updates.
+    { $push: { members: { user: requesterId, role: SPACE_ROLES.MEMBER, joinedAt: new Date() } } },
+    { new: true }
+  );
+
+  if (!joinedSpace) {
+    // Lost a concurrent race: resolve whether we are now a member or hit the cap.
+    const currentSpace = await Spaces.findById(space._id);
+
+    if (currentSpace && findSpaceMember(currentSpace, requesterId)) {
+      return next(new CustomError('You are already a member of this space.', 409));
+    }
+
+    return next(new CustomError(`Spaces can have up to ${SPACE_LIMITS.members} members.`, 400));
+  }
+
+  await Chats.updateMany(
+    { space: joinedSpace._id, isSpaceChannel: true },
+    { $addToSet: { members: requesterId } }
+  );
+
+  const channels = await listChannelsForSpace(joinedSpace._id);
+  channels.forEach((channel) => {
+    joinUserToChat(requesterId, channel._id);
+  });
+
+  await populateSpacePublicFields(joinedSpace);
+
+  try {
+    emitToUserSockets(requesterId, 'space:new', serializeSpace(joinedSpace, {
+      requesterId,
+      channels,
+    }));
+    await emitSpaceUpdate({
+      space: joinedSpace,
+      channels,
+      excludeUserIds: [requesterId],
+    });
+  } catch (error) {
+    logger.error('space.join_notification_failed', {
+      spaceId: joinedSpace._id.toString(),
+      requesterId,
+      error,
+    });
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      space: serializeSpace(joinedSpace, { requesterId, channels }),
     },
   });
 });

@@ -241,6 +241,19 @@ export const useChats = () => {
   });
 };
 
+export const useContacts = (enabled = true) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useQuery({
+    queryKey: usersQueryKey,
+    queryFn: async () => {
+      const response = await userApi.getAllUsers();
+      return response.data.users;
+    },
+    enabled: enabled && isAuthenticated,
+  });
+};
+
 export const useOnlinePresence = ({
   enabled = true,
   syncToStore = true,

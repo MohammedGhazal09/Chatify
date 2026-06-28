@@ -96,17 +96,33 @@ const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) 
 };
 
 describe('ConversationPane', () => {
-  it('renders the no selected chat state with a sidebar recovery action', async () => {
+  it('prompts to start a new conversation when there are no contacts or messages', async () => {
     const user = userEvent.setup();
+    const onOpenContacts = vi.fn();
+
+    renderConversationPane({ hasConversations: false, onOpenContacts });
+
+    expect(screen.getByRole('heading', { name: 'No conversations yet' })).toBeInTheDocument();
+    expect(screen.getByText('You have no contacts or messages yet. Start a new conversation to get going.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Start a new conversation' }));
+
+    expect(onOpenContacts).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the contacts picker and exposes a sidebar recovery action when conversations exist', async () => {
+    const user = userEvent.setup();
+    const onOpenContacts = vi.fn();
     const onOpenSidebar = vi.fn();
 
-    renderConversationPane({ onOpenSidebar });
+    renderConversationPane({ hasConversations: true, onOpenContacts, onOpenSidebar });
 
     expect(screen.getByRole('heading', { name: 'Select a conversation' })).toBeInTheDocument();
-    expect(screen.getByText('Open conversations and choose a chat, or start a new one from the sidebar.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open conversation' }));
+    expect(onOpenContacts).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('button', { name: 'Open conversations' }));
-
     expect(onOpenSidebar).toHaveBeenCalledTimes(1);
   });
 

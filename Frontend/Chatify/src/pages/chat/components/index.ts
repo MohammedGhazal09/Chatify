@@ -24,6 +24,8 @@ export { default as MessageList } from './MessageList';
 export { default as MessageSearchResults } from './MessageSearchResults';
 export { default as NewChatDialog } from './NewChatDialog';
 export { default as SpaceCreateDialog } from './SpaceCreateDialog';
+export { default as SpaceJoinDialog } from './SpaceJoinDialog';
 export { default as SpacesSidebar } from './SpacesSidebar';
+export { default as StartConversationDialog } from './StartConversationDialog';
 export { default as LazyEmojiPicker } from './LazyEmojiPicker';
 export { default as VoiceRecorderTray } from './VoiceRecorderTray';

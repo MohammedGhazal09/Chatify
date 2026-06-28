@@ -68,10 +68,12 @@ interface ConversationPaneProps {
   isOffline: boolean;
   isSessionExpired: boolean;
   isReconnecting: boolean;
+  hasConversations?: boolean;
   messagesContainerRef: RefObject<HTMLDivElement | null>;
   messagesEndRef: RefObject<HTMLDivElement | null>;
   emojiPickerRef: RefObject<HTMLDivElement | null>;
   onOpenSidebar: () => void;
+  onOpenContacts?: () => void;
   onStartAudioCall: () => void;
   onStartVideoCall: () => void;
   onToggleConversationMoreMenu: () => void;
@@ -177,10 +179,12 @@ const ConversationPane = ({
   isOffline,
   isSessionExpired,
   isReconnecting,
+  hasConversations = false,
   messagesContainerRef,
   messagesEndRef,
   emojiPickerRef,
   onOpenSidebar,
+  onOpenContacts,
   onStartAudioCall,
   onStartVideoCall,
   onToggleConversationMoreMenu,
@@ -221,15 +225,22 @@ const ConversationPane = ({
   const missingEncryptionSecret = encryptedConversation && !hasConversationSecret(selectedChat?._id);
 
   if (!selectedChat) {
+    const openContacts = onOpenContacts ?? onOpenSidebar;
+
     return (
       <ChatStateView
-        heading="Select a conversation"
-        body="Open conversations and choose a chat, or start a new one from the sidebar."
+        heading={hasConversations ? 'Select a conversation' : 'No conversations yet'}
+        body={hasConversations
+          ? 'Pick a contact to open a conversation, or start a new one.'
+          : 'You have no contacts or messages yet. Start a new conversation to get going.'}
         className="bg-[var(--chat-bg)]"
         primaryAction={{
-          label: 'Open conversations',
-          onClick: onOpenSidebar,
+          label: hasConversations ? 'Open conversation' : 'Start a new conversation',
+          onClick: openContacts,
         }}
+        secondaryAction={hasConversations
+          ? { label: 'Open conversations', onClick: onOpenSidebar }
+          : undefined}
       />
     );
   }

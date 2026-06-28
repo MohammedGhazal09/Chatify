@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { makeSpace, makeSpaceChannel } from '../../../test/chatFixtures';
@@ -18,15 +18,20 @@ const makeSpacesProps = (overrides: Partial<SpacesSidebarProps> = {}): SpacesSid
   isChannelsError: false,
   isCreatingSpace: false,
   isCreatingChannel: false,
+  isJoiningSpace: false,
   createSpaceError: null,
   createChannelError: null,
+  joinSpaceError: null,
   unreadCounts: new Map(),
   onSelectSpace: vi.fn(),
   onSelectChannel: vi.fn(),
   onCreateSpace: vi.fn(),
   onCreateChannel: vi.fn(),
+  onJoinSpace: vi.fn(),
+  onExitSpaces: vi.fn(),
   onClearCreateSpaceError: vi.fn(),
   onClearCreateChannelError: vi.fn(),
+  onClearJoinSpaceError: vi.fn(),
   onRefetchSpaces: vi.fn(),
   onRefetchChannels: vi.fn(),
   ...overrides,
@@ -45,11 +50,83 @@ describe('SpacesSidebar', () => {
     renderSpacesSidebar();
 
     expect(screen.getByText('No spaces yet')).toBeInTheDocument();
-    expect(screen.getByText('Create a private workspace when a conversation needs channels.')).toBeInTheDocument();
+    expect(screen.getByText('Create a private workspace, or join one with a code someone shared with you.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Create a space' }));
 
     expect(screen.getByRole('dialog', { name: 'Create space' })).toBeInTheDocument();
+  });
+
+  it('opens the join-space dialog and submits a normalized join code', async () => {
+    const user = userEvent.setup();
+    const onJoinSpace = vi.fn();
+
+    renderSpacesSidebar({ onJoinSpace });
+
+    await user.click(screen.getByRole('button', { name: 'Join space' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Join a space' });
+    expect(dialog).toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText('Join code'), 'abcd2345');
+    await user.click(within(dialog).getByRole('button', { name: 'Join space' }));
+
+    expect(onJoinSpace).toHaveBeenCalledWith({ joinCode: 'ABCD2345' });
+  });
+
+  it('lets users return to conversations from inside spaces', async () => {
+    const user = userEvent.setup();
+    const onExitSpaces = vi.fn();
+
+    renderSpacesSidebar({
+      spaces: [makeSpace()],
+      selectedSpaceId: 'space-1',
+      onExitSpaces,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Back to conversations' }));
+
+    expect(onExitSpaces).toHaveBeenCalledTimes(1);
+  });
+
+  it('reveals the shareable join code with a copy control only to managers', () => {
+    const manageableSpace = makeSpace({
+      _id: 'space-managed',
+      canManage: true,
+      requesterRole: 'owner',
+      joinCode: 'ABCD2345',
+    });
+
+    const { rerender } = render(
+      <SpacesSidebar
+        {...makeSpacesProps({
+          spaces: [manageableSpace],
+          selectedSpaceId: manageableSpace._id,
+        })}
+      />
+    );
+
+    expect(screen.getByText('ABCD2345')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy join code' })).toBeInTheDocument();
+
+    const memberSpace = makeSpace({
+      _id: 'space-member',
+      canManage: false,
+      requesterRole: 'member',
+      joinCode: undefined,
+    });
+
+    rerender(
+      <SpacesSidebar
+        {...makeSpacesProps({
+          spaces: [memberSpace],
+          selectedSpaceId: memberSpace._id,
+        })}
+      />
+    );
+
+    expect(screen.queryByText('ABCD2345')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy join code' })).not.toBeInTheDocument();
   });
 
   it('selects spaces and channels without rendering member email fields', async () => {

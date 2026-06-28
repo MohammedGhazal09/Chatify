@@ -1,14 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowLeft,
+  Check,
+  Copy,
   Hash,
+  LogIn,
   Plus,
   RefreshCw,
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import type { CreateSpaceChannelPayload, CreateSpacePayload, Space, SpaceChannel } from '../../../types/space';
+import type {
+  CreateSpaceChannelPayload,
+  CreateSpacePayload,
+  JoinSpacePayload,
+  Space,
+  SpaceChannel,
+} from '../../../types/space';
 import ChannelCreateDialog from './ChannelCreateDialog';
 import SpaceCreateDialog from './SpaceCreateDialog';
+import SpaceJoinDialog from './SpaceJoinDialog';
 
 interface SpacesSidebarProps {
   spaces: Space[] | undefined;
@@ -21,15 +32,20 @@ interface SpacesSidebarProps {
   isChannelsError: boolean;
   isCreatingSpace: boolean;
   isCreatingChannel: boolean;
+  isJoiningSpace: boolean;
   createSpaceError: string | null;
   createChannelError: string | null;
+  joinSpaceError: string | null;
   unreadCounts?: Map<string, number>;
   onSelectSpace: (spaceId: string) => void;
   onSelectChannel: (channelId: string) => void;
   onCreateSpace: (payload: CreateSpacePayload) => void;
   onCreateChannel: (payload: CreateSpaceChannelPayload) => void;
+  onJoinSpace: (payload: JoinSpacePayload) => void;
+  onExitSpaces: () => void;
   onClearCreateSpaceError: () => void;
   onClearCreateChannelError: () => void;
+  onClearJoinSpaceError: () => void;
   onRefetchSpaces: () => void;
   onRefetchChannels: () => void;
 }
@@ -79,24 +95,33 @@ const SpacesSidebar = ({
   isChannelsError,
   isCreatingSpace,
   isCreatingChannel,
+  isJoiningSpace,
   createSpaceError,
   createChannelError,
+  joinSpaceError,
   unreadCounts,
   onSelectSpace,
   onSelectChannel,
   onCreateSpace,
   onCreateChannel,
+  onJoinSpace,
+  onExitSpaces,
   onClearCreateSpaceError,
   onClearCreateChannelError,
+  onClearJoinSpaceError,
   onRefetchSpaces,
   onRefetchChannels,
 }: SpacesSidebarProps) => {
   const createSpaceButtonRef = useRef<HTMLButtonElement>(null);
+  const joinSpaceButtonRef = useRef<HTMLButtonElement>(null);
   const createChannelButtonRef = useRef<HTMLButtonElement>(null);
   const wasCreatingSpaceRef = useRef(false);
   const wasCreatingChannelRef = useRef(false);
+  const wasJoiningSpaceRef = useRef(false);
   const [isCreateSpaceOpen, setIsCreateSpaceOpen] = useState(false);
+  const [isJoinSpaceOpen, setIsJoinSpaceOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
+  const [copiedJoinCode, setCopiedJoinCode] = useState(false);
   const selectedSpace = useMemo(
     () => spaces?.find((space) => space._id === selectedSpaceId) ?? null,
     [selectedSpaceId, spaces]
@@ -111,6 +136,27 @@ const SpacesSidebar = ({
   }, [createSpaceError, isCreatingSpace]);
 
   useEffect(() => {
+    if (wasJoiningSpaceRef.current && !isJoiningSpace && !joinSpaceError) {
+      setIsJoinSpaceOpen(false);
+    }
+
+    wasJoiningSpaceRef.current = isJoiningSpace;
+  }, [isJoiningSpace, joinSpaceError]);
+
+  useEffect(() => {
+    if (!copiedJoinCode) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setCopiedJoinCode(false), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [copiedJoinCode]);
+
+  useEffect(() => {
+    setCopiedJoinCode(false);
+  }, [selectedSpaceId]);
+
+  useEffect(() => {
     if (wasCreatingChannelRef.current && !isCreatingChannel && !createChannelError) {
       setIsCreateChannelOpen(false);
     }
@@ -121,6 +167,20 @@ const SpacesSidebar = ({
   const closeCreateSpace = () => {
     setIsCreateSpaceOpen(false);
     onClearCreateSpaceError();
+  };
+
+  const closeJoinSpace = () => {
+    setIsJoinSpaceOpen(false);
+    onClearJoinSpaceError();
+  };
+
+  const copyJoinCode = async (joinCode: string) => {
+    try {
+      await navigator.clipboard?.writeText(joinCode);
+      setCopiedJoinCode(true);
+    } catch {
+      setCopiedJoinCode(false);
+    }
   };
 
   const closeCreateChannel = () => {
@@ -135,15 +195,38 @@ const SpacesSidebar = ({
           <h2 className="text-sm font-semibold text-[var(--chat-text-muted)]">Spaces</h2>
           <p className="truncate text-xs text-[var(--chat-text-soft)]">Private workrooms and channels</p>
         </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            ref={joinSpaceButtonRef}
+            type="button"
+            onClick={() => setIsJoinSpaceOpen(true)}
+            className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            aria-label="Join space"
+            title="Join space"
+          >
+            <LogIn aria-hidden="true" className="h-4 w-4" />
+          </button>
+          <button
+            ref={createSpaceButtonRef}
+            type="button"
+            onClick={() => setIsCreateSpaceOpen(true)}
+            className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] text-[var(--chat-own-text)] hover:bg-[var(--chat-accent-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            aria-label="Create space"
+            title="Create space"
+          >
+            <Plus aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="border-b border-[var(--chat-border)] px-3 py-2">
         <button
-          ref={createSpaceButtonRef}
           type="button"
-          onClick={() => setIsCreateSpaceOpen(true)}
-          className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] text-[var(--chat-own-text)] hover:bg-[var(--chat-accent-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-          aria-label="Create space"
-          title="Create space"
+          onClick={onExitSpaces}
+          className="inline-flex min-h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-1.5 text-sm font-semibold text-[var(--chat-text-muted)] transition hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
         >
-          <Plus aria-hidden="true" className="h-4 w-4" />
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          Back to conversations
         </button>
       </div>
 
@@ -203,15 +286,24 @@ const SpacesSidebar = ({
           <div className="flex min-h-[190px] flex-col items-center justify-center gap-3 p-4 text-center text-sm text-[var(--chat-text-muted)]" role="status">
             <div className="space-y-1">
               <p className="font-semibold text-[var(--chat-text)]">No spaces yet</p>
-              <p className="max-w-[240px]">Create a private workspace when a conversation needs channels.</p>
+              <p className="max-w-[240px]">Create a private workspace, or join one with a code someone shared with you.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsCreateSpaceOpen(true)}
-              className="min-h-9 cursor-pointer rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-1.5 text-sm font-semibold text-[var(--chat-accent)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-            >
-              Create a space
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateSpaceOpen(true)}
+                className="min-h-9 cursor-pointer rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-1.5 text-sm font-semibold text-[var(--chat-accent)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+              >
+                Create a space
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsJoinSpaceOpen(true)}
+                className="min-h-9 cursor-pointer rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-3 py-1.5 text-sm font-semibold text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+              >
+                Join a space
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -244,6 +336,33 @@ const SpacesSidebar = ({
             </button>
           ) : null}
         </div>
+
+        {selectedSpace?.canManage && selectedSpace.joinCode ? (
+          <div className="flex items-center justify-between gap-2 border-b border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] px-4 py-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--chat-text-soft)]">Join code</p>
+              <p className="truncate font-mono text-sm font-semibold tracking-[0.2em] text-[var(--chat-text)]">{selectedSpace.joinCode}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => copyJoinCode(selectedSpace.joinCode as string)}
+              className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] px-2.5 py-1 text-xs font-semibold text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+              aria-label={copiedJoinCode ? 'Join code copied' : 'Copy join code'}
+            >
+              {copiedJoinCode ? (
+                <>
+                  <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy aria-hidden="true" className="h-3.5 w-3.5" />
+                  Copy
+                </>
+              )}
+            </button>
+          </div>
+        ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto chat-sidebar-scroll">
           {!selectedSpace ? (
@@ -332,6 +451,15 @@ const SpacesSidebar = ({
         onSubmit={onCreateSpace}
         onClearError={onClearCreateSpaceError}
         onClose={closeCreateSpace}
+      />
+      <SpaceJoinDialog
+        isOpen={isJoinSpaceOpen}
+        error={joinSpaceError}
+        isSubmitting={isJoiningSpace}
+        openerRef={joinSpaceButtonRef}
+        onSubmit={onJoinSpace}
+        onClearError={onClearJoinSpaceError}
+        onClose={closeJoinSpace}
       />
       <ChannelCreateDialog
         isOpen={isCreateChannelOpen}

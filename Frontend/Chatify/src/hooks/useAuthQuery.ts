@@ -9,6 +9,12 @@ import { useEffect } from 'react'
 
 export const activeSessionsQueryKey = ['activeSessions'] as const
 
+const publicAuthRoutes = new Set(['/login', '/signup', '/forgot-password'])
+
+const isPublicAuthRoute = () => (
+  typeof window !== 'undefined' && publicAuthRoutes.has(window.location.pathname)
+)
+
 // Initialize auth check on app load
 export const useAuthInit = () => {
   const setUser = useAuthStore((state) => state.setUser)
@@ -18,6 +24,20 @@ export const useAuthInit = () => {
     queryKey: ['auth'],
     queryFn: async () => {
       await authApi.fetchCSRFToken()
+      const authStatus = await authApi.checkAuth()
+
+      if (!authStatus.data.token) {
+        if (isPublicAuthRoute()) {
+          return null
+        }
+
+        try {
+          await authApi.refreshToken()
+        } catch {
+          return null
+        }
+      }
+
       try {
         const userResponse = await authApi.getLoggedUser()
         return userResponse.data.user

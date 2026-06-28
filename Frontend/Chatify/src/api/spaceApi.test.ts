@@ -33,6 +33,12 @@ describe('spaceApi', () => {
     expect(axiosMock.post).toHaveBeenCalledWith('/api/space', payload);
   });
 
+  it('builds the self-serve join route from a join code', () => {
+    spaceApi.joinSpace({ joinCode: 'ABCD2345' });
+
+    expect(axiosMock.post).toHaveBeenCalledWith('/api/space/join', { joinCode: 'ABCD2345' });
+  });
+
   it('builds channel and member routes without accepting email identifiers', () => {
     spaceApi.getSpaceChannels('space-1');
     spaceApi.createSpaceChannel('space-1', { name: 'announcements', description: 'Updates' });

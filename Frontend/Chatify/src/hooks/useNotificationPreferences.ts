@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { userApi } from '../api/userApi';
 import type {
   NotificationPreferencePatch,
@@ -116,6 +116,7 @@ export const useNotificationPreferences = (userId?: string | null) => {
   const [preferences, setPreferences] = useState<NotificationPreferences>(() => (
     readNotificationPreferences(userId)
   ));
+  const preferencesRef = useRef(preferences);
   const [isLoadingServerPreferences, setIsLoadingServerPreferences] = useState(false);
   const [isSavingServerPreferences, setIsSavingServerPreferences] = useState(false);
   const [serverPreferenceError, setServerPreferenceError] = useState<string | null>(null);
@@ -125,7 +126,19 @@ export const useNotificationPreferences = (userId?: string | null) => {
   ), [userId]);
 
   useEffect(() => {
-    setPreferences(readNotificationPreferences(userId));
+    preferencesRef.current = preferences;
+  }, [preferences]);
+
+  const setAndPersistPreferences = useCallback((nextPreferences: NotificationPreferences) => {
+    preferencesRef.current = nextPreferences;
+    setPreferences(nextPreferences);
+    writeNotificationPreferences(userId, nextPreferences);
+  }, [userId]);
+
+  useEffect(() => {
+    const nextPreferences = readNotificationPreferences(userId);
+    preferencesRef.current = nextPreferences;
+    setPreferences(nextPreferences);
   }, [userId]);
 
   useEffect(() => {
@@ -140,16 +153,15 @@ export const useNotificationPreferences = (userId?: string | null) => {
 
     userApi.getNotificationPreferences()
       .then((response) => {
-        if (!isActive) {
-          return;
-        }
+      if (!isActive) {
+        return;
+      }
 
-        setServerPreferenceError(null);
-        setPreferences((current) => {
-          const next = mergeServerPreferences(current, response.data.data.preferences);
-          writeNotificationPreferences(userId, next);
-          return next;
-        });
+      setServerPreferenceError(null);
+      setAndPersistPreferences(mergeServerPreferences(
+        preferencesRef.current,
+        response.data.data.preferences
+      ));
       })
       .catch(() => {
         if (isActive) {
@@ -165,7 +177,7 @@ export const useNotificationPreferences = (userId?: string | null) => {
     return () => {
       isActive = false;
     };
-  }, [userId]);
+  }, [setAndPersistPreferences, userId]);
 
   useEffect(() => {
     if (!storageKey) {
@@ -185,12 +197,8 @@ export const useNotificationPreferences = (userId?: string | null) => {
   const updatePreferences = useCallback((
     updater: (current: NotificationPreferences) => NotificationPreferences
   ) => {
-    setPreferences((current) => {
-      const next = updater(current);
-      writeNotificationPreferences(userId, next);
-      return next;
-    });
-  }, [userId]);
+    setAndPersistPreferences(updater(preferencesRef.current));
+  }, [setAndPersistPreferences]);
 
   const setSoundPreference = useCallback((enabled: boolean) => {
     updatePreferences((current) => ({ ...current, soundEnabled: enabled }));
@@ -206,27 +214,25 @@ export const useNotificationPreferences = (userId?: string | null) => {
       return;
     }
 
-    const previous = preferences;
+    const previous = preferencesRef.current;
     setServerPreferenceError(null);
     setIsSavingServerPreferences(true);
     updatePreferences((current) => ({ ...current, ...patch }));
 
     try {
       const response = await userApi.updateNotificationPreferences(patch);
-      setPreferences((current) => {
-        const next = mergeServerPreferences(current, response.data.data.preferences);
-        writeNotificationPreferences(userId, next);
-        return next;
-      });
+      setAndPersistPreferences(mergeServerPreferences(
+        preferencesRef.current,
+        response.data.data.preferences
+      ));
     } catch {
-      setPreferences(previous);
-      writeNotificationPreferences(userId, previous);
+      setAndPersistPreferences(previous);
       setServerPreferenceError('Notification preferences could not be saved.');
       throw new Error('Notification preferences could not be saved.');
     } finally {
       setIsSavingServerPreferences(false);
     }
-  }, [preferences, updatePreferences, userId]);
+  }, [setAndPersistPreferences, updatePreferences, userId]);
 
   const setPushNotificationsEnabled = useCallback((enabled: boolean) => (
     updateServerPreferences({ pushEnabled: enabled })
@@ -246,18 +252,17 @@ export const useNotificationPreferences = (userId?: string | null) => {
 
     try {
       const response = await userApi.registerPushSubscription(subscription);
-      setPreferences((current) => {
-        const next = mergeServerPreferences(current, response.data.data.preferences);
-        writeNotificationPreferences(userId, next);
-        return next;
-      });
+      setAndPersistPreferences(mergeServerPreferences(
+        preferencesRef.current,
+        response.data.data.preferences
+      ));
     } catch {
       setServerPreferenceError('Push notifications could not be enabled.');
       throw new Error('Push notifications could not be enabled.');
     } finally {
       setIsSavingServerPreferences(false);
     }
-  }, [userId]);
+  }, [setAndPersistPreferences, userId]);
 
   const muteChat = useCallback((chatId: string) => {
     updatePreferences((current) => ({
@@ -268,22 +273,21 @@ export const useNotificationPreferences = (userId?: string | null) => {
     }));
 
     if (userId) {
-      const nextMutedChatIds = preferences.mutedChatIds.includes(chatId)
-        ? preferences.mutedChatIds
-        : [...preferences.mutedChatIds, chatId];
+      const nextMutedChatIds = preferencesRef.current.mutedChatIds.includes(chatId)
+        ? preferencesRef.current.mutedChatIds
+        : [...preferencesRef.current.mutedChatIds, chatId];
       userApi.updateNotificationPreferences({ mutedChatIds: nextMutedChatIds })
         .then((response) => {
-          setPreferences((current) => {
-            const next = mergeServerPreferences(current, response.data.data.preferences);
-            writeNotificationPreferences(userId, next);
-            return next;
-          });
+          setAndPersistPreferences(mergeServerPreferences(
+            preferencesRef.current,
+            response.data.data.preferences
+          ));
         })
         .catch(() => {
           setServerPreferenceError('Notification mute could not be saved to the server.');
         });
     }
-  }, [preferences.mutedChatIds, updatePreferences, userId]);
+  }, [setAndPersistPreferences, updatePreferences, userId]);
 
   const unmuteChat = useCallback((chatId: string) => {
     updatePreferences((current) => ({
@@ -293,20 +297,19 @@ export const useNotificationPreferences = (userId?: string | null) => {
 
     if (userId) {
       userApi.updateNotificationPreferences({
-        mutedChatIds: preferences.mutedChatIds.filter((mutedChatId) => mutedChatId !== chatId),
+        mutedChatIds: preferencesRef.current.mutedChatIds.filter((mutedChatId) => mutedChatId !== chatId),
       })
         .then((response) => {
-          setPreferences((current) => {
-            const next = mergeServerPreferences(current, response.data.data.preferences);
-            writeNotificationPreferences(userId, next);
-            return next;
-          });
+          setAndPersistPreferences(mergeServerPreferences(
+            preferencesRef.current,
+            response.data.data.preferences
+          ));
         })
         .catch(() => {
           setServerPreferenceError('Notification mute could not be saved to the server.');
         });
     }
-  }, [preferences.mutedChatIds, updatePreferences, userId]);
+  }, [setAndPersistPreferences, updatePreferences, userId]);
 
   const isChatMuted = useCallback((chatId: string) => (
     preferences.mutedChatIds.includes(chatId)

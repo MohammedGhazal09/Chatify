@@ -11,14 +11,15 @@ import {
 import { useForm } from "react-hook-form";
 
 type Step = "email" | "code" | "password";
-type EmailFormData = { email?: string };
-type CodeFormData = { email?: string; code?: string };
-type PasswordFormData = {
+type PasswordResetFormData = {
   email?: string;
   code?: string;
   newPassword?: string;
   confirmPassword?: string;
 };
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const ForgotPassword = () => {
   const step = useRef<Step>("email");
   const responseMsg = useRef<string>("");
@@ -35,7 +36,7 @@ const ForgotPassword = () => {
     formState: { errors, isSubmitting },
     setError,
     clearErrors,
-  } = useForm<EmailFormData | CodeFormData | PasswordFormData>({
+  } = useForm<PasswordResetFormData>({
     mode: "onChange",
   });
 
@@ -55,7 +56,7 @@ const ForgotPassword = () => {
     }
   };
 
-  const handleSendCode = async (data: EmailFormData) => {
+  const handleSendCode = async (data: PasswordResetFormData) => {
     clearErrors("root");
     forgotPasswordMutation.mutate(data.email!, {
       onSuccess: (response) => {
@@ -94,7 +95,7 @@ const ForgotPassword = () => {
     setResendAttempts((attempts) => attempts + 1);
   };
 
-  const handleVerifyCode = async (data: CodeFormData) => {
+  const handleVerifyCode = async (data: PasswordResetFormData) => {
     clearErrors("root");
     verifyResetCodeMutation.mutate(
       { email: data.email!, code: data.code! },
@@ -114,7 +115,7 @@ const ForgotPassword = () => {
     );
   };
 
-  const handleResetPassword = async (data: PasswordFormData) => {
+  const handleResetPassword = async (data: PasswordResetFormData) => {
     clearErrors("root");
     if (data.newPassword !== data.confirmPassword) {
       setError("root", {
@@ -143,7 +144,7 @@ const ForgotPassword = () => {
   };
   
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
+    <main className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background effects - same as login */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-green-500/10 rounded-full blur-3xl animate-pulse"></div>
@@ -189,16 +190,16 @@ const ForgotPassword = () => {
           </div>
 
           {errors.root && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6">
+            <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6">
               <p className="text-sm">{errors.root?.message}</p>
             </div>
           )}
 
           {/* Email Step */}
           {step.current === "email" && (
-            <form onSubmit={handleSubmit(handleSendCode)} className="space-y-6">
+            <form noValidate onSubmit={handleSubmit(handleSendCode)} className="space-y-6">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">
+                <label htmlFor="reset-email" className="block text-sm font-medium text-gray-300">
                   Email Address
                 </label>
                 <div className="relative">
@@ -207,20 +208,37 @@ const ForgotPassword = () => {
                     size={18}
                   />
                   <input
+                    id="reset-email"
                     type="email"
-                    {...register("email", { required: true })}
+                    autoComplete="email"
+                    {...register("email", {
+                      required: "Email address is required.",
+                      pattern: {
+                        value: EMAIL_PATTERN,
+                        message: "Enter a valid email address.",
+                      },
+                    })}
                     placeholder="you@example.com"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                    aria-invalid={errors.email ? "true" : "false"}
+                    aria-describedby={errors.email ? "reset-email-error" : undefined}
+                    className={`w-full bg-gray-800 border ${
+                      errors.email ? "border-red-500" : "border-gray-700"
+                    } rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500`}
                   />
                 </div>
+                {errors.email && (
+                  <p id="reset-email-error" role="alert" className="text-red-400 text-sm mt-1">
+                    {errors.email.message}
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || forgotPasswordMutation.isPending}
                 className="cursor-pointer w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {isSubmitting ? (
+                {isSubmitting || forgotPasswordMutation.isPending ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <>Send Reset Code</>
@@ -232,11 +250,12 @@ const ForgotPassword = () => {
           {/* Code Step */}
           {step.current === "code" && (
             <form
+              noValidate
               onSubmit={handleSubmit(handleVerifyCode)}
               className="space-y-6"
             >
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">
+                <label htmlFor="reset-code" className="block text-sm font-medium text-gray-300">
                   Verification Code
                 </label>
                 <div className="relative">
@@ -245,19 +264,34 @@ const ForgotPassword = () => {
                     size={18}
                   />
                   <input
+                    id="reset-code"
                     type="text"
                     {...register("code", {
-                      required: true,
+                      required: "Verification code is required.",
+                      minLength: {
+                        value: 6,
+                        message: "Enter the 6-digit verification code.",
+                      },
                       onChange: (event) => {
                         event.target.value = event.target.value.replace(/\D/g, "");
                       },
                     })}
                     placeholder="123456"
-                    required
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
                     maxLength={6}
-                    className="scrollbar-none overflow-hidden w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-center text-2xl tracking-wider"
+                    aria-invalid={errors.code ? "true" : "false"}
+                    aria-describedby={errors.code ? "reset-code-error" : undefined}
+                    className={`scrollbar-none overflow-hidden w-full bg-gray-800 border ${
+                      errors.code ? "border-red-500" : "border-gray-700"
+                    } rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 text-center text-2xl tracking-wider`}
                   />
                 </div>
+                {errors.code && (
+                  <p id="reset-code-error" role="alert" className="text-red-400 text-sm mt-1">
+                    {errors.code.message}
+                  </p>
+                )}
               </div>
               {responseMsg.current && (
                 <div className="bg-green-500/10 border border-green-500/20 text-green-400 px-4 py-3 rounded-xl mb-6">
@@ -271,10 +305,10 @@ const ForgotPassword = () => {
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || verifyResetCodeMutation.isPending}
                 className="cursor-pointer w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50"
               >
-                {isSubmitting ? (
+                {isSubmitting || verifyResetCodeMutation.isPending ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
                 ) : (
                   "Verify Code"
@@ -297,11 +331,12 @@ const ForgotPassword = () => {
           {/* Password Step */}
           {step.current === "password" && (
             <form
+              noValidate
               onSubmit={handleSubmit(handleResetPassword)}
               className="space-y-6"
             >
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">
+                <label htmlFor="new-password" className="block text-sm font-medium text-gray-300">
                   New Password
                 </label>
                 <div className="relative">
@@ -310,19 +345,33 @@ const ForgotPassword = () => {
                     size={18}
                   />
                   <input
+                    id="new-password"
                     type={"password"}
                     {...register("newPassword", {
-                      required: true,
+                      required: "New password is required.",
+                      minLength: {
+                        value: 8,
+                        message: "Password must be at least 8 characters.",
+                      },
                     })}
-                    minLength={8}
+                    autoComplete="new-password"
                     placeholder="********"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                    aria-invalid={errors.newPassword ? "true" : "false"}
+                    aria-describedby={errors.newPassword ? "new-password-error" : undefined}
+                    className={`w-full bg-gray-800 border ${
+                      errors.newPassword ? "border-red-500" : "border-gray-700"
+                    } rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500`}
                   />
                 </div>
+                {errors.newPassword && (
+                  <p id="new-password-error" role="alert" className="text-red-400 text-sm mt-1">
+                    {errors.newPassword.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-300">
+                <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-300">
                   Confirm Password
                 </label>
                 <div className="relative">
@@ -331,23 +380,33 @@ const ForgotPassword = () => {
                     size={18}
                   />
                   <input
+                    id="confirm-password"
                     type={"password"}
                     {...register("confirmPassword", {
+                      required: "Confirm your new password.",
                     })}
-                    required
-                    minLength={8}
+                    autoComplete="new-password"
                     placeholder="********"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                    aria-invalid={errors.confirmPassword ? "true" : "false"}
+                    aria-describedby={errors.confirmPassword ? "confirm-password-error" : undefined}
+                    className={`w-full bg-gray-800 border ${
+                      errors.confirmPassword ? "border-red-500" : "border-gray-700"
+                    } rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500`}
                   />
                 </div>
+                {errors.confirmPassword && (
+                  <p id="confirm-password-error" role="alert" className="text-red-400 text-sm mt-1">
+                    {errors.confirmPassword.message}
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || resetPasswordMutation.isPending}
                 className="cursor-pointer w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50"
               >
-                {isSubmitting ? (
+                {isSubmitting || resetPasswordMutation.isPending ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
                 ) : (
                   "Reset Password"
@@ -366,7 +425,7 @@ const ForgotPassword = () => {
           </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 };
 

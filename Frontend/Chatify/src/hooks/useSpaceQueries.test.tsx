@@ -10,6 +10,7 @@ import {
   spacesQueryKey,
   useCreateSpace,
   useCreateSpaceChannel,
+  useJoinSpace,
   useSpaceChannels,
   useSpaces,
 } from './useSpaceQueries';
@@ -19,6 +20,7 @@ vi.mock('../api/spaceApi', () => ({
     getSpaces: vi.fn(),
     getSpaceChannels: vi.fn(),
     createSpace: vi.fn(),
+    joinSpace: vi.fn(),
     createSpaceChannel: vi.fn(),
     addSpaceMember: vi.fn(),
     removeSpaceMember: vi.fn(),
@@ -110,6 +112,37 @@ describe('useSpaceQueries', () => {
     ]);
     expect(queryClient.getQueryData(spaceChannelsQueryKey('space-created'))).toEqual([
       expect.objectContaining({ _id: 'channel-created' }),
+    ]);
+  });
+
+  it('joins a space by code and caches the returned space and channel', async () => {
+    const channel = makeSpaceChannel({ _id: 'channel-joined', channelName: 'general' });
+    const space = makeSpace({
+      _id: 'space-joined',
+      requesterRole: 'member',
+      canManage: false,
+      defaultChannelId: channel._id,
+      channels: [channel],
+    });
+
+    vi.mocked(spaceApi.joinSpace).mockResolvedValueOnce({
+      data: { status: 'success', data: { space } },
+    } as Awaited<ReturnType<typeof spaceApi.joinSpace>>);
+
+    const { result } = renderHook(() => useJoinSpace(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ joinCode: 'ABCD2345' });
+    });
+
+    expect(spaceApi.joinSpace).toHaveBeenCalledWith({ joinCode: 'ABCD2345' });
+    expect(queryClient.getQueryData(spacesQueryKey)).toEqual([
+      expect.objectContaining({ _id: 'space-joined', requesterRole: 'member' }),
+    ]);
+    expect(queryClient.getQueryData(spaceChannelsQueryKey('space-joined'))).toEqual([
+      expect.objectContaining({ _id: 'channel-joined' }),
     ]);
   });
 

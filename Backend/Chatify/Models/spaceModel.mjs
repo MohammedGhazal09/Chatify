@@ -71,6 +71,13 @@ const spaceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Chats',
   },
+  joinCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    unique: true,
+    sparse: true,
+  },
 }, {
   timestamps: true,
   versionKey: false,

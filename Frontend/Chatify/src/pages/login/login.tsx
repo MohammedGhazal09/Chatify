@@ -137,7 +137,7 @@ const Login = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
+    <main className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-green-500/10 rounded-full blur-3xl animate-pulse"></div>
         <div
@@ -191,6 +191,7 @@ const Login = () => {
                   id="email"
                   {...register("email")}
                   type="email"
+                  autoComplete="email"
                   placeholder="n@example.com"
                   disabled={isSubmitting}
                   className={`w-full bg-gray-800 border ${
@@ -222,16 +223,19 @@ const Login = () => {
                   id="password"
                   {...register("password")}
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   placeholder="********"
                   disabled={isSubmitting}
                   className={`w-full bg-gray-800 border ${
                     errors.password ? "border-red-500" : "border-gray-700"
-                  } rounded-xl pl-11 pr-11 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
+                  } rounded-xl pl-11 pr-14 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="cursor-pointer absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  className="cursor-pointer absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-gray-500 transition-colors hover:bg-gray-700/70 hover:text-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
                 >
                   {showPassword ? (
                     <EyeOff className="cursor-pointer" size={18} />
@@ -307,9 +311,11 @@ const Login = () => {
             {socialButtons.map(({ icon: Icon, label, color, onClick }) => (
               <button
                 key={label}
+                type="button"
                 onClick={onClick}
                 className={`flex items-center justify-center p-3 border border-gray-700 rounded-xl bg-gray-800/50 hover:bg-gray-700 ${color} transition-all transform hover:scale-105 active:scale-95 cursor-pointer`}
                 title={`Continue with ${label}`}
+                aria-label={`Continue with ${label}`}
               >
                 <Icon size={20} />
               </button>
@@ -336,7 +342,7 @@ const Login = () => {
           style={{ animationDelay: "3s" }}
         ></div>
       </div>
-    </div>
+    </main>
   );
 };
 

@@ -1,9 +1,14 @@
+import { randomInt } from 'node:crypto';
 import { SPACE_LIMITS, SPACE_ROLES } from '../Models/spaceModel.mjs';
 import { validateUsername } from './usernameValidation.mjs';
 
 export { SPACE_LIMITS, SPACE_ROLES };
 
 export const DEFAULT_SPACE_CHANNEL_NAME = 'general';
+export const JOIN_CODE_LENGTH = 8;
+// Unambiguous alphabet: no 0/O/1/I to keep shared codes easy to read and type.
+const JOIN_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const JOIN_CODE_PATTERN = /^[A-Z0-9]+$/;
 export const PUBLIC_SPACE_MEMBER_SELECT = 'username firstName lastName profilePic profileBio profileStatus showProfileStatus identityMark identityMarkUpdatedAt';
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
@@ -152,6 +157,26 @@ export const normalizeSpaceRole = (value) => (
   value === SPACE_ROLES.ADMIN ? SPACE_ROLES.ADMIN : SPACE_ROLES.MEMBER
 );
 
+export const generateJoinCode = () => {
+  let code = '';
+
+  for (let index = 0; index < JOIN_CODE_LENGTH; index += 1) {
+    code += JOIN_CODE_ALPHABET[randomInt(JOIN_CODE_ALPHABET.length)];
+  }
+
+  return code;
+};
+
+export const validateJoinCode = (value) => {
+  const normalized = String(value ?? '').trim().toUpperCase();
+
+  if (normalized.length !== JOIN_CODE_LENGTH || !JOIN_CODE_PATTERN.test(normalized)) {
+    return fail('Enter a valid join code.');
+  }
+
+  return { ok: true, value: normalized };
+};
+
 export const findSpaceMember = (space, userId) => {
   const targetId = toIdString(userId);
 
@@ -244,6 +269,7 @@ export const serializeSpace = (space, { requesterId, channels = [] } = {}) => {
   const spaceId = toIdString(spaceObject);
   const defaultChannelId = toIdString(spaceObject.defaultChannel);
   const requesterMember = requesterId ? findSpaceMember(space, requesterId) : null;
+  const canManage = requesterId ? canManageSpace(space, requesterId) : false;
 
   return {
     _id: spaceId,
@@ -253,7 +279,9 @@ export const serializeSpace = (space, { requesterId, channels = [] } = {}) => {
     owner: toIdString(spaceObject.owner),
     createdBy: toIdString(spaceObject.createdBy),
     requesterRole: requesterMember?.role ?? null,
-    canManage: requesterId ? canManageSpace(space, requesterId) : false,
+    canManage,
+    // The join code is shareable, so only expose it to members who can manage the space.
+    ...(canManage && spaceObject.joinCode ? { joinCode: spaceObject.joinCode } : {}),
     members: (space.members ?? []).map(serializeSpaceMember),
     memberCount: (space.members ?? []).length,
     defaultChannel: defaultChannelId,
