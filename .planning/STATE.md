@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 41 complete locally; release-candidate smoke and remaining backlog refresh are next.
-stopped_at: Completed Phase 41 localization and RTL review, verification, and traceability.
-last_updated: "2026-06-21T04:50:18.035+03:00"
-last_activity: 2026-06-21
+status: Phase 41 complete locally; quick task 260628-c0w installed the Reactflow tracking script.
+stopped_at: Completed quick task 260628-c0w: Install Reactflow tracking script in the frontend document head.
+last_updated: "2026-06-28T08:41:21.669+03:00"
+last_activity: 2026-06-28
 progress:
   total_phases: 42
   completed_phases: 41
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 Phase: 41
 Plan: Complete
 Status: Phase 41 locale runtime, Settings/account localization, admin localization, message text direction coverage, review, verification, and traceability are complete locally.
-Last activity: 2026-06-21
+Last activity: 2026-06-28 - Completed quick task 260628-c0w: Install Reactflow tracking script in the frontend document head
 
 Progress: Phase 20 through Phase 24 are complete locally. Phase 23 is closed by reconciliation against the existing `deletedFor` visibility model and group-message tests. Phase 25 is recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 implemented the protected reviewer UI, privacy-safe report queue/detail, scoped warning/restriction/content-removal enforcement, reviewer notes, and follow-up realtime content-removal fanout. Phase 32 implemented server-side push/email notification runtime with opt-in preferences, mute/block eligibility, privacy-safe templates, outbox processing, sanitized provider outcomes, frontend settings controls, and local verification. Phase 33 implemented per-user conversation organization for mute/archive/pin/favorite state, sidebar focus filters, pinned ordering, selected archived conversation continuity, and realtime cache synchronization. Phase 34 implemented advanced selected-conversation search with sender/date/type filters, media/file/voice/link filtering, active attachment metadata matching, and authorized jump-to-message context windows. Phase 35 implemented session/device management with active-session listing, safe labels, individual revocation, log out everywhere, and session-bound HTTP/Socket.IO enforcement. Phase 36 implemented opt-in encrypted conversation mode with separate encrypted direct chats, encrypted message envelopes, local browser encryption/decryption, generic notifications, disabled unsupported search/attachment/edit workflows, and honest limitation copy. Phase 37 implemented profile bio/status fields, Settings privacy controls, block-aware presence, stale-status clearing, and conversation profile surfaces without exposing email. Phase 38 implemented bounded private spaces and chat-backed text channels with username-only membership, owner/admin role checks, existing message/realtime/notification/moderation integration, a frontend Spaces workspace, channel selection through the existing conversation pane, and final local review/verification traceability. Phase 39 implemented authenticated account export, metadata-only privacy audits, reversible deletion requests, retention summaries, Settings portability controls, and focused local verification. Phase 40 implemented moderation appeals, admin assignment, enforcement history, operations metrics, Settings account-safety appeals, reviewer UI workflows, and local review/verification traceability. Phase 41 implemented English/Arabic locale runtime, Settings language control, representative Settings/admin localization, locale-aware dates, message text bidi direction, RTL tests, and local review/verification traceability.
 
@@ -198,6 +198,12 @@ Recent decisions affecting current work:
 - Phase 19 execution must not be used to imply release readiness; it is product polish and notification UX only.
 - Username and group phases must not expose email in public discovery, participant lists, realtime events, logs, traces, screenshots, or test fixtures.
 - Current CI has been upgraded locally; remote branch protection still needs maintainer configuration after the workflow is pushed.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260628-c0w | Install Reactflow tracking script in the frontend document head | 2026-06-28 | 3676505 | [260628-c0w-install-reactflow-tracking-script-in-the](./quick/260628-c0w-install-reactflow-tracking-script-in-the/) |
 
 ## Deferred Items
 
