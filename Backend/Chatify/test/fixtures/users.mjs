@@ -1,6 +1,7 @@
 import User from '../../Models/userModel.mjs';
 
 let userCounter = 0;
+let userIndexesReady;
 
 export const TEST_PASSWORD = 'Password123!';
 
@@ -28,8 +29,14 @@ export const buildUserPayload = (overrides = {}) => ({
   profilePic: overrides.profilePic ?? '',
 });
 
+const ensureUserIndexes = () => {
+  userIndexesReady ??= User.init();
+  return userIndexesReady;
+};
+
 export const createUser = async (overrides = {}) => {
   const payload = buildUserPayload(overrides);
+  await ensureUserIndexes();
 
   return User.create({
     firstName: payload.firstName,
