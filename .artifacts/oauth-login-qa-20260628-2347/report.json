@@ -1,0 +1,61 @@
+{
+  "status": "partially passed",
+  "scope": {
+    "urls": [
+      "http://127.0.0.1:4177/login",
+      "http://127.0.0.1:3099/api/auth/google"
+    ],
+    "browserMode": "headed Chromium via Playwright fallback",
+    "viewports": [
+      "1366x768",
+      "390x844"
+    ],
+    "credentials": "none"
+  },
+  "identity": {
+    "title": "Chatify",
+    "appMarker": "Chatify login page",
+    "frontend": "http://127.0.0.1:4177",
+    "backend": "temporary production-mode Express app on http://127.0.0.1:3099"
+  },
+  "redaction": "No cookies, tokens, client IDs, or account data are included. Google client_id was not written to the report.",
+  "ledger": [
+    {
+      "area": "Auth",
+      "route": "/login desktop",
+      "scenario": "Initial login visual surface",
+      "expected": "Chatify login renders with Google button visible",
+      "status": "tested",
+      "evidence": "screenshots/login-desktop-viewport.png"
+    },
+    {
+      "area": "Auth",
+      "route": "/login mobile",
+      "scenario": "Responsive login visual surface",
+      "expected": "Login form and OAuth buttons remain usable on mobile",
+      "status": "tested",
+      "evidence": "screenshots/login-mobile-viewport.png"
+    },
+    {
+      "area": "Auth",
+      "route": "/login -> /api/auth/google",
+      "scenario": "Google button starts provider authorization",
+      "expected": "Google authorization redirect uses the registered Render callback URL",
+      "status": "fixed",
+      "evidence": "screenshots/google-redirect-captured.png",
+      "actualRedirectHost": "accounts.google.com",
+      "actualRedirectUri": "https://chatify-ckmn.onrender.com/api/auth/google/callback"
+    },
+    {
+      "area": "Auth",
+      "route": "Google provider callback",
+      "scenario": "Complete real Google account login",
+      "expected": "Provider returns to app and finalizes first-party cookies",
+      "status": "blocked",
+      "evidence": "not attempted",
+      "notes": "Stopped before real Google sign-in; provider credentials/account interaction are out of scope for safe local QA."
+    }
+  ],
+  "consoleMessages": [],
+  "failedRequests": []
+}

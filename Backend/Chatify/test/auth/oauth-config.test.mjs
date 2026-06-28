@@ -5,11 +5,11 @@ import {
 } from '../../Utils/oauthConfig.mjs';
 
 describe('OAuth callback origin config', () => {
-  it('uses the first-party frontend origin for production provider callbacks by default', () => {
+  it('uses the public backend origin for production provider callbacks by default', () => {
     expect(resolveOAuthCallbackBaseURL({
       NODE_ENV: 'production',
       FRONTEND_ORIGIN: 'https://chatify-ten-rho.vercel.app/',
-    })).toBe('https://chatify-ten-rho.vercel.app');
+    })).toBe('https://chatify-ckmn.onrender.com');
   });
 
   it('allows an explicit public backend origin when the deployment does not proxy api routes', () => {

@@ -2,7 +2,7 @@
 status: fixed
 trigger: "Logging in with Google, GitHub, Discord works for the owner on Vercel hosting, but not for other visitors."
 created: 2026-06-14
-updated: 2026-06-14
+updated: 2026-06-28
 ---
 
 # Debug Session: OAuth Vercel Third Party Cookie
@@ -33,6 +33,7 @@ updated: 2026-06-14
 - 2026-06-14: Production resolver check now emits provider callback base `https://chatify-ckmn.onrender.com` and final cookie handoff base `https://chatify-ten-rho.vercel.app`.
 - 2026-06-14: OAuth handoff review found that a signed URL token alone could be replayed or used for session swap if leaked. The finalizer now requires the original first-party state cookie and consumes a one-time database handoff record before setting `accessToken`.
 - 2026-06-14: Live `https://chatify-ten-rho.vercel.app/api/auth/google` still returns the old Vercel callback redirect before deployment of this backend fix.
+- 2026-06-28: Commit `59c5e72` regressed `resolveOAuthCallbackBaseURL()` to fall back to `FRONTEND_ORIGIN`; live Google initiation then emitted `redirect_uri=https://chatify-ten-rho.vercel.app/api/auth/google/callback`, which does not match the registered Render callback.
 
 ## Eliminated
 
@@ -43,5 +44,5 @@ updated: 2026-06-14
 
 - root_cause: Production OAuth originally mixed `chatify-ten-rho.vercel.app` with `chatify-ckmn.onrender.com`, so Render-domain auth cookies were not reliably first-party for Vercel visitors. The first same-origin callback patch fixed the cookie target but broke provider authorization because Google/GitHub/Discord still had the Render callback registered.
 - fix: Keep provider callbacks on the registered backend origin by default, then redirect through a short-lived OAuth handoff to `https://chatify-ten-rho.vercel.app/api/auth/oauth/finalize`. The handoff is bound to the OAuth `state` cookie that was set on the Vercel origin, backed by a one-time MongoDB record, and consumed before the finalizer sets the first-party Vercel `accessToken` cookie.
-- verification: `npm run test -- auth/oauth-config.test.mjs auth/auth.lifecycle.test.mjs` (15 tests passing); production resolver check: `callback=https://chatify-ckmn.onrender.com`, `finalize=https://chatify-ten-rho.vercel.app`.
+- verification: `npm run test -- auth/oauth-config.test.mjs auth/auth.lifecycle.test.mjs`; production resolver check: `callback=https://chatify-ckmn.onrender.com`, `finalize=https://chatify-ten-rho.vercel.app`. Rechecked on 2026-06-28 with 19 tests passing and the default callback fallback restored to Render.
 - files_changed: `Backend/Chatify/Utils/oauthConfig.mjs`, `Backend/Chatify/Controller/authController.mjs`, `Backend/Chatify/Routes/authRouter.mjs`, `Backend/Chatify/test/auth/oauth-config.test.mjs`, `Backend/Chatify/test/auth/auth.lifecycle.test.mjs`, plus the prior Vercel same-origin proxy/frontend resolver changes.
