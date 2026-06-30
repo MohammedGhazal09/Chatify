@@ -28,6 +28,8 @@ export type CreateOptimisticMessageInput = {
   messageType?: Message['messageType'];
   encryptionMode?: Message['encryptionMode'];
   encryptedPayload?: Message['encryptedPayload'];
+  replyTo?: Message['replyTo'];
+  mentions?: Message['mentions'];
   decryptedText?: string;
   attachments?: Message['attachments'];
   localFiles?: File[];
@@ -179,6 +181,12 @@ export const mergeCanonicalMessage = (existing: Message | undefined, incoming: M
     messageType: incoming.messageType ?? existing?.messageType ?? contentSource.messageType,
     encryptionMode: incoming.encryptionMode ?? existing?.encryptionMode ?? contentSource.encryptionMode,
     encryptedPayload: incoming.encryptedPayload ?? existing?.encryptedPayload ?? contentSource.encryptedPayload,
+    replyTo: preferIncomingContent
+      ? incoming.replyTo ?? existing?.replyTo ?? null
+      : existing?.replyTo ?? incoming.replyTo ?? null,
+    mentions: preferIncomingContent
+      ? [...(incoming.mentions ?? existing?.mentions ?? [])]
+      : [...(existing?.mentions ?? incoming.mentions ?? [])],
     decryptedText: incoming.decryptedText ?? existing?.decryptedText ?? contentSource.decryptedText,
     read: Boolean(existing?.read || incoming.read || status === 'read'),
     status,
@@ -297,6 +305,8 @@ export const createOptimisticMessage = ({
   messageType = 'text',
   encryptionMode,
   encryptedPayload = null,
+  replyTo = null,
+  mentions = [],
   decryptedText,
   attachments = [],
   localFiles = [],
@@ -311,6 +321,8 @@ export const createOptimisticMessage = ({
   messageType,
   encryptionMode,
   encryptedPayload,
+  replyTo,
+  mentions,
   decryptedText,
   read: false,
   status: 'sent',

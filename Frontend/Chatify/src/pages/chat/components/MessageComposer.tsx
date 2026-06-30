@@ -3,8 +3,17 @@ import type { ChangeEvent, KeyboardEvent, KeyboardEventHandler, RefObject } from
 import { LoaderCircle, Lock, Mic, Paperclip, Send, SmilePlus, Square, X } from 'lucide-react';
 import type { MessageUploadState } from '../../../hooks/useChatQueries';
 import type { AttachmentKind, ComposerAttachmentDraft, ComposerSendPayload, Message } from '../../../types/chat';
+import type { User } from '../../../types/auth';
 import { MAX_MESSAGE_TEXT_LENGTH } from '../../../hooks/messageCache';
 import { useVoiceRecorder } from '../../../hooks/useVoiceRecorder';
+import {
+  buildMentionSnapshots,
+  extractMentionUserIds,
+  filterMentionMembers,
+  findActiveMentionTrigger,
+  getEligibleMentionMembers,
+  replaceMentionTrigger,
+} from '../utils/mentions';
 import AttachmentTray from './AttachmentTray';
 import LazyEmojiPicker from './LazyEmojiPicker';
 import VoiceRecorderTray from './VoiceRecorderTray';
@@ -12,16 +21,21 @@ import VoiceRecorderTray from './VoiceRecorderTray';
 interface MessageComposerProps {
   value: string;
   replyingTo: Message | null;
+  replyingToSenderLabel?: string | null;
   showEmojiPicker: boolean;
   isSending: boolean;
   isSendError: boolean;
   sendDisabledReason?: string | null;
   isEncryptedConversation?: boolean;
+  currentUserId?: string;
+  mentionCandidates?: User[];
+  mentionContextLabel?: string;
   uploadState?: MessageUploadState;
   showDisabledReason?: boolean;
   resetToken?: number;
   emojiPickerRef: RefObject<HTMLDivElement | null>;
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
+  onValueChange?: (value: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>, payload: ComposerSendPayload) => void;
   onSend: (payload: ComposerSendPayload) => void;
   onToggleEmojiPicker: () => void;
@@ -72,19 +86,54 @@ const getAttachmentKind = (extension: string): AttachmentKind => (
   MEDIA_ATTACHMENT_EXTENSIONS.has(extension) ? 'media' : 'file'
 );
 
+const isEncryptedReplySource = (message: Message) => (
+  message.messageType === 'encrypted' || message.encryptionMode === 'e2ee_v1'
+);
+
+const getReplyPreviewText = (message: Message) => {
+  if (message.deletedForEveryone) {
+    return 'Original message unavailable';
+  }
+
+  if (isEncryptedReplySource(message)) {
+    return 'Encrypted message';
+  }
+
+  const text = message.text.replace(/\s+/g, ' ').trim();
+  if (text) {
+    return text;
+  }
+
+  const attachmentCount = message.attachments?.filter((attachment) => attachment.status !== 'deleted').length ?? 0;
+  if (attachmentCount === 1) {
+    return 'Attachment';
+  }
+
+  if (attachmentCount > 1) {
+    return `${attachmentCount} attachments`;
+  }
+
+  return 'Original message unavailable';
+};
+
 const MessageComposer = ({
   value,
   replyingTo,
+  replyingToSenderLabel = null,
   showEmojiPicker,
   isSending,
   isSendError,
   sendDisabledReason,
   isEncryptedConversation = false,
+  currentUserId,
+  mentionCandidates = [],
+  mentionContextLabel = 'members',
   uploadState,
   showDisabledReason = true,
   resetToken = 0,
   emojiPickerRef,
   onChange,
+  onValueChange,
   onKeyDown,
   onSend,
   onToggleEmojiPicker,
@@ -93,11 +142,14 @@ const MessageComposer = ({
   onCancelUpload,
 }: MessageComposerProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const voiceRecorder = useVoiceRecorder();
   const clearVoiceDraft = voiceRecorder.clearDraft;
   const [attachments, setAttachments] = useState<ComposerAttachmentDraft[]>([]);
   const attachmentsRef = useRef<ComposerAttachmentDraft[]>([]);
   const [attachmentErrors, setAttachmentErrors] = useState<string[]>([]);
+  const [caretIndex, setCaretIndex] = useState(value.length);
+  const [suppressedMentionKey, setSuppressedMentionKey] = useState<string | null>(null);
   const trimmedValue = value.trim();
   const isMessageTooLong = trimmedValue.length > MAX_MESSAGE_TEXT_LENGTH;
   const allAttachments = useMemo(() => (
@@ -118,11 +170,43 @@ const MessageComposer = ({
     : uploadState?.status === 'aborted'
       ? 'Upload canceled. Attach the file again if you still want to send it.'
       : null;
+  const eligibleMentionMembers = useMemo(() => (
+    isEncryptedConversation
+      ? []
+      : getEligibleMentionMembers(mentionCandidates, currentUserId)
+  ), [currentUserId, isEncryptedConversation, mentionCandidates]);
+  const activeMentionTrigger = useMemo(() => (
+    findActiveMentionTrigger(value, caretIndex)
+  ), [caretIndex, value]);
+  const activeMentionKey = activeMentionTrigger
+    ? `${activeMentionTrigger.start}:${activeMentionTrigger.end}:${activeMentionTrigger.query}`
+    : null;
+  const filteredMentionMembers = useMemo(() => (
+    activeMentionTrigger
+      ? filterMentionMembers(eligibleMentionMembers, activeMentionTrigger.query)
+      : []
+  ), [activeMentionTrigger, eligibleMentionMembers]);
+  const showMentionSuggestions = Boolean(
+    !sendDisabledReason &&
+    activeMentionTrigger &&
+    eligibleMentionMembers.length > 0 &&
+    activeMentionKey !== suppressedMentionKey
+  );
+  const mentionUserIds = useMemo(() => (
+    extractMentionUserIds(value, mentionCandidates, currentUserId)
+  ), [currentUserId, mentionCandidates, value]);
+  const mentionSnapshots = useMemo(() => (
+    buildMentionSnapshots(mentionUserIds, mentionCandidates)
+  ), [mentionCandidates, mentionUserIds]);
 
   const payload = useMemo<ComposerSendPayload>(() => ({
     text: value,
     attachments: allAttachments,
-  }), [allAttachments, value]);
+    ...(mentionUserIds.length > 0 ? {
+      mentionUserIds,
+      mentions: mentionSnapshots,
+    } : {}),
+  }), [allAttachments, mentionSnapshots, mentionUserIds, value]);
 
   useEffect(() => {
     attachmentsRef.current = attachments;
@@ -244,7 +328,47 @@ const MessageComposer = ({
     onSend(payload);
   };
 
+  const insertMention = (member: User) => {
+    if (!activeMentionTrigger || !member.username || !onValueChange) {
+      return;
+    }
+
+    const next = replaceMentionTrigger(value, activeMentionTrigger, member.username);
+    onValueChange(next.value);
+    setCaretIndex(next.caretIndex);
+    setSuppressedMentionKey(null);
+
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(next.caretIndex, next.caretIndex);
+    }, 0);
+  };
+
+  const handleComposerChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    setCaretIndex(event.currentTarget.selectionStart ?? event.currentTarget.value.length);
+    setSuppressedMentionKey(null);
+    onChange(event);
+  };
+
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
+    if (
+      showMentionSuggestions &&
+      activeMentionTrigger &&
+      event.key === 'Enter' &&
+      !event.shiftKey &&
+      filteredMentionMembers[0]
+    ) {
+      event.preventDefault();
+      insertMention(filteredMentionMembers[0]);
+      return;
+    }
+
+    if (showMentionSuggestions && event.key === 'Escape') {
+      event.preventDefault();
+      setSuppressedMentionKey(activeMentionKey);
+      return;
+    }
+
     onKeyDown(event, payload);
   };
 
@@ -253,8 +377,12 @@ const MessageComposer = ({
       {replyingTo && (
         <div className="mx-auto mb-2 flex max-w-[880px] items-center justify-between rounded-[var(--chat-radius-md)] border-l-4 border-[var(--chat-accent)] bg-[var(--chat-panel-subtle)] px-3 py-2">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-[var(--chat-accent)]">Replying to</p>
-            <p className="truncate text-sm text-[var(--chat-text-muted)]">{replyingTo.text}</p>
+            <p className="truncate text-xs font-bold text-[var(--chat-accent)]">
+              Replying to {replyingToSenderLabel ?? 'message'}
+            </p>
+            <p className="max-h-10 overflow-hidden break-words text-sm text-[var(--chat-text-muted)]" dir="auto">
+              {getReplyPreviewText(replyingTo)}
+            </p>
           </div>
           <button
             type="button"
@@ -281,6 +409,44 @@ const MessageComposer = ({
         disabled={isAttachmentDisabled}
       />
 
+      {showMentionSuggestions && activeMentionTrigger && (
+        <div
+          className="mx-auto mb-2 max-h-56 max-w-[880px] overflow-y-auto rounded-[var(--chat-radius-lg)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] p-2 shadow-[var(--chat-shadow)]"
+          role="listbox"
+          aria-label="Mention members"
+        >
+          {filteredMentionMembers.length > 0 ? (
+            filteredMentionMembers.map((member) => {
+              const displayName = `${member.firstName ?? ''} ${member.lastName ?? ''}`.trim() || member.username;
+
+              return (
+                <button
+                  key={member._id}
+                  type="button"
+                  role="option"
+                  aria-selected="false"
+                  className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-[var(--chat-radius-md)] px-3 py-2 text-left hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => insertMention(member)}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold text-[var(--chat-text)]">{displayName}</span>
+                    <span className="block truncate text-xs font-medium text-[var(--chat-text-muted)]">@{member.username}</span>
+                  </span>
+                  <span className="shrink-0 rounded-full bg-[var(--chat-accent-soft)] px-2 py-1 text-[11px] font-semibold uppercase tracking-normal text-[var(--chat-accent)]">
+                    {mentionContextLabel}
+                  </span>
+                </button>
+              );
+            })
+          ) : (
+            <p className="px-3 py-2 text-sm text-[var(--chat-text-muted)]" role="status">
+              No matching members
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="mx-auto flex max-w-[880px] items-center gap-3">
         <input
           ref={fileInputRef}
@@ -305,11 +471,18 @@ const MessageComposer = ({
 
         <div className="min-w-0 flex-1 rounded-[var(--chat-radius-pill)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] focus-within:border-[var(--chat-focus)] focus-within:ring-2 focus-within:ring-[var(--chat-focus)]/25">
           <textarea
+            ref={textareaRef}
             value={value}
-            onChange={onChange}
+            onChange={handleComposerChange}
+            onClick={(event) => setCaretIndex(event.currentTarget.selectionStart ?? event.currentTarget.value.length)}
+            onKeyUp={(event) => {
+              if (event.key !== 'Escape') {
+                setCaretIndex(event.currentTarget.selectionStart ?? event.currentTarget.value.length);
+              }
+            }}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder={isEncryptedConversation ? 'Write an encrypted message' : 'Write a private message'}
+            placeholder={isEncryptedConversation ? 'Encrypted message' : 'Message'}
             aria-label={isEncryptedConversation ? 'Write an encrypted message' : 'Write a private message'}
             disabled={Boolean(sendDisabledReason)}
             aria-describedby={currentDisabledReason && showDisabledReason ? composerStatusId : undefined}

@@ -145,6 +145,9 @@ export type MessageUploadAttachment = File | ComposerAttachmentDraft;
 export interface ComposerSendPayload {
   text: string;
   attachments: ComposerAttachmentDraft[];
+  replyToMessageId?: string | null;
+  mentionUserIds?: string[];
+  mentions?: MessageMention[];
 }
 
 export interface EncryptedPayload {
@@ -158,6 +161,23 @@ export interface EncryptedPayload {
   attachmentManifest?: Record<string, unknown> | null;
 }
 
+export interface MessageReplyTo {
+  messageId: string;
+  sender: string;
+  messageType: MessageType;
+  textPreview: string;
+  attachmentCount: number;
+  isDeleted: boolean;
+  isEncrypted: boolean;
+  createdAt?: string | null;
+}
+
+export interface MessageMention {
+  userId: string;
+  username: string;
+  displayName: string;
+}
+
 export interface Message {
   _id: string;
   clientMessageId?: string | null;
@@ -167,6 +187,8 @@ export interface Message {
   messageType?: MessageType;
   encryptionMode?: EncryptionMode;
   encryptedPayload?: EncryptedPayload | null;
+  replyTo?: MessageReplyTo | null;
+  mentions?: MessageMention[];
   decryptedText?: string;
   callActivity?: CallActivity | null;
   read: boolean;
@@ -187,6 +209,8 @@ export interface Message {
   pinned?: boolean;
   pinnedBy?: string | null;
   pinnedAt?: string | null;
+  savedByRequester?: boolean;
+  savedAt?: string | null;
   searchMatch?: MessageSearchMatch;
   optimisticState?: 'sending' | 'failed';
   errorMessage?: string;
@@ -270,6 +294,30 @@ export interface Chat {
   updatedAt: string;
 }
 
+export type ContactRequestStatus = 'pending' | 'accepted' | 'declined' | 'canceled';
+export type ContactRequestDirection = 'incoming' | 'outgoing' | null;
+
+export interface ContactRequest {
+  _id: string;
+  requester: User;
+  recipient: User;
+  status: ContactRequestStatus;
+  direction: ContactRequestDirection;
+  chat?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  respondedAt?: string | null;
+}
+
+export interface ContactRequestsData {
+  incoming: ContactRequest[];
+  outgoing: ContactRequest[];
+}
+
+export type CreateChatResult =
+  | { kind: 'chat'; chat: Chat }
+  | { kind: 'contactRequest'; contactRequest: ContactRequest };
+
 export interface ConversationOrganizationPatch {
   muted?: boolean;
   archived?: boolean;
@@ -295,6 +343,8 @@ export interface NewMessagePayload {
   chatId: string;
   text: string;
   clientMessageId: string;
+  replyToMessageId?: string | null;
+  mentionUserIds?: string[];
   attachments?: MessageUploadAttachment[];
   encryptedPayload?: EncryptedPayload;
 }
@@ -326,6 +376,16 @@ export interface PinnedMessage {
   createdAt: string;
   updatedAt: string;
   message?: Message;
+}
+
+export interface SavedMessage {
+  _id: string;
+  messageId: string;
+  chatId: string;
+  savedAt: string;
+  savedByRequester: boolean;
+  chat: Chat;
+  message: Message;
 }
 
 export interface MessagePinEvent {

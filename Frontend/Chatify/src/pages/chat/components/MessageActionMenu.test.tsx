@@ -13,6 +13,7 @@ interface MenuHarnessProps {
   onDelete?: (deleteForEveryone: boolean) => void;
   onCopy?: (message: ReturnType<typeof makeMessage>) => void;
   onTogglePin?: (message: ReturnType<typeof makeMessage>) => void;
+  onToggleSave?: (message: ReturnType<typeof makeMessage>) => void;
   onReportMessage?: (message: ReturnType<typeof makeMessage>) => void;
   onToggleReactionPicker?: () => void;
   activeActionsDisabled?: boolean;
@@ -28,6 +29,7 @@ const MenuHarness = ({
   onDelete = vi.fn(),
   onCopy = vi.fn(),
   onTogglePin = vi.fn(),
+  onToggleSave = vi.fn(),
   onReportMessage = vi.fn(),
   onToggleReactionPicker = vi.fn(),
   activeActionsDisabled = false,
@@ -66,6 +68,7 @@ const MenuHarness = ({
         onDelete={onDelete}
         onCopy={onCopy}
         onTogglePin={onTogglePin}
+        onToggleSave={onToggleSave}
         onReportMessage={onReportMessage}
         onClose={closeMenu}
       />
@@ -104,6 +107,7 @@ describe('MessageActionMenu', () => {
     const onDelete = vi.fn();
     const onCopy = vi.fn();
     const onTogglePin = vi.fn();
+    const onToggleSave = vi.fn();
     const onToggleReactionPicker = vi.fn();
 
     render(
@@ -114,6 +118,7 @@ describe('MessageActionMenu', () => {
         onDelete={onDelete}
         onCopy={onCopy}
         onTogglePin={onTogglePin}
+        onToggleSave={onToggleSave}
         onToggleReactionPicker={onToggleReactionPicker}
       />
     );
@@ -123,6 +128,7 @@ describe('MessageActionMenu', () => {
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     await user.click(screen.getByRole('button', { name: 'Copy' }));
     await user.click(screen.getByRole('button', { name: 'Pin message' }));
+    await user.click(screen.getByRole('button', { name: 'Save message' }));
     await user.click(screen.getByRole('button', { name: 'Delete for me' }));
     await user.click(screen.getByRole('button', { name: 'Delete for everyone' }));
     await user.click(screen.getByRole('button', { name: 'More reactions' }));
@@ -131,6 +137,7 @@ describe('MessageActionMenu', () => {
     expect(onStartEdit).toHaveBeenCalledWith('message-1', 'Copy me');
     expect(onCopy).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
     expect(onTogglePin).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
+    expect(onToggleSave).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-1' }));
     expect(onDelete).toHaveBeenNthCalledWith(1, false);
     expect(onDelete).toHaveBeenNthCalledWith(2, true);
     expect(onToggleReactionPicker).toHaveBeenCalledTimes(1);
@@ -162,6 +169,7 @@ describe('MessageActionMenu', () => {
     expect(screen.getByRole('button', { name: 'Pin message' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Delete for everyone' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Copy' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save message' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Delete for me' })).toBeEnabled();
 
     await user.click(screen.getByRole('button', { name: 'Copy' }));
@@ -171,6 +179,36 @@ describe('MessageActionMenu', () => {
     expect(onDelete).toHaveBeenCalledWith(false);
     expect(onReaction).not.toHaveBeenCalled();
     expect(onReply).not.toHaveBeenCalled();
+  });
+
+  it('labels saved messages as unsave actions and hides save for removed messages', async () => {
+    const user = userEvent.setup();
+    const onReaction = vi.fn();
+    const onToggleSave = vi.fn();
+
+    const { rerender } = render(
+      <MenuHarness
+        onReaction={onReaction}
+        onToggleSave={onToggleSave}
+        message={makeMessage({ _id: 'message-1', savedByRequester: true })}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Open message actions' }));
+    await user.click(screen.getByRole('button', { name: 'Unsave message' }));
+
+    expect(onToggleSave).toHaveBeenCalledWith(expect.objectContaining({ savedByRequester: true }));
+
+    rerender(
+      <MenuHarness
+        onReaction={onReaction}
+        onToggleSave={onToggleSave}
+        message={makeMessage({ _id: 'message-1', deletedForEveryone: true })}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Save message' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Unsave message' })).not.toBeInTheDocument();
   });
 
   it('lets received messages be deleted only for the current user', async () => {

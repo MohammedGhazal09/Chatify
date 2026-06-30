@@ -8,6 +8,7 @@ import {
   Download,
   Flag,
   Info,
+  Link2,
   Phone,
   Pin,
   Search,
@@ -27,12 +28,16 @@ interface ConversationMoreMenuProps {
   isPinned?: boolean;
   isFavorite?: boolean;
   isActionPending: boolean;
+  showInviteLinks?: boolean;
+  canManageInviteLinks?: boolean;
+  inviteLinksDisabledReason?: string | null;
   callDisabledReason?: string | null;
   videoCallDisabledReason?: string | null;
   onOpenDetails: () => void;
   onStartAudioCall: () => void;
   onStartVideoCall: () => void;
   onSearchMessages: () => void;
+  onOpenInviteLinks?: () => void;
   onExportChat: () => void;
   onToggleMute?: () => void;
   onToggleArchive?: () => void;
@@ -74,12 +79,16 @@ const ConversationMoreMenu = ({
   isPinned = false,
   isFavorite = false,
   isActionPending,
+  showInviteLinks = false,
+  canManageInviteLinks = false,
+  inviteLinksDisabledReason,
   callDisabledReason,
   videoCallDisabledReason,
   onOpenDetails,
   onStartAudioCall,
   onStartVideoCall,
   onSearchMessages,
+  onOpenInviteLinks,
   onExportChat,
   onToggleMute,
   onToggleArchive,
@@ -176,6 +185,15 @@ const ConversationMoreMenu = ({
         label="Search messages"
         onSelect={() => runAndClose(onSearchMessages)}
       />
+      {showInviteLinks ? (
+        <MenuItem
+          icon={<Link2 aria-hidden="true" className="h-4 w-4" />}
+          label="Invite links"
+          disabled={!canManageInviteLinks || isActionPending}
+          title={canManageInviteLinks ? 'Manage expiring invite links' : inviteLinksDisabledReason ?? 'Invite links are unavailable'}
+          onSelect={() => runAndClose(onOpenInviteLinks ?? (() => undefined))}
+        />
+      ) : null}
       <MenuItem
         icon={<Download aria-hidden="true" className="h-4 w-4" />}
         label="Export chat"

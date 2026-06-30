@@ -9,14 +9,18 @@ import type {
   AttachmentSummary,
   Chat,
   ComposerAttachmentDraft,
+  ContactRequest,
+  ContactRequestsData,
   ConversationOrganizationPatch,
   CreateChatPayload,
+  CreateChatResult,
   CreateGroupChatPayload,
   EncryptionMode,
   Message,
   MessageSearchFilters,
   MessageStatus,
   MessageSearchType,
+  SavedMessage,
   SharedAsset,
   SharedAssetKind,
   UserOnlineStatus,
@@ -99,15 +103,21 @@ export const paginatedSharedAssetsQueryKey = (
   limit: number
 ) => ['sharedAssetsInfinite', chatId, kind, limit] as const;
 export const pinnedMessagesQueryKey = (chatId: string) => ['pinnedMessages', chatId] as const;
+export const savedMessagesQueryKey = ['savedMessages'] as const;
 export const onlinePresenceQueryKey = ['onlinePresence'] as const;
 export const usersQueryKey = ['users'] as const;
 export const userSearchQueryKey = ['userSearch'] as const;
+export const contactRequestsQueryKey = ['contactRequests'] as const;
 
 type SendMessageVariables = {
   chatId: string;
   text: string;
   encryptionMode?: EncryptionMode;
   clientMessageId?: string;
+  replyToMessageId?: string | null;
+  optimisticReplyTo?: Message['replyTo'];
+  mentionUserIds?: string[];
+  optimisticMentions?: Message['mentions'];
   attachments?: ComposerAttachmentDraft[];
   optimisticAttachments?: AttachmentSummary[];
 };
@@ -219,6 +229,17 @@ const mergeChatInCache = (queryClient: ReturnType<typeof useQueryClient>, update
   });
 };
 
+const mergeAcceptedContactRequestChat = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  chat: Chat
+) => {
+  if (isEncryptedConversation(chat)) {
+    ensureConversationSecret(chat._id);
+  }
+
+  mergeChatInCache(queryClient, chat);
+};
+
 const invalidateConversationQueries = (
   queryClient: ReturnType<typeof useQueryClient>,
   chatId: string
@@ -226,6 +247,16 @@ const invalidateConversationQueries = (
   queryClient.invalidateQueries({ queryKey: messagesQueryKey(chatId) });
   queryClient.invalidateQueries({ queryKey: ['messageSearch', chatId] });
   invalidateDetailQueries(queryClient, chatId);
+};
+
+const patchMessageSavedStateInCache = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  message: Message
+) => {
+  queryClient.setQueryData<MessagesQueryData>(
+    messagesQueryKey(message.chatId),
+    (old) => (old ? upsertMessageInCache(old, message) : old)
+  );
 };
 
 export const useChats = () => {
@@ -249,6 +280,19 @@ export const useContacts = (enabled = true) => {
     queryFn: async () => {
       const response = await userApi.getAllUsers();
       return response.data.users;
+    },
+    enabled: enabled && isAuthenticated,
+  });
+};
+
+export const useContactRequests = (enabled = true) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useQuery<ContactRequestsData>({
+    queryKey: contactRequestsQueryKey,
+    queryFn: async () => {
+      const response = await chatApi.getContactRequests();
+      return response.data.data;
     },
     enabled: enabled && isAuthenticated,
   });
@@ -632,6 +676,14 @@ export const useSendMessage = () => {
       const hasAttachments = hasAttachmentFiles(variables.attachments);
 
       if (encryptedSend) {
+        if (variables.replyToMessageId) {
+          throw new Error('Replies are unavailable in encrypted conversations in this release.');
+        }
+
+        if (variables.mentionUserIds?.length) {
+          throw new Error('Mentions are unavailable in encrypted conversations in this release.');
+        }
+
         if (hasAttachments) {
           throw new Error('Encrypted conversations do not support attachment upload yet.');
         }
@@ -672,6 +724,8 @@ export const useSendMessage = () => {
           chatId: variables.chatId,
           text: normalizedText.text,
           clientMessageId,
+          replyToMessageId: variables.replyToMessageId ?? undefined,
+          mentionUserIds: variables.mentionUserIds,
           attachments: variables.attachments,
         }, hasAttachments ? {
           signal: abortController?.signal,
@@ -733,6 +787,14 @@ export const useSendMessage = () => {
         throw new Error('Encrypted conversations do not support attachment upload yet.');
       }
 
+      if (encryptedSend && variables.replyToMessageId) {
+        throw new Error('Replies are unavailable in encrypted conversations in this release.');
+      }
+
+      if (encryptedSend && variables.mentionUserIds?.length) {
+        throw new Error('Mentions are unavailable in encrypted conversations in this release.');
+      }
+
       const { chatId } = variables;
       if (encryptedSend && !hasConversationSecret(chatId)) {
         throw new Error('This device needs the conversation secret to send encrypted messages.');
@@ -750,6 +812,8 @@ export const useSendMessage = () => {
         messageType: encryptedSend ? 'encrypted' : 'text',
         encryptionMode: encryptedSend ? 'e2ee_v1' : 'standard',
         decryptedText: encryptedSend ? normalizedText.text : undefined,
+        replyTo: encryptedSend ? null : variables.optimisticReplyTo ?? null,
+        mentions: encryptedSend ? [] : variables.optimisticMentions ?? [],
         attachments: variables.optimisticAttachments,
         localFiles: variables.attachments?.map((attachment) => attachment.file),
         localDrafts: variables.attachments,
@@ -886,36 +950,100 @@ export const usePinnedMessages = (chatId: string | null) => {
   });
 };
 
+export const useSavedMessages = (enabled = true) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  return useQuery<SavedMessage[]>({
+    queryKey: savedMessagesQueryKey,
+    queryFn: async () => {
+      const response = await messageApi.listSavedMessages();
+      return response.data.data.savedMessages;
+    },
+    enabled: Boolean(enabled && isAuthenticated),
+  });
+};
+
+const normalizeCreateChatResponse = (data: {
+  chat?: Chat;
+  contactRequest?: ContactRequest;
+}): CreateChatResult => {
+  if (data.chat) {
+    return { kind: 'chat', chat: data.chat };
+  }
+
+  if (data.contactRequest) {
+    return { kind: 'contactRequest', contactRequest: data.contactRequest };
+  }
+
+  throw new Error('Unexpected create chat response');
+};
+
 export const useCreateChat = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<Chat, unknown, CreateChatPayload>({
+  return useMutation<CreateChatResult, unknown, CreateChatPayload>({
     mutationFn: async (payload) => {
       const response = await chatApi.createChat(payload);
-      return response.data.data.chat;
+      return normalizeCreateChatResponse(response.data.data);
     },
-    onSuccess: (chat, variables) => {
-      if (variables.encryptionMode === 'e2ee_v1' || isEncryptedConversation(chat)) {
-        ensureConversationSecret(chat._id);
+    onSuccess: (result, variables) => {
+      if (result.kind === 'contactRequest') {
+        queryClient.invalidateQueries({ queryKey: contactRequestsQueryKey });
+        return;
       }
 
-      queryClient.setQueryData<Chat[]>(chatsQueryKey, (old) => {
-        if (!old) {
-          return [chat];
-        }
+      if (variables.encryptionMode === 'e2ee_v1' || isEncryptedConversation(result.chat)) {
+        ensureConversationSecret(result.chat._id);
+      }
 
-        const existingIndex = old.findIndex((existingChat) => existingChat._id === chat._id);
-        if (existingIndex !== -1) {
-          const updatedChats = [...old];
-          updatedChats[existingIndex] = chat;
-          return sortChatsForRequester(updatedChats);
-        }
-
-        return sortChatsForRequester([chat, ...old]);
-      });
+      mergeChatInCache(queryClient, result.chat);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+};
+
+export const useAcceptContactRequest = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ contactRequest: ContactRequest; chat: Chat }, unknown, string>({
+    mutationFn: async (requestId) => {
+      const response = await chatApi.acceptContactRequest(requestId);
+      return response.data.data;
+    },
+    onSuccess: ({ chat }) => {
+      mergeAcceptedContactRequestChat(queryClient, chat);
+      queryClient.invalidateQueries({ queryKey: contactRequestsQueryKey });
+      queryClient.invalidateQueries({ queryKey: chatsQueryKey });
+    },
+  });
+};
+
+export const useDeclineContactRequest = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<ContactRequest, unknown, string>({
+    mutationFn: async (requestId) => {
+      const response = await chatApi.declineContactRequest(requestId);
+      return response.data.data.contactRequest;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: contactRequestsQueryKey });
+    },
+  });
+};
+
+export const useCancelContactRequest = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<ContactRequest, unknown, string>({
+    mutationFn: async (requestId) => {
+      const response = await chatApi.cancelContactRequest(requestId);
+      return response.data.data.contactRequest;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: contactRequestsQueryKey });
     },
   });
 };
@@ -1130,6 +1258,39 @@ export const useUnpinMessage = () => {
         (old) => upsertMessageInCache(old, data.message)
       );
       queryClient.invalidateQueries({ queryKey: pinnedMessagesQueryKey(variables.chatId) });
+    },
+  });
+};
+
+export const useSaveMessage = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId }: { messageId: string; chatId: string }) => {
+      const response = await messageApi.saveMessage(messageId);
+      return response.data.data;
+    },
+    onSuccess: (data) => {
+      patchMessageSavedStateInCache(queryClient, data.message);
+      queryClient.invalidateQueries({ queryKey: savedMessagesQueryKey });
+    },
+  });
+};
+
+export const useUnsaveMessage = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageId }: { messageId: string; chatId: string }) => {
+      const response = await messageApi.unsaveMessage(messageId);
+      return response.data.data;
+    },
+    onSuccess: (data, variables) => {
+      patchMessageSavedStateInCache(queryClient, data.message);
+      queryClient.setQueryData<SavedMessage[]>(savedMessagesQueryKey, (old) => (
+        old?.filter((savedMessage) => savedMessage.messageId !== variables.messageId) ?? old
+      ));
+      queryClient.invalidateQueries({ queryKey: savedMessagesQueryKey });
     },
   });
 };

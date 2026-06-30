@@ -11,6 +11,7 @@ import type {
   PaginationInfo,
   PinnedMessage,
   Reaction,
+  SavedMessage,
   SharedAsset,
   SharedAssetKind,
 } from '../types/chat';
@@ -118,6 +119,24 @@ interface PinMessageResponse {
   };
 }
 
+interface SavedMessagesResponse {
+  status: string;
+  data: {
+    savedMessages: SavedMessage[];
+    messages?: Message[];
+    limit: number;
+  };
+}
+
+interface SavedMessageResponse {
+  status: string;
+  data: {
+    message: Message;
+    savedMessage: SavedMessage | null;
+    savedByRequester: boolean;
+  };
+}
+
 interface MessageContextResponse {
   status: string;
   data: {
@@ -173,6 +192,12 @@ const buildCreateMessageBody = (payload: NewMessagePayload) => {
   formData.append('chatId', payload.chatId);
   formData.append('text', payload.text);
   formData.append('clientMessageId', payload.clientMessageId);
+  if (payload.replyToMessageId) {
+    formData.append('replyToMessageId', payload.replyToMessageId);
+  }
+  if (payload.mentionUserIds?.length) {
+    formData.append('mentionUserIds', JSON.stringify(payload.mentionUserIds));
+  }
   const attachmentMetadata = payload.attachments?.map((attachment) => {
     if (!isComposerDraft(attachment)) {
       return {};
@@ -292,11 +317,20 @@ export const messageApi = {
   getPinnedMessages: (chatId: string): Promise<AxiosResponse<PinnedMessagesResponse>> =>
     axiosInstance.get(`/api/message/${chatId}/pinned`),
 
+  listSavedMessages: (): Promise<AxiosResponse<SavedMessagesResponse>> =>
+    axiosInstance.get('/api/message/saved'),
+
   pinMessage: (messageId: string): Promise<AxiosResponse<PinMessageResponse>> =>
     axiosInstance.post(`/api/message/${messageId}/pin`),
 
   unpinMessage: (messageId: string): Promise<AxiosResponse<PinMessageResponse>> =>
     axiosInstance.delete(`/api/message/${messageId}/pin`),
+
+  saveMessage: (messageId: string): Promise<AxiosResponse<SavedMessageResponse>> =>
+    axiosInstance.post(`/api/message/${messageId}/save`),
+
+  unsaveMessage: (messageId: string): Promise<AxiosResponse<SavedMessageResponse>> =>
+    axiosInstance.delete(`/api/message/${messageId}/save`),
 
   getAttachmentPreviewUrl: (attachmentId: string) => buildProtectedAssetUrl(attachmentId, 'preview'),
 

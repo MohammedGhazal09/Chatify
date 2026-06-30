@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { LoaderCircle, Lock, MessageCircle, Plus, Users, X } from 'lucide-react';
 import { validateUsername } from '../../../utils/usernameValidation';
 import type { CreateGroupChatPayload, EncryptionMode } from '../../../types/chat';
@@ -12,6 +13,7 @@ interface NewChatDialogProps {
   isOpen: boolean;
   username: string;
   error: string | null;
+  notice?: string | null;
   isSubmitting: boolean;
   isGroupSubmitting: boolean;
   openerRef: RefObject<HTMLButtonElement | null>;
@@ -37,6 +39,7 @@ const NewChatDialog = ({
   isOpen,
   username,
   error,
+  notice,
   isSubmitting,
   isGroupSubmitting,
   openerRef,
@@ -186,7 +189,7 @@ const NewChatDialog = ({
     });
   };
 
-  return (
+  return createPortal((
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <button
         type="button"
@@ -209,7 +212,7 @@ const NewChatDialog = ({
             <h2 id="new-chat-title" className="text-base font-bold text-[#F4F7F6]">New chat</h2>
             <p className="mt-1 text-sm text-[#A8B3AF]">
               {mode === 'direct'
-                ? 'Start or continue a private chat by username.'
+                ? 'Send a request to new contacts. Existing chats open immediately.'
                 : 'Create a private group by username.'}
             </p>
           </div>
@@ -308,9 +311,14 @@ const NewChatDialog = ({
             autoComplete="off"
             spellCheck={false}
             aria-invalid={activeError ? 'true' : 'false'}
-            aria-describedby={activeError ? 'new-chat-error' : undefined}
+            aria-describedby={activeError ? 'new-chat-error' : notice ? 'new-chat-notice' : undefined}
           />
           {activeError ? <p id="new-chat-error" className="text-xs text-[#EF4444]" role="alert">{activeError}</p> : null}
+          {!activeError && notice ? (
+            <p id="new-chat-notice" className="rounded-lg border border-[#2E363C] bg-[#181C20] px-3 py-2 text-xs leading-5 text-[#A8B3AF]" role="status">
+              {notice}
+            </p>
+          ) : null}
           <div className="flex justify-end gap-2 pt-1">
             <button
               type="button"
@@ -330,10 +338,12 @@ const NewChatDialog = ({
               {isActiveSubmitting ? (
                 <span className="inline-flex items-center gap-2">
                   <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
-                  Starting...
+                  Sending...
                 </span>
+              ) : encryptionMode === 'e2ee_v1' ? (
+                'Start encrypted chat'
               ) : (
-                'Start or continue chat'
+                'Send request or open chat'
               )}
             </button>
           </div>
@@ -458,7 +468,7 @@ const NewChatDialog = ({
         )}
       </div>
     </div>
-  );
+  ), document.body);
 };
 
 export default NewChatDialog;

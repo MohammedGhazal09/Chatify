@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
 import {
   chatsQueryKey,
+  contactRequestsQueryKey,
   messagesQueryKey,
   onlinePresenceQueryKey,
   pinnedMessagesQueryKey,
@@ -818,6 +819,10 @@ export const useChatSocket = ({
       );
     };
 
+    const handleContactRequestChanged = () => {
+      queryClientRef.current.invalidateQueries({ queryKey: contactRequestsQueryKey });
+    };
+
     const handleSpaceUpsert = (space: Space) => {
       if (!space?._id) {
         queryClientRef.current.invalidateQueries({ queryKey: spacesQueryKey });
@@ -916,6 +921,8 @@ export const useChatSocket = ({
     socketInstance.on('user:identity-updated', handleUserIdentityUpdated);
     socketInstance.on('chat:new', handleChatNew);
     socketInstance.on('chat:deleted', handleChatDeleted);
+    socketInstance.on('contact-request:created', handleContactRequestChanged);
+    socketInstance.on('contact-request:updated', handleContactRequestChanged);
     socketInstance.on('space:new', handleSpaceUpsert);
     socketInstance.on('space:updated', handleSpaceUpsert);
     socketInstance.on('space:removed', handleSpaceRemoved);
@@ -964,6 +971,8 @@ export const useChatSocket = ({
       socketInstance.off('user:identity-updated', handleUserIdentityUpdated);
       socketInstance.off('chat:new', handleChatNew);
       socketInstance.off('chat:deleted', handleChatDeleted);
+      socketInstance.off('contact-request:created', handleContactRequestChanged);
+      socketInstance.off('contact-request:updated', handleContactRequestChanged);
       socketInstance.off('space:new', handleSpaceUpsert);
       socketInstance.off('space:updated', handleSpaceUpsert);
       socketInstance.off('space:removed', handleSpaceRemoved);

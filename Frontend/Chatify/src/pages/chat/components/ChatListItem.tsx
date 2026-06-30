@@ -2,6 +2,7 @@ import OnlineStatus from '../../../components/OnlineStatus';
 import { Archive, BellOff, Pin, Star } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat } from '../../../types/chat';
+import { isEncryptedConversation } from '../../../utils/encryptedMessages';
 import { formatTimestamp } from '../utils/chatDisplay';
 import UserAvatar from './UserAvatar';
 
@@ -15,9 +16,12 @@ interface ChatListItemProps {
   isPinned?: boolean;
   isFavorite?: boolean;
   isArchived?: boolean;
+  draftText?: string;
   unreadCount: number;
   onSelect: () => void;
 }
+
+const normalizeDraftText = (value?: string) => value?.replace(/\s+/g, ' ').trim() ?? '';
 
 const ChatListItem = ({
   chat,
@@ -29,12 +33,16 @@ const ChatListItem = ({
   isPinned = false,
   isFavorite = false,
   isArchived = false,
+  draftText,
   unreadCount,
   onSelect,
 }: ChatListItemProps) => {
   const timestamp = chat.latestMessage
     ? formatTimestamp(chat.latestMessage.updatedAt)
     : formatTimestamp(chat.updatedAt);
+  const normalizedDraftText = normalizeDraftText(draftText);
+  const hasDraft = Boolean(normalizedDraftText);
+  const draftPreview = isEncryptedConversation(chat) ? 'Draft saved on this device' : normalizedDraftText;
 
   return (
     <li>
@@ -95,7 +103,14 @@ const ChatListItem = ({
               )}
             </span>
             <span className="mt-1 block truncate text-xs text-[var(--chat-text-muted)]">
-              {chat.latestMessage ? chat.latestMessage.text : 'No messages yet'}
+              {hasDraft ? (
+                <>
+                  <span className="font-semibold text-[var(--chat-accent)]">Draft:</span>{' '}
+                  <span dir="auto">{draftPreview}</span>
+                </>
+              ) : (
+                chat.latestMessage ? chat.latestMessage.text : 'No messages yet'
+              )}
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-2">

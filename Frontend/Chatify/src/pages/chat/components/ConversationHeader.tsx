@@ -60,11 +60,11 @@ const ConversationHeader = ({
   const profileStatus = getVisibleProfileStatus(otherMember, otherMemberStatus);
 
   return (
-    <div className="flex min-h-20 min-w-0 max-w-full items-center gap-3 overflow-hidden border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-4 py-3 text-[var(--chat-text)] md:px-8">
+    <div className="flex min-h-20 min-w-0 max-w-full items-center gap-2 overflow-hidden border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-3 py-3 text-[var(--chat-text)] md:gap-3 md:px-8">
       <button
         type="button"
         onClick={onOpenSidebar}
-        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:hidden"
+        className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:hidden"
         aria-label="Open conversations"
       >
         <ArrowLeft aria-hidden="true" className="h-6 w-6" />
@@ -76,19 +76,19 @@ const ConversationHeader = ({
             user={otherMember}
             label={`${otherMember.firstName} ${otherMember.lastName ?? ''}`.trim()}
             variant="conversation"
-            className="h-12 w-12 md:h-14 md:w-14"
+            className="h-10 w-10 md:h-14 md:w-14"
           />
           <OnlineDot isOnline={otherMemberStatus?.isOnline ?? false} size="sm" />
         </div>
       )}
       {isSpaceChannel && !otherMember ? (
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[var(--chat-radius-md)] bg-[var(--chat-accent-soft)] text-[var(--chat-accent)] md:h-14 md:w-14">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] bg-[var(--chat-accent-soft)] text-[var(--chat-accent)] md:h-14 md:w-14">
           <Hash aria-hidden="true" className="h-5 w-5" />
         </div>
       ) : null}
 
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-lg font-bold text-[var(--chat-text)] md:text-xl" title={title}>{title}</h2>
+        <h2 className="truncate text-base font-bold text-[var(--chat-text)] md:text-xl" title={title}>{title}</h2>
         {encryptedConversation ? (
           <p className="inline-flex items-center gap-1 text-xs font-medium text-[var(--chat-text-muted)]">
             <Lock aria-hidden="true" className="h-3.5 w-3.5 text-[var(--chat-accent)]" />
@@ -97,11 +97,11 @@ const ConversationHeader = ({
             </span>
           </p>
         ) : isSpaceChannel ? (
-          <p className="text-xs font-medium text-[var(--chat-text-muted)]">
+          <p className="truncate text-xs font-medium text-[var(--chat-text-muted)]">
             Channel - {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
           </p>
         ) : selectedChat.isGroupChat ? (
-          <p className="text-xs font-medium text-[var(--chat-text-muted)]">
+          <p className="truncate text-xs font-medium text-[var(--chat-text-muted)]">
             {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
           </p>
         ) : otherMember && isPresenceChecking ? (
@@ -129,7 +129,7 @@ const ConversationHeader = ({
       <button
         type="button"
         onClick={onStartAudioCall}
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] enabled:cursor-pointer enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        className="hidden h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] enabled:cursor-pointer enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid md:h-11 md:w-11"
         aria-label="Call"
         aria-describedby={callDisabledReason ? callReasonId : undefined}
         title={callDisabledReason ?? 'Start audio call'}
@@ -142,7 +142,7 @@ const ConversationHeader = ({
       <button
         type="button"
         onClick={onStartVideoCall}
-        className="hidden h-11 w-11 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] enabled:cursor-pointer enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid"
+        className="hidden h-10 w-10 shrink-0 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] enabled:cursor-pointer enabled:hover:bg-[var(--chat-panel-subtle)] enabled:hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:text-[var(--chat-text-soft)] disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] sm:grid md:h-11 md:w-11"
         aria-label="Video call"
         aria-describedby={videoCallDisabledReason ? videoCallReasonId : undefined}
         title={videoCallDisabledReason ?? 'Start video call'}
@@ -156,7 +156,7 @@ const ConversationHeader = ({
         ref={searchButtonRef}
         type="button"
         onClick={onToggleMessageSearch}
-        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:h-11 md:w-11"
         title="Search messages"
         aria-label="Search messages"
         aria-pressed={showMessageSearch}
@@ -168,7 +168,7 @@ const ConversationHeader = ({
         ref={moreButtonRef}
         type="button"
         onClick={onToggleConversationMoreMenu}
-        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:h-11 md:w-11"
         aria-label="More conversation actions"
         title="More conversation actions"
         aria-haspopup="menu"
@@ -180,7 +180,7 @@ const ConversationHeader = ({
       <button
         type="button"
         onClick={onToggleConversationDetails}
-        className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        className="grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:h-11 md:w-11"
         aria-label={detailsLabel}
         title={detailsLabel}
         aria-pressed={showConversationDetails}

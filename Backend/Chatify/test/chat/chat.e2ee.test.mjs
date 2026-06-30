@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Chats from '../../Models/chatModel.mjs';
+import ContactRequest, { CONTACT_REQUEST_STATUSES } from '../../Models/contactRequestModel.mjs';
 import UserBlock from '../../Models/userBlockModel.mjs';
 import { emitToUserSockets, joinUserToChat } from '../../Config/socket.mjs';
 import { buildDirectChatKey } from '../../Utils/encryptionMode.mjs';
@@ -18,6 +19,7 @@ vi.mock('../../Config/socket.mjs', () => ({
 
 const setupDirectChatUsers = async () => {
   await Chats.init();
+  await ContactRequest.init();
   await UserBlock.init();
 
   const requester = await signupWithAgent({
@@ -31,6 +33,13 @@ const setupDirectChatUsers = async () => {
 
   return { requester, target };
 };
+
+const seedAcceptedContactRequest = ({ requester, target }) => ContactRequest.create({
+  requester: requester.user._id,
+  recipient: target.user._id,
+  status: CONTACT_REQUEST_STATUSES.ACCEPTED,
+  respondedAt: new Date(),
+});
 
 const setupGroupUsers = async () => {
   await Chats.init();
@@ -51,6 +60,7 @@ describe('encrypted conversation creation contract', () => {
   it('allows the same two members to have separate standard and encrypted direct chats', async () => {
     const { requester, target } = await setupDirectChatUsers();
     const members = [requester.user._id, target.user._id];
+    await seedAcceptedContactRequest({ requester, target });
 
     const standard = await requester.agent
       .post('/api/chat/create-new-chat')

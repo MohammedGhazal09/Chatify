@@ -35,6 +35,7 @@ export interface User {
   identityMarkUpdatedAt?: string | null;
   authProvider: 'local' | 'google' | 'github' | 'discord';
   isVerified: boolean;
+  twoFactorEnabled?: boolean;
   // Online status fields
   isOnline?: boolean;
   lastSeen?: string;
@@ -47,6 +48,78 @@ export interface LoginData {
   email: string;
   password: string;
   rememberMe?: boolean;
+}
+
+export interface TwoFactorChallengeData {
+  twoFactorRequired: true;
+  challengeToken: string;
+  expiresAt: string;
+}
+
+export interface LoginSuccessResponse {
+  status: 'success';
+  message: string;
+}
+
+export interface LoginTwoFactorRequiredResponse {
+  status: 'mfa_required';
+  message: string;
+  data: TwoFactorChallengeData;
+}
+
+export type LoginResponse = LoginSuccessResponse | LoginTwoFactorRequiredResponse;
+
+export interface VerifyTwoFactorLoginData {
+  challengeToken: string;
+  code: string;
+}
+
+export interface TwoFactorStatus {
+  enabled: boolean;
+  available: boolean;
+  backupCodesRemaining: number;
+  pendingSetup: boolean;
+}
+
+export interface TwoFactorStatusResponse {
+  status: string;
+  data: {
+    twoFactor: TwoFactorStatus;
+  };
+}
+
+export interface TwoFactorSetupData {
+  secret: string;
+  otpauthUrl: string;
+  expiresAt: string;
+}
+
+export interface TwoFactorSetupResponse {
+  status: string;
+  data: {
+    setup: TwoFactorSetupData;
+    twoFactor: TwoFactorStatus;
+  };
+}
+
+export interface TwoFactorBackupCodesResponse {
+  status: string;
+  data: {
+    backupCodes: string[];
+    twoFactor: TwoFactorStatus;
+  };
+}
+
+export interface TwoFactorActionResponse {
+  status: string;
+  data: {
+    twoFactor: TwoFactorStatus;
+  };
+}
+
+export interface TwoFactorProtectedActionData {
+  currentPassword: string;
+  code: string;
 }
 
 export interface SignupData {

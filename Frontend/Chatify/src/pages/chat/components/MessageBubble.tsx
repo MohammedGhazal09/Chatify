@@ -1,9 +1,10 @@
 import { memo, useEffect, useMemo, useState } from 'react';
-import type { MouseEvent } from 'react';
-import { Lock, MoreHorizontal, Phone, PhoneMissed, PhoneOff, RefreshCw, Video } from 'lucide-react';
+import type { MouseEvent, ReactNode } from 'react';
+import { BookmarkCheck, Lock, MoreHorizontal, Phone, PhoneMissed, PhoneOff, RefreshCw, Video } from 'lucide-react';
 import MessageStatus from '../../../components/MessageStatus';
 import type { CallActivity, Chat, Message } from '../../../types/chat';
 import { formatTimestamp } from '../utils/chatDisplay';
+import { mentionTokenPattern } from '../utils/mentions';
 import AttachmentPreview from './AttachmentPreview';
 import type { AttachmentPreviewTarget } from './AttachmentPreviewModal';
 import { decryptMessageText, isEncryptedMessage } from '../../../utils/encryptedMessages';
@@ -13,11 +14,13 @@ interface MessageBubbleProps {
   isOwnMessage: boolean;
   isGroupChat: boolean;
   members: Chat['members'];
+  currentUserId?: string;
   isHighlighted?: boolean;
   onContextMenu?: (event: MouseEvent, message: Message) => void;
   onDoubleClick?: (message: Message) => void;
   onOpenActions?: (event: MouseEvent<HTMLButtonElement>, message: Message, isOwnMessage: boolean) => void;
   onOpenAttachmentPreview?: (attachment: AttachmentPreviewTarget) => void;
+  onJumpToMessage?: (messageId: string) => void;
   onRetryFailed?: (message: Message) => void;
   onDismissFailed?: (message: Message) => void;
 }
@@ -111,6 +114,162 @@ const getMemberDisplayName = (members: Chat['members'], senderId: string) => {
   return `${member.firstName} ${member.lastName}`.trim() || member.username || 'Unknown member';
 };
 
+const getReplyPreviewText = (replyTo: NonNullable<Message['replyTo']>) => {
+  if (replyTo.isDeleted) {
+    return 'Original message unavailable';
+  }
+
+  if (replyTo.isEncrypted) {
+    return 'Encrypted message';
+  }
+
+  const preview = replyTo.textPreview?.replace(/\s+/g, ' ').trim();
+  if (preview) {
+    return preview;
+  }
+
+  if (replyTo.messageType === 'call') {
+    return 'Call activity';
+  }
+
+  if (replyTo.attachmentCount === 1) {
+    return 'Attachment';
+  }
+
+  if (replyTo.attachmentCount > 1) {
+    return `${replyTo.attachmentCount} attachments`;
+  }
+
+  return 'Original message unavailable';
+};
+
+const ReplyQuote = ({
+  message,
+  members,
+  isOwnMessage,
+  onJumpToMessage,
+}: {
+  message: Message;
+  members: Chat['members'];
+  isOwnMessage: boolean;
+  onJumpToMessage?: (messageId: string) => void;
+}) => {
+  const replyTo = message.replyTo;
+
+  if (!replyTo) {
+    return null;
+  }
+
+  const senderLabel = getMemberDisplayName(members, replyTo.sender);
+  const preview = getReplyPreviewText(replyTo);
+  const canJump = Boolean(replyTo.messageId && !replyTo.isDeleted && onJumpToMessage);
+  const className = [
+    'mb-2 w-full rounded-[var(--chat-radius-md)] border-l-2 px-3 py-2 text-left',
+    isOwnMessage
+      ? 'border-white/70 bg-white/10 text-white/90'
+      : 'border-[var(--chat-accent)] bg-[var(--chat-panel-elevated)] text-[var(--chat-text)]',
+    canJump
+      ? 'cursor-pointer hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]'
+      : 'cursor-default',
+  ].join(' ');
+  const content = (
+    <>
+      <span className={`block truncate text-xs font-bold ${isOwnMessage ? 'text-white' : 'text-[var(--chat-accent)]'}`}>
+        {senderLabel}
+      </span>
+      <span className="mt-0.5 block max-h-10 overflow-hidden break-words text-xs leading-5 opacity-85" dir="auto">
+        {preview}
+      </span>
+    </>
+  );
+
+  if (!canJump) {
+    return (
+      <div className={className} aria-label={`Quoted message from ${senderLabel}: ${preview}`}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={(event) => {
+        event.stopPropagation();
+        onJumpToMessage?.(replyTo.messageId);
+      }}
+      aria-label={`Jump to quoted message from ${senderLabel}: ${preview}`}
+    >
+      {content}
+    </button>
+  );
+};
+
+const MentionedMessageText = ({
+  text,
+  mentions = [],
+  currentUserId,
+  isOwnMessage,
+}: {
+  text: string;
+  mentions: Message['mentions'];
+  currentUserId?: string;
+  isOwnMessage: boolean;
+}) => {
+  const pattern = mentions?.length ? mentionTokenPattern(mentions) : null;
+
+  if (!pattern) {
+    return <p className="whitespace-pre-wrap break-words" dir="auto">{text}</p>;
+  }
+
+  const mentionsByUsername = new Map(
+    mentions.map((mention) => [mention.username.toLocaleLowerCase('en-US'), mention])
+  );
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const prefix = match[1] ?? '';
+    const token = match[2] ?? '';
+    const tokenStart = match.index + prefix.length;
+    const tokenEnd = tokenStart + token.length;
+
+    if (tokenStart > lastIndex) {
+      parts.push(text.slice(lastIndex, tokenStart));
+    }
+
+    const mention = mentionsByUsername.get(token.slice(1).toLocaleLowerCase('en-US'));
+    const isCurrentUserMention = Boolean(currentUserId && mention?.userId === currentUserId);
+    parts.push(
+      <span
+        key={`${tokenStart}-${token}`}
+        className={[
+          'inline rounded-[var(--chat-radius-sm)] px-1 py-0.5 font-semibold',
+          isOwnMessage
+            ? 'bg-white/15 text-white'
+            : 'bg-[var(--chat-accent-soft)] text-[var(--chat-accent)]',
+          isCurrentUserMention
+            ? 'ring-1 ring-[var(--chat-accent)]'
+            : '',
+        ].join(' ')}
+        data-mentioned-user={mention?.userId}
+      >
+        {token}
+      </span>
+    );
+
+    lastIndex = tokenEnd;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <p className="whitespace-pre-wrap break-words" dir="auto">{parts}</p>;
+};
+
 type EncryptedDisplayState = 'idle' | 'decrypting' | 'missing-secret' | 'invalid-payload' | 'decrypt-failed';
 
 const getEncryptedStateCopy = (state: EncryptedDisplayState) => {
@@ -156,11 +315,13 @@ const MessageBubble = memo(({
   isOwnMessage,
   isGroupChat,
   members,
+  currentUserId,
   isHighlighted = false,
   onContextMenu,
   onDoubleClick,
   onOpenActions,
   onOpenAttachmentPreview,
+  onJumpToMessage,
   onRetryFailed,
   onDismissFailed,
 }: MessageBubbleProps) => {
@@ -286,13 +447,28 @@ const MessageBubble = memo(({
           >
             <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
           </button>
+          {!message.deletedForEveryone && (
+            <ReplyQuote
+              message={message}
+              members={members}
+              isOwnMessage={isOwnMessage}
+              onJumpToMessage={onJumpToMessage}
+            />
+          )}
           {message.deletedForEveryone ? (
             <p className="italic text-[#A8B3AF]">This message was deleted</p>
           ) : encryptedMessage ? (
             <EncryptedMessageContent text={displayText} state={encryptedDisplayState} />
           ) : (
             <>
-              {message.text.trim() && <p className="whitespace-pre-wrap break-words" dir="auto">{message.text}</p>}
+              {message.text.trim() && (
+                <MentionedMessageText
+                  text={message.text}
+                  mentions={message.mentions}
+                  currentUserId={currentUserId}
+                  isOwnMessage={isOwnMessage}
+                />
+              )}
               {visibleAttachments.map((attachment) => (
                 <AttachmentPreview
                   key={attachment.attachmentId}
@@ -304,6 +480,11 @@ const MessageBubble = memo(({
           )}
           <div className={`mt-1 flex items-end justify-start gap-1 text-xs ${metadataTone}`}>
             <span className="text-nowrap">{formatTimestamp(message.updatedAt)}</span>
+            {message.savedByRequester && (
+              <span className="inline-flex items-center" title="Saved" aria-label="Saved">
+                <BookmarkCheck aria-hidden="true" className="h-3.5 w-3.5" />
+              </span>
+            )}
             {message.isEdited && <span className="italic">edited</span>}
             {isSending && (
               <span className="inline-flex items-center gap-1 text-[var(--chat-warning)]">

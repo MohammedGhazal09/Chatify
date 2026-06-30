@@ -135,6 +135,65 @@ const encryptedPayloadSchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+const replyToSchema = new mongoose.Schema({
+  messageId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Messages",
+    required: true,
+  },
+  sender: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+    required: true,
+  },
+  messageType: {
+    type: String,
+    enum: ["text", "call", "encrypted"],
+    default: "text",
+  },
+  textPreview: {
+    type: String,
+    maxlength: 160,
+    default: "",
+  },
+  attachmentCount: {
+    type: Number,
+    min: 0,
+    default: 0,
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false,
+  },
+  isEncrypted: {
+    type: Boolean,
+    default: false,
+  },
+  createdAt: {
+    type: Date,
+  },
+}, { _id: false });
+
+const mentionSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Users",
+    required: true,
+  },
+  username: {
+    type: String,
+    required: true,
+    trim: true,
+    lowercase: true,
+  },
+  displayName: {
+    type: String,
+    trim: true,
+    maxlength: 120,
+    default: "",
+  },
+}, { _id: false });
+
 const messageSchema = new mongoose.Schema({
   chatId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -173,6 +232,21 @@ const messageSchema = new mongoose.Schema({
     type: encryptedPayloadSchema,
   },
   encryptedPayloadFingerprint: {
+    type: String,
+    select: false,
+  },
+  replyTo: {
+    type: replyToSchema,
+  },
+  replyFingerprint: {
+    type: String,
+    select: false,
+  },
+  mentions: {
+    type: [mentionSchema],
+    default: [],
+  },
+  mentionFingerprint: {
     type: String,
     select: false,
   },
@@ -265,6 +339,8 @@ messageSchema.index({ chatId: 1, sender: 1, status: 1 });
 messageSchema.index({ chatId: 1, sender: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ chatId: 1, pinned: 1, pinnedAt: -1 });
 messageSchema.index({ chatId: 1, messageType: 1, createdAt: -1 });
+messageSchema.index({ chatId: 1, 'replyTo.messageId': 1, createdAt: -1 });
+messageSchema.index({ chatId: 1, 'mentions.user': 1, createdAt: -1 });
 messageSchema.index(
   { chatId: 1, 'callActivity.callId': 1 },
   {

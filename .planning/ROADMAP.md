@@ -55,6 +55,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 39: Data Privacy Controls And Account Portability** - Add export, deletion, retention, and account portability controls with auditable privacy behavior. (completed 2026-06-21)
 - [x] **Phase 40: Moderation Appeals And Reviewer Operations** - Extend moderation with appeals, assignments, enforcement history, and operational review analytics. (completed 2026-06-21)
 - [x] **Phase 41: Localization And RTL Experience** - Add English/Arabic localization, RTL layout support, and bilingual verification gates. (completed 2026-06-21)
+- [x] **Phase 42: Contact Requests And Trusted Conversation Onboarding** - Gate new standard direct chats behind recipient-approved contact requests. (completed locally 2026-06-30)
+- [x] **Phase 43: Reply To Message With Quoted Context** - Let users reply to a visible message with durable, privacy-safe quoted context.
+- [x] **Phase 44: Per-Conversation Message Drafts** - Preserve unsent text per conversation with local-only draft persistence. (completed locally 2026-06-30)
+- [x] **Phase 45: Two-Factor Authentication And Backup Codes** - Add TOTP two-factor authentication and backup codes for local accounts. (completed locally 2026-06-30)
+- [x] **Phase 46: Group And Space Mentions** - Let group and space-channel users mention authorized members with server-validated public metadata. (completed locally 2026-06-30)
+- [x] **Phase 47: Expiring And Revokable Invite Links** - Safer shareable invite workflows with expiry, revocation, and max-use limits. (completed locally 2026-06-30)
+- [x] **Phase 48: Saved Messages And Bookmarks** - Plan and implement personal saved-message workflows. (completed locally 2026-06-30)
+- [ ] **Phase 49: Delivery Health Dashboard** - Plan and implement delivery diagnostics and operational visibility.
 
 ## Phase Details
 
@@ -932,7 +940,7 @@ Plans:
 **Goal:** Close the remaining messenger behavior gaps that are not just evidence work: voice-message recovery, production-backed shared media/files, and any residual delivery or media truth gaps found by Phase 25.
 **Requirements**: DELIV-05, MEDIA-04, VOICE-01, VOICE-02, TEST-03, TEST-05
 **Depends on:** Phase 26
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 **Success Criteria** (what must be TRUE):
 
@@ -1310,3 +1318,195 @@ Plans:
 - [x] 41-02 Account Settings And Notification Localization
 - [x] 41-03 Chat Admin RTL And Locale Workflow Coverage
 - [x] 41-04 Review Verification And Traceability
+
+### Phase 42: Contact Requests And Trusted Conversation Onboarding
+
+**Goal:** Users must approve a new one-to-one contact request before a new direct conversation appears, while existing direct chats and group/space conversations keep working.
+**Requirements**: V2-CONTACT-01, V2-CONTACT-02, V2-CONTACT-03, V2-PRIV-01, BLOCK-02, TEST-01, TEST-03, TEST-05
+**Depends on:** Phase 41
+**Plans:** 3/3 plans complete
+
+**Success Criteria** (what must be TRUE):
+
+  1. A first standard direct chat attempt to a non-contact creates or returns a pending contact request instead of creating a chat.
+  2. Recipient acceptance creates or returns exactly one direct chat and updates both users without email exposure.
+  3. Incoming/outgoing request lists, decline, and cancel are ownership-checked and privacy-safe.
+  4. Blocked, self-target, missing-user, and invalid-username paths remain safe and do not create requests or chats.
+  5. Chat UI clearly exposes request sent, incoming request, accept, decline, cancel, loading, empty, and error states.
+
+Plans:
+
+**Wave 1**
+
+- [x] 42-01 Backend Contact Request Contract
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 42-02 Frontend Trusted Conversation Onboarding
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 42-03 Review Verification And Traceability
+
+**Cross-cutting constraints:**
+
+- Request payloads, logs, traces, and screenshots must not expose private email addresses.
+- Existing direct chats continue immediately; only new standard direct chats are gated.
+- No social graph, public directory, autocomplete, invite links, expiration, or encrypted key-sharing workflow in this phase.
+
+### Phase 43: Reply To Message With Quoted Context
+
+**Goal:** Users can reply to a visible message in the same conversation and see durable quoted context in the composer, sent bubble, socket updates, reloads, search jumps, and mobile layouts without creating nested thread semantics.
+**Requirements**: V2-REPLY-01, V2-REPLY-02, V2-REPLY-03, MSG-01, MSG-03, MSG-04, UI-04, UI-05, TEST-03, TEST-05
+**Depends on:** Phase 42
+**Plans:** 3 plans
+
+**Success Criteria** (what must be TRUE):
+
+  1. Sending a standard text or attachment message may include a same-chat visible `replyToMessageId`, and the persisted response includes stable `replyTo` metadata.
+  2. Reply snapshots use bounded plaintext previews only where allowed and never expose deleted-for-self, deleted-for-everyone, unauthorized, encrypted plaintext, private emails, or out-of-chat source messages.
+  3. Idempotent sends include reply metadata in conflict detection so a reused `clientMessageId` cannot silently target a different quoted message.
+  4. Composer and message bubbles show reply preview, cancel, quoted context, source jump, deleted/unavailable fallback, and mobile wrapping without overlap.
+  5. Backend, frontend, socket/cache, visual QA, lint, and build evidence cover standard, attachment, deleted, unauthorized, encrypted, and retry paths.
+
+Plans:
+
+**Wave 1**
+
+- [x] 43-01 Backend Reply Metadata Contract
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 43-02 Frontend Quoted Reply Interaction
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 43-03 Review Verification And Traceability
+
+**Cross-cutting constraints:**
+
+- This phase adds quoted reply context only; no nested threads, reply counts, thread inbox, or notification grouping.
+- Encrypted conversation replies must not leak plaintext to the server. If encrypted quote support is not implemented end-to-end, the UI must show an honest limitation.
+- Quote previews must be bounded and must continue to work when the source message is edited or deleted later by preserving a safe send-time snapshot.
+
+### Phase 44: Per-Conversation Message Drafts
+
+**Goal:** Users can switch conversations, reload the app, and return to unsent text without leaking draft content to the backend or exposing encrypted draft plaintext in sidebar previews/search.
+**Requirements**: V2-DRAFT-01, V2-DRAFT-02, V2-DRAFT-03, UI-03, UI-05, TEST-03, TEST-05
+**Depends on:** Phase 43
+**Plans:** 1 plan
+
+Plans:
+
+- [x] 44-01 Local Conversation Draft Lifecycle
+
+**Implementation Notes:**
+
+- Drafts are stored in user-scoped localStorage under `chatify_message_drafts:{userId}` and keyed by chat id.
+- Successful sends and private chat cleanup remove the active/local draft state.
+- Standard sidebar rows show normalized draft text; encrypted conversation rows show generic `Draft saved on this device` and encrypted draft text is excluded from sidebar search.
+- Focused tests, lint, build, and fallback Playwright visual QA passed.
+
+### Phase 45: Two-Factor Authentication And Backup Codes
+
+**Goal:** Local-account users can protect sign-in with TOTP two-factor authentication and one-time backup codes without weakening the existing cookie/session model.
+**Requirements**: V2-2FA-01, V2-2FA-02, V2-2FA-03, V2-2FA-04, V2-2FA-05, V2-2FA-06, SEC-01, SEC-02, AUTH-01, AUTH-02, UI-03, UI-05, TEST-03, TEST-05
+**Depends on:** Phase 44
+**Plans:** 2/2 plans complete
+
+Plans:
+
+- [x] 45-01 Backend 2FA Authority
+- [x] 45-02 Frontend 2FA Login And Settings
+
+**Implementation Notes:**
+
+- Local password accounts can set up TOTP from Settings after re-entering the current password.
+- 2FA-enabled password login returns a short-lived pending challenge and does not issue access or refresh cookies until challenge verification succeeds.
+- TOTP secrets are encrypted at rest, pending login challenge tokens are hashed, and backup codes are stored as argon2 hashes and consumed once.
+- Settings exposes 2FA status, setup/confirm, one-time backup-code display, regeneration, and disable actions.
+- Focused backend/frontend tests, lint, build, and fallback Hercules-compatible visual QA passed.
+
+### Phase 46: Group And Space Mentions
+
+**Goal:** Users can mention authorized group and space-channel members in standard messages with server-validated public metadata, composer suggestions, and inline rendering.
+**Requirements**: V2-MENTION-01, V2-MENTION-02, V2-MENTION-03, V2-MENTION-04, V2-MENTION-05, V2-MENTION-06, MSG-01, MSG-03, MSG-04, UI-04, UI-05, TEST-03, TEST-05
+**Depends on:** Phase 45
+**Plans:** 2/2 plans complete
+
+Plans:
+
+- [x] 46-01 Backend Mention Metadata Contract
+- [x] 46-02 Frontend Mention Composer And Rendering
+
+**Implementation Notes:**
+
+- Standard group and space-channel sends may include mention targets only when each target is a different conversation member and appears as a visible `@username` token in the message text.
+- Mention snapshots persist public identity only: user id, username, and display name.
+- Direct chats and encrypted conversations reject mention metadata.
+- The composer suggests eligible group/space members, supports click and Enter insertion, omits the current user, and keeps direct chats suggestion-free.
+- Message bubbles highlight persisted mention tokens and add a current-user ring when the visible mention targets the active user.
+- Focused backend/frontend tests, lint, build, and fallback Hercules-compatible visual QA passed.
+
+### Phase 47: Expiring And Revokable Invite Links
+
+**Goal:** Add safer invite-link workflows for group conversations and spaces with expiry, revocation, and max-use controls.
+**Requirements**: V2-INVITE-01, V2-INVITE-02, V2-INVITE-03, V2-INVITE-04, V2-INVITE-05, V2-INVITE-06
+**Depends on:** Phase 46
+**Plans:** 2 plans
+
+Plans:
+
+- [x] 47-01 Backend Invite Link Authority
+- [x] 47-02 Frontend Invite Management And Join UX
+
+**Implementation Notes:**
+
+- Invite tokens are generated once, stored as hashes, and omitted from list/revoke responses.
+- Group invite management requires the group admin; space invite management requires space owner/admin permissions.
+- Direct chats and encrypted conversations do not expose invite-link management.
+- Join-by-token enforces expiry, revocation, max-use limits, target caps, block boundaries, and already-member success.
+- Invite use claiming is atomic so concurrent joins cannot exceed `maxUses`.
+- The frontend exposes invite links from conversation actions, shows a management dialog with preset expiry/use controls, and protects destructive revoke with inline confirmation.
+- `/invite/:token` is a protected route that joins then redirects to the group or space channel.
+- Focused backend/frontend tests, lint, build, and fallback Hercules-compatible visual QA passed.
+
+### Phase 48: Saved Messages And Bookmarks
+
+**Goal:** Users can privately save, list, jump to, and remove bookmarked visible messages without changing shared conversation state or leaking hidden/encrypted content.
+**Requirements**: V2-SAVED-01, V2-SAVED-02, V2-SAVED-03, V2-SAVED-04, V2-SAVED-05, V2-SAVED-06
+**Depends on:** Phase 47
+**Plans:** 2 plans
+
+Plans:
+
+- [x] 48-01 Backend Saved Message Authority
+- [x] 48-02 Frontend Saved Messages Workflow
+
+Notes:
+
+- Added private `SavedMessage` persistence, saved-message API routes, and requester-specific `savedByRequester` message serialization.
+- Added saved-list dialog, sidebar shortcut, action-menu save/unsave, compact bubble indicator, and jump/unsave behavior.
+- Enforced membership, delete-for-self, deleted-for-everyone, group, space-channel, and encrypted-message boundaries.
+- Focused backend/frontend tests, lint, build, and fallback Hercules-compatible Playwright visual QA passed.
+
+### Phase 49: Delivery Health Dashboard
+
+**Goal:** Give admins a privacy-safe delivery diagnostics dashboard that summarizes recent send/delivery/read health, stale delivery risk, Socket.IO runtime, and notification outbox state without exposing message content or private identity data.
+**Requirements**: V2-DELIVERY-HEALTH-01, V2-DELIVERY-HEALTH-02, V2-DELIVERY-HEALTH-03, V2-DELIVERY-HEALTH-04, V2-DELIVERY-HEALTH-05, V2-DELIVERY-HEALTH-06
+**Depends on:** Phase 48
+**Plans:** 3/3 plans complete
+
+Plans:
+
+- [x] 49-01 Backend Delivery Health Authority
+- [x] 49-02 Frontend Admin Delivery Health Dashboard
+- [x] 49-03 Verification, Visual QA, And Traceability
+
+Notes:
+
+- Added admin-only `GET /api/admin/delivery-health` with bounded `1h`, `24h`, and `7d` windows.
+- Delivery diagnostics aggregate message lifecycle status, stale sent/delivered counts, conversation risk metadata, Socket.IO runtime state, and notification outbox status/channel counts.
+- The endpoint and dashboard remain metadata-only; message text, notification payload bodies, private emails, and member identities are not serialized.
+- Added `/admin/delivery-health` with localized English/Arabic labels, responsive desktop/mobile/tablet layouts, non-admin, loading, empty, error, refresh, and RTL states.
+- Focused backend/frontend tests, full frontend tests, lint, build, and fallback Hercules-compatible Playwright visual QA passed. Full backend Vitest exceeded the local 304-second timeout.

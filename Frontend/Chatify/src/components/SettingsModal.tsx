@@ -1,10 +1,19 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ChangeEvent } from 'react';
-import { AtSign, Bell, BellOff, Download, ImagePlus, Languages, LoaderCircle, Mail, Palette, RotateCcw, Scale, ShieldCheck, Trash2, UserRound, Volume2 } from 'lucide-react';
+import { AtSign, Bell, BellOff, Download, ImagePlus, KeyRound, Languages, LoaderCircle, Mail, Palette, RotateCcw, Scale, ShieldCheck, Trash2, UserRound, Volume2 } from 'lucide-react';
 import { resolveApiBaseUrl } from '../api/apiOrigin';
 import { useProfileImageMutation } from '../hooks/useProfileImageMutation';
 import { useNotificationPreferences } from '../hooks/useNotificationPreferences';
-import { useActiveSessions, useRevokeAllSessions, useRevokeSession } from '../hooks/useAuthQuery';
+import {
+  useActiveSessions,
+  useConfirmTwoFactor,
+  useDisableTwoFactor,
+  useRegenerateBackupCodes,
+  useRevokeAllSessions,
+  useRevokeSession,
+  useSetupTwoFactor,
+  useTwoFactorStatus,
+} from '../hooks/useAuthQuery';
 import {
   useCancelAccountDeletion,
   useExportAccountData,
@@ -34,6 +43,7 @@ import type {
   IdentityMarkInput,
   IdentityMarkPaletteId,
   IdentityMarkPatternId,
+  TwoFactorSetupData,
 } from '../types/auth';
 import type { ChatTheme, ChatThemePreference } from '../pages/chat/hooks/useChatTheme';
 
@@ -213,7 +223,7 @@ const validateProfileDraft = (draft: { profileBio: string; profileStatus: string
   return null;
 };
 
-const getProfileImageErrorMessage = (error: unknown, fallback: string) => {
+const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (typeof error === 'object' && error && 'response' in error) {
     const response = (error as { response?: { data?: { message?: unknown } } }).response;
     const message = response?.data?.message;
@@ -225,6 +235,10 @@ const getProfileImageErrorMessage = (error: unknown, fallback: string) => {
 
   return fallback;
 };
+
+const getProfileImageErrorMessage = (error: unknown, fallback: string) => (
+  getApiErrorMessage(error, fallback)
+);
 
 const getPermissionStatusLabel = (permission: BrowserNotificationPermissionState) => {
   switch (permission) {
@@ -279,6 +293,11 @@ const SettingsModal = ({
   const activeSessionsQuery = useActiveSessions(isOpen);
   const revokeSession = useRevokeSession();
   const revokeAllSessions = useRevokeAllSessions();
+  const twoFactorStatusQuery = useTwoFactorStatus(isOpen);
+  const setupTwoFactor = useSetupTwoFactor();
+  const confirmTwoFactor = useConfirmTwoFactor();
+  const disableTwoFactor = useDisableTwoFactor();
+  const regenerateBackupCodes = useRegenerateBackupCodes();
   const privacySummaryQuery = useUserPrivacySummary(isOpen);
   const myEnforcementsQuery = useMyModerationEnforcements(isOpen && Boolean(currentUser?._id));
   const submitModerationAppeal = useSubmitModerationAppeal();
@@ -331,6 +350,12 @@ const SettingsModal = ({
   const [notificationActionError, setNotificationActionError] = useState<string | null>(null);
   const [sessionActionError, setSessionActionError] = useState<string | null>(null);
   const [sessionActionStatus, setSessionActionStatus] = useState<string | null>(null);
+  const [twoFactorPassword, setTwoFactorPassword] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetupData | null>(null);
+  const [twoFactorBackupCodes, setTwoFactorBackupCodes] = useState<string[]>([]);
+  const [twoFactorActionError, setTwoFactorActionError] = useState<string | null>(null);
+  const [twoFactorActionStatus, setTwoFactorActionStatus] = useState<string | null>(null);
   const [browserNotificationPermission, setBrowserNotificationPermission] =
     useState<BrowserNotificationPermissionState>(() => getBrowserNotificationPermission());
   const pushSupport = useMemo(() => getPushNotificationSupportStatus(), []);
@@ -342,6 +367,19 @@ const SettingsModal = ({
   const accountUsername = currentUser?.username?.trim() || 'Not set';
   const accountEmail = currentUser?.email?.trim() || 'Not available';
   const activeSessions = activeSessionsQuery.data ?? [];
+  const twoFactorStatus = twoFactorStatusQuery.data;
+  const isTwoFactorAvailable = twoFactorStatus?.available ?? (currentUser?.authProvider === 'local');
+  const isTwoFactorEnabled = twoFactorStatus?.enabled ?? (currentUser?.twoFactorEnabled === true);
+  const backupCodesRemaining = twoFactorStatus?.backupCodesRemaining ?? 0;
+  const canUseTwoFactorActions =
+    isTwoFactorAvailable &&
+    !twoFactorStatusQuery.isLoading &&
+    !twoFactorStatusQuery.isError;
+  const isTwoFactorBusy =
+    setupTwoFactor.isPending ||
+    confirmTwoFactor.isPending ||
+    disableTwoFactor.isPending ||
+    regenerateBackupCodes.isPending;
   const myEnforcements = myEnforcementsQuery.data ?? [];
   const deletionRequest = privacySummaryQuery.data?.deletionRequest ?? null;
   const retentionSummary = deletionRequest?.retentionSummary ?? privacySummaryQuery.data?.retentionSummary ?? null;
@@ -414,6 +452,12 @@ const SettingsModal = ({
       resetProfileDraft();
       setSessionActionError(null);
       setSessionActionStatus(null);
+      setTwoFactorPassword('');
+      setTwoFactorCode('');
+      setTwoFactorSetup(null);
+      setTwoFactorBackupCodes([]);
+      setTwoFactorActionError(null);
+      setTwoFactorActionStatus(null);
       setAppealDrafts({});
       setAppealActionError(null);
       setAppealActionStatus(null);
@@ -528,6 +572,75 @@ const SettingsModal = ({
       setSessionActionError('We could not log out everywhere. Try again.');
     }
   }, [onClose, revokeAllSessions]);
+
+  const resetTwoFactorFeedback = useCallback(() => {
+    setTwoFactorActionError(null);
+    setTwoFactorActionStatus(null);
+  }, []);
+
+  const handleStartTwoFactorSetup = useCallback(async () => {
+    resetTwoFactorFeedback();
+    setTwoFactorBackupCodes([]);
+
+    try {
+      const response = await setupTwoFactor.mutateAsync(twoFactorPassword);
+      setTwoFactorSetup(response.data.data.setup);
+      setTwoFactorActionStatus('Confirm the authenticator code to finish setup.');
+    } catch (error) {
+      setTwoFactorActionError(getApiErrorMessage(error, 'Two-factor setup could not be started.'));
+    }
+  }, [resetTwoFactorFeedback, setupTwoFactor, twoFactorPassword]);
+
+  const handleConfirmTwoFactor = useCallback(async () => {
+    resetTwoFactorFeedback();
+
+    try {
+      const response = await confirmTwoFactor.mutateAsync(twoFactorCode);
+      setTwoFactorSetup(null);
+      setTwoFactorPassword('');
+      setTwoFactorCode('');
+      setTwoFactorBackupCodes(response.data.data.backupCodes);
+      setTwoFactorActionStatus('Two-factor authentication is enabled.');
+    } catch (error) {
+      setTwoFactorActionError(getApiErrorMessage(error, 'Two-factor code could not be confirmed.'));
+    }
+  }, [confirmTwoFactor, resetTwoFactorFeedback, twoFactorCode]);
+
+  const handleRegenerateBackupCodes = useCallback(async () => {
+    resetTwoFactorFeedback();
+
+    try {
+      const response = await regenerateBackupCodes.mutateAsync({
+        currentPassword: twoFactorPassword,
+        code: twoFactorCode,
+      });
+      setTwoFactorPassword('');
+      setTwoFactorCode('');
+      setTwoFactorSetup(null);
+      setTwoFactorBackupCodes(response.data.data.backupCodes);
+      setTwoFactorActionStatus('Backup codes regenerated.');
+    } catch (error) {
+      setTwoFactorActionError(getApiErrorMessage(error, 'Backup codes could not be regenerated.'));
+    }
+  }, [regenerateBackupCodes, resetTwoFactorFeedback, twoFactorCode, twoFactorPassword]);
+
+  const handleDisableTwoFactor = useCallback(async () => {
+    resetTwoFactorFeedback();
+
+    try {
+      await disableTwoFactor.mutateAsync({
+        currentPassword: twoFactorPassword,
+        code: twoFactorCode,
+      });
+      setTwoFactorPassword('');
+      setTwoFactorCode('');
+      setTwoFactorSetup(null);
+      setTwoFactorBackupCodes([]);
+      setTwoFactorActionStatus('Two-factor authentication is disabled.');
+    } catch (error) {
+      setTwoFactorActionError(getApiErrorMessage(error, 'Two-factor authentication could not be disabled.'));
+    }
+  }, [disableTwoFactor, resetTwoFactorFeedback, twoFactorCode, twoFactorPassword]);
 
   const handleProfileImageChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
@@ -1309,6 +1422,199 @@ const SettingsModal = ({
                 )}
                 Log out everywhere
               </button>
+            </div>
+
+            <div className="mb-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel)] p-3">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-[var(--chat-text)]">
+                    <KeyRound aria-hidden="true" className="h-4 w-4" />
+                    Two-factor authentication
+                  </p>
+                  <p className="mt-0.5 text-xs text-[var(--chat-text-muted)]">
+                    Status: {isTwoFactorEnabled ? 'On' : 'Off'}
+                    {isTwoFactorEnabled ? ` - Backup codes remaining: ${backupCodesRemaining}` : ''}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                    isTwoFactorEnabled
+                      ? 'border-[var(--chat-success)]/40 bg-[var(--chat-accent-soft)] text-[var(--chat-success)]'
+                      : 'border-[var(--chat-border)] text-[var(--chat-text-muted)]'
+                  }`}
+                >
+                  {isTwoFactorEnabled ? 'On' : 'Off'}
+                </span>
+              </div>
+
+              {twoFactorStatusQuery.isLoading ? (
+                <p className="text-xs text-[var(--chat-text-muted)]">
+                  Loading two-factor status...
+                </p>
+              ) : null}
+
+              {twoFactorStatusQuery.isError ? (
+                <div className="flex items-center justify-between gap-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-warning)]/40 bg-[var(--chat-panel-subtle)] p-3">
+                  <p className="text-xs font-medium text-[var(--chat-warning)]" role="alert">
+                    Two-factor status could not be loaded.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => twoFactorStatusQuery.refetch()}
+                    className="inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] px-2.5 py-1.5 text-xs font-semibold text-[var(--chat-text)] transition hover:bg-[var(--chat-panel-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                  >
+                    <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
+                    Retry
+                  </button>
+                </div>
+              ) : null}
+
+              {!isTwoFactorAvailable ? (
+                <p className="text-xs text-[var(--chat-text-muted)]">
+                  Two-factor authentication is available for password accounts.
+                </p>
+              ) : null}
+
+              {canUseTwoFactorActions ? (
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-[var(--chat-text-muted)]">
+                      Current password
+                    </span>
+                    <input
+                      type="password"
+                      value={twoFactorPassword}
+                      onChange={(event) => setTwoFactorPassword(event.target.value)}
+                      autoComplete="current-password"
+                      disabled={isTwoFactorBusy}
+                      className="mt-1 w-full rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-3 py-2 text-sm text-[var(--chat-text)] focus:border-[var(--chat-focus)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] disabled:opacity-50"
+                    />
+                  </label>
+
+                  {(isTwoFactorEnabled || twoFactorSetup) ? (
+                    <label className="block">
+                      <span className="text-xs font-semibold text-[var(--chat-text-muted)]">
+                        Authenticator or backup code
+                      </span>
+                      <input
+                        type="text"
+                        value={twoFactorCode}
+                        onChange={(event) => setTwoFactorCode(event.target.value)}
+                        autoComplete="one-time-code"
+                        inputMode="text"
+                        disabled={isTwoFactorBusy}
+                        className="mt-1 w-full rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-3 py-2 text-sm text-[var(--chat-text)] focus:border-[var(--chat-focus)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] disabled:opacity-50"
+                      />
+                    </label>
+                  ) : null}
+
+                  {!isTwoFactorEnabled && !twoFactorSetup ? (
+                    <button
+                      type="button"
+                      onClick={handleStartTwoFactorSetup}
+                      disabled={isTwoFactorBusy || !twoFactorPassword.trim()}
+                      className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] px-3 py-2 text-sm font-semibold text-[var(--chat-text)] transition hover:bg-[var(--chat-panel-elevated)] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                    >
+                      {setupTwoFactor.isPending ? (
+                        <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
+                      ) : (
+                        <KeyRound aria-hidden="true" className="h-4 w-4" />
+                      )}
+                      Start 2FA setup
+                    </button>
+                  ) : null}
+
+                  {twoFactorSetup ? (
+                    <div className="rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] p-3">
+                      <dl className="grid gap-2 text-xs">
+                        <div className="min-w-0">
+                          <dt className="font-semibold text-[var(--chat-text-muted)]">Secret</dt>
+                          <dd className="mt-1 break-all font-mono text-[var(--chat-text)]">{twoFactorSetup.secret}</dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="font-semibold text-[var(--chat-text-muted)]">Authenticator URI</dt>
+                          <dd className="mt-1 break-all font-mono text-[var(--chat-text)]">{twoFactorSetup.otpauthUrl}</dd>
+                        </div>
+                      </dl>
+                      <button
+                        type="button"
+                        onClick={handleConfirmTwoFactor}
+                        disabled={isTwoFactorBusy || !twoFactorCode.trim()}
+                        className="mt-3 inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] px-3 py-2 text-sm font-semibold text-[var(--chat-own-text)] transition hover:bg-[var(--chat-accent-strong)] disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                      >
+                        {confirmTwoFactor.isPending ? (
+                          <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
+                        ) : (
+                          <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                        )}
+                        Enable 2FA
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {isTwoFactorEnabled ? (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleRegenerateBackupCodes}
+                        disabled={isTwoFactorBusy || !twoFactorPassword.trim() || !twoFactorCode.trim()}
+                        className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] px-3 py-2 text-sm font-semibold text-[var(--chat-text)] transition hover:bg-[var(--chat-panel-elevated)] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                      >
+                        {regenerateBackupCodes.isPending ? (
+                          <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
+                        ) : (
+                          <RotateCcw aria-hidden="true" className="h-4 w-4" />
+                        )}
+                        Regenerate backup codes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDisableTwoFactor}
+                        disabled={isTwoFactorBusy || !twoFactorPassword.trim() || !twoFactorCode.trim()}
+                        className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] px-3 py-2 text-sm font-semibold text-[var(--chat-danger)] transition hover:bg-[var(--chat-panel-elevated)] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                      >
+                        {disableTwoFactor.isPending ? (
+                          <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
+                        ) : (
+                          <Trash2 aria-hidden="true" className="h-4 w-4" />
+                        )}
+                        Disable 2FA
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {twoFactorBackupCodes.length > 0 ? (
+                    <div className="rounded-[var(--chat-radius-md)] border border-[var(--chat-warning)]/40 bg-[var(--chat-panel-subtle)] p-3">
+                      <p className="text-xs font-semibold text-[var(--chat-warning)]">
+                        Save these backup codes now. They will not be shown again.
+                      </p>
+                      <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {twoFactorBackupCodes.map((backupCode) => (
+                          <li
+                            key={backupCode}
+                            className="rounded-[var(--chat-radius-sm)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-2 py-1 font-mono text-xs text-[var(--chat-text)]"
+                          >
+                            {backupCode}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  <div className="min-h-5">
+                    {twoFactorActionError ? (
+                      <p className="text-xs font-medium text-[var(--chat-danger)]" role="alert">
+                        {twoFactorActionError}
+                      </p>
+                    ) : null}
+                    {twoFactorActionStatus ? (
+                      <p className="text-xs font-medium text-[var(--chat-success)]" role="status">
+                        {twoFactorActionStatus}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-2">

@@ -36,6 +36,18 @@ const makeMessage = (overrides: Partial<Message> = {}): Message => ({
   ...overrides,
 });
 
+const makeReplyTo = (overrides: Partial<NonNullable<Message['replyTo']>> = {}): NonNullable<Message['replyTo']> => ({
+  messageId: 'message-source',
+  sender: 'user-2',
+  messageType: 'text',
+  textPreview: 'Original source context',
+  attachmentCount: 0,
+  isDeleted: false,
+  isEncrypted: false,
+  createdAt: '2026-06-08T09:59:00.000Z',
+  ...overrides,
+});
+
 describe('message cache helpers', () => {
   it('normalizes outgoing message text to backend validation boundaries', () => {
     expect(normalizeOutgoingMessageText('  hello  ')).toEqual({ ok: true, text: 'hello' });
@@ -74,6 +86,37 @@ describe('message cache helpers', () => {
       _id: 'server-1',
       clientMessageId: 'client-1',
       optimisticState: undefined,
+    });
+  });
+
+  it('preserves reply metadata while replacing optimistic rows with canonical messages', () => {
+    const optimisticReply = makeReplyTo({ textPreview: 'Original source context' });
+    const canonicalReply = makeReplyTo({ textPreview: 'Original source context', attachmentCount: 1 });
+    const optimistic = createOptimisticMessage({
+      chatId: 'chat-1',
+      senderId: 'user-1',
+      text: 'Replying now',
+      clientMessageId: 'client-reply',
+      replyTo: optimisticReply,
+      createdAt: '2026-06-08T10:00:00.000Z',
+    });
+    const serverMessage = makeMessage({
+      _id: 'server-reply',
+      clientMessageId: 'client-reply',
+      text: 'Replying now',
+      replyTo: canonicalReply,
+      createdAt: '2026-06-08T10:00:01.000Z',
+      updatedAt: '2026-06-08T10:00:01.000Z',
+    });
+
+    const cache = upsertMessageInCache(upsertMessageInCache(undefined, optimistic), serverMessage);
+
+    expect(cache.messages).toHaveLength(1);
+    expect(cache.messages[0]).toMatchObject({
+      _id: 'server-reply',
+      clientMessageId: 'client-reply',
+      optimisticState: undefined,
+      replyTo: canonicalReply,
     });
   });
 
@@ -270,11 +313,13 @@ describe('message cache helpers', () => {
   });
 
   it('marks a failed optimistic send without removing concurrent messages', () => {
+    const replyTo = makeReplyTo();
     const optimistic = createOptimisticMessage({
       chatId: 'chat-1',
       senderId: 'user-1',
       text: 'Will fail',
       clientMessageId: 'client-fail',
+      replyTo,
     });
     const concurrent = makeMessage({
       _id: 'message-concurrent',
@@ -294,6 +339,7 @@ describe('message cache helpers', () => {
     expect(failedCache?.messages.find((message) => message.clientMessageId === 'client-fail')).toMatchObject({
       optimisticState: 'failed',
       errorMessage: 'Network failed',
+      replyTo,
     });
     expect(failedCache?.messages.find((message) => message._id === 'message-concurrent')).toBeTruthy();
   });

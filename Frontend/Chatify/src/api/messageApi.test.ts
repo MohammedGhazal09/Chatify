@@ -123,11 +123,17 @@ describe('messageApi', () => {
     messageApi.getPinnedMessages('chat-1');
     messageApi.pinMessage('message-1');
     messageApi.unpinMessage('message-1');
+    messageApi.listSavedMessages();
+    messageApi.saveMessage('message-1');
+    messageApi.unsaveMessage('message-1');
 
     expect(axiosMock.get).toHaveBeenNthCalledWith(1, '/api/message/chat-1/shared-assets?limit=6&kind=media&cursor=cursor-1');
     expect(axiosMock.get).toHaveBeenNthCalledWith(2, '/api/message/chat-1/pinned');
+    expect(axiosMock.get).toHaveBeenNthCalledWith(3, '/api/message/saved');
     expect(axiosMock.post).toHaveBeenCalledWith('/api/message/message-1/pin');
+    expect(axiosMock.post).toHaveBeenCalledWith('/api/message/message-1/save');
     expect(axiosMock.delete).toHaveBeenCalledWith('/api/message/message-1/pin');
+    expect(axiosMock.delete).toHaveBeenCalledWith('/api/message/message-1/save');
     expect(messageApi.getAttachmentPreviewUrl('attachment 1')).toContain('/api/message/attachments/attachment%201/preview');
     expect(messageApi.getAttachmentDownloadUrl('attachment 1')).toContain('/api/message/attachments/attachment%201/download');
   });

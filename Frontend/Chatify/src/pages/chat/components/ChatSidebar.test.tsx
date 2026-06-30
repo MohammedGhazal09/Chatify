@@ -22,6 +22,7 @@ const makeSidebarProps = (overrides: Partial<ChatSidebarProps> = {}): ChatSideba
     createChatError: null,
     isCreatingChat: false,
     isCreatingGroupChat: false,
+    draftsByChatId: {},
     unreadCounts: new Map(),
     onlineUsers: new Map(),
     newChatButtonRef: createRef<HTMLButtonElement>(),
@@ -70,6 +71,21 @@ describe('ChatSidebar', () => {
     await user.click(screen.getByRole('button', { name: 'Open account settings' }));
 
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens saved messages from the footer shortcut when wired', async () => {
+    const user = userEvent.setup();
+    const onOpenSavedMessages = vi.fn();
+
+    const { rerender } = render(<ChatSidebar {...makeSidebarProps()} />);
+
+    expect(screen.getByRole('button', { name: 'Open saved messages' })).toBeDisabled();
+
+    rerender(<ChatSidebar {...makeSidebarProps({ onOpenSavedMessages })} />);
+
+    await user.click(screen.getByRole('button', { name: 'Open saved messages' }));
+
+    expect(onOpenSavedMessages).toHaveBeenCalledTimes(1);
   });
 
   it('renders the empty sidebar state and close control', async () => {
@@ -185,6 +201,60 @@ describe('ChatSidebar', () => {
 
     await user.click(screen.getByRole('button', { name: /Grace Hopper/ }));
     expect(onSelectChat).toHaveBeenCalledWith('chat-1');
+  });
+
+  it('shows a bounded standard draft preview and matches draft text in search', () => {
+    const chat = makeChat({
+      latestMessage: makeMessage({ text: 'Older persisted message' }),
+    });
+
+    renderSidebar({
+      chats: [chat],
+      searchQuery: 'flight plan',
+      draftsByChatId: {
+        [chat._id]: '   Finish   the flight plan  ',
+      },
+    });
+
+    expect(screen.getByText('Draft:')).toBeInTheDocument();
+    expect(screen.getByText('Finish the flight plan')).toHaveAttribute('dir', 'auto');
+    expect(screen.queryByText('Older persisted message')).not.toBeInTheDocument();
+  });
+
+  it('uses generic sidebar copy for encrypted conversation drafts', () => {
+    const chat = makeChat({
+      encryptionMode: 'e2ee_v1',
+      latestMessage: makeMessage({ text: 'Encrypted latest message' }),
+    });
+
+    renderSidebar({
+      chats: [chat],
+      draftsByChatId: {
+        [chat._id]: 'secret encrypted draft',
+      },
+    });
+
+    expect(screen.getByText('Draft:')).toBeInTheDocument();
+    expect(screen.getByText('Draft saved on this device')).toBeInTheDocument();
+    expect(screen.queryByText('secret encrypted draft')).not.toBeInTheDocument();
+  });
+
+  it('does not match encrypted draft plaintext from sidebar search', () => {
+    const chat = makeChat({
+      encryptionMode: 'e2ee_v1',
+      latestMessage: makeMessage({ text: 'Encrypted latest message' }),
+    });
+
+    renderSidebar({
+      chats: [chat],
+      searchQuery: 'hidden phrase',
+      draftsByChatId: {
+        [chat._id]: 'hidden phrase',
+      },
+    });
+
+    expect(screen.queryByText('Draft saved on this device')).not.toBeInTheDocument();
+    expect(screen.getByText('No matching conversations')).toBeInTheDocument();
   });
 
   it('passes muted conversations through to the visible chat row', () => {

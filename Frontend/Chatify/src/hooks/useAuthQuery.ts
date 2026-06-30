@@ -4,10 +4,11 @@ import { userApi } from '../api/userApi'
 import { useAuthStore } from '../store/authstore'
 import { usePresenceStore } from '../store/presenceStore'
 import { broadcastSessionEvent } from './useSessionBroadcast'
-import type { LoginData, SignupData } from '../types/auth'
+import type { LoginData, SignupData, TwoFactorProtectedActionData, VerifyTwoFactorLoginData } from '../types/auth'
 import { useEffect } from 'react'
 
 export const activeSessionsQueryKey = ['activeSessions'] as const
+export const twoFactorStatusQueryKey = ['twoFactorStatus'] as const
 
 const publicAuthRoutes = new Set(['/login', '/signup', '/forgot-password'])
 
@@ -81,7 +82,11 @@ export const useLogin = () => {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: LoginData) => authApi.login(data),
-    onSuccess: async () => {
+    onSuccess: async (response) => {
+      if (response.data.status === 'mfa_required') {
+        return
+      }
+
       try {
         const userResponse = await authApi.getLoggedUser()
         setUser(userResponse.data.user)
@@ -106,6 +111,29 @@ export const useSetUsername = () => {
       queryClient.setQueryData(['auth'], user)
       queryClient.invalidateQueries({ queryKey: ['auth'] })
     }
+  })
+}
+
+export const useVerifyTwoFactorLogin = () => {
+  const setUser = useAuthStore((state) => state.setUser)
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: VerifyTwoFactorLoginData) => authApi.verifyTwoFactorLogin(data),
+    onSuccess: async (response) => {
+      if (response.data.status !== 'success') {
+        return
+      }
+
+      try {
+        const userResponse = await authApi.getLoggedUser()
+        setUser(userResponse.data.user)
+        queryClient.invalidateQueries({ queryKey: ['auth'] })
+      } catch (error) {
+        console.error('Failed to fetch user after two-factor login:', error)
+        throw new Error('Two-factor login succeeded but failed to fetch user data')
+      }
+    },
   })
 }
 
@@ -169,6 +197,65 @@ export const useRevokeAllSessions = () => {
       logout()
       queryClient.clear()
       broadcastSessionEvent('logout', 'remote')
+    },
+  })
+}
+
+export const useTwoFactorStatus = (enabled = true) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
+  return useQuery({
+    queryKey: twoFactorStatusQueryKey,
+    queryFn: async () => {
+      const response = await authApi.getTwoFactorStatus()
+      return response.data.data.twoFactor
+    },
+    enabled: enabled && isAuthenticated,
+  })
+}
+
+export const useSetupTwoFactor = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (currentPassword: string) => authApi.setupTwoFactor(currentPassword),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: twoFactorStatusQueryKey })
+    },
+  })
+}
+
+export const useConfirmTwoFactor = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (code: string) => authApi.confirmTwoFactor(code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: twoFactorStatusQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['auth'] })
+    },
+  })
+}
+
+export const useDisableTwoFactor = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: TwoFactorProtectedActionData) => authApi.disableTwoFactor(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: twoFactorStatusQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['auth'] })
+    },
+  })
+}
+
+export const useRegenerateBackupCodes = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (data: TwoFactorProtectedActionData) => authApi.regenerateBackupCodes(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: twoFactorStatusQueryKey })
     },
   })
 }

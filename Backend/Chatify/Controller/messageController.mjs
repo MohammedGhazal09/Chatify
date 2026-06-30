@@ -5,6 +5,7 @@ import Attachment from '../Models/attachmentModel.mjs';
 import Message from '../Models/messageModel.mjs';
 import Chats from '../Models/chatModel.mjs';
 import User from '../Models/userModel.mjs';
+import SavedMessage from '../Models/savedMessageModel.mjs';
 import asyncErrorHandler from '../Utils/asyncErrHandler.mjs';
 import { emitToUserSockets, getIO } from '../Config/socket.mjs';
 import {
@@ -25,6 +26,7 @@ import {
   applyBeforeCursorFilter,
   buildUnreadMessageFilter,
   buildVisibleMessageFilter,
+  buildReplyToSnapshot,
   canUserSeeMessage,
   encodeMessageCursor,
   buildReadReceiptUpdatePipeline,
@@ -47,17 +49,26 @@ import {
   serializeAttachmentSummary,
   serializeMessage,
   serializePinnedMessage,
+  toIdString,
   toObjectId,
 } from '../Utils/messageState.mjs';
+import {
+  fingerprintMentions,
+  pruneMentionsForText,
+  resolveMessageMentions,
+} from '../Utils/messageMentions.mjs';
 import { assertConversationActivityAllowed } from '../Utils/conversationControls.mjs';
-import { CHAT_ENCRYPTION_MODES, isEncryptedConversation } from '../Utils/encryptionMode.mjs';
+import { CHAT_ENCRYPTION_MODES, isEncryptedConversation, normalizeChatEncryptionMode } from '../Utils/encryptionMode.mjs';
 import { logger } from '../Utils/observabilityLogger.mjs';
 import { enqueueMessageNotifications } from '../Services/notificationService.mjs';
 
 const PINNED_MESSAGES_LIMIT = 50;
+const SAVED_MESSAGES_LIMIT = 50;
 const SHARED_ASSET_CURSOR_SORT_DESC = Object.freeze({ createdAt: -1, _id: -1 });
 const PRIVATE_ATTACHMENT_ERROR = 'Attachment not found';
 const MESSAGE_CONTEXT_LIMIT = 25;
+const PRIVATE_REPLY_SOURCE_ERROR = 'Original message is not available';
+const PUBLIC_SAVED_CHAT_MEMBER_SELECT = 'username firstName lastName profilePic profileBio identityMark identityMarkUpdatedAt';
 
 const respondWithChatAccessError = (res, statusCode, message) => {
   res.status(statusCode).json({
@@ -243,6 +254,127 @@ const serializeSearchFilters = (filters) => ({
   from: filters.from?.toISOString?.() ?? null,
   to: filters.to?.toISOString?.() ?? null,
 });
+
+const serializeDate = (value) => value?.toISOString?.() ?? value ?? null;
+
+const serializeSavedPublicMember = (user) => {
+  const userObject = user?.toObject?.() ?? user;
+
+  if (!userObject) {
+    return null;
+  }
+
+  return {
+    _id: userObject._id?.toString?.() ?? userObject._id,
+    username: userObject.username ?? '',
+    firstName: userObject.firstName,
+    lastName: userObject.lastName,
+    profilePic: userObject.profilePic ?? '',
+    profileBio: userObject.profileBio ?? '',
+    identityMark: userObject.identityMark,
+    identityMarkUpdatedAt: serializeDate(userObject.identityMarkUpdatedAt),
+  };
+};
+
+const serializeSavedChat = (chat) => {
+  const chatObject = chat?.toObject?.() ?? chat;
+
+  if (!chatObject) {
+    return null;
+  }
+
+  return {
+    _id: chatObject._id?.toString?.() ?? chatObject._id,
+    chatName: chatObject.chatName ?? '',
+    isGroupChat: Boolean(chatObject.isGroupChat),
+    isSpaceChannel: Boolean(chatObject.isSpaceChannel),
+    space: chatObject.space?._id?.toString?.() ?? chatObject.space?.toString?.() ?? chatObject.space ?? null,
+    spaceId: chatObject.space?._id?.toString?.() ?? chatObject.space?.toString?.() ?? chatObject.space ?? null,
+    channelName: chatObject.channelName ?? '',
+    channelKey: chatObject.channelKey ?? '',
+    channelDescription: chatObject.channelDescription ?? '',
+    encryptionMode: normalizeChatEncryptionMode(chatObject.encryptionMode),
+    members: (chatObject.members ?? []).map(serializeSavedPublicMember).filter(Boolean),
+    groupAdmin: serializeSavedPublicMember(chatObject.groupAdmin),
+    createdAt: serializeDate(chatObject.createdAt),
+    updatedAt: serializeDate(chatObject.updatedAt),
+  };
+};
+
+const getMessageIdString = (message) => message?._id?.toString?.() ?? message?._id;
+
+const getSavedEntriesByMessageId = async ({ userObjectId, messages }) => {
+  const messageIds = messages
+    .map((message) => message?._id)
+    .filter(Boolean);
+
+  if (messageIds.length === 0) {
+    return new Map();
+  }
+
+  const savedEntries = await SavedMessage.find({
+    user: userObjectId,
+    message: { $in: messageIds },
+  }).lean();
+
+  return new Map(savedEntries.map((entry) => [entry.message.toString(), entry]));
+};
+
+const applySavedState = (serializedMessage, savedEntry = null) => ({
+  ...serializedMessage,
+  savedByRequester: Boolean(savedEntry),
+  savedAt: serializeDate(savedEntry?.savedAt),
+});
+
+const serializeMessagesForRequester = async ({ messages, userObjectId }) => {
+  const savedEntriesByMessageId = await getSavedEntriesByMessageId({
+    userObjectId,
+    messages,
+  });
+
+  return messages.map((message) => applySavedState(
+    serializeMessage(message),
+    savedEntriesByMessageId.get(getMessageIdString(message))
+  ));
+};
+
+const isChatMember = (chat, userObjectId) => {
+  const chatObject = chat?.toObject?.() ?? chat;
+  return (chatObject?.members ?? []).some((member) => {
+    const memberId = member?._id ?? member;
+    return memberId?.toString?.() === userObjectId.toString();
+  });
+};
+
+const serializeSavedMessage = ({ savedEntry, message, chat }) => {
+  const savedAt = serializeDate(savedEntry.savedAt);
+  const serializedMessage = applySavedState(serializeMessage(message), savedEntry);
+
+  return {
+    _id: savedEntry._id?.toString?.() ?? savedEntry._id,
+    messageId: serializedMessage._id,
+    chatId: serializedMessage.chatId,
+    savedAt,
+    savedByRequester: true,
+    chat: serializeSavedChat(chat),
+    message: {
+      ...serializedMessage,
+      savedAt,
+      savedByRequester: true,
+    },
+  };
+};
+
+const populateSavedEntryForResponse = (savedEntry) => savedEntry.populate([
+  { path: 'message' },
+  {
+    path: 'chat',
+    populate: [
+      { path: 'members', select: PUBLIC_SAVED_CHAT_MEMBER_SELECT },
+      { path: 'groupAdmin', select: PUBLIC_SAVED_CHAT_MEMBER_SELECT },
+    ],
+  },
+]);
 
 const buildMessageWindowRangeFilter = ({ targetMessage, direction }) => {
   const createdAt = targetMessage.createdAt;
@@ -494,6 +626,45 @@ const storeMessageAttachments = async ({
 
 const getMessageAttachmentFingerprint = (message) => message.attachmentFingerprint ?? '';
 const getEncryptedPayloadFingerprint = (message) => message.encryptedPayloadFingerprint ?? '';
+const serializeReplyFingerprintPayload = (replyTo = null) => {
+  if (!replyTo?.messageId) {
+    return null;
+  }
+
+  return {
+    messageId: toIdString(replyTo.messageId),
+    sender: toIdString(replyTo.sender),
+    messageType: replyTo.messageType ?? 'text',
+    textPreview: replyTo.textPreview ?? '',
+    attachmentCount: Number.isFinite(Number(replyTo.attachmentCount))
+      ? Number(replyTo.attachmentCount)
+      : 0,
+    isDeleted: Boolean(replyTo.isDeleted),
+    isEncrypted: Boolean(replyTo.isEncrypted),
+    createdAt: replyTo.createdAt
+      ? new Date(replyTo.createdAt).toISOString()
+      : null,
+  };
+};
+const fingerprintReplyTo = (replyTo = null) => {
+  const payload = serializeReplyFingerprintPayload(replyTo);
+
+  return payload
+    ? createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+    : '';
+};
+const getMessageReplyFingerprint = (message) => message.replyFingerprint ?? fingerprintReplyTo(message.replyTo);
+const getMessageMentionFingerprint = (message) => message.mentionFingerprint ?? '';
+const normalizeRequestedReplyMessageId = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  return toObjectId(value)?.toString?.() ?? value?.toString?.() ?? null;
+};
+const doesReplyRequestMatchMessage = (message, replyToMessageId) => (
+  (toIdString(message.replyTo?.messageId) ?? null) === normalizeRequestedReplyMessageId(replyToMessageId)
+);
 
 const fingerprintEncryptedPayload = (payload) => createHash('sha256')
   .update(JSON.stringify({
@@ -513,13 +684,18 @@ const isSameIdempotentPayload = ({
   text,
   attachmentFingerprint,
   encryptedPayloadFingerprint = null,
+  replyFingerprint = '',
+  mentionFingerprint = '',
 }) => {
   if (message.messageType === 'encrypted') {
     return encryptedPayloadFingerprint
       && getEncryptedPayloadFingerprint(message) === encryptedPayloadFingerprint;
   }
 
-  return message.text === text && getMessageAttachmentFingerprint(message) === attachmentFingerprint;
+  return message.text === text
+    && getMessageAttachmentFingerprint(message) === attachmentFingerprint
+    && getMessageReplyFingerprint(message) === replyFingerprint
+    && getMessageMentionFingerprint(message) === mentionFingerprint;
 };
 
 const logDeliveryLifecycle = (stage, metadata = {}) => {
@@ -782,6 +958,41 @@ const promoteMessageReadState = async ({ message, chat, userObjectId }) => {
   return { changed: false, message, readEntry: null };
 };
 
+const resolveReplyToSnapshot = async ({ replyToMessageId, chat, userObjectId, res }) => {
+  if (replyToMessageId === undefined || replyToMessageId === null || replyToMessageId === '') {
+    return { ok: true, replyTo: null, replyFingerprint: '' };
+  }
+
+  const replyToObjectId = toObjectId(replyToMessageId);
+
+  if (!replyToObjectId) {
+    respondWithChatAccessError(res, 404, PRIVATE_REPLY_SOURCE_ERROR);
+    return { ok: false };
+  }
+
+  const sourceMessage = await Message.findOne({
+    ...buildVisibleMessageFilter({
+      chatId: chat._id,
+      userId: userObjectId,
+      includeTombstones: false,
+    }),
+    _id: replyToObjectId,
+  });
+
+  if (!sourceMessage) {
+    respondWithChatAccessError(res, 404, PRIVATE_REPLY_SOURCE_ERROR);
+    return { ok: false };
+  }
+
+  const replyTo = buildReplyToSnapshot(sourceMessage);
+
+  return {
+    ok: true,
+    replyTo,
+    replyFingerprint: fingerprintReplyTo(replyTo),
+  };
+};
+
 const createEncryptedMessage = async ({
   req,
   res,
@@ -791,6 +1002,24 @@ const createEncryptedMessage = async ({
   incomingFiles,
   text,
 }) => {
+  if (req.body?.replyToMessageId) {
+    res.status(400).json({
+      status: 'fail',
+      code: 'encrypted_replies_unavailable',
+      message: 'Replies are unavailable in encrypted conversations in this release.',
+    });
+    return true;
+  }
+
+  if (req.body?.mentionUserIds) {
+    res.status(400).json({
+      status: 'fail',
+      code: 'encrypted_mentions_unavailable',
+      message: 'Mentions are unavailable in encrypted conversations in this release.',
+    });
+    return true;
+  }
+
   if (incomingFiles.length > 0) {
     res.status(400).json({
       status: 'fail',
@@ -951,7 +1180,7 @@ const createEncryptedMessage = async ({
 };
 
 export const newMessage = asyncErrorHandler(async (req, res) => {
-  const { chatId, text, clientMessageId } = req.body ?? {};
+  const { chatId, text, clientMessageId, replyToMessageId, mentionUserIds } = req.body ?? {};
   const incomingFiles = Array.isArray(req.files) ? req.files : [];
   const attachmentMetadata = parseAttachmentMetadata(req.body?.attachmentMetadata);
 
@@ -1046,6 +1275,22 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
       }
     : null;
   const attachmentFingerprint = validatedAttachments.fingerprint;
+  const mentionResolution = await resolveMessageMentions({
+    chat,
+    senderId: userObjectId,
+    text: normalizedText.text,
+    mentionUserIds,
+  });
+
+  if (!mentionResolution.ok) {
+    res.status(mentionResolution.statusCode).json({
+      status: 'fail',
+      message: mentionResolution.message,
+    });
+    return;
+  }
+
+  const mentionFingerprint = mentionResolution.mentionFingerprint;
 
   let message;
 
@@ -1056,20 +1301,22 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
       actorRole: 'sender',
     });
 
-    message = await Message.findOne(idempotencyFilter).select('+attachmentFingerprint');
+    message = await Message.findOne(idempotencyFilter).select('+attachmentFingerprint +replyFingerprint +mentionFingerprint');
 
     if (message) {
-      if (!isSameIdempotentPayload({
-        message,
-        text: normalizedText.text,
-        attachmentFingerprint,
-      })) {
-        res.status(409).json({
-          status: 'fail',
-          message: 'clientMessageId already exists with different message text or attachment payload',
-        });
-        return;
-      }
+      if (!doesReplyRequestMatchMessage(message, replyToMessageId) || !isSameIdempotentPayload({
+          message,
+          text: normalizedText.text,
+          attachmentFingerprint,
+          replyFingerprint: getMessageReplyFingerprint(message),
+          mentionFingerprint,
+        })) {
+          res.status(409).json({
+            status: 'fail',
+            message: 'clientMessageId already exists with different message text, attachment payload, reply target, or mentions',
+          });
+          return;
+        }
 
       logDeliveryLifecycle('create.idempotent', {
         chatId: chat._id.toString(),
@@ -1099,6 +1346,19 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     }
   }
 
+  const replyResolution = await resolveReplyToSnapshot({
+    replyToMessageId,
+    chat,
+    userObjectId,
+    res,
+  });
+
+  if (!replyResolution.ok) {
+    return;
+  }
+
+  const replyFingerprint = replyResolution.replyFingerprint;
+
   const messageObjectId = new mongoose.Types.ObjectId();
   let storedAttachments = [];
 
@@ -1116,6 +1376,10 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
       sender: userObjectId,
       clientMessageId: normalizedClientMessageId.clientMessageId ?? undefined,
       text: normalizedText.text,
+      replyTo: replyResolution.replyTo ?? undefined,
+      replyFingerprint: replyFingerprint || undefined,
+      mentions: mentionResolution.mentions,
+      mentionFingerprint: mentionFingerprint || undefined,
       attachments: storedAttachments.map((attachment) => attachment.summary),
       attachmentFingerprint,
       status: 'sent',
@@ -1124,17 +1388,19 @@ export const newMessage = asyncErrorHandler(async (req, res) => {
     await cleanupStoredAttachments(storedAttachments);
 
     if (error?.code === 11000 && idempotencyFilter) {
-      const existingMessage = await Message.findOne(idempotencyFilter).select('+attachmentFingerprint');
+      const existingMessage = await Message.findOne(idempotencyFilter).select('+attachmentFingerprint +replyFingerprint +mentionFingerprint');
 
       if (existingMessage) {
         if (!isSameIdempotentPayload({
           message: existingMessage,
           text: normalizedText.text,
           attachmentFingerprint,
+          replyFingerprint,
+          mentionFingerprint,
         })) {
           res.status(409).json({
             status: 'fail',
-            message: 'clientMessageId already exists with different message text or attachment payload',
+            message: 'clientMessageId already exists with different message text, attachment payload, reply target, or mentions',
           });
           return;
         }
@@ -1235,11 +1501,15 @@ export const getAllMessages = asyncErrorHandler(async (req, res) => {
   const nextCursor = hasMore && orderedMessages.length > 0
     ? encodeMessageCursor(orderedMessages[0])
     : null;
+  const serializedMessages = await serializeMessagesForRequester({
+    messages: orderedMessages,
+    userObjectId,
+  });
 
   res.status(200).json({
     status: 'messages fetched successfully',
     data: {
-      messages: orderedMessages.map((message) => serializeMessage(message)),
+      messages: serializedMessages,
       pagination: {
         currentPage: 1,
         totalPages: hasMore ? 2 : 1,
@@ -1400,12 +1670,16 @@ export const getMessageContext = asyncErrorHandler(async (req, res) => {
   const nextCursor = hasMoreBefore && messages.length > 0
     ? encodeMessageCursor(messages[0])
     : null;
+  const serializedMessages = await serializeMessagesForRequester({
+    messages,
+    userObjectId,
+  });
 
   res.status(200).json({
     status: 'message context fetched successfully',
     data: {
       targetMessageId: targetMessage._id.toString(),
-      messages: messages.map((message) => serializeMessage(message)),
+      messages: serializedMessages,
       cursor: {
         nextCursor,
         hasMore: hasMoreBefore,
@@ -1634,6 +1908,196 @@ export const listPinnedMessages = asyncErrorHandler(async (req, res) => {
       pinnedMessages: messages.map((message) => serializePinnedMessage(message)),
       messages: messages.map((message) => serializeMessage(message)),
       limit: PINNED_MESSAGES_LIMIT,
+    },
+  });
+});
+
+export const listSavedMessages = asyncErrorHandler(async (req, res) => {
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  const savedEntries = await SavedMessage.find({ user: userObjectId })
+    .sort({ savedAt: -1, _id: -1 })
+    .limit(SAVED_MESSAGES_LIMIT)
+    .populate('message')
+    .populate({
+      path: 'chat',
+      populate: [
+        { path: 'members', select: PUBLIC_SAVED_CHAT_MEMBER_SELECT },
+        { path: 'groupAdmin', select: PUBLIC_SAVED_CHAT_MEMBER_SELECT },
+      ],
+    });
+
+  const visibleSavedMessages = savedEntries
+    .filter((savedEntry) => {
+      const message = savedEntry.message;
+      const chat = savedEntry.chat;
+
+      return Boolean(
+        message &&
+        chat &&
+        isChatMember(chat, userObjectId) &&
+        canUserSeeMessage(message, userObjectId) &&
+        !message.deletedForEveryone
+      );
+    })
+    .map((savedEntry) => serializeSavedMessage({
+      savedEntry,
+      message: savedEntry.message,
+      chat: savedEntry.chat,
+    }));
+
+  res.status(200).json({
+    status: 'saved messages fetched successfully',
+    data: {
+      savedMessages: visibleSavedMessages,
+      messages: visibleSavedMessages.map((entry) => entry.message),
+      limit: SAVED_MESSAGES_LIMIT,
+    },
+  });
+});
+
+export const saveMessage = asyncErrorHandler(async (req, res) => {
+  const { messageId } = req.params;
+
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    respondWithChatAccessError(res, 400, 'Invalid message id');
+    return;
+  }
+
+  const message = await Message.findById(messageId);
+
+  if (!message) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res, {
+    privateResourceMessage: 'Message not found',
+    privateResourceStatusCode: 404,
+  });
+
+  if (!chat) {
+    return;
+  }
+
+  if (!canUserSeeMessage(message, userObjectId) || message.deletedForEveryone) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  const savedEntry = await SavedMessage.findOneAndUpdate(
+    {
+      user: userObjectId,
+      message: message._id,
+    },
+    {
+      $setOnInsert: {
+        user: userObjectId,
+        message: message._id,
+        chat: chat._id,
+        savedAt: new Date(),
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    }
+  );
+  const populatedSavedEntry = await populateSavedEntryForResponse(savedEntry);
+  const serializedMessage = applySavedState(serializeMessage(message), savedEntry);
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      message: serializedMessage,
+      savedMessage: serializeSavedMessage({
+        savedEntry: populatedSavedEntry,
+        message: populatedSavedEntry.message,
+        chat: populatedSavedEntry.chat,
+      }),
+      savedByRequester: true,
+    },
+  });
+});
+
+export const unsaveMessage = asyncErrorHandler(async (req, res) => {
+  const { messageId } = req.params;
+
+  if (!req.userId) {
+    respondWithChatAccessError(res, 401, 'Authentication required');
+    return;
+  }
+
+  let userObjectId;
+  try {
+    userObjectId = new mongoose.Types.ObjectId(req.userId);
+  } catch (error) {
+    respondWithChatAccessError(res, 400, error.message);
+    return;
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    respondWithChatAccessError(res, 400, 'Invalid message id');
+    return;
+  }
+
+  const message = await Message.findById(messageId);
+
+  if (!message) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  const chat = await loadChatForUser(message.chatId.toString(), userObjectId, res, {
+    privateResourceMessage: 'Message not found',
+    privateResourceStatusCode: 404,
+  });
+
+  if (!chat) {
+    return;
+  }
+
+  if (!canUserSeeMessage(message, userObjectId) || message.deletedForEveryone) {
+    respondWithChatAccessError(res, 404, 'Message not found');
+    return;
+  }
+
+  await SavedMessage.deleteOne({
+    user: userObjectId,
+    message: message._id,
+  });
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      message: applySavedState(serializeMessage(message), null),
+      savedMessage: null,
+      savedByRequester: false,
     },
   });
 });
@@ -2299,6 +2763,9 @@ export const editMessage = asyncErrorHandler(async (req, res) => {
   }
 
   message.text = normalizedText.text;
+  const prunedMentions = pruneMentionsForText(message.mentions ?? [], normalizedText.text);
+  message.mentions = prunedMentions;
+  message.mentionFingerprint = fingerprintMentions(prunedMentions) || undefined;
   message.isEdited = true;
   message.editedAt = new Date();
   await message.save();

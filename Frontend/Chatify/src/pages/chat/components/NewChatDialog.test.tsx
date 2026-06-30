@@ -26,6 +26,7 @@ const DialogHarness = ({ onSubmit, onCreateGroupSubmit = vi.fn() }: DialogHarnes
         isOpen={isOpen}
         username={username}
         error={null}
+        notice={null}
         isSubmitting={false}
         isGroupSubmitting={false}
         openerRef={openerRef}
@@ -51,12 +52,13 @@ describe('NewChatDialog', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'New chat' });
     expect(dialog).toBeInTheDocument();
+    expect(screen.getByText('Send a request to new contacts. Existing chats open immediately.')).toBeInTheDocument();
     const usernameInput = screen.getByLabelText('Username');
     expect(usernameInput).toHaveFocus();
     expect(usernameInput).toHaveAttribute('name', 'targetUsername');
 
     await user.type(usernameInput, 'friend.name');
-    await user.click(screen.getByRole('button', { name: 'Start or continue chat' }));
+    await user.click(screen.getByRole('button', { name: 'Send request or open chat' }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
 
@@ -93,6 +95,7 @@ describe('NewChatDialog', () => {
         isOpen
         username="missing.user"
         error="We could not start that chat. Check the username and try again."
+        notice={null}
         isSubmitting
         isGroupSubmitting={false}
         openerRef={openerRef}
@@ -104,8 +107,32 @@ describe('NewChatDialog', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: /Starting/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Sending/ })).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent('We could not start that chat. Check the username and try again.');
+  });
+
+  it('shows a pending contact request notice without treating it as an error', () => {
+    const openerRef = { current: document.createElement('button') };
+
+    render(
+      <NewChatDialog
+        isOpen
+        username="grace.hopper"
+        error={null}
+        notice="Request sent. The chat will open here after they accept."
+        isSubmitting={false}
+        isGroupSubmitting={false}
+        openerRef={openerRef}
+        onUsernameChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onCreateGroupSubmit={vi.fn()}
+        onClearError={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Request sent. The chat will open here after they accept.');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('adds username chips and submits a group conversation payload', async () => {
@@ -160,7 +187,7 @@ describe('NewChatDialog', () => {
     expect(screen.getByText(/This device stores the conversation secret/)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Username'), 'encrypted.friend');
-    await user.click(screen.getByRole('button', { name: 'Start or continue chat' }));
+    await user.click(screen.getByRole('button', { name: 'Start encrypted chat' }));
 
     expect(onSubmit.mock.calls[0][1]).toEqual({ encryptionMode: 'e2ee_v1' });
 

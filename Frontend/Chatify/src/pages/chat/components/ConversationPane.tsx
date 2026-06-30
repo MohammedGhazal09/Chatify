@@ -90,6 +90,7 @@ interface ConversationPaneProps {
   onMessageContextMenu: MessageListProps['onMessageContextMenu'];
   onOpenMessageActions: MessageListProps['onOpenMessageActions'];
   onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
+  onJumpToMessage: MessageListProps['onJumpToMessage'];
   onStartEdit: (messageId: string, currentText: string) => void;
   onRetryFailed: (message: Message) => void;
   onDismissFailed: (message: Message) => void;
@@ -97,6 +98,7 @@ interface ConversationPaneProps {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onComposerChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
+  onComposerValueChange?: (value: string) => void;
   onComposerKeyDown: (event: Parameters<KeyboardEventHandler<HTMLTextAreaElement>>[0], payload: ComposerSendPayload) => void;
   onSendMessage: (payload: ComposerSendPayload) => void;
   onToggleEmojiPicker: () => void;
@@ -201,6 +203,7 @@ const ConversationPane = ({
   onMessageContextMenu,
   onOpenMessageActions,
   onOpenAttachmentPreview,
+  onJumpToMessage,
   onStartEdit,
   onRetryFailed,
   onDismissFailed,
@@ -208,6 +211,7 @@ const ConversationPane = ({
   onSaveEdit,
   onCancelEdit,
   onComposerChange,
+  onComposerValueChange,
   onComposerKeyDown,
   onSendMessage,
   onToggleEmojiPicker,
@@ -223,6 +227,16 @@ const ConversationPane = ({
   const isConversationBlocked = conversationControls?.canSendMessage === false;
   const encryptedConversation = isEncryptedConversation(selectedChat);
   const missingEncryptionSecret = encryptedConversation && !hasConversationSecret(selectedChat?._id);
+  const replyingToSender = replyingTo
+    ? selectedChat?.members.find((member) => member._id === replyingTo.sender) ?? null
+    : null;
+  const replyingToSenderLabel = replyingTo
+    ? replyingTo.sender === currentUserId
+      ? 'You'
+      : replyingToSender
+        ? getMemberLabel(replyingToSender, currentUserId)
+        : 'Unknown member'
+    : null;
 
   if (!selectedChat) {
     const openContacts = onOpenContacts ?? onOpenSidebar;
@@ -459,6 +473,7 @@ const ConversationPane = ({
           onMessageContextMenu={onMessageContextMenu}
           onOpenMessageActions={onOpenMessageActions}
           onOpenAttachmentPreview={onOpenAttachmentPreview}
+          onJumpToMessage={onJumpToMessage}
           onStartEdit={onStartEdit}
           onRetryFailed={onRetryFailed}
           onDismissFailed={onDismissFailed}
@@ -471,6 +486,7 @@ const ConversationPane = ({
       <MessageComposer
         value={messageInput}
         replyingTo={replyingTo}
+        replyingToSenderLabel={replyingToSenderLabel}
         showEmojiPicker={showEmojiPicker}
         isSending={isSending}
         isSendError={isSendError}
@@ -488,9 +504,13 @@ const ConversationPane = ({
                   : sendDisabledReason ?? null
         }
         isEncryptedConversation={encryptedConversation}
+        currentUserId={currentUserId}
+        mentionCandidates={selectedChat.isGroupChat ? selectedChat.members : []}
+        mentionContextLabel={selectedChat.isSpaceChannel ? 'Space member' : 'Group member'}
         emojiPickerRef={emojiPickerRef}
         showDisabledReason={!isConversationBlocked}
         onChange={onComposerChange}
+        onValueChange={onComposerValueChange}
         onKeyDown={onComposerKeyDown}
         onSend={onSendMessage}
         onToggleEmojiPicker={onToggleEmojiPicker}

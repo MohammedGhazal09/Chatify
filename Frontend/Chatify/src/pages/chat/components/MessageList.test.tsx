@@ -31,6 +31,7 @@ const renderMessageList = (overrides: Partial<MessageListProps> = {}) => {
     onMessageContextMenu: vi.fn(),
     onOpenMessageActions: vi.fn(),
     onOpenAttachmentPreview: vi.fn(),
+    onJumpToMessage: vi.fn(),
     onStartEdit: vi.fn(),
     onRetryFailed: vi.fn(),
     onDismissFailed: vi.fn(),
@@ -99,6 +100,35 @@ describe('MessageList', () => {
 
     expect(onLoadMore).toHaveBeenCalledTimes(1);
     expect(onScrollToBottom).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards quoted message jumps from message bubbles', async () => {
+    const user = userEvent.setup();
+    const onJumpToMessage = vi.fn();
+
+    renderMessageList({
+      messages: [
+        makeMessage({
+          _id: 'message-reply',
+          text: 'Reply in timeline',
+          replyTo: {
+            messageId: 'message-source',
+            sender: 'user-2',
+            messageType: 'text',
+            textPreview: 'Original source text',
+            attachmentCount: 0,
+            isDeleted: false,
+            isEncrypted: false,
+            createdAt: '2026-06-08T09:59:00.000Z',
+          },
+        }),
+      ],
+      onJumpToMessage,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Jump to quoted message from Grace Hopper: Original source text' }));
+
+    expect(onJumpToMessage).toHaveBeenCalledWith('message-source');
   });
 
   it('labels the edit message textarea when editing', () => {

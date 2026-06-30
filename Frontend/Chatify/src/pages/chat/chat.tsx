@@ -15,6 +15,10 @@ import { useLogout } from '../../hooks/useAuthQuery';
 import {
   useChats,
   useContacts,
+  useContactRequests,
+  useAcceptContactRequest,
+  useDeclineContactRequest,
+  useCancelContactRequest,
   useCreateChat,
   useCreateGroupChat,
   useMessages,
@@ -30,6 +34,8 @@ import {
   usePaginatedSharedAssets,
   usePinnedMessages,
   usePinMessage,
+  useSaveMessage,
+  useUnsaveMessage,
   useUnpinMessage,
   useUpdateChatOrganization,
   useBlockChatPeer,
@@ -61,6 +67,8 @@ import type {
   MessageDeletedEvent,
   MessageEditedEvent,
   MessageReactionEvent,
+  MessageReplyTo,
+  SavedMessage,
   MessageSearchFilters,
   MessageStatusUpdateEvent,
 } from '../../types/chat';
@@ -74,13 +82,16 @@ import {
   ConversationMoreMenu,
   ConversationDetailDrawer,
   ConversationPane,
+  InviteLinksDialog,
   MessageActionMenu,
+  SavedMessagesDialog,
   SpacesSidebar,
   StartConversationDialog,
   VoiceMessagesModal,
 } from './components';
 import type { AttachmentPreviewTarget } from './components/AttachmentPreviewModal';
 import type { SidebarWorkspaceMode } from './components/ChatSidebar';
+import type { InviteTargetType } from '../../types/invite';
 import { createClientMessageId, MAX_MESSAGE_TEXT_LENGTH } from '../../hooks/messageCache';
 import { useChatTheme } from './hooks/useChatTheme';
 import { useChatViewState } from './hooks/useChatViewState';
@@ -89,6 +100,10 @@ import {
   replaceSelectedChatUrl,
   useSelectedChatPersistence,
 } from './hooks/useSelectedChatPersistence';
+import {
+  clearStoredConversationDrafts,
+  useConversationDrafts,
+} from './hooks/useConversationDrafts';
 import { getChatTitle, getOtherMember } from './utils/chatDisplay';
 import { buildSendDraftKey } from './sendDraftGuard';
 import { validateUsername } from '../../utils/usernameValidation';
@@ -105,6 +120,46 @@ const isDesktopDetailRailViewport = () => (
   typeof window.matchMedia === 'function' &&
   window.matchMedia(DETAIL_RAIL_MEDIA_QUERY).matches
 );
+
+const getInitialWorkspaceMode = (): SidebarWorkspaceMode => {
+  if (typeof window === 'undefined') {
+    return 'conversations';
+  }
+
+  return new URLSearchParams(window.location.search).get('workspace') === 'spaces'
+    ? 'spaces'
+    : 'conversations';
+};
+
+const getInitialSpaceId = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return new URLSearchParams(window.location.search).get('spaceId');
+};
+
+const replaceWorkspaceUrlState = (mode: SidebarWorkspaceMode, spaceId: string | null) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+
+  if (mode === 'spaces') {
+    url.searchParams.set('workspace', 'spaces');
+    if (spaceId) {
+      url.searchParams.set('spaceId', spaceId);
+    } else {
+      url.searchParams.delete('spaceId');
+    }
+  } else {
+    url.searchParams.delete('workspace');
+    url.searchParams.delete('spaceId');
+  }
+
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+};
 
 const useDebounce = (callback: () => void, delay: number) => {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -134,6 +189,7 @@ const GENERIC_GROUP_CHAT_ERROR_COPY = 'We could not create that group. Check the
 const GENERIC_SPACE_ERROR_COPY = 'We could not create that space. Check the usernames and try again.';
 const GENERIC_JOIN_SPACE_ERROR_COPY = 'We could not join that space. Check the join code and try again.';
 const GENERIC_CHANNEL_ERROR_COPY = 'We could not create that channel. Check the name and try again.';
+const REPLY_TEXT_PREVIEW_LIMIT = 160;
 const DEFAULT_MESSAGE_SEARCH_FILTERS: MessageSearchFilters = {
   senderId: null,
   type: 'all',
@@ -141,6 +197,41 @@ const DEFAULT_MESSAGE_SEARCH_FILTERS: MessageSearchFilters = {
   to: null,
 };
 const ENCRYPTED_ATTACHMENT_UNAVAILABLE_COPY = 'Encrypted conversations do not support attachment upload yet.';
+
+type InviteLinksTarget = {
+  targetType: InviteTargetType;
+  targetId: string;
+  targetName: string;
+  canManage: boolean;
+  disabledReason: string | null;
+};
+
+const normalizeReplyPreview = (value: string) => {
+  const preview = value.replace(/\s+/g, ' ').trim();
+  return preview.length > REPLY_TEXT_PREVIEW_LIMIT
+    ? preview.slice(0, REPLY_TEXT_PREVIEW_LIMIT)
+    : preview;
+};
+
+const getReplyAttachmentCount = (message: Message) => (
+  message.attachments?.filter((attachment) => attachment.status !== 'deleted').length ?? 0
+);
+
+const buildOptimisticReplyTo = (message: Message): MessageReplyTo => {
+  const encrypted = isEncryptedMessage(message);
+  const deleted = Boolean(message.deletedForEveryone);
+
+  return {
+    messageId: message._id,
+    sender: message.sender,
+    messageType: message.messageType ?? 'text',
+    textPreview: deleted || encrypted ? '' : normalizeReplyPreview(message.text),
+    attachmentCount: getReplyAttachmentCount(message),
+    isDeleted: deleted,
+    isEncrypted: encrypted,
+    createdAt: message.createdAt,
+  };
+};
 
 const getConversationDisabledReason = (controls?: ConversationControls) => {
   if (!controls || controls.canSendMessage) {
@@ -236,17 +327,21 @@ const ChatPage = () => {
   const [isDetailRailOpen, setIsDetailRailOpen] = useState(() => isDesktopDetailRailViewport());
   const [isVoiceMessagesModalOpen, setIsVoiceMessagesModalOpen] = useState(false);
   const [isConversationMoreOpen, setIsConversationMoreOpen] = useState(false);
+  const [isInviteLinksOpen, setIsInviteLinksOpen] = useState(false);
+  const [isSavedMessagesOpen, setIsSavedMessagesOpen] = useState(false);
+  const [pendingSavedJump, setPendingSavedJump] = useState<{ chatId: string; messageId: string } | null>(null);
   const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
     typeof navigator === 'undefined' ? true : navigator.onLine
   ));
   const [conversationFilter, setConversationFilter] = useState<ConversationFocusFilter>('all');
   const [attachmentPreview, setAttachmentPreview] = useState<AttachmentPreviewTarget | null>(null);
   const [activeComposerUploadId, setActiveComposerUploadId] = useState<string | null>(null);
-  const [sidebarWorkspaceMode, setSidebarWorkspaceMode] = useState<SidebarWorkspaceMode>('conversations');
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [sidebarWorkspaceMode, setSidebarWorkspaceMode] = useState<SidebarWorkspaceMode>(() => getInitialWorkspaceMode());
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(() => getInitialSpaceId());
   const [createSpaceError, setCreateSpaceError] = useState<string | null>(null);
   const [createChannelError, setCreateChannelError] = useState<string | null>(null);
   const [joinSpaceError, setJoinSpaceError] = useState<string | null>(null);
+  const [createChatNotice, setCreateChatNotice] = useState<string | null>(null);
   const [isStartConversationOpen, setIsStartConversationOpen] = useState(false);
   const chatTheme = useChatTheme(user?._id);
   const notificationPreferences = useNotificationPreferences(user?._id);
@@ -258,6 +353,12 @@ const ChatPage = () => {
     isError: isContactsError,
     refetch: refetchContacts,
   } = useContacts(isStartConversationOpen);
+  const {
+    data: contactRequests,
+    isLoading: isContactRequestsLoading,
+    isError: isContactRequestsError,
+    refetch: refetchContactRequests,
+  } = useContactRequests(isStartConversationOpen || isNewChatOpen);
   const { data: spaces, isLoading: isSpacesLoading, isError: spacesError, refetch: refetchSpaces } = useSpaces();
   const selectedSpace = useMemo(
     () => spaces?.find((space) => space._id === selectedSpaceId) ?? null,
@@ -289,6 +390,9 @@ const ChatPage = () => {
   } = useMessages(selectedChatId);
   const sendMessage = useSendMessage();
   const createChat = useCreateChat();
+  const acceptContactRequest = useAcceptContactRequest();
+  const declineContactRequest = useDeclineContactRequest();
+  const cancelContactRequest = useCancelContactRequest();
   const createGroupChat = useCreateGroupChat();
   const createSpace = useCreateSpace();
   const createSpaceChannel = useCreateSpaceChannel();
@@ -299,6 +403,8 @@ const ChatPage = () => {
   const toggleReactionMutation = useToggleReaction();
   const pinMessageMutation = usePinMessage();
   const unpinMessageMutation = useUnpinMessage();
+  const saveMessageMutation = useSaveMessage();
+  const unsaveMessageMutation = useUnsaveMessage();
   const updateChatOrganizationMutation = useUpdateChatOrganization();
   const blockChatPeerMutation = useBlockChatPeer();
   const unblockChatPeerMutation = useUnblockChatPeer();
@@ -338,6 +444,18 @@ const ChatPage = () => {
     isChatsLoading: isChatsLoading || isSpacesLoading || Boolean(selectedSpaceId && isSpaceChannelsLoading),
     selectedChatId,
     setSelectedChatId,
+  });
+
+  useEffect(() => {
+    replaceWorkspaceUrlState(sidebarWorkspaceMode, selectedSpaceId);
+  }, [selectedSpaceId, sidebarWorkspaceMode]);
+
+  const { draftsByChatId } = useConversationDrafts({
+    userId: user?._id,
+    selectedChatId,
+    messageInput,
+    setMessageInput,
+    accessibleChatIds: chatIds,
   });
 
   const markMessagesAsReadRef = useRef(markMessagesAsReadMutation.mutate);
@@ -408,6 +526,51 @@ const ChatPage = () => {
   const isSelectedChatPinned = selectedChat?.organizationState?.pinned === true;
   const conversationControls = selectedChat?.conversationControls;
   const isSelectedChatEncrypted = isEncryptedConversation(selectedChat);
+  const inviteLinksTarget = useMemo<InviteLinksTarget | null>(() => {
+    if (!selectedChat) {
+      return null;
+    }
+
+    if (selectedChat.isSpaceChannel) {
+      const targetId = selectedChat.spaceId ?? selectedChat.space ?? selectedSpace?._id;
+      if (!targetId) {
+        return null;
+      }
+
+      const canManage = Boolean(selectedSpace?.canManage);
+      return {
+        targetType: 'space',
+        targetId,
+        targetName: selectedSpace?.name ?? selectedChat.chatName ?? selectedChat.channelName ?? 'Space',
+        canManage,
+        disabledReason: canManage
+          ? null
+          : selectedSpace
+            ? 'Only a space owner or admin can manage invite links.'
+            : 'Space permissions are still loading.',
+      };
+    }
+
+    if (!selectedChat.isGroupChat) {
+      return null;
+    }
+
+    const isGroupAdmin = selectedChat.groupAdmin?._id === user?._id;
+    const canManage = !isSelectedChatEncrypted && isGroupAdmin;
+    const disabledReason = isSelectedChatEncrypted
+      ? 'Invite links are unavailable for encrypted conversations.'
+      : isGroupAdmin
+        ? null
+        : 'Only the group admin can manage invite links.';
+
+    return {
+      targetType: 'group',
+      targetId: selectedChat._id,
+      targetName: getChatTitle(selectedChat, user?._id),
+      canManage,
+      disabledReason,
+    };
+  }, [isSelectedChatEncrypted, selectedChat, selectedSpace, user?._id]);
   const activeConversationDisabledReason = getConversationDisabledReason(conversationControls);
   const isConversationControlPending = blockChatPeerMutation.isPending || unblockChatPeerMutation.isPending;
   const isConversationOrganizationPending = updateChatOrganizationMutation.isPending;
@@ -692,10 +855,12 @@ const ChatPage = () => {
 
     if (storageUserId) {
       window.localStorage.removeItem(getSelectedChatStorageKey(storageUserId));
+      clearStoredConversationDrafts(storageUserId);
     }
 
     queryClient.clear();
     setSelectedChatId(null);
+    setMessageInput('');
     setSearchQuery('');
     setMessageSearch('');
     setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
@@ -708,9 +873,14 @@ const ChatPage = () => {
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(false);
     setIsVoiceMessagesModalOpen(false);
+    setIsInviteLinksOpen(false);
+    setIsSavedMessagesOpen(false);
+    setPendingSavedJump(null);
     setAttachmentPreview(null);
+    setReplyingTo(null);
     setNewChatUsername('');
     setCreateChatError(null);
+    setCreateChatNotice(null);
     setCreateSpaceError(null);
     setCreateChannelError(null);
     clearPresenceState();
@@ -722,9 +892,11 @@ const ChatPage = () => {
     setIsNewChatOpen,
     setIsSidebarOpen,
     setIsTyping,
+    setMessageInput,
     setMessageSearch,
     setMessageSearchFilters,
     setNewChatUsername,
+    setReplyingTo,
     setSearchQuery,
     setSelectedChatId,
     setShowMessageSearch,
@@ -767,7 +939,10 @@ const ChatPage = () => {
     setIsDetailDrawerOpen(false);
     setIsDetailRailOpen(isDesktopDetailRailViewport());
     setIsConversationMoreOpen(false);
-  }, [clearHighlightedMessage, selectedChatId]);
+    setIsInviteLinksOpen(false);
+    setIsSavedMessagesOpen(false);
+    setReplyingTo(null);
+  }, [clearHighlightedMessage, selectedChatId, setReplyingTo]);
 
   useEffect(() => {
     return () => {
@@ -1071,6 +1246,11 @@ const ChatPage = () => {
 
     const clientMessageId = createClientMessageId();
     const optimisticAttachments = payload ? buildOptimisticAttachments(payload, clientMessageId) : [];
+    const optimisticReplyTo = replyingTo && selectedEncryptionMode === 'standard'
+      ? buildOptimisticReplyTo(replyingTo)
+      : null;
+    const mentionUserIds = selectedEncryptionMode === 'standard' ? payload?.mentionUserIds ?? [] : [];
+    const optimisticMentions = selectedEncryptionMode === 'standard' ? payload?.mentions ?? [] : [];
 
     if (attachmentDrafts.length > 0) {
       setActiveComposerUploadId(clientMessageId);
@@ -1082,12 +1262,17 @@ const ChatPage = () => {
         text: sourceText,
         encryptionMode: selectedEncryptionMode,
         clientMessageId,
+        replyToMessageId: optimisticReplyTo?.messageId ?? undefined,
+        optimisticReplyTo,
+        mentionUserIds,
+        optimisticMentions,
         attachments: attachmentDrafts,
         optimisticAttachments,
       },
       {
         onSuccess: () => {
           setMessageInput('');
+          setReplyingTo(null);
           setComposerResetToken((currentToken) => currentToken + 1);
         },
         onSettled: () => {
@@ -1140,6 +1325,12 @@ const ChatPage = () => {
   const handleReply = (message: Message) => {
     if (activeConversationDisabledReason) {
       showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
+    if (isEncryptedConversation(selectedChat) || isEncryptedMessage(message)) {
+      showToast('Replies are unavailable in encrypted conversations in this release.', 'error');
       closeContextMenu();
       return;
     }
@@ -1324,6 +1515,7 @@ const ChatPage = () => {
         setNewChatUsername('');
       }
       setCreateChatError(null);
+      setCreateChatNotice(null);
       return nextState;
     });
   };
@@ -1341,6 +1533,7 @@ const ChatPage = () => {
     }
 
     setCreateChatError(null);
+    setCreateChatNotice(null);
 
     createChat.mutate(
       {
@@ -1348,11 +1541,17 @@ const ChatPage = () => {
         ...(options.encryptionMode === 'e2ee_v1' ? { encryptionMode: options.encryptionMode } : {}),
       },
       {
-        onSuccess: (chat) => {
-          setSelectedChatId(chat._id);
+        onSuccess: (result) => {
+          if (result.kind === 'contactRequest') {
+            setCreateChatNotice('Request sent. The chat will open here after they accept.');
+            return;
+          }
+
+          setSelectedChatId(result.chat._id);
           setIsNewChatOpen(false);
           setNewChatUsername('');
           setCreateChatError(null);
+          setCreateChatNotice(null);
         },
         onError: (error: unknown) => {
           if (axios.isAxiosError(error)) {
@@ -1374,10 +1573,15 @@ const ChatPage = () => {
     createChat.mutate(
       { targetUsername: username },
       {
-        onSuccess: (chat) => {
+        onSuccess: (result) => {
+          if (result.kind === 'contactRequest') {
+            showToast('Request sent. The conversation will appear after they accept.', 'success');
+            return;
+          }
+
           setIsStartConversationOpen(false);
           setSidebarWorkspaceMode('conversations');
-          setSelectedChatId(chat._id);
+          setSelectedChatId(result.chat._id);
           setIsSidebarOpen(false);
         },
         onError: (error) => {
@@ -1385,6 +1589,43 @@ const ChatPage = () => {
         },
       }
     );
+  };
+
+  const handleAcceptContactRequest = (requestId: string) => {
+    acceptContactRequest.mutate(requestId, {
+      onSuccess: ({ chat }) => {
+        setIsStartConversationOpen(false);
+        setSidebarWorkspaceMode('conversations');
+        setSelectedChatId(chat._id);
+        setIsSidebarOpen(false);
+        showToast('Request accepted. Chat is ready.', 'success');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not accept that request.'), 'error');
+      },
+    });
+  };
+
+  const handleDeclineContactRequest = (requestId: string) => {
+    declineContactRequest.mutate(requestId, {
+      onSuccess: () => {
+        showToast('Request declined.', 'info');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not decline that request.'), 'error');
+      },
+    });
+  };
+
+  const handleCancelContactRequest = (requestId: string) => {
+    cancelContactRequest.mutate(requestId, {
+      onSuccess: () => {
+        showToast('Request canceled.', 'info');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not cancel that request.'), 'error');
+      },
+    });
   };
 
   const handleStartNewChatFromContacts = () => {
@@ -1646,6 +1887,37 @@ const ChatPage = () => {
     showToast,
   ]);
 
+  useEffect(() => {
+    if (!pendingSavedJump || selectedChatId !== pendingSavedJump.chatId || isMessagesLoading) {
+      return;
+    }
+
+    const targetMessageId = pendingSavedJump.messageId;
+    setPendingSavedJump(null);
+    void handleJumpToMessage(targetMessageId);
+  }, [handleJumpToMessage, isMessagesLoading, pendingSavedJump, selectedChatId]);
+
+  const handleJumpToSavedMessage = useCallback((savedMessage: SavedMessage) => {
+    setIsSavedMessagesOpen(false);
+    setIsDetailDrawerOpen(false);
+    setIsDetailRailOpen(isDesktopDetailRailViewport());
+    setIsSidebarOpen(false);
+
+    if (savedMessage.chat.isSpaceChannel) {
+      setSidebarWorkspaceMode('spaces');
+      setSelectedSpaceId(savedMessage.chat.spaceId ?? savedMessage.chat.space ?? null);
+    } else {
+      setSidebarWorkspaceMode('conversations');
+      setSelectedSpaceId(null);
+    }
+
+    setSelectedChatId(savedMessage.chatId);
+    setPendingSavedJump({
+      chatId: savedMessage.chatId,
+      messageId: savedMessage.messageId,
+    });
+  }, [setIsSidebarOpen, setSelectedChatId]);
+
   const handleSelectMessageSearchResult = (message: Message) => {
     void handleJumpToMessage(message._id);
   };
@@ -1788,6 +2060,10 @@ const ChatPage = () => {
         text: message.decryptedText ?? message.text,
         encryptionMode: message.encryptionMode ?? selectedChat?.encryptionMode ?? 'standard',
         clientMessageId: message.clientMessageId,
+        replyToMessageId: message.replyTo?.messageId ?? undefined,
+        optimisticReplyTo: message.replyTo ?? null,
+        mentionUserIds: message.mentions?.map((mention) => mention.userId) ?? [],
+        optimisticMentions: message.mentions ?? [],
         attachments: retryAttachments,
         optimisticAttachments: message.attachments,
       },
@@ -1828,6 +2104,29 @@ const ChatPage = () => {
       {
         onError: () => {
           showToast('Could not update pinned message.', 'error');
+        },
+      }
+    );
+    closeContextMenu();
+  };
+
+  const handleToggleSaveMessage = (message: Message) => {
+    const targetChatId = message.chatId || selectedChatId;
+
+    if (!targetChatId) {
+      return;
+    }
+
+    const mutation = message.savedByRequester ? unsaveMessageMutation : saveMessageMutation;
+
+    mutation.mutate(
+      { messageId: message._id, chatId: targetChatId },
+      {
+        onSuccess: () => {
+          showToast(message.savedByRequester ? 'Message unsaved.' : 'Message saved.', 'success');
+        },
+        onError: () => {
+          showToast('Could not update saved message.', 'error');
         },
       }
     );
@@ -1885,6 +2184,16 @@ const ChatPage = () => {
     setIsDetailDrawerOpen(false);
     setIsConversationMoreOpen((currentValue) => !currentValue);
   }, []);
+
+  const handleOpenInviteLinks = useCallback(() => {
+    if (!inviteLinksTarget?.canManage) {
+      showToast(inviteLinksTarget?.disabledReason ?? 'Invite links are unavailable for this conversation.', 'error');
+      return;
+    }
+
+    setIsConversationMoreOpen(false);
+    setIsInviteLinksOpen(true);
+  }, [inviteLinksTarget, showToast]);
 
   const handleBlockPeer = useCallback(() => {
     if (!selectedChatId) {
@@ -2018,8 +2327,10 @@ const ChatPage = () => {
             isNewChatOpen={isNewChatOpen}
             newChatUsername={newChatUsername}
             createChatError={createChatError}
+            createChatNotice={createChatNotice}
             isCreatingChat={createChat.isPending}
             isCreatingGroupChat={createGroupChat.isPending}
+            draftsByChatId={draftsByChatId}
             unreadCounts={unreadCounts}
             mutedChatIds={notificationPreferences.mutedChatIds}
             onlineUsers={onlineUsers}
@@ -2028,13 +2339,20 @@ const ChatPage = () => {
             onFilterChange={setConversationFilter}
             onSelectChat={handleSelectChat}
             onCloseSidebar={() => setIsSidebarOpen(false)}
+            onOpenSavedMessages={() => setIsSavedMessagesOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onLogout={handleLogout}
             onToggleNewChat={handleToggleNewChat}
-            onNewChatUsernameChange={setNewChatUsername}
+            onNewChatUsernameChange={(value) => {
+              setNewChatUsername(value);
+              setCreateChatNotice(null);
+            }}
             onCreateChatSubmit={handleCreateChatSubmit}
             onCreateGroupSubmit={handleCreateGroupSubmit}
-            onClearCreateChatError={() => setCreateChatError(null)}
+            onClearCreateChatError={() => {
+              setCreateChatError(null);
+              setCreateChatNotice(null);
+            }}
             onRefetchChats={() => refetchChats()}
             workspaceMode={sidebarWorkspaceMode}
             onWorkspaceModeChange={handleWorkspaceModeChange}
@@ -2140,6 +2458,7 @@ const ChatPage = () => {
           onMessageContextMenu={handleMessageContextMenu}
           onOpenMessageActions={handleOpenMessageActions}
           onOpenAttachmentPreview={handleOpenAttachmentPreview}
+          onJumpToMessage={handleJumpToMessage}
           onStartEdit={handleStartEdit}
           onRetryFailed={handleRetryFailedMessage}
           onDismissFailed={handleDismissFailedMessage}
@@ -2147,6 +2466,7 @@ const ChatPage = () => {
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}
           onComposerChange={handleInputChange}
+          onComposerValueChange={setMessageInput}
           onComposerKeyDown={handleComposerKeyDown}
           onSendMessage={handleSendMessage}
           onToggleEmojiPicker={() => setShowEmojiPicker((prev) => !prev)}
@@ -2255,12 +2575,16 @@ const ChatPage = () => {
               isPinned={isSelectedChatPinned}
               isFavorite={isSelectedChatFavorite}
               isActionPending={isConversationControlPending || isConversationOrganizationPending}
+              showInviteLinks={Boolean(inviteLinksTarget)}
+              canManageInviteLinks={inviteLinksTarget?.canManage ?? false}
+              inviteLinksDisabledReason={inviteLinksTarget?.disabledReason}
               callDisabledReason={audioAvailability.reason}
               videoCallDisabledReason={videoAvailability.reason}
               onOpenDetails={handleOpenDetails}
               onStartAudioCall={handleStartAudioCall}
               onStartVideoCall={handleStartVideoCall}
               onSearchMessages={handleToggleMessageSearch}
+              onOpenInviteLinks={handleOpenInviteLinks}
               onExportChat={handleExportChat}
               onToggleMute={handleToggleSelectedChatMute}
               onToggleArchive={handleToggleArchived}
@@ -2272,6 +2596,23 @@ const ChatPage = () => {
               onClose={() => setIsConversationMoreOpen(false)}
             />
           )}
+          {inviteLinksTarget && (
+            <InviteLinksDialog
+              isOpen={isInviteLinksOpen}
+              targetType={inviteLinksTarget.targetType}
+              targetId={inviteLinksTarget.targetId}
+              targetName={inviteLinksTarget.targetName}
+              canManage={inviteLinksTarget.canManage}
+              disabledReason={inviteLinksTarget.disabledReason}
+              onClose={() => setIsInviteLinksOpen(false)}
+            />
+          )}
+          <SavedMessagesDialog
+            isOpen={isSavedMessagesOpen}
+            currentUserId={user?._id}
+            onClose={() => setIsSavedMessagesOpen(false)}
+            onJumpToMessage={handleJumpToSavedMessage}
+          />
           <MessageActionMenu
             contextMenu={contextMenu}
             messages={allMessages}
@@ -2286,19 +2627,32 @@ const ChatPage = () => {
             onDelete={handleDeleteMessage}
             onCopy={handleCopyMessage}
             onTogglePin={handleTogglePinMessage}
+            onToggleSave={handleToggleSaveMessage}
             onReportMessage={handleReportMessage}
             onClose={closeContextMenu}
           />
           <StartConversationDialog
             isOpen={isStartConversationOpen}
             contacts={contacts}
+            contactRequests={contactRequests}
             isLoading={isContactsLoading}
             isError={isContactsError}
+            isLoadingContactRequests={isContactRequestsLoading}
+            isContactRequestsError={isContactRequestsError}
             isCreatingChat={createChat.isPending}
+            isUpdatingContactRequest={
+              acceptContactRequest.isPending ||
+              declineContactRequest.isPending ||
+              cancelContactRequest.isPending
+            }
             onlineUsers={onlineUsers}
             onSelectContact={handleSelectContact}
+            onAcceptContactRequest={handleAcceptContactRequest}
+            onDeclineContactRequest={handleDeclineContactRequest}
+            onCancelContactRequest={handleCancelContactRequest}
             onStartNewChat={handleStartNewChatFromContacts}
             onRetry={() => refetchContacts()}
+            onRetryContactRequests={() => refetchContactRequests()}
             onClose={() => setIsStartConversationOpen(false)}
           />
           <SettingsModal

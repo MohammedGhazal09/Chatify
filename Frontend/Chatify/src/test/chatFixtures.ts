@@ -1,5 +1,5 @@
 import type { User } from '../types/auth';
-import type { AttachmentSummary, Chat, Message, PinnedMessage, SharedAsset } from '../types/chat';
+import type { AttachmentSummary, Chat, Message, PinnedMessage, SavedMessage, SharedAsset } from '../types/chat';
 import type { Space, SpaceChannel } from '../types/space';
 
 export const makeUser = (overrides: Partial<User> = {}): User => ({
@@ -86,6 +86,29 @@ export const makePinnedMessage = (overrides: Partial<PinnedMessage> = {}): Pinne
   updatedAt: '2026-06-08T10:05:00.000Z',
   ...overrides,
 });
+
+export const makeSavedMessage = (overrides: Partial<SavedMessage> = {}): SavedMessage => {
+  const message = overrides.message ?? makeMessage({
+    _id: overrides.messageId ?? 'message-1',
+    chatId: overrides.chatId ?? 'chat-1',
+    savedByRequester: true,
+    savedAt: overrides.savedAt ?? '2026-06-08T10:05:00.000Z',
+  });
+  const chat = overrides.chat ?? makeChat({
+    _id: overrides.chatId ?? message.chatId,
+  });
+
+  return {
+    _id: 'saved-message-1',
+    messageId: message._id,
+    chatId: message.chatId,
+    savedAt: '2026-06-08T10:05:00.000Z',
+    savedByRequester: true,
+    chat,
+    message,
+    ...overrides,
+  };
+};
 
 export const makeChat = (overrides: Partial<Chat> = {}): Chat => ({
   _id: 'chat-1',

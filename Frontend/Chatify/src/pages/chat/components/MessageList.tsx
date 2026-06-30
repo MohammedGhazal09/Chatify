@@ -29,6 +29,7 @@ interface MessageListProps {
   onMessageContextMenu: (event: MouseEvent, messageId: string, isOwnMessage: boolean) => void;
   onOpenMessageActions: (event: MouseEvent<HTMLButtonElement>, message: Message, isOwnMessage: boolean) => void;
   onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
+  onJumpToMessage: (messageId: string) => void;
   onStartEdit: (messageId: string, currentText: string) => void;
   onRetryFailed: (message: Message) => void;
   onDismissFailed: (message: Message) => void;
@@ -59,6 +60,7 @@ const MessageList = ({
   onMessageContextMenu,
   onOpenMessageActions,
   onOpenAttachmentPreview,
+  onJumpToMessage,
   onStartEdit,
   onRetryFailed,
   onDismissFailed,
@@ -160,10 +162,12 @@ const MessageList = ({
                     isOwnMessage={isOwnMessage}
                     isGroupChat={selectedChat.isGroupChat}
                     members={selectedChat.members}
+                    currentUserId={currentUserId}
                     isHighlighted={message._id === highlightedMessageId}
                     onContextMenu={(event) => onMessageContextMenu(event, message._id, isOwnMessage)}
                     onOpenActions={onOpenMessageActions}
                     onOpenAttachmentPreview={onOpenAttachmentPreview}
+                    onJumpToMessage={onJumpToMessage}
                     onDoubleClick={(msg) => onStartEdit(msg._id, msg.text)}
                     onRetryFailed={onRetryFailed}
                     onDismissFailed={onDismissFailed}

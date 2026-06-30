@@ -28,6 +28,10 @@ import {
   findActiveSession,
   serializeSessionForUser,
 } from '../Utils/sessionMetadata.mjs';
+import {
+  createTwoFactorLoginChallenge,
+  isTwoFactorEnabled,
+} from './twoFactorController.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
 const FRONTEND_URL = isProd 
@@ -154,7 +158,7 @@ export const login = asyncErrHandler(async (req, res, next) => {
   if (!email || !password) {
     return next(new CustomError('Please provide email and password', 400));
   }
-  const user = await User.findOne({email:email}).select("+password +authProvider")
+  const user = await User.findOne({email:email}).select("+password +authProvider +twoFactor.secretEncrypted")
   if (!user) return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401))
   
   // Check if user signed up via OAuth (no password set)
@@ -165,6 +169,20 @@ export const login = asyncErrHandler(async (req, res, next) => {
   const credentials = await user.checkPassword(password)
   if (!credentials) {
     return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401))
+  }
+
+  if (isTwoFactorEnabled(user)) {
+    const challenge = await createTwoFactorLoginChallenge({ user, rememberMe });
+
+    return res.status(200).json({
+      status: 'mfa_required',
+      message: 'Two-factor verification required',
+      data: {
+        twoFactorRequired: true,
+        challengeToken: challenge.challengeToken,
+        expiresAt: challenge.expiresAt.toISOString(),
+      },
+    });
   }
 
   await issueSessionCookies({ user, res, rememberMe, req });

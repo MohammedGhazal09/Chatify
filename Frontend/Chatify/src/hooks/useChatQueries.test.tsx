@@ -8,22 +8,32 @@ import { messageApi } from '../api/messageApi';
 import { userApi } from '../api/userApi';
 import { useAuthStore } from '../store/authstore';
 import { usePresenceStore } from '../store/presenceStore';
-import { makeChat, makeMessage, makeUser } from '../test/chatFixtures';
+import { makeChat, makeMessage, makeSavedMessage, makeUser } from '../test/chatFixtures';
+import type { Message } from '../types/chat';
 import { ensureConversationSecret, hasConversationSecret } from '../utils/encryptedMessages';
 import {
   chatsQueryKey,
+  contactRequestsQueryKey,
   messageSearchQueryKey,
   messagesQueryKey,
   pinnedMessagesQueryKey,
+  savedMessagesQueryKey,
   sharedAssetsQueryKey,
   sortChatsForRequester,
+  useAcceptContactRequest,
+  useCancelContactRequest,
   useCreateChat,
+  useContactRequests,
+  useDeclineContactRequest,
   useMessageContext,
   useMessageSearch,
   useOnlinePresence,
   usePinnedMessages,
+  useSaveMessage,
+  useSavedMessages,
   useSendMessage,
   useSharedAssets,
+  useUnsaveMessage,
   useUpdateChatOrganization,
 } from './useChatQueries';
 
@@ -31,6 +41,11 @@ vi.mock('../api/chatApi', () => ({
   chatApi: {
     createChat: vi.fn(),
     createGroupChat: vi.fn(),
+    getContactRequests: vi.fn(),
+    createContactRequest: vi.fn(),
+    acceptContactRequest: vi.fn(),
+    declineContactRequest: vi.fn(),
+    cancelContactRequest: vi.fn(),
     updateChatOrganization: vi.fn(),
   },
 }));
@@ -42,6 +57,9 @@ vi.mock('../api/messageApi', () => ({
     getMessageContext: vi.fn(),
     getSharedAssets: vi.fn(),
     getPinnedMessages: vi.fn(),
+    listSavedMessages: vi.fn(),
+    saveMessage: vi.fn(),
+    unsaveMessage: vi.fn(),
   },
 }));
 
@@ -156,6 +174,25 @@ describe('useMessageSearch', () => {
         },
       },
     } as unknown as Awaited<ReturnType<typeof messageApi.getPinnedMessages>>);
+    vi.mocked(messageApi.listSavedMessages).mockResolvedValue({
+      data: {
+        status: 'saved messages fetched successfully',
+        data: {
+          savedMessages: [
+            makeSavedMessage({
+              messageId: 'message-saved',
+              message: makeMessage({
+                _id: 'message-saved',
+                text: 'Saved retry note',
+                savedByRequester: true,
+                savedAt: '2026-06-08T10:05:00.000Z',
+              }),
+            }),
+          ],
+          limit: 50,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof messageApi.listSavedMessages>>);
     vi.mocked(userApi.getOnlineUsers).mockResolvedValue({
       data: {
         status: 'success',
@@ -302,11 +339,14 @@ describe('useMessageSearch', () => {
     });
   });
 
-  it('scopes shared asset and pinned-message queries by chat id and kind', async () => {
+  it('scopes shared asset, pinned-message, and saved-message queries', async () => {
     const sharedAssets = renderHook(() => useSharedAssets('chat-1', 'media'), {
       wrapper: createWrapper(queryClient),
     });
     const pinnedMessages = renderHook(() => usePinnedMessages('chat-1'), {
+      wrapper: createWrapper(queryClient),
+    });
+    const savedMessages = renderHook(() => useSavedMessages(), {
       wrapper: createWrapper(queryClient),
     });
 
@@ -316,14 +356,94 @@ describe('useMessageSearch', () => {
     await waitFor(() => {
       expect(pinnedMessages.result.current.data?.[0]?.text).toBe('Pinned retry note');
     });
+    await waitFor(() => {
+      expect(savedMessages.result.current.data?.[0]?.message.text).toBe('Saved retry note');
+    });
 
     expect(messageApi.getSharedAssets).toHaveBeenCalledWith('chat-1', { kind: 'media', limit: 12 });
     expect(messageApi.getPinnedMessages).toHaveBeenCalledWith('chat-1');
+    expect(messageApi.listSavedMessages).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(sharedAssetsQueryKey('chat-1', 'media'))).toEqual([
       expect.objectContaining({ attachmentId: 'attachment-1' }),
     ]);
     expect(queryClient.getQueryData(pinnedMessagesQueryKey('chat-1'))).toEqual([
       expect.objectContaining({ messageId: 'message-1' }),
+    ]);
+    expect(queryClient.getQueryData(savedMessagesQueryKey)).toEqual([
+      expect.objectContaining({ messageId: 'message-saved' }),
+    ]);
+  });
+
+  it('patches cached message save state without creating unopened timelines', async () => {
+    queryClient.setQueryData(messagesQueryKey('chat-1'), {
+      messages: [makeMessage({ _id: 'message-save', chatId: 'chat-1', savedByRequester: false })],
+    });
+    queryClient.setQueryData(savedMessagesQueryKey, [
+      makeSavedMessage({
+        messageId: 'message-save',
+        chatId: 'chat-1',
+        message: makeMessage({ _id: 'message-save', chatId: 'chat-1', savedByRequester: true }),
+      }),
+      makeSavedMessage({
+        _id: 'saved-other',
+        messageId: 'message-other',
+        chatId: 'chat-other',
+        message: makeMessage({ _id: 'message-other', chatId: 'chat-other', savedByRequester: true }),
+      }),
+    ]);
+    vi.mocked(messageApi.saveMessage).mockResolvedValue({
+      data: {
+        status: 'message saved successfully',
+        data: {
+          message: makeMessage({
+            _id: 'message-save',
+            chatId: 'chat-1',
+            text: 'Saved cache state',
+            savedByRequester: true,
+            savedAt: '2026-06-08T10:06:00.000Z',
+          }),
+          savedMessage: makeSavedMessage({ messageId: 'message-save', chatId: 'chat-1' }),
+          savedByRequester: true,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof messageApi.saveMessage>>);
+    vi.mocked(messageApi.unsaveMessage).mockResolvedValue({
+      data: {
+        status: 'message unsaved successfully',
+        data: {
+          message: makeMessage({
+            _id: 'message-other',
+            chatId: 'chat-other',
+            text: 'Unopened chat message',
+            savedByRequester: false,
+            savedAt: null,
+          }),
+          savedMessage: null,
+          savedByRequester: false,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof messageApi.unsaveMessage>>);
+
+    const saveMutation = renderHook(() => useSaveMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const unsaveMutation = renderHook(() => useUnsaveMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await saveMutation.result.current.mutateAsync({ messageId: 'message-save', chatId: 'chat-1' });
+      await unsaveMutation.result.current.mutateAsync({ messageId: 'message-other', chatId: 'chat-other' });
+    });
+
+    expect(messageApi.saveMessage).toHaveBeenCalledWith('message-save');
+    expect(messageApi.unsaveMessage).toHaveBeenCalledWith('message-other');
+    expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toMatchObject({
+      messages: [expect.objectContaining({ _id: 'message-save', savedByRequester: true })],
+    });
+    expect(queryClient.getQueryData(messagesQueryKey('chat-other'))).toBeUndefined();
+    expect(queryClient.getQueryData(savedMessagesQueryKey)).toEqual([
+      expect.objectContaining({ messageId: 'message-save' }),
     ]);
   });
 
@@ -492,6 +612,165 @@ describe('useMessageSearch', () => {
     ]);
   });
 
+  it('loads pending contact requests through the shared query key', async () => {
+    const contactRequest = {
+      _id: 'request-1',
+      requester: makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper', username: 'grace.hopper' }),
+      recipient: makeUser({ _id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', username: 'ada.lovelace' }),
+      status: 'pending',
+      direction: 'incoming',
+      chat: null,
+      createdAt: '2026-06-30T08:00:00.000Z',
+      updatedAt: '2026-06-30T08:00:00.000Z',
+      respondedAt: null,
+    };
+    vi.mocked(chatApi.getContactRequests).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          incoming: [contactRequest],
+          outgoing: [],
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof chatApi.getContactRequests>>);
+
+    const { result } = renderHook(() => useContactRequests(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.incoming[0]?._id).toBe('request-1');
+    });
+
+    expect(queryClient.getQueryData(contactRequestsQueryKey)).toEqual({
+      incoming: [expect.objectContaining({ _id: 'request-1' })],
+      outgoing: [],
+    });
+  });
+
+  it('keeps pending create-chat responses out of the chat cache', async () => {
+    const contactRequest = {
+      _id: 'request-1',
+      requester: makeUser({ _id: 'user-1', firstName: 'Ada', lastName: 'Lovelace', username: 'ada.lovelace' }),
+      recipient: makeUser({ _id: 'user-2', firstName: 'Grace', lastName: 'Hopper', username: 'grace.hopper' }),
+      status: 'pending',
+      direction: 'outgoing',
+      chat: null,
+      createdAt: '2026-06-30T08:00:00.000Z',
+      updatedAt: '2026-06-30T08:00:00.000Z',
+      respondedAt: null,
+    };
+    vi.mocked(chatApi.createChat).mockResolvedValueOnce({
+      data: {
+        status: 'contact request pending',
+        data: {
+          contactRequest,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof chatApi.createChat>>);
+
+    const { result } = renderHook(() => useCreateChat(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      const createResult = await result.current.mutateAsync({
+        targetUsername: 'grace.hopper',
+      });
+      expect(createResult).toEqual({
+        kind: 'contactRequest',
+        contactRequest,
+      });
+    });
+
+    expect(queryClient.getQueryData(chatsQueryKey)).toBeUndefined();
+  });
+
+  it('accepts contact requests and merges the returned chat', async () => {
+    const chat = makeChat({ _id: 'chat-accepted' });
+    vi.mocked(chatApi.acceptContactRequest).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          contactRequest: {
+            _id: 'request-1',
+            requester: makeUser({ _id: 'user-2', username: 'grace.hopper' }),
+            recipient: makeUser({ _id: 'user-1', username: 'ada.lovelace' }),
+            status: 'accepted',
+            direction: 'incoming',
+            chat: 'chat-accepted',
+            createdAt: '2026-06-30T08:00:00.000Z',
+            updatedAt: '2026-06-30T08:01:00.000Z',
+            respondedAt: '2026-06-30T08:01:00.000Z',
+          },
+          chat,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof chatApi.acceptContactRequest>>);
+
+    const { result } = renderHook(() => useAcceptContactRequest(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync('request-1');
+    });
+
+    expect(chatApi.acceptContactRequest).toHaveBeenCalledWith('request-1');
+    expect(queryClient.getQueryData(chatsQueryKey)).toEqual([
+      expect.objectContaining({ _id: 'chat-accepted' }),
+    ]);
+  });
+
+  it('declines and cancels contact requests through lifecycle mutations', async () => {
+    const contactRequest = {
+      _id: 'request-1',
+      requester: makeUser({ _id: 'user-1', username: 'ada.lovelace' }),
+      recipient: makeUser({ _id: 'user-2', username: 'grace.hopper' }),
+      status: 'declined',
+      direction: 'incoming',
+      chat: null,
+      createdAt: '2026-06-30T08:00:00.000Z',
+      updatedAt: '2026-06-30T08:01:00.000Z',
+      respondedAt: '2026-06-30T08:01:00.000Z',
+    };
+    vi.mocked(chatApi.declineContactRequest).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          contactRequest,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof chatApi.declineContactRequest>>);
+    vi.mocked(chatApi.cancelContactRequest).mockResolvedValueOnce({
+      data: {
+        status: 'success',
+        data: {
+          contactRequest: {
+            ...contactRequest,
+            status: 'canceled',
+            direction: 'outgoing',
+          },
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof chatApi.cancelContactRequest>>);
+
+    const decline = renderHook(() => useDeclineContactRequest(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const cancel = renderHook(() => useCancelContactRequest(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await decline.result.current.mutateAsync('request-1');
+      await cancel.result.current.mutateAsync('request-2');
+    });
+
+    expect(chatApi.declineContactRequest).toHaveBeenCalledWith('request-1');
+    expect(chatApi.cancelContactRequest).toHaveBeenCalledWith('request-2');
+  });
+
   it('creates encrypted conversations and stores the local conversation secret', async () => {
     const encryptedChat = makeChat({
       _id: 'chat-encrypted',
@@ -651,6 +930,173 @@ describe('useSendMessage', () => {
     });
   });
 
+  it('sends reply targets and keeps optimistic reply metadata until canonical success', async () => {
+    const replyTo: NonNullable<Message['replyTo']> = {
+      messageId: 'message-source',
+      sender: 'user-2',
+      messageType: 'text',
+      textPreview: 'Original source context',
+      attachmentCount: 0,
+      isDeleted: false,
+      isEncrypted: false,
+      createdAt: '2026-06-08T09:59:00.000Z',
+    };
+    let resolveCreateMessage: ((value: Awaited<ReturnType<typeof messageApi.createMessage>>) => void) | undefined;
+    const createMessagePromise = new Promise<Awaited<ReturnType<typeof messageApi.createMessage>>>((resolve) => {
+      resolveCreateMessage = resolve;
+    });
+    vi.mocked(messageApi.createMessage).mockReturnValue(createMessagePromise as ReturnType<typeof messageApi.createMessage>);
+
+    const { result } = renderHook(() => useSendMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        chatId: 'chat-1',
+        text: 'Reply body',
+        clientMessageId: 'client-reply',
+        replyToMessageId: 'message-source',
+        optimisticReplyTo: replyTo,
+      });
+    });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toMatchObject({
+        messages: [
+          expect.objectContaining({
+            _id: 'optimistic-client-reply',
+            optimisticState: 'sending',
+            replyTo,
+          }),
+        ],
+      });
+    });
+
+    expect(messageApi.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'chat-1',
+        text: 'Reply body',
+        clientMessageId: 'client-reply',
+        replyToMessageId: 'message-source',
+      }),
+      undefined
+    );
+
+    await act(async () => {
+      resolveCreateMessage?.({
+        data: {
+          status: 'message created successfully',
+          data: {
+            message: makeMessage({
+              _id: 'message-reply',
+              chatId: 'chat-1',
+              sender: 'user-1',
+              text: 'Reply body',
+              clientMessageId: 'client-reply',
+              replyTo,
+            }),
+          },
+        },
+      } as Awaited<ReturnType<typeof messageApi.createMessage>>);
+      await createMessagePromise;
+    });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toMatchObject({
+        messages: [
+          expect.objectContaining({
+            _id: 'message-reply',
+            optimisticState: undefined,
+            replyTo,
+          }),
+        ],
+      });
+    });
+  });
+
+  it('sends mention targets and keeps optimistic mention metadata until canonical success', async () => {
+    const optimisticMentions: NonNullable<Message['mentions']> = [
+      {
+        userId: 'user-2',
+        username: 'grace.hopper',
+        displayName: 'Grace Hopper',
+      },
+    ];
+    let resolveCreateMessage: ((value: Awaited<ReturnType<typeof messageApi.createMessage>>) => void) | undefined;
+    const createMessagePromise = new Promise<Awaited<ReturnType<typeof messageApi.createMessage>>>((resolve) => {
+      resolveCreateMessage = resolve;
+    });
+    vi.mocked(messageApi.createMessage).mockReturnValue(createMessagePromise as ReturnType<typeof messageApi.createMessage>);
+
+    const { result } = renderHook(() => useSendMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        chatId: 'chat-1',
+        text: '@grace.hopper please review',
+        clientMessageId: 'client-mention',
+        mentionUserIds: ['user-2'],
+        optimisticMentions,
+      });
+    });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toMatchObject({
+        messages: [
+          expect.objectContaining({
+            _id: 'optimistic-client-mention',
+            optimisticState: 'sending',
+            mentions: optimisticMentions,
+          }),
+        ],
+      });
+    });
+
+    expect(messageApi.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'chat-1',
+        text: '@grace.hopper please review',
+        clientMessageId: 'client-mention',
+        mentionUserIds: ['user-2'],
+      }),
+      undefined
+    );
+
+    await act(async () => {
+      resolveCreateMessage?.({
+        data: {
+          status: 'message created successfully',
+          data: {
+            message: makeMessage({
+              _id: 'message-mention',
+              chatId: 'chat-1',
+              sender: 'user-1',
+              text: '@grace.hopper please review',
+              clientMessageId: 'client-mention',
+              mentions: optimisticMentions,
+            }),
+          },
+        },
+      } as Awaited<ReturnType<typeof messageApi.createMessage>>);
+      await createMessagePromise;
+    });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toMatchObject({
+        messages: [
+          expect.objectContaining({
+            _id: 'message-mention',
+            optimisticState: undefined,
+            mentions: optimisticMentions,
+          }),
+        ],
+      });
+    });
+  });
+
   it('encrypts e2ee sends without passing plaintext text to the message API', async () => {
     ensureConversationSecret('chat-1');
     vi.mocked(messageApi.createMessage).mockResolvedValue({
@@ -722,6 +1168,32 @@ describe('useSendMessage', () => {
         ],
       });
     });
+  });
+
+  it('blocks encrypted reply attempts before calling the message API', async () => {
+    ensureConversationSecret('chat-1');
+    const { result } = renderHook(() => useSendMessage(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        chatId: 'chat-1',
+        text: 'Secret reply',
+        clientMessageId: 'client-encrypted-reply',
+        encryptionMode: 'e2ee_v1',
+        replyToMessageId: 'message-source',
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect((result.current.error as Error).message).toBe('Replies are unavailable in encrypted conversations in this release.');
+    expect(messageApi.createMessage).not.toHaveBeenCalled();
+    expect(queryClient.getQueryData(messagesQueryKey('chat-1'))).toBeUndefined();
   });
 
   it('blocks encrypted sends when the local conversation secret is missing', async () => {

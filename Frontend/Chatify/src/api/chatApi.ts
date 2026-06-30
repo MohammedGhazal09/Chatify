@@ -2,6 +2,8 @@ import axiosInstance from './axios';
 import type { AxiosResponse } from 'axios';
 import type {
   Chat,
+  ContactRequest,
+  ContactRequestsData,
   ConversationOrganizationPatch,
   CreateChatPayload,
   CreateGroupChatPayload,
@@ -15,6 +17,26 @@ interface ChatResponse {
   };
 }
 
+interface ContactRequestResponse {
+  status: string;
+  data: {
+    contactRequest: ContactRequest;
+  };
+}
+
+interface AcceptContactRequestResponse {
+  status: string;
+  data: {
+    contactRequest: ContactRequest;
+    chat: Chat;
+  };
+}
+
+interface ContactRequestsResponse {
+  status: string;
+  data: ContactRequestsData;
+}
+
 interface ChatsResponse {
   status: string;
   data: {
@@ -23,7 +45,7 @@ interface ChatsResponse {
 }
 
 export const chatApi = {
-  createChat: (payload: CreateChatPayload): Promise<AxiosResponse<ChatResponse>> =>
+  createChat: (payload: CreateChatPayload): Promise<AxiosResponse<ChatResponse | ContactRequestResponse>> =>
     axiosInstance.post('/api/chat/create-new-chat', payload),
 
   createGroupChat: (payload: CreateGroupChatPayload): Promise<AxiosResponse<ChatResponse>> =>
@@ -31,6 +53,21 @@ export const chatApi = {
 
   getAllChats: (): Promise<AxiosResponse<ChatsResponse>> =>
     axiosInstance.get('/api/chat/get-all-chats'),
+
+  getContactRequests: (): Promise<AxiosResponse<ContactRequestsResponse>> =>
+    axiosInstance.get('/api/chat/contact-requests'),
+
+  createContactRequest: (payload: Pick<CreateChatPayload, 'targetUsername'>): Promise<AxiosResponse<ContactRequestResponse>> =>
+    axiosInstance.post('/api/chat/contact-requests', payload),
+
+  acceptContactRequest: (requestId: string): Promise<AxiosResponse<AcceptContactRequestResponse>> =>
+    axiosInstance.post(`/api/chat/contact-requests/${requestId}/accept`),
+
+  declineContactRequest: (requestId: string): Promise<AxiosResponse<ContactRequestResponse>> =>
+    axiosInstance.post(`/api/chat/contact-requests/${requestId}/decline`),
+
+  cancelContactRequest: (requestId: string): Promise<AxiosResponse<ContactRequestResponse>> =>
+    axiosInstance.delete(`/api/chat/contact-requests/${requestId}`),
 
   updateChatOrganization: (
     chatId: string,

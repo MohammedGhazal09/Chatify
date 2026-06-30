@@ -87,6 +87,33 @@ describe('ConversationMoreMenu', () => {
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('opens invite link management when available', async () => {
+    const user = userEvent.setup();
+    const onOpenInviteLinks = vi.fn();
+    const props = renderMenu({
+      showInviteLinks: true,
+      canManageInviteLinks: true,
+      onOpenInviteLinks,
+    });
+
+    await user.click(screen.getByRole('menuitem', { name: 'Invite links' }));
+
+    expect(onOpenInviteLinks).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables invite links with the management reason', () => {
+    renderMenu({
+      showInviteLinks: true,
+      canManageInviteLinks: false,
+      inviteLinksDisabledReason: 'Only the group admin can manage invite links.',
+    });
+
+    const item = screen.getByRole('menuitem', { name: 'Invite links' });
+    expect(item).toBeDisabled();
+    expect(item).toHaveAccessibleDescription('Only the group admin can manage invite links.');
+  });
+
   it('shows unmute copy when the conversation is muted', () => {
     renderMenu({ isMuted: true });
 

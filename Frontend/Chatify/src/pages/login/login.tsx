@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
+import { Eye, EyeOff, Mail, Lock, ArrowRight, KeyRound, LoaderCircle } from "lucide-react";
 import { FaGoogle, FaGithub, FaDiscord } from "react-icons/fa";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,18 +8,32 @@ import { loginSchema, type LoginFormData } from "../../utils/validationSchemas";
 import ChatifyIcon from "../../components/chatifyIcon";
 import axios, { AxiosError } from "axios";
 import { useAuthStore } from "../../store/authstore";
-import { useLogin } from "../../hooks/useAuthQuery";
+import { useLogin, useVerifyTwoFactorLogin } from "../../hooks/useAuthQuery";
 import { useAuthRedirect } from "../../hooks/useAuthRedirect";
 import { resolveOAuthUrl } from "../../api/apiOrigin";
+import type { TwoFactorChallengeData } from "../../types/auth";
+
+type TwoFactorLoginState =
+  | { kind: 'password'; version: number }
+  | { kind: 'challenge'; version: number; challenge: TwoFactorChallengeData; email: string };
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [twoFactorLoginState, setTwoFactorLoginState] = useState<TwoFactorLoginState>({
+    kind: 'password',
+    version: 0,
+  });
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const loginChallengeRequestRef = useRef(0);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const twoFactorChallenge = twoFactorLoginState.kind === 'challenge' ? twoFactorLoginState.challenge : null;
+  const challengeEmail = twoFactorLoginState.kind === 'challenge' ? twoFactorLoginState.email : '';
 
   const setLoading = useAuthStore((state) => state.setLoading);
 
   const loginMutation = useLogin();
+  const verifyTwoFactorLogin = useVerifyTwoFactorLogin();
 
   const {
     register,
@@ -27,6 +41,7 @@ const Login = () => {
     formState: { errors, isSubmitting },
     setError,
     clearErrors,
+    getValues,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     mode: "onChange",
@@ -82,9 +97,33 @@ const Login = () => {
   // form submission handler
   const onSubmit = async (data: LoginFormData) => {
     clearErrors("root");
+    const requestId = loginChallengeRequestRef.current + 1;
+    loginChallengeRequestRef.current = requestId;
+    setTwoFactorLoginState({ kind: 'password', version: requestId });
+
     try {
     loginMutation.mutate(data, {
+      onSuccess: (response) => {
+        if (requestId !== loginChallengeRequestRef.current) {
+          return;
+        }
+
+        if (response.data.status === 'mfa_required') {
+          const challenge = response.data.data;
+          const email = getValues('email');
+          setTwoFactorCode('');
+          setTwoFactorLoginState((current) => (
+            current.version === requestId
+              ? { kind: 'challenge', version: requestId, challenge, email }
+              : current
+          ));
+        }
+      },
       onError: (err: unknown | AxiosError) => {
+        if (requestId !== loginChallengeRequestRef.current) {
+          return;
+        }
+
         let message = "Login failed";
         if (axios.isAxiosError(err))
           message = err.response?.data?.message || err.message;
@@ -103,6 +142,39 @@ const Login = () => {
   const handleGoogleLogin = () => {
     clearErrors("root");
     window.location.href = resolveOAuthUrl('google');
+  };
+
+  const handleTwoFactorSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    clearErrors("root");
+
+    if (!twoFactorChallenge) {
+      setError("root", { type: "manual", message: "Two-factor challenge expired. Sign in again." });
+      return;
+    }
+
+    verifyTwoFactorLogin.mutate(
+      {
+        challengeToken: twoFactorChallenge.challengeToken,
+        code: twoFactorCode,
+      },
+      {
+        onError: (err: unknown | AxiosError) => {
+          let message = "Two-factor verification failed";
+          if (axios.isAxiosError(err))
+            message = err.response?.data?.message || err.message;
+          setError("root", { type: "manual", message });
+        },
+      }
+    );
+  };
+
+  const handleBackToPassword = () => {
+    const nextVersion = loginChallengeRequestRef.current + 1;
+    loginChallengeRequestRef.current = nextVersion;
+    setTwoFactorLoginState({ kind: 'password', version: nextVersion });
+    setTwoFactorCode('');
+    clearErrors("root");
   };
 
   const handleGitHubLogin = () => {
@@ -167,13 +239,80 @@ const Login = () => {
 
         <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800 rounded-2xl p-8 shadow-2xl">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-center mb-2">Sign In</h2>
+            <h2 className="text-2xl font-bold text-center mb-2">
+              {twoFactorChallenge ? 'Two-factor verification' : 'Sign In'}
+            </h2>
             <p className="text-gray-400 text-center text-sm">
-              Enter your credentials to access Chatify
+              {twoFactorChallenge
+                ? 'Enter your authenticator code or a backup code'
+                : 'Enter your credentials to access Chatify'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {twoFactorChallenge ? (
+            <form key="two-factor-login" onSubmit={handleTwoFactorSubmit} className="space-y-6">
+              {challengeEmail ? (
+                <p className="rounded-xl border border-gray-800 bg-gray-800/60 px-4 py-3 text-sm text-gray-300">
+                  {challengeEmail}
+                </p>
+              ) : null}
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="twoFactorCode"
+                  className="block text-sm font-medium text-gray-300"
+                >
+                  Verification code
+                </label>
+                <div className="relative">
+                  <KeyRound
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                    size={18}
+                  />
+                  <input
+                    id="twoFactorCode"
+                    value={twoFactorCode}
+                    onChange={(event) => setTwoFactorCode(event.target.value)}
+                    type="text"
+                    inputMode="text"
+                    autoComplete="one-time-code"
+                    placeholder="123456 or backup code"
+                    disabled={verifyTwoFactorLogin.isPending}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              {errors.root && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl">
+                  <p className="text-sm font-medium">{errors.root?.message}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={!twoFactorCode.trim() || verifyTwoFactorLogin.isPending}
+                className="w-full bg-gradient-to-r cursor-pointer from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 shadow-lg shadow-green-500/25"
+              >
+                {verifyTwoFactorLogin.isPending ? (
+                  <LoaderCircle aria-hidden="true" className="h-4 w-4 motion-safe:animate-spin" />
+                ) : (
+                  <KeyRound size={18} />
+                )}
+                Verify
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBackToPassword}
+                disabled={verifyTwoFactorLogin.isPending}
+                className="w-full cursor-pointer rounded-xl border border-gray-700 px-6 py-3 text-sm font-semibold text-gray-300 transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Back to sign in
+              </button>
+            </form>
+          ) : (
+          <form key="password-login" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Email */}
             <div className="space-y-2">
               <label
@@ -298,29 +437,34 @@ const Login = () => {
               </>
             </button>
           </form>
+          )}
 
-          {/* Divider */}
-          <div className="my-6 flex items-center">
-            <div className="flex-1 border-t border-gray-700"></div>
-            <span className="px-4 text-sm text-gray-500">or continue with</span>
-            <div className="flex-1 border-t border-gray-700"></div>
-          </div>
+          {!twoFactorChallenge ? (
+            <>
+              {/* Divider */}
+              <div className="my-6 flex items-center">
+                <div className="flex-1 border-t border-gray-700"></div>
+                <span className="px-4 text-sm text-gray-500">or continue with</span>
+                <div className="flex-1 border-t border-gray-700"></div>
+              </div>
 
-          {/* Social login options */}
-          <div className="grid grid-cols-3 gap-3">
-            {socialButtons.map(({ icon: Icon, label, color, onClick }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={onClick}
-                className={`flex items-center justify-center p-3 border border-gray-700 rounded-xl bg-gray-800/50 hover:bg-gray-700 ${color} transition-all transform hover:scale-105 active:scale-95 cursor-pointer`}
-                title={`Continue with ${label}`}
-                aria-label={`Continue with ${label}`}
-              >
-                <Icon size={20} />
-              </button>
-            ))}
-          </div>
+              {/* Social login options */}
+              <div className="grid grid-cols-3 gap-3">
+                {socialButtons.map(({ icon: Icon, label, color, onClick }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={onClick}
+                    className={`flex items-center justify-center p-3 border border-gray-700 rounded-xl bg-gray-800/50 hover:bg-gray-700 ${color} transition-all transform hover:scale-105 active:scale-95 cursor-pointer`}
+                    title={`Continue with ${label}`}
+                    aria-label={`Continue with ${label}`}
+                  >
+                    <Icon size={20} />
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
 
         {/* Footer */}

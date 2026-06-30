@@ -5,7 +5,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MessageUploadState } from '../../../hooks/useChatQueries';
 import type { UseVoiceRecorderResult } from '../../../hooks/useVoiceRecorder';
-import type { ComposerSendPayload } from '../../../types/chat';
+import { makeAttachment, makeMessage, makeUser } from '../../../test/chatFixtures';
+import type { ComposerSendPayload, Message } from '../../../types/chat';
+import type { User } from '../../../types/auth';
 
 const defaultVoiceRecorder = (): UseVoiceRecorderResult => ({
   status: 'idle',
@@ -45,8 +47,13 @@ interface ComposerHarnessProps {
   isSendError?: boolean;
   isEncryptedConversation?: boolean;
   showEmojiPicker?: boolean;
+  replyingTo?: Message | null;
+  replyingToSenderLabel?: string | null;
   uploadState?: MessageUploadState;
+  mentionCandidates?: User[];
+  currentUserId?: string;
   onCancelUpload?: () => void;
+  onCancelReply?: () => void;
 }
 
 const ComposerHarness = ({
@@ -55,8 +62,13 @@ const ComposerHarness = ({
   isSendError = false,
   isEncryptedConversation = false,
   showEmojiPicker = false,
+  replyingTo = null,
+  replyingToSenderLabel = null,
   uploadState,
+  mentionCandidates = [],
+  currentUserId = 'user-1',
   onCancelUpload,
+  onCancelReply = vi.fn(),
 }: ComposerHarnessProps) => {
   const [value, setValue] = useState('');
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -75,20 +87,25 @@ const ComposerHarness = ({
   return (
     <MessageComposer
       value={value}
-      replyingTo={null}
+      replyingTo={replyingTo}
+      replyingToSenderLabel={replyingToSenderLabel}
       showEmojiPicker={showEmojiPicker}
       isSending={false}
       isSendError={isSendError}
       isEncryptedConversation={isEncryptedConversation}
+      currentUserId={currentUserId}
+      mentionCandidates={mentionCandidates}
+      mentionContextLabel="Group member"
       sendDisabledReason={sendDisabledReason}
       uploadState={uploadState}
       emojiPickerRef={emojiPickerRef}
       onChange={handleChange}
+      onValueChange={setValue}
       onKeyDown={handleKeyDown}
       onSend={onSend}
       onToggleEmojiPicker={vi.fn()}
       onAppendEmoji={(emoji) => setValue((currentValue) => `${currentValue}${emoji}`)}
-      onCancelReply={vi.fn()}
+      onCancelReply={onCancelReply}
       onCancelUpload={onCancelUpload}
     />
   );
@@ -150,6 +167,99 @@ describe('MessageComposer', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
     expect(screen.getByText('Authenticated private session')).toBeInTheDocument();
     expect(screen.queryByText('Press Enter to send')).not.toBeInTheDocument();
+  });
+
+  it('inserts group member mentions and sends normalized mention metadata', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn();
+
+    render(
+      <ComposerHarness
+        onSend={onSend}
+        mentionCandidates={[
+          makeUser({ _id: 'user-1', username: 'ada.lovelace', firstName: 'Ada', lastName: 'Lovelace' }),
+          makeUser({ _id: 'user-2', username: 'grace.hopper', firstName: 'Grace', lastName: 'Hopper' }),
+          makeUser({ _id: 'user-3', username: 'linus.torvalds', firstName: 'Linus', lastName: 'Torvalds' }),
+        ]}
+      />
+    );
+
+    const textbox = screen.getByRole('textbox', { name: 'Write a private message' });
+    await user.type(textbox, '@gra');
+
+    await user.click(screen.getByRole('option', { name: /Grace Hopper/ }));
+
+    expect(textbox).toHaveValue('@grace.hopper ');
+
+    await user.type(textbox, 'please review');
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(onSend).toHaveBeenCalledWith(expect.objectContaining({
+      text: '@grace.hopper please review',
+      mentionUserIds: ['user-2'],
+      mentions: [
+        expect.objectContaining({
+          userId: 'user-2',
+          username: 'grace.hopper',
+          displayName: 'Grace Hopper',
+        }),
+      ],
+    }));
+  });
+
+  it('renders a quoted reply preview with sender context and cancel action', async () => {
+    const user = userEvent.setup();
+    const onCancelReply = vi.fn();
+
+    render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        replyingTo={makeMessage({
+          _id: 'message-source',
+          sender: 'user-2',
+          text: '  Original   source context  ',
+        })}
+        replyingToSenderLabel="Grace Hopper"
+        onCancelReply={onCancelReply}
+      />
+    );
+
+    expect(screen.getByText('Replying to Grace Hopper')).toBeInTheDocument();
+    expect(screen.getByText('Original source context')).toHaveAttribute('dir', 'auto');
+
+    await user.click(screen.getByRole('button', { name: 'Cancel reply' }));
+
+    expect(onCancelReply).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses safe fallback copy for attachment-only and unavailable reply previews', () => {
+    const { rerender } = render(
+      <ComposerHarness
+        onSend={vi.fn()}
+        replyingTo={makeMessage({
+          text: '',
+          attachments: [
+            makeAttachment({ attachmentId: 'attachment-a' }),
+            makeAttachment({ attachmentId: 'attachment-b' }),
+          ],
+        })}
+      />
+    );
+
+    expect(screen.getByText('Replying to message')).toBeInTheDocument();
+    expect(screen.getByText('2 attachments')).toBeInTheDocument();
+
+    rerender(
+      <ComposerHarness
+        onSend={vi.fn()}
+        replyingTo={makeMessage({
+          text: 'Deleted source',
+          deletedForEveryone: true,
+        })}
+      />
+    );
+
+    expect(screen.getByText('Original message unavailable')).toBeInTheDocument();
   });
 
   it('disables recording when the browser cannot provide MediaRecorder support', () => {

@@ -3,7 +3,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { userApi } from '../api/userApi';
-import { useActiveSessions, useRevokeAllSessions, useRevokeSession } from '../hooks/useAuthQuery';
+import {
+  useActiveSessions,
+  useConfirmTwoFactor,
+  useDisableTwoFactor,
+  useRegenerateBackupCodes,
+  useRevokeAllSessions,
+  useRevokeSession,
+  useSetupTwoFactor,
+  useTwoFactorStatus,
+} from '../hooks/useAuthQuery';
 import { useMyModerationEnforcements, useSubmitModerationAppeal } from '../hooks/useModerationReports';
 import { useProfileImageMutation } from '../hooks/useProfileImageMutation';
 import { getNotificationPreferencesStorageKey } from '../hooks/useNotificationPreferences';
@@ -21,6 +30,11 @@ vi.mock('../hooks/useAuthQuery', () => ({
   useActiveSessions: vi.fn(),
   useRevokeSession: vi.fn(),
   useRevokeAllSessions: vi.fn(),
+  useTwoFactorStatus: vi.fn(),
+  useSetupTwoFactor: vi.fn(),
+  useConfirmTwoFactor: vi.fn(),
+  useDisableTwoFactor: vi.fn(),
+  useRegenerateBackupCodes: vi.fn(),
 }));
 
 vi.mock('../hooks/useModerationReports', () => ({
@@ -49,6 +63,11 @@ const mockUseProfileImageMutation = vi.mocked(useProfileImageMutation);
 const mockUseActiveSessions = vi.mocked(useActiveSessions);
 const mockUseRevokeSession = vi.mocked(useRevokeSession);
 const mockUseRevokeAllSessions = vi.mocked(useRevokeAllSessions);
+const mockUseTwoFactorStatus = vi.mocked(useTwoFactorStatus);
+const mockUseSetupTwoFactor = vi.mocked(useSetupTwoFactor);
+const mockUseConfirmTwoFactor = vi.mocked(useConfirmTwoFactor);
+const mockUseDisableTwoFactor = vi.mocked(useDisableTwoFactor);
+const mockUseRegenerateBackupCodes = vi.mocked(useRegenerateBackupCodes);
 const mockUseMyModerationEnforcements = vi.mocked(useMyModerationEnforcements);
 const mockUseSubmitModerationAppeal = vi.mocked(useSubmitModerationAppeal);
 const mockUserApi = vi.mocked(userApi);
@@ -84,6 +103,38 @@ const revokeSession = {
 };
 
 const revokeAllSessions = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+};
+
+const twoFactorStatusQuery = {
+  data: {
+    enabled: false,
+    available: true,
+    backupCodesRemaining: 0,
+    pendingSetup: false,
+  },
+  isLoading: false,
+  isError: false,
+  refetch: vi.fn(),
+};
+
+const setupTwoFactor = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+};
+
+const confirmTwoFactor = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+};
+
+const disableTwoFactor = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+};
+
+const regenerateBackupCodes = {
   mutateAsync: vi.fn(),
   isPending: false,
 };
@@ -192,6 +243,74 @@ describe('SettingsModal profile picture workflow', () => {
     revokeSession.isPending = false;
     revokeAllSessions.mutateAsync.mockResolvedValue({});
     revokeAllSessions.isPending = false;
+    twoFactorStatusQuery.data = {
+      enabled: false,
+      available: true,
+      backupCodesRemaining: 0,
+      pendingSetup: false,
+    };
+    twoFactorStatusQuery.isLoading = false;
+    twoFactorStatusQuery.isError = false;
+    twoFactorStatusQuery.refetch.mockResolvedValue({});
+    setupTwoFactor.mutateAsync.mockResolvedValue({
+      data: {
+        data: {
+          setup: {
+            secret: 'JBSWY3DPEHPK3PXP',
+            otpauthUrl: 'otpauth://totp/Chatify:user@example.com?secret=JBSWY3DPEHPK3PXP',
+            expiresAt: '2026-06-30T08:00:00.000Z',
+          },
+          twoFactor: {
+            enabled: false,
+            available: true,
+            backupCodesRemaining: 0,
+            pendingSetup: true,
+          },
+        },
+      },
+    });
+    setupTwoFactor.isPending = false;
+    confirmTwoFactor.mutateAsync.mockResolvedValue({
+      data: {
+        data: {
+          backupCodes: ['ABCDE-FGHIJ', 'KLMNO-PQRST'],
+          twoFactor: {
+            enabled: true,
+            available: true,
+            backupCodesRemaining: 2,
+            pendingSetup: false,
+          },
+        },
+      },
+    });
+    confirmTwoFactor.isPending = false;
+    disableTwoFactor.mutateAsync.mockResolvedValue({
+      data: {
+        data: {
+          twoFactor: {
+            enabled: false,
+            available: true,
+            backupCodesRemaining: 0,
+            pendingSetup: false,
+          },
+        },
+      },
+    });
+    disableTwoFactor.isPending = false;
+    regenerateBackupCodes.mutateAsync.mockResolvedValue({
+      data: {
+        data: {
+          backupCodes: ['VWXYZ-23456', 'ABCDE-789AB'],
+          twoFactor: {
+            enabled: true,
+            available: true,
+            backupCodesRemaining: 2,
+            pendingSetup: false,
+          },
+        },
+      },
+    });
+    regenerateBackupCodes.isPending = false;
     submitModerationAppeal.mutateAsync.mockResolvedValue({});
     submitModerationAppeal.isPending = false;
     activeSessionsQuery.data = [];
@@ -209,6 +328,13 @@ describe('SettingsModal profile picture workflow', () => {
     mockUseActiveSessions.mockReturnValue(activeSessionsQuery as unknown as ReturnType<typeof useActiveSessions>);
     mockUseRevokeSession.mockReturnValue(revokeSession as unknown as ReturnType<typeof useRevokeSession>);
     mockUseRevokeAllSessions.mockReturnValue(revokeAllSessions as unknown as ReturnType<typeof useRevokeAllSessions>);
+    mockUseTwoFactorStatus.mockReturnValue(twoFactorStatusQuery as unknown as ReturnType<typeof useTwoFactorStatus>);
+    mockUseSetupTwoFactor.mockReturnValue(setupTwoFactor as unknown as ReturnType<typeof useSetupTwoFactor>);
+    mockUseConfirmTwoFactor.mockReturnValue(confirmTwoFactor as unknown as ReturnType<typeof useConfirmTwoFactor>);
+    mockUseDisableTwoFactor.mockReturnValue(disableTwoFactor as unknown as ReturnType<typeof useDisableTwoFactor>);
+    mockUseRegenerateBackupCodes.mockReturnValue(
+      regenerateBackupCodes as unknown as ReturnType<typeof useRegenerateBackupCodes>
+    );
     mockUseMyModerationEnforcements.mockReturnValue({
       data: [],
       isLoading: false,
@@ -504,6 +630,70 @@ describe('SettingsModal profile picture workflow', () => {
 
     expect(revokeAllSessions.mutateAsync).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('enables two-factor authentication and shows one-time backup codes', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.type(screen.getByLabelText(/current password/i), 'Password123!');
+    await user.click(screen.getByRole('button', { name: /start 2fa setup/i }));
+
+    expect(setupTwoFactor.mutateAsync).toHaveBeenCalledWith('Password123!');
+    expect(await screen.findByText('JBSWY3DPEHPK3PXP')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/authenticator or backup code/i), '123456');
+    await user.click(screen.getByRole('button', { name: /enable 2fa/i }));
+
+    expect(confirmTwoFactor.mutateAsync).toHaveBeenCalledWith('123456');
+    expect(await screen.findByText('ABCDE-FGHIJ')).toBeInTheDocument();
+    expect(screen.getByText('KLMNO-PQRST')).toBeInTheDocument();
+  });
+
+  it('regenerates backup codes for an enabled two-factor account', async () => {
+    const user = userEvent.setup();
+    twoFactorStatusQuery.data = {
+      enabled: true,
+      available: true,
+      backupCodesRemaining: 8,
+      pendingSetup: false,
+    };
+
+    renderSettings();
+
+    expect(screen.getByText(/backup codes remaining: 8/i)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/current password/i), 'Password123!');
+    await user.type(screen.getByLabelText(/authenticator or backup code/i), '123456');
+    await user.click(screen.getByRole('button', { name: /regenerate backup codes/i }));
+
+    expect(regenerateBackupCodes.mutateAsync).toHaveBeenCalledWith({
+      currentPassword: 'Password123!',
+      code: '123456',
+    });
+    expect(await screen.findByText('VWXYZ-23456')).toBeInTheDocument();
+  });
+
+  it('disables two-factor authentication after password and code verification', async () => {
+    const user = userEvent.setup();
+    twoFactorStatusQuery.data = {
+      enabled: true,
+      available: true,
+      backupCodesRemaining: 10,
+      pendingSetup: false,
+    };
+
+    renderSettings();
+
+    await user.type(screen.getByLabelText(/current password/i), 'Password123!');
+    await user.type(screen.getByLabelText(/authenticator or backup code/i), '123456');
+    await user.click(screen.getByRole('button', { name: /disable 2fa/i }));
+
+    expect(disableTwoFactor.mutateAsync).toHaveBeenCalledWith({
+      currentPassword: 'Password123!',
+      code: '123456',
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('Two-factor authentication is disabled.');
   });
 
   it('keeps the file chooser focus ring on the visible control for keyboard users', async () => {

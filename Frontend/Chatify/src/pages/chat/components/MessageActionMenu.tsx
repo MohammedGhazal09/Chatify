@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { RefObject } from 'react';
-import { SmilePlus } from 'lucide-react';
+import { Bookmark, BookmarkCheck, SmilePlus } from 'lucide-react';
 import type { Message } from '../../../types/chat';
 import type { MessageContextMenuState } from '../hooks/useChatViewState';
 import LazyEmojiPicker from './LazyEmojiPicker';
@@ -19,6 +19,7 @@ interface MessageActionMenuProps {
   onDelete: (deleteForEveryone: boolean) => void;
   onCopy: (message: Message) => void;
   onTogglePin: (message: Message) => void;
+  onToggleSave: (message: Message) => void;
   onReportMessage: (message: Message) => void;
   onClose: () => void;
 }
@@ -39,6 +40,7 @@ const MessageActionMenu = ({
   onDelete,
   onCopy,
   onTogglePin,
+  onToggleSave,
   onReportMessage,
   onClose,
 }: MessageActionMenuProps) => {
@@ -54,6 +56,7 @@ const MessageActionMenu = ({
 
   const message = messages.find((item) => item._id === contextMenu.messageId);
   const canDeleteForMe = Boolean(message && !message.optimisticState);
+  const canSaveMessage = Boolean(message && !message.optimisticState && !message.deletedForEveryone);
   const messageIsEncrypted = message?.messageType === 'encrypted' || message?.encryptionMode === 'e2ee_v1';
   const editDisabled = activeActionsDisabled || messageIsEncrypted;
   const editDisabledReason = messageIsEncrypted
@@ -153,6 +156,20 @@ const MessageActionMenu = ({
           className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] disabled:cursor-not-allowed disabled:text-[#6B7378] focus:outline-none focus-visible:bg-[#181C20]"
         >
           {message.pinned ? 'Unpin message' : 'Pin message'}
+        </button>
+      )}
+      {message && canSaveMessage && (
+        <button
+          type="button"
+          onClick={() => onToggleSave(message)}
+          className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
+        >
+          {message.savedByRequester ? (
+            <BookmarkCheck aria-hidden="true" className="h-4 w-4 text-[#14B8A6]" />
+          ) : (
+            <Bookmark aria-hidden="true" className="h-4 w-4" />
+          )}
+          {message.savedByRequester ? 'Unsave message' : 'Save message'}
         </button>
       )}
       {message && !contextMenu.isOwn && (

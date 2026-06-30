@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Chats from "../Models/chatModel.mjs";
+import ContactRequest, { CONTACT_REQUEST_STATUSES } from "../Models/contactRequestModel.mjs";
 import Message from "../Models/messageModel.mjs";
 import User from "../Models/userModel.mjs";
 import asyncErrHandler from "../Utils/asyncErrHandler.mjs";
@@ -45,6 +46,7 @@ const projectLatestVisibleMessage = async (chatId, requesterId) => {
 };
 
 const DIRECT_CHAT_START_ERROR = "We could not start or continue that chat. Check the username and try again.";
+const CONTACT_REQUEST_ERROR = "We could not update that request. Try again.";
 const GROUP_CHAT_START_ERROR = "We could not create that group. Check the usernames and try again.";
 const GROUP_NAME_REQUIRED_ERROR = "Enter a group name.";
 const GROUP_MEMBER_MIN = 3;
@@ -52,6 +54,57 @@ const GROUP_MEMBER_MAX = 10;
 const GROUP_SELECTED_MIN = GROUP_MEMBER_MIN - 1;
 const GROUP_SELECTED_MAX = GROUP_MEMBER_MAX - 1;
 const PUBLIC_CHAT_MEMBER_SELECT = "username firstName lastName profilePic profileBio identityMark identityMarkUpdatedAt";
+
+const buildContactPairKey = (leftUserId, rightUserId) => [
+  leftUserId?.toString?.() ?? leftUserId,
+  rightUserId?.toString?.() ?? rightUserId,
+].sort().join(":");
+
+const serializePublicMember = (user) => {
+  const userObject = user?.toObject?.() ?? user;
+
+  if (!userObject) {
+    return null;
+  }
+
+  return {
+    _id: userObject._id?.toString?.() ?? userObject._id,
+    username: userObject.username ?? "",
+    firstName: userObject.firstName,
+    lastName: userObject.lastName,
+    profilePic: userObject.profilePic ?? "",
+    profileBio: userObject.profileBio ?? "",
+    identityMark: userObject.identityMark,
+    identityMarkUpdatedAt: userObject.identityMarkUpdatedAt ?? null,
+  };
+};
+
+const serializeContactRequest = (request, requesterId) => {
+  const requestObject = request?.toObject?.() ?? request;
+  const requesterIdString = requesterId?.toString?.() ?? requesterId;
+  const requestRequesterId = requestObject.requester?._id?.toString?.() ?? requestObject.requester?.toString?.();
+  const requestRecipientId = requestObject.recipient?._id?.toString?.() ?? requestObject.recipient?.toString?.();
+
+  return {
+    _id: requestObject._id?.toString?.() ?? requestObject._id,
+    requester: serializePublicMember(requestObject.requester),
+    recipient: serializePublicMember(requestObject.recipient),
+    status: requestObject.status,
+    direction: requesterIdString === requestRequesterId
+      ? "outgoing"
+      : requesterIdString === requestRecipientId
+        ? "incoming"
+        : null,
+    chat: requestObject.chat?.toString?.() ?? requestObject.chat ?? null,
+    createdAt: requestObject.createdAt,
+    updatedAt: requestObject.updatedAt,
+    respondedAt: requestObject.respondedAt ?? null,
+  };
+};
+
+const populateContactRequest = (query) => query
+  .populate("requester", PUBLIC_CHAT_MEMBER_SELECT)
+  .populate("recipient", PUBLIC_CHAT_MEMBER_SELECT);
 
 const isDuplicateKeyError = (error) => error?.code === 11000;
 
@@ -85,6 +138,174 @@ const findDirectChat = (directKey, memberIds = [], encryptionMode) => Chats.find
   .populate("members", PUBLIC_CHAT_MEMBER_SELECT)
   .populate("groupAdmin", PUBLIC_CHAT_MEMBER_SELECT)
   .populate("latestMessage");
+
+const ensureDirectChat = async ({ members, encryptionMode, chatName }) => {
+  const directKey = buildDirectChatKey(members, encryptionMode);
+  const existingChat = await findDirectChat(directKey, members, encryptionMode);
+
+  if (existingChat) {
+    return { chat: existingChat, created: false };
+  }
+
+  const payload = {
+    members,
+    directKey,
+    encryptionMode,
+    isGroupChat: false,
+  };
+
+  if (chatName && typeof chatName === "string" && chatName.trim().length) {
+    payload.chatName = chatName.trim();
+  }
+
+  try {
+    const newChat = await Chats.create(payload);
+    await populateChatPublicFields(newChat);
+
+    return { chat: newChat, created: true };
+  } catch (error) {
+    if (!isDuplicateKeyError(error)) {
+      throw error;
+    }
+
+    const duplicateChat = await findDirectChat(directKey, members, encryptionMode);
+
+    if (!duplicateChat) {
+      throw error;
+    }
+
+    return { chat: duplicateChat, created: false };
+  }
+};
+
+const notifyNewDirectChat = async ({ chat, requesterId, targetUserId }) => {
+  try {
+    joinUserToChat(requesterId, chat._id);
+    joinUserToChat(targetUserId, chat._id);
+
+    emitToUserSockets(
+      targetUserId,
+      'chat:new',
+      await serializeChatForRequester(chat, targetUserId)
+    );
+  } catch (err) {
+    logger.error('chat.new_notification_failed', {
+      chatId: chat._id.toString(),
+      requesterId,
+      targetUserId,
+      error: err,
+    });
+  }
+};
+
+const findAcceptedContactRequest = (leftUserId, rightUserId) => ContactRequest.exists({
+  pairKey: buildContactPairKey(leftUserId, rightUserId),
+  status: CONTACT_REQUEST_STATUSES.ACCEPTED,
+});
+
+const findPendingContactRequest = (leftUserId, rightUserId) => populateContactRequest(ContactRequest.findOne({
+  pairKey: buildContactPairKey(leftUserId, rightUserId),
+  status: CONTACT_REQUEST_STATUSES.PENDING,
+}));
+
+const createOrReuseContactRequest = async ({ requesterId, recipientId }) => {
+  const existingPending = await findPendingContactRequest(requesterId, recipientId);
+
+  if (existingPending) {
+    return { request: existingPending, created: false };
+  }
+
+  try {
+    const request = await ContactRequest.create({
+      requester: requesterId,
+      recipient: recipientId,
+      status: CONTACT_REQUEST_STATUSES.PENDING,
+    });
+    const populatedRequest = await populateContactRequest(ContactRequest.findById(request._id));
+
+    return { request: populatedRequest, created: true };
+  } catch (error) {
+    if (!isDuplicateKeyError(error)) {
+      throw error;
+    }
+
+    const pendingRequest = await findPendingContactRequest(requesterId, recipientId);
+
+    if (!pendingRequest) {
+      throw error;
+    }
+
+    return {
+      request: pendingRequest,
+      created: false,
+    };
+  }
+};
+
+const emitContactRequestToUser = (userId, event, request) => {
+  emitToUserSockets(userId, event, serializeContactRequest(request, userId));
+};
+
+const respondWithPendingContactRequest = (res, request, requesterId) => res.status(202).json({
+  status: "contact request pending",
+  data: {
+    contactRequest: serializeContactRequest(request, requesterId),
+  },
+});
+
+const resolveDirectChatTarget = async ({ targetUsername, requesterId, next }) => {
+  const usernameValidation = validateUsername(targetUsername);
+
+  if (!usernameValidation.ok) {
+    next(new CustomError(usernameValidation.message, 400));
+    return null;
+  }
+
+  const targetUser = await User.findOne({ username: usernameValidation.value })
+    .select(PUBLIC_CHAT_MEMBER_SELECT);
+
+  if (!targetUser) {
+    next(new CustomError(DIRECT_CHAT_START_ERROR, 404));
+    return null;
+  }
+
+  if (targetUser._id.toString() === requesterId) {
+    next(new CustomError(DIRECT_CHAT_START_ERROR, 400));
+    return null;
+  }
+
+  const unblockedIds = await filterUnblockedContactIds({
+    userId: requesterId,
+    contactIds: [targetUser._id],
+  });
+
+  if (unblockedIds.length !== 1) {
+    next(new CustomError(DIRECT_CHAT_START_ERROR, 404));
+    return null;
+  }
+
+  return targetUser;
+};
+
+const loadPendingContactRequestForRole = async ({ requestId, requesterId, role, next }) => {
+  if (!mongoose.Types.ObjectId.isValid(requestId)) {
+    next(new CustomError(CONTACT_REQUEST_ERROR, 404));
+    return null;
+  }
+
+  const request = await populateContactRequest(ContactRequest.findOne({
+    _id: requestId,
+    status: CONTACT_REQUEST_STATUSES.PENDING,
+    [role]: requesterId,
+  }));
+
+  if (!request) {
+    next(new CustomError(CONTACT_REQUEST_ERROR, 404));
+    return null;
+  }
+
+  return request;
+};
 
 const populateChatPublicFields = async (chat) => {
   await chat.populate("members", PUBLIC_CHAT_MEMBER_SELECT);
@@ -318,95 +539,272 @@ export const createChat = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError("Not authorized to access this route", 401));
   }
 
-  const usernameValidation = validateUsername(targetUsername);
-
-  if (!usernameValidation.ok) {
-    return next(new CustomError(usernameValidation.message, 400));
-  }
-
-  const targetUser = await User.findOne({ username: usernameValidation.value });
-
-  if (!targetUser) {
-    return next(new CustomError(DIRECT_CHAT_START_ERROR, 404));
-  }
-
-  if (targetUser._id.toString() === requesterId) {
-    return next(new CustomError(DIRECT_CHAT_START_ERROR, 400));
-  }
-
-  const unblockedIds = await filterUnblockedContactIds({
-    userId: requesterId,
-    contactIds: [targetUser._id],
+  const targetUser = await resolveDirectChatTarget({
+    targetUsername,
+    requesterId,
+    next,
   });
 
-  if (unblockedIds.length !== 1) {
-    return next(new CustomError(DIRECT_CHAT_START_ERROR, 404));
+  if (!targetUser) {
+    return;
   }
 
   const members = [requesterId, targetUser._id];
   const directKey = buildDirectChatKey(members, encryptionMode);
-
   const existingChat = await findDirectChat(directKey, members, encryptionMode);
 
   if (existingChat) {
     return respondWithExistingDirectChat(res, existingChat, requesterId);
   }
 
-  const payload = {
+  if (encryptionMode === "standard") {
+    const acceptedRequest = await findAcceptedContactRequest(requesterId, targetUser._id);
+
+    if (!acceptedRequest) {
+      const { request, created } = await createOrReuseContactRequest({
+        requesterId,
+        recipientId: targetUser._id,
+      });
+
+      if (created) {
+        emitContactRequestToUser(targetUser._id, 'contact-request:created', request);
+      }
+
+      return respondWithPendingContactRequest(res, request, requesterId);
+    }
+  }
+
+  const { chat, created } = await ensureDirectChat({
     members,
-    directKey,
     encryptionMode,
-    isGroupChat: false,
-  };
+    chatName,
+  });
 
-  if (chatName && typeof chatName === "string" && chatName.trim().length) {
-    payload.chatName = chatName.trim();
-  }
-
-  let newChat;
-
-  try {
-    newChat = await Chats.create(payload);
-  } catch (error) {
-    if (!isDuplicateKeyError(error)) {
-      throw error;
-    }
-
-    const duplicateChat = await findDirectChat(directKey, members, encryptionMode);
-
-    if (!duplicateChat) {
-      throw error;
-    }
-
-    return respondWithExistingDirectChat(res, duplicateChat, requesterId);
-  }
-
-  await populateChatPublicFields(newChat);
-
-  const requesterChat = await serializeChatForRequester(newChat, requesterId);
-  const targetChat = await serializeChatForRequester(newChat, targetUser._id.toString());
-
-  // Notify all members about the new chat via socket
-  try {
-    // Join both users to the new chat room so they can receive messages immediately
-    joinUserToChat(requesterId, newChat._id);
-    joinUserToChat(targetUser._id.toString(), newChat._id);
-    
-    // Notify the target user about the new chat so they can see it without refreshing
-    emitToUserSockets(targetUser._id, 'chat:new', targetChat);
-  } catch (err) {
-    logger.error('chat.new_notification_failed', {
-      chatId: newChat._id.toString(),
+  if (created) {
+    await notifyNewDirectChat({
+      chat,
       requesterId,
       targetUserId: targetUser._id.toString(),
-      error: err,
     });
   }
 
-  res.status(201).json({
-    status: "chat created successfully",
+  res.status(created ? 201 : 200).json({
+    status: created ? "chat created successfully" : "success",
     data: {
-      chat: requesterChat,
+      chat: await serializeChatForRequester(chat, requesterId),
+    },
+  });
+});
+
+export const getContactRequests = asyncErrHandler(async (req, res, next) => {
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const [incoming, outgoing] = await Promise.all([
+    populateContactRequest(ContactRequest.find({
+      recipient: requesterId,
+      status: CONTACT_REQUEST_STATUSES.PENDING,
+    }).sort({ updatedAt: -1 })),
+    populateContactRequest(ContactRequest.find({
+      requester: requesterId,
+      status: CONTACT_REQUEST_STATUSES.PENDING,
+    }).sort({ updatedAt: -1 })),
+  ]);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      incoming: incoming.map((request) => serializeContactRequest(request, requesterId)),
+      outgoing: outgoing.map((request) => serializeContactRequest(request, requesterId)),
+    },
+  });
+});
+
+export const createContactRequest = asyncErrHandler(async (req, res, next) => {
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const targetUser = await resolveDirectChatTarget({
+    targetUsername: req.body?.targetUsername,
+    requesterId,
+    next,
+  });
+
+  if (!targetUser) {
+    return;
+  }
+
+  const members = [requesterId, targetUser._id];
+  const directKey = buildDirectChatKey(members);
+  const existingChat = await findDirectChat(directKey, members, "standard");
+
+  if (existingChat) {
+    return respondWithExistingDirectChat(res, existingChat, requesterId);
+  }
+
+  const acceptedRequest = await findAcceptedContactRequest(requesterId, targetUser._id);
+
+  if (acceptedRequest) {
+    const { chat, created } = await ensureDirectChat({
+      members,
+      encryptionMode: "standard",
+    });
+
+    if (created) {
+      await notifyNewDirectChat({
+        chat,
+        requesterId,
+        targetUserId: targetUser._id.toString(),
+      });
+    }
+
+    return res.status(created ? 201 : 200).json({
+      status: created ? "chat created successfully" : "success",
+      data: {
+        chat: await serializeChatForRequester(chat, requesterId),
+      },
+    });
+  }
+
+  const { request, created } = await createOrReuseContactRequest({
+    requesterId,
+    recipientId: targetUser._id,
+  });
+
+  if (created) {
+    emitContactRequestToUser(targetUser._id, 'contact-request:created', request);
+  }
+
+  res.status(created ? 201 : 200).json({
+    status: "success",
+    data: {
+      contactRequest: serializeContactRequest(request, requesterId),
+    },
+  });
+});
+
+export const acceptContactRequest = asyncErrHandler(async (req, res, next) => {
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const request = await loadPendingContactRequestForRole({
+    requestId: req.params.requestId,
+    requesterId,
+    role: "recipient",
+    next,
+  });
+
+  if (!request) {
+    return;
+  }
+
+  const chatRequesterId = request.requester._id.toString();
+  const chatRecipientId = request.recipient._id.toString();
+  const { chat, created } = await ensureDirectChat({
+    members: [chatRequesterId, chatRecipientId],
+    encryptionMode: "standard",
+  });
+
+  request.status = CONTACT_REQUEST_STATUSES.ACCEPTED;
+  request.chat = chat._id;
+  request.respondedAt = new Date();
+  await request.save();
+
+  if (created) {
+    await notifyNewDirectChat({
+      chat,
+      requesterId: chatRecipientId,
+      targetUserId: chatRequesterId,
+    });
+  }
+
+  emitContactRequestToUser(chatRequesterId, 'contact-request:updated', request);
+  emitContactRequestToUser(chatRecipientId, 'contact-request:updated', request);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      contactRequest: serializeContactRequest(request, requesterId),
+      chat: await serializeChatForRequester(chat, requesterId),
+    },
+  });
+});
+
+export const declineContactRequest = asyncErrHandler(async (req, res, next) => {
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const request = await loadPendingContactRequestForRole({
+    requestId: req.params.requestId,
+    requesterId,
+    role: "recipient",
+    next,
+  });
+
+  if (!request) {
+    return;
+  }
+
+  request.status = CONTACT_REQUEST_STATUSES.DECLINED;
+  request.respondedAt = new Date();
+  await request.save();
+
+  const chatRequesterId = request.requester._id.toString();
+  const chatRecipientId = request.recipient._id.toString();
+  emitContactRequestToUser(chatRequesterId, 'contact-request:updated', request);
+  emitContactRequestToUser(chatRecipientId, 'contact-request:updated', request);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      contactRequest: serializeContactRequest(request, requesterId),
+    },
+  });
+});
+
+export const cancelContactRequest = asyncErrHandler(async (req, res, next) => {
+  const requesterId = req.userId?.toString();
+
+  if (!requesterId) {
+    return next(new CustomError("Not authorized to access this route", 401));
+  }
+
+  const request = await loadPendingContactRequestForRole({
+    requestId: req.params.requestId,
+    requesterId,
+    role: "requester",
+    next,
+  });
+
+  if (!request) {
+    return;
+  }
+
+  request.status = CONTACT_REQUEST_STATUSES.CANCELED;
+  request.respondedAt = new Date();
+  await request.save();
+
+  const chatRequesterId = request.requester._id.toString();
+  const chatRecipientId = request.recipient._id.toString();
+  emitContactRequestToUser(chatRequesterId, 'contact-request:updated', request);
+  emitContactRequestToUser(chatRecipientId, 'contact-request:updated', request);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      contactRequest: serializeContactRequest(request, requesterId),
     },
   });
 });

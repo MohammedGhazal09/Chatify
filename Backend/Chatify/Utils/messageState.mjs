@@ -3,6 +3,7 @@ import { normalizeChatEncryptionMode } from './encryptionMode.mjs';
 
 export const MAX_MESSAGE_TEXT_LENGTH = 1000;
 export const MAX_REACTION_TEXT_LENGTH = 32;
+export const MAX_REPLY_TEXT_PREVIEW_LENGTH = 160;
 export const MAX_REACTIONS_PER_MESSAGE = 50;
 export const DEFAULT_MESSAGE_HISTORY_LIMIT = 50;
 export const MAX_MESSAGE_HISTORY_LIMIT = 100;
@@ -167,6 +168,66 @@ export const serializeCallActivity = (callActivity = null) => {
   };
 };
 
+const normalizeReplyTextPreview = (value) => {
+  const preview = typeof value === 'string'
+    ? value.replace(/\s+/g, ' ').trim()
+    : '';
+
+  return preview.length > MAX_REPLY_TEXT_PREVIEW_LENGTH
+    ? preview.slice(0, MAX_REPLY_TEXT_PREVIEW_LENGTH)
+    : preview;
+};
+
+export const serializeReplyTo = (replyTo = null) => {
+  if (!replyTo?.messageId) {
+    return null;
+  }
+
+  return {
+    messageId: toIdString(replyTo.messageId),
+    sender: toIdString(replyTo.sender),
+    messageType: replyTo.messageType ?? MESSAGE_TYPE.TEXT,
+    textPreview: normalizeReplyTextPreview(replyTo.textPreview),
+    attachmentCount: Number.isFinite(Number(replyTo.attachmentCount))
+      ? Math.max(0, Number(replyTo.attachmentCount))
+      : 0,
+    isDeleted: Boolean(replyTo.isDeleted),
+    isEncrypted: Boolean(replyTo.isEncrypted),
+    createdAt: serializeDate(replyTo.createdAt),
+  };
+};
+
+export const serializeMentions = (mentions = []) => mentions
+  .map((mention) => ({
+    userId: toIdString(mention.user),
+    username: mention.username ?? '',
+    displayName: mention.displayName ?? mention.username ?? 'Member',
+  }))
+  .filter((mention) => mention.userId && mention.username);
+
+export const buildReplyToSnapshot = (message) => {
+  const plainMessage = toPlainObject(message);
+  const messageType = plainMessage.messageType ?? MESSAGE_TYPE.TEXT;
+  const encryptionMode = normalizeChatEncryptionMode(plainMessage.encryptionMode);
+  const isEncrypted = messageType === MESSAGE_TYPE.ENCRYPTED || encryptionMode !== 'standard';
+  const isDeleted = Boolean(plainMessage.deletedForEveryone);
+  const activeAttachments = (plainMessage.attachments ?? [])
+    .filter((attachment) => attachment.status !== 'deleted');
+
+  return {
+    messageId: toObjectId(plainMessage._id),
+    sender: toObjectId(plainMessage.sender),
+    messageType,
+    textPreview: isDeleted || isEncrypted
+      ? ''
+      : normalizeReplyTextPreview(plainMessage.text ?? ''),
+    attachmentCount: activeAttachments.length,
+    isDeleted,
+    isEncrypted,
+    createdAt: plainMessage.createdAt,
+  };
+};
+
 const MAX_ENCRYPTED_PAYLOAD_FIELD_LENGTH = 64_000;
 const MAX_ENCRYPTED_DEVICE_ID_LENGTH = 128;
 
@@ -307,6 +368,8 @@ export const serializeMessage = (message) => {
     messageType: plainMessage.messageType ?? MESSAGE_TYPE.TEXT,
     encryptionMode: normalizeChatEncryptionMode(plainMessage.encryptionMode),
     encryptedPayload: serializeEncryptedPayload(plainMessage.encryptedPayload),
+    replyTo: serializeReplyTo(plainMessage.replyTo),
+    mentions: serializeMentions(plainMessage.mentions ?? []),
     callActivity: serializeCallActivity(plainMessage.callActivity),
     read: Boolean(plainMessage.read),
     status: plainMessage.status ?? MESSAGE_STATUS.SENT,

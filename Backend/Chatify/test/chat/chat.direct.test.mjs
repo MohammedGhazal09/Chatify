@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import Chats from '../../Models/chatModel.mjs';
+import ContactRequest, { CONTACT_REQUEST_STATUSES } from '../../Models/contactRequestModel.mjs';
 import UserBlock from '../../Models/userBlockModel.mjs';
 import { emitToUserSockets, joinUserToChat } from '../../Config/socket.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
@@ -19,6 +20,7 @@ const GENERIC_START_ERROR = /could not start or continue that chat/i;
 
 const setupDirectChatUsers = async () => {
   await Chats.init();
+  await ContactRequest.init();
   await UserBlock.init();
 
   const requester = await signupWithAgent({
@@ -33,6 +35,13 @@ const setupDirectChatUsers = async () => {
   return { requester, target };
 };
 
+const seedAcceptedContactRequest = ({ requester, target }) => ContactRequest.create({
+  requester: requester.user._id,
+  recipient: target.user._id,
+  status: CONTACT_REQUEST_STATUSES.ACCEPTED,
+  respondedAt: new Date(),
+});
+
 describe('direct chat continuation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -40,6 +49,7 @@ describe('direct chat continuation', () => {
 
   it('creates a direct chat with a deterministic member-pair key', async () => {
     const { requester, target } = await setupDirectChatUsers();
+    await seedAcceptedContactRequest({ requester, target });
 
     const response = await requester.agent
       .post('/api/chat/create-new-chat')
@@ -81,6 +91,7 @@ describe('direct chat continuation', () => {
 
   it('continues an existing exact-username direct chat with 200 semantics', async () => {
     const { requester, target } = await setupDirectChatUsers();
+    await seedAcceptedContactRequest({ requester, target });
 
     const created = await requester.agent
       .post('/api/chat/create-new-chat')
@@ -101,6 +112,7 @@ describe('direct chat continuation', () => {
 
   it('coalesces concurrent exact-username submits into one direct chat record', async () => {
     const { requester, target } = await setupDirectChatUsers();
+    await seedAcceptedContactRequest({ requester, target });
 
     const responses = await Promise.all(
       Array.from({ length: 5 }, () => requester.agent
@@ -157,6 +169,7 @@ describe('direct chat continuation', () => {
 
   it('does not continue or notify a direct chat while either participant is blocked', async () => {
     const { requester, target } = await setupDirectChatUsers();
+    await seedAcceptedContactRequest({ requester, target });
 
     await requester.agent
       .post('/api/chat/create-new-chat')

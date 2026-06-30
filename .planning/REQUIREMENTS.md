@@ -184,6 +184,69 @@
 - **V2-I18N-02**: Arabic RTL layout works across desktop and mobile without overlapping controls, clipped text, or broken message alignment.
 - **V2-I18N-03**: Dates, times, validation messages, empty states, notification copy, accessibility labels, and keyboard flows respect the selected locale.
 
+### Contact Requests And Trusted Onboarding
+
+- **V2-CONTACT-01**: New one-to-one standard conversations require a pending contact request and recipient acceptance before a new direct chat is created.
+- **V2-CONTACT-02**: Users can list, accept, decline, and cancel contact requests through ownership-checked, CSRF-protected, privacy-safe endpoints and UI controls.
+- **V2-CONTACT-03**: Contact request workflows use username/public identity only, respect block state, and do not expose private emails in payloads, logs, traces, screenshots, or tests.
+
+### Reply To Message With Quoted Context
+
+- **V2-REPLY-01**: Users can send a standard message that references a visible message in the same conversation, and the reply relationship persists across reloads, sockets, search context, and pagination.
+- **V2-REPLY-02**: Quoted context is a bounded, privacy-safe snapshot containing only public sender identity, source message id, source timestamp, message type, attachment count, and a short safe preview when plaintext is allowed.
+- **V2-REPLY-03**: Chat UI exposes reply selection, composer preview, quoted bubble display, source jump/fallback states, and mobile/keyboard-accessible cancel behavior without adding thread semantics.
+
+### Per-Conversation Message Drafts
+
+- **V2-DRAFT-01**: Users can keep unsent text drafts separately per accessible conversation, with drafts restored when switching conversations or reloading after authentication initializes.
+- **V2-DRAFT-02**: Drafts are local-only, user-scoped, cleared during private session cleanup, and are not sent through backend APIs, Socket.IO events, persistence models, logs, traces, or screenshots beyond explicit visual QA evidence.
+- **V2-DRAFT-03**: Sidebar draft indicators are bounded and searchable for standard conversations, while encrypted conversation draft plaintext is hidden behind generic copy and excluded from sidebar search.
+
+### Two-Factor Authentication And Backup Codes
+
+- **V2-2FA-01**: Local-account users can set up TOTP 2FA from Settings after re-entering the current password, confirm with a valid 6-digit code, and receive backup codes exactly once.
+- **V2-2FA-02**: Login for a 2FA-enabled account returns a pending challenge without setting access or refresh cookies until a valid TOTP or unused backup code is submitted.
+- **V2-2FA-03**: Backup codes are single-use, stored only as hashes, and visible only immediately after generation.
+- **V2-2FA-04**: Users can view 2FA status, remaining backup-code count, disable 2FA, and regenerate backup codes from Settings with password and second-factor verification.
+- **V2-2FA-05**: TOTP secrets are encrypted at rest, 2FA endpoints are CSRF protected/rate limited through the existing auth route boundary, and responses/logs never expose raw secrets except the one-time setup payload.
+- **V2-2FA-06**: Backend and frontend tests cover setup, challenge login, backup-code use, disable/regeneration, and UI error/loading states.
+
+### Group And Space Mentions
+
+- **V2-MENTION-01**: Users can send standard group and space-channel messages that mention eligible conversation members using visible `@username` tokens.
+- **V2-MENTION-02**: Mention metadata is validated server-side against authenticated chat membership, rejects self/non-member/hidden targets, and stores only bounded public identity snapshots.
+- **V2-MENTION-03**: Direct chats and encrypted conversations do not accept mention metadata and treat raw `@username` text as ordinary message text.
+- **V2-MENTION-04**: The composer suggests eligible group or space members, excludes the current user, supports keyboard and pointer insertion, and stays responsive on desktop and mobile.
+- **V2-MENTION-05**: Persisted message mentions render as inline highlights, including a distinct current-user mention state, without exposing private emails or profile metadata.
+- **V2-MENTION-06**: Send, retry, idempotency, edit pruning, cache merging, reload, group, space, direct, encrypted, hidden, and non-member paths are covered by focused tests and visual QA.
+
+### Expiring And Revokable Invite Links
+
+- **V2-INVITE-01**: Authorized group admins and space owners/admins can create invite links with preset expiry and max-use limits.
+- **V2-INVITE-02**: Invite tokens are generated with high entropy, stored only as hashes, returned only once on creation, and never included in list/revoke responses, logs, tests, or screenshots.
+- **V2-INVITE-03**: Invite links can be listed and revoked by authorized managers, with metadata-only active/revoked/expired/exhausted states.
+- **V2-INVITE-04**: Joining by invite enforces target membership rules, block boundaries, group/space member caps, expiry, revocation, and atomic max-use limits while treating already-members as success without consuming a use.
+- **V2-INVITE-05**: Direct chats and encrypted conversations do not expose invite-link creation or join behavior.
+- **V2-INVITE-06**: Invite management and protected invite-join flows are covered by focused backend/frontend tests and visual QA across desktop, tablet, and mobile.
+
+### Saved Messages And Bookmarks
+
+- **V2-SAVED-01**: Users can save and unsave visible messages as private per-user state without changing shared message or conversation state.
+- **V2-SAVED-02**: Saving, unsaving, listing, and jumping to saved messages respect existing membership, delete-for-self, and deleted-for-everyone visibility rules.
+- **V2-SAVED-03**: Users can open a saved-message surface that lists saved entries newest-first with safe conversation, sender, preview, and saved-time context.
+- **V2-SAVED-04**: Message actions expose save/unsave for eligible visible messages and show requester-specific saved state in the chat UI.
+- **V2-SAVED-05**: Saved-message previews never expose encrypted plaintext, hidden/deleted content, private emails, tokens, or non-public identity data.
+- **V2-SAVED-06**: Saved-message workflows are covered by focused backend tests, frontend API/query/component tests, lint/build verification, and visual QA evidence.
+
+### Delivery Health Dashboard
+
+- **V2-DELIVERY-HEALTH-01**: Admins can open a protected delivery-health dashboard backed by an admin-only aggregate diagnostics API.
+- **V2-DELIVERY-HEALTH-02**: Diagnostics report bounded 1h, 24h, and 7d message lifecycle metrics for sent, delivered, read, stale sent, stale delivered, delivery rate, and read rate while excluding call activity.
+- **V2-DELIVERY-HEALTH-03**: Diagnostics surface metadata-only conversation risk rows with conversation id, kind, member count, recent count, stale counts, unread estimate, latest activity, and high-level flags.
+- **V2-DELIVERY-HEALTH-04**: Diagnostics include Socket.IO runtime status and notification outbox status/channel counts without serializing notification payload bodies.
+- **V2-DELIVERY-HEALTH-05**: The dashboard supports loading, empty, error, non-admin, refresh, desktop, mobile, and RTL states using the existing chat theme and localization system.
+- **V2-DELIVERY-HEALTH-06**: Delivery-health workflows are covered by focused backend tests, frontend API/hook/page tests, lint/build verification, and browser visual QA evidence that proves private content is not exposed.
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -309,16 +372,55 @@
 | V2-I18N-01 | Phase 41 | Complete for locale foundation and representative account/chat/settings/moderation/privacy surfaces; remaining legacy copy can migrate incrementally |
 | V2-I18N-02 | Phase 41 | Complete for tested Settings/admin RTL document direction and message text bidi; full screenshot matrix remains release-candidate work |
 | V2-I18N-03 | Phase 41 | Complete for locale provider, Settings/admin dates, language switching, and tested accessibility labels; native translation review remains recommended |
+| V2-CONTACT-01 | Phase 42 | Complete |
+| V2-CONTACT-02 | Phase 42 | Complete |
+| V2-CONTACT-03 | Phase 42 | Complete |
+| V2-REPLY-01 | Phase 43 | Complete |
+| V2-REPLY-02 | Phase 43 | Complete |
+| V2-REPLY-03 | Phase 43 | Complete |
+| V2-DRAFT-01 | Phase 44 | Complete |
+| V2-DRAFT-02 | Phase 44 | Complete |
+| V2-DRAFT-03 | Phase 44 | Complete |
+| V2-2FA-01 | Phase 45 | Complete |
+| V2-2FA-02 | Phase 45 | Complete |
+| V2-2FA-03 | Phase 45 | Complete |
+| V2-2FA-04 | Phase 45 | Complete |
+| V2-2FA-05 | Phase 45 | Complete |
+| V2-2FA-06 | Phase 45 | Complete |
+| V2-MENTION-01 | Phase 46 | Complete |
+| V2-MENTION-02 | Phase 46 | Complete |
+| V2-MENTION-03 | Phase 46 | Complete |
+| V2-MENTION-04 | Phase 46 | Complete |
+| V2-MENTION-05 | Phase 46 | Complete |
+| V2-MENTION-06 | Phase 46 | Complete |
+| V2-INVITE-01 | Phase 47 | Complete |
+| V2-INVITE-02 | Phase 47 | Complete |
+| V2-INVITE-03 | Phase 47 | Complete |
+| V2-INVITE-04 | Phase 47 | Complete |
+| V2-INVITE-05 | Phase 47 | Complete |
+| V2-INVITE-06 | Phase 47 | Complete |
+| V2-SAVED-01 | Phase 48 | Complete |
+| V2-SAVED-02 | Phase 48 | Complete |
+| V2-SAVED-03 | Phase 48 | Complete |
+| V2-SAVED-04 | Phase 48 | Complete |
+| V2-SAVED-05 | Phase 48 | Complete |
+| V2-SAVED-06 | Phase 48 | Complete |
+| V2-DELIVERY-HEALTH-01 | Phase 49 | Complete |
+| V2-DELIVERY-HEALTH-02 | Phase 49 | Complete |
+| V2-DELIVERY-HEALTH-03 | Phase 49 | Complete |
+| V2-DELIVERY-HEALTH-04 | Phase 49 | Complete |
+| V2-DELIVERY-HEALTH-05 | Phase 49 | Complete |
+| V2-DELIVERY-HEALTH-06 | Phase 49 | Complete |
 
 **Coverage:**
 
 - v1 requirements: 64 total
 - Mapped to phases: 64
 - Unmapped: 0
-- post-v1/v2 requirements: 47 total
-- post-v1/v2 mapped to phases: 47
+- post-v1/v2 requirements: 86 total
+- post-v1/v2 mapped to phases: 86
 - post-v1/v2 planned future implementation requirements: 3
 
 ---
 *Requirements defined: 2026-06-07*
-*Last updated: 2026-06-21 after completing Phase 41 localization and RTL experience traceability*
+*Last updated: 2026-06-30 after completing Phase 49 delivery health dashboard*

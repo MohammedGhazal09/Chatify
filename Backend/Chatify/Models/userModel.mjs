@@ -195,6 +195,81 @@ const notificationPreferencesSchema = new mongoose.Schema({
   versionKey: false,
 });
 
+const encryptedTwoFactorSecretSchema = new mongoose.Schema({
+  algorithm: {
+    type: String,
+    required: true,
+    enum: ['aes-256-gcm'],
+  },
+  iv: {
+    type: String,
+    required: true,
+  },
+  ciphertext: {
+    type: String,
+    required: true,
+  },
+  authTag: {
+    type: String,
+    required: true,
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
+const twoFactorBackupCodeSchema = new mongoose.Schema({
+  codeHash: {
+    type: String,
+    required: true,
+    select: false,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  usedAt: {
+    type: Date,
+    default: null,
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
+const twoFactorSchema = new mongoose.Schema({
+  enabled: {
+    type: Boolean,
+    default: false,
+  },
+  secretEncrypted: {
+    type: encryptedTwoFactorSecretSchema,
+    select: false,
+  },
+  pendingSecretEncrypted: {
+    type: encryptedTwoFactorSecretSchema,
+    select: false,
+  },
+  pendingCreatedAt: {
+    type: Date,
+    select: false,
+  },
+  backupCodes: {
+    type: [twoFactorBackupCodeSchema],
+    default: undefined,
+    select: false,
+  },
+  enabledAt: {
+    type: Date,
+  },
+  lastVerifiedAt: {
+    type: Date,
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
 const hideNotificationInternals = (ret) => {
   if (ret.notificationPreferences) {
     delete ret.notificationPreferences.unsubscribeTokenHash;
@@ -202,6 +277,12 @@ const hideNotificationInternals = (ret) => {
     delete ret.notificationPreferences.emailUnsubscribedAt;
   }
 
+  return ret;
+};
+
+const hideTwoFactorInternals = (ret) => {
+  ret.twoFactorEnabled = Boolean(ret.twoFactor?.enabled);
+  delete ret.twoFactor;
   return ret;
 };
 
@@ -299,6 +380,10 @@ const userSchema = new mongoose.Schema({
         type: notificationPreferencesSchema,
         default: () => ({}),
     },
+    twoFactor: {
+      type: twoFactorSchema,
+      default: () => ({}),
+    },
     googleId: {
       type: String,
       sparse: true
@@ -350,6 +435,7 @@ const userSchema = new mongoose.Schema({
             delete ret.githubId;
             delete ret.moderation;
             hideNotificationInternals(ret);
+            hideTwoFactorInternals(ret);
             return hideProfileImageInternals(ret);
         }
     },
@@ -362,6 +448,7 @@ const userSchema = new mongoose.Schema({
             delete ret.githubId;
             delete ret.moderation;
             hideNotificationInternals(ret);
+            hideTwoFactorInternals(ret);
             return hideProfileImageInternals(ret);
         }
     },

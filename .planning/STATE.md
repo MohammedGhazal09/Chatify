@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase 41 complete locally; quick task 260628-c0w installed the Reactflow tracking script.
-stopped_at: Completed quick task 260628-c0w: Install Reactflow tracking script in the frontend document head.
-last_updated: "2026-06-28T08:41:21.669+03:00"
-last_activity: 2026-06-28
+status: Phase 49 complete locally; roadmap traceability updated.
+stopped_at: Completed Phase 49 delivery health dashboard.
+last_updated: "2026-06-30T20:00:05.344+03:00"
+last_activity: 2026-06-30
 progress:
-  total_phases: 42
-  completed_phases: 41
-  total_plans: 140
-  completed_plans: 140
-  percent: 98
+  total_phases: 50
+  completed_phases: 50
+  total_plans: 158
+  completed_plans: 158
+  percent: 100
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Users can trust Chatify to deliver private real-time conversations reliably, securely, and clearly.
-**Current focus:** Phase 41 is complete locally. Fresh release-candidate production smoke and RTL screenshot review are still recommended before any launch claim.
+**Current focus:** Phase 49 is complete locally. The next roadmap item should be planned before implementation work continues.
 
 ## Current Position
 
-Phase: 41
-Plan: Complete
-Status: Phase 41 locale runtime, Settings/account localization, admin localization, message text direction coverage, review, verification, and traceability are complete locally.
-Last activity: 2026-06-28 - Completed quick task 260628-c0w: Install Reactflow tracking script in the frontend document head
+Phase: 49
+Plan: TBD
+Status: Phase 49 delivery health dashboard is complete locally with verification and visual QA traceability.
+Last activity: 2026-06-30 - Completed Phase 49 delivery health dashboard.
 
-Progress: Phase 20 through Phase 24 are complete locally. Phase 23 is closed by reconciliation against the existing `deletedFor` visibility model and group-message tests. Phase 25 is recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 implemented the protected reviewer UI, privacy-safe report queue/detail, scoped warning/restriction/content-removal enforcement, reviewer notes, and follow-up realtime content-removal fanout. Phase 32 implemented server-side push/email notification runtime with opt-in preferences, mute/block eligibility, privacy-safe templates, outbox processing, sanitized provider outcomes, frontend settings controls, and local verification. Phase 33 implemented per-user conversation organization for mute/archive/pin/favorite state, sidebar focus filters, pinned ordering, selected archived conversation continuity, and realtime cache synchronization. Phase 34 implemented advanced selected-conversation search with sender/date/type filters, media/file/voice/link filtering, active attachment metadata matching, and authorized jump-to-message context windows. Phase 35 implemented session/device management with active-session listing, safe labels, individual revocation, log out everywhere, and session-bound HTTP/Socket.IO enforcement. Phase 36 implemented opt-in encrypted conversation mode with separate encrypted direct chats, encrypted message envelopes, local browser encryption/decryption, generic notifications, disabled unsupported search/attachment/edit workflows, and honest limitation copy. Phase 37 implemented profile bio/status fields, Settings privacy controls, block-aware presence, stale-status clearing, and conversation profile surfaces without exposing email. Phase 38 implemented bounded private spaces and chat-backed text channels with username-only membership, owner/admin role checks, existing message/realtime/notification/moderation integration, a frontend Spaces workspace, channel selection through the existing conversation pane, and final local review/verification traceability. Phase 39 implemented authenticated account export, metadata-only privacy audits, reversible deletion requests, retention summaries, Settings portability controls, and focused local verification. Phase 40 implemented moderation appeals, admin assignment, enforcement history, operations metrics, Settings account-safety appeals, reviewer UI workflows, and local review/verification traceability. Phase 41 implemented English/Arabic locale runtime, Settings language control, representative Settings/admin localization, locale-aware dates, message text bidi direction, RTL tests, and local review/verification traceability.
+Progress: Phase 20 through Phase 24 are complete locally. Phase 23 is closed by reconciliation against the existing `deletedFor` visibility model and group-message tests. Phase 25 is recorded as complete from maintainer-confirmed prior production/local smoke, call, profile-image, delivery, group-call, and TURN evidence; the artifacts stay sanitized and do not record secrets. Phase 26 upgraded CI parity with backend/frontend audits, frontend tests, operations checks, Phase 25 evidence artifact upload, production smoke config Playwright gate, and an aggregate required gate. Phase 27 closed local voice requirements, aligned browser gates with the real voice control, updated production smoke to require usernames, and marks DELIV-05/MEDIA-04 complete through Phase 25 closure. Phase 28 added abuse reporting, admin review APIs, redacted report context, audit trails, and report actions in chat menus. Phase 29 completed the E2EE threat model, key-management design, migration plan, and deferred implementation breakdown. Phase 30 completed the external notification/platform expansion design and deferred runtime implementation into later phases. Phase 31 implemented the protected reviewer UI, privacy-safe report queue/detail, scoped warning/restriction/content-removal enforcement, reviewer notes, and follow-up realtime content-removal fanout. Phase 32 implemented server-side push/email notification runtime with opt-in preferences, mute/block eligibility, privacy-safe templates, sanitized provider outcomes, frontend settings controls, and local verification. Phase 33 implemented per-user conversation organization for mute/archive/pin/favorite state, sidebar focus filters, pinned ordering, selected archived conversation continuity, and realtime cache synchronization. Phase 34 implemented advanced selected-conversation search with sender/date/type filters, media/file/voice/link filtering, active attachment metadata matching, and authorized jump-to-message context windows. Phase 35 implemented session/device management with active-session listing, safe labels, individual revocation, log out everywhere, and session-bound HTTP/Socket.IO enforcement. Phase 36 implemented opt-in encrypted conversation mode with separate encrypted conversation identity, encrypted message envelopes, local browser encryption/decryption, generic notifications, disabled unsupported search/attachment/edit workflows, and honest limitation copy. Phase 37 implemented profile bio/status fields, Settings privacy controls, block-aware presence, stale-status clearing, and conversation profile surfaces without exposing email. Phase 38 implemented bounded private spaces and chat-backed text channels with username-only membership, owner/admin role checks, existing message/realtime/notification/moderation integration, a frontend Spaces workspace, channel selection through the existing conversation pane, and final local review/verification traceability. Phase 39 implemented authenticated account export, metadata-only privacy audits, reversible deletion requests, retention summaries, Settings portability controls, and focused local verification. Phase 40 implemented moderation appeals, admin assignment, enforcement history, operations metrics, Settings account-safety appeals, reviewer UI workflows, and local review/verification traceability. Phase 41 implemented English/Arabic locale runtime, Settings language control, representative Settings/admin localization, locale-aware dates, message text bidi direction, RTL tests, and local review/verification traceability. Phase 42 implemented trusted direct-conversation onboarding with contact request persistence, ownership-checked request actions, pending-chat API responses, frontend request states, visual QA, and traceability. Phase 43 implemented durable quoted replies with privacy-safe reply snapshots, idempotency enforcement, frontend composer/bubble/source-jump behavior, encrypted reply guardrails, tests, visual QA, and traceability. Phase 44 implemented frontend-local per-conversation text drafts with user-scoped storage, composer restore after auth initialization, sidebar draft indicators, encrypted draft redaction, tests, visual QA, and traceability. Phase 45 implemented TOTP two-factor authentication for local accounts, no-cookie pending login challenges, encrypted TOTP secret storage, hashed one-time backup codes, Settings management controls, tests, visual QA, and traceability. Phase 46 implemented group and space-channel mentions with server-validated public mention snapshots, direct/encrypted guardrails, composer suggestions, inline mention highlights, mobile header hardening, tests, visual QA, and traceability. Phase 47 implemented hashed expiring/revokable invite links for standard groups and spaces, manager-only creation/list/revoke, protected join-by-token flows, atomic max-use claiming, frontend management UI, tests, visual QA, and traceability. Phase 48 implemented private saved-message persistence, saved-list APIs, message action save/unsave, requester-specific saved indicators, safe encrypted saved previews, jump/unsave UI flows, tests, visual QA, and traceability. Phase 49 implemented admin delivery-health diagnostics with aggregate delivery lifecycle metrics, stale risk rows, Socket.IO runtime status, notification outbox summaries, responsive localized dashboard states, tests, visual QA, and traceability.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 128
+- Total plans completed: 158
 - Average duration: 34 min
 - Total execution time: 5h 53m
 
@@ -64,8 +64,8 @@ Progress: Phase 20 through Phase 24 are complete locally. Phase 23 is closed by 
 
 **Recent Trend:**
 
-- Last 5 plans: 03-02, 03-03, 04-01, 04-02, 04-03
-- Trend: Phase 3 canonical message state and Phase 4 messenger UI reconstruction completed with frontend tests, lint, build, and smoke evidence passing
+- Last 5 plans: 48-01, 48-02, 49-01, 49-02, 49-03
+- Trend: Phase 45 through Phase 49 completed with focused tests, visual QA, and traceability.
 
 | Phase 07 P01 | 12 min | 3 tasks | 5 files |
 | Phase 07 P02 | 10 min | 4 tasks | 12 files |
@@ -173,11 +173,21 @@ Recent decisions affecting current work:
 - Phase 39 complete: Data Privacy Controls And Account Portability added authenticated export, metadata-only privacy audits, reversible deletion requests, retention summaries, Settings portability controls, and focused local verification.
 - Phase 40 complete: Moderation Appeals And Reviewer Operations added user appeals, admin assignments, enforcement history, count-only metrics, reviewer UI workflows, and traceability.
 - Phase 41 complete: Localization And RTL Experience added English/Arabic locale runtime, Settings language control, representative localized surfaces, RTL document direction, message text bidi, and traceability.
+- Phase 42 complete: Contact Requests And Trusted Conversation Onboarding added pending contact request gating for new standard direct chats, request lifecycle APIs, trusted onboarding UI states, and local visual/test verification.
+- Phase 43 complete: Reply To Message With Quoted Context added durable privacy-safe reply snapshots, quote rendering, source jumps, encrypted limitations, and visual/test evidence.
+- Phase 44 complete: Per-Conversation Message Drafts added local user-scoped draft storage, composer restore, sidebar indicators, encrypted redaction, and visual/test evidence.
+- Phase 45 complete: Two-Factor Authentication And Backup Codes added TOTP setup, pending login challenges, encrypted secrets, hashed backup codes, Settings controls, and local visual/test verification.
+- Phase 46 complete: Group And Space Mentions added server-validated public mention snapshots, group/space composer suggestions, direct/encrypted guardrails, inline highlight rendering, mobile header hardening, and local visual/test verification.
+- Phase 47 complete: Expiring And Revokable Invite Links added hashed one-time invite tokens, manager-only metadata views, revocation, protected group/space joining, atomic max-use limits, and local visual/test verification.
+- Phase 48 complete: Saved Messages And Bookmarks added private per-user saved-message persistence, saved-list dialog, message action save/unsave, requester-specific saved indicators, safe encrypted previews, and local visual/test verification.
+- Phase 49 complete: Delivery Health Dashboard added admin-only aggregate delivery diagnostics, stale risk metadata, Socket.IO runtime status, notification outbox summaries, a responsive localized dashboard, and local visual/test verification.
 
 ### Pending Todos
 
 - For the next release candidate, rerun Phase 25 production/local smoke and TURN checks in a secret-bearing shell so the user-confirmed closure is refreshed with current evidence.
 - Refresh release-candidate production smoke and RTL screenshot evidence before any launch claim.
+- Phase 49 is complete locally; plan the next roadmap item before execution.
+- Follow-up recommendation: rerun Phase 44 visual QA against a real local backend/socket server to prove connected-state banners and socket startup alongside draft restore.
 - Phase 22 is complete locally; group member selection uses username-based discovery, not email lookup.
 - Phase 23 is complete by reconciliation; received direct and group messages can be hidden per user through the existing `deletedFor` visibility model.
 - Phase 26 is locally complete; configure GitHub branch protection to require the `Required quality gate` job and set `CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE=1` only in release contexts with live smoke secrets.
@@ -215,6 +225,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-06-21T04:50:18.035+03:00
-Stopped at: Completed Phase 41 localization and RTL review, verification, and traceability.
-Resume file: None
+Last session: 2026-06-30T20:00:05.344+03:00
+Stopped at: Completed Phase 49 delivery health dashboard.
+Resume file: .planning/ROADMAP.md

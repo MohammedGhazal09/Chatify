@@ -1,5 +1,17 @@
 import  axiosInstance from './axios';
-import type { ActiveSession, LoginData, SignupData, User } from '../types/auth';
+import type {
+  ActiveSession,
+  LoginData,
+  LoginResponse,
+  SignupData,
+  TwoFactorActionResponse,
+  TwoFactorBackupCodesResponse,
+  TwoFactorProtectedActionData,
+  TwoFactorSetupResponse,
+  TwoFactorStatusResponse,
+  User,
+  VerifyTwoFactorLoginData,
+} from '../types/auth';
 
 export const authApi = {
   fetchCSRFToken: () => axiosInstance.get('/api/csrf-token'),
@@ -10,7 +22,11 @@ export const authApi = {
   
   signup: (data: SignupData) => axiosInstance.post<{ success: boolean; message: string; user: User }>('/api/auth/signup', data),
 
-  login: (data: LoginData) => axiosInstance.post('/api/auth/login', data),
+  login: (data: LoginData) => axiosInstance.post<LoginResponse>('/api/auth/login', data),
+
+  verifyTwoFactorLogin: (data: VerifyTwoFactorLoginData) => (
+    axiosInstance.post<LoginResponse>('/api/auth/2fa/challenge', data)
+  ),
   
   logout: () => axiosInstance.post('/api/auth/logout'),
 
@@ -19,6 +35,24 @@ export const authApi = {
   revokeSession: (sessionId: string) => axiosInstance.delete<{ status: string; data: { session: ActiveSession } }>(`/api/auth/sessions/${sessionId}`),
 
   revokeAllSessions: () => axiosInstance.post<{ status: string; data: { revokedCount: number } }>('/api/auth/sessions/revoke-all'),
+
+  getTwoFactorStatus: () => axiosInstance.get<TwoFactorStatusResponse>('/api/auth/2fa/status'),
+
+  setupTwoFactor: (currentPassword: string) => (
+    axiosInstance.post<TwoFactorSetupResponse>('/api/auth/2fa/setup', { currentPassword })
+  ),
+
+  confirmTwoFactor: (code: string) => (
+    axiosInstance.post<TwoFactorBackupCodesResponse>('/api/auth/2fa/confirm', { code })
+  ),
+
+  disableTwoFactor: (data: TwoFactorProtectedActionData) => (
+    axiosInstance.post<TwoFactorActionResponse>('/api/auth/2fa/disable', data)
+  ),
+
+  regenerateBackupCodes: (data: TwoFactorProtectedActionData) => (
+    axiosInstance.post<TwoFactorBackupCodesResponse>('/api/auth/2fa/backup-codes/regenerate', data)
+  ),
   
   refreshToken: () => axiosInstance.post('/api/auth/refresh-token'),
 

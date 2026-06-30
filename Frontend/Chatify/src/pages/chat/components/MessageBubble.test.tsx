@@ -102,6 +102,157 @@ describe('MessageBubble', () => {
     expect(screen.getByText('Group context matters')).toBeInTheDocument();
   });
 
+  it('renders persisted mention tokens with current-user emphasis', () => {
+    const groupChat = makeChat({
+      isGroupChat: true,
+      members: [
+        makeUser({ _id: 'user-1', username: 'ada.lovelace', firstName: 'Ada', lastName: 'Lovelace' }),
+        makeUser({ _id: 'user-2', username: 'grace.hopper', firstName: 'Grace', lastName: 'Hopper' }),
+      ],
+    });
+
+    render(
+      <MessageBubble
+        message={makeMessage({
+          sender: 'user-1',
+          text: 'Can @grace.hopper review this?',
+          mentions: [
+            {
+              userId: 'user-2',
+              username: 'grace.hopper',
+              displayName: 'Grace Hopper',
+            },
+          ],
+        })}
+        isOwnMessage={false}
+        isGroupChat
+        members={groupChat.members}
+        currentUserId="user-2"
+      />
+    );
+
+    const mention = screen.getByText('@grace.hopper');
+
+    expect(mention).toHaveAttribute('data-mentioned-user', 'user-2');
+    expect(mention).toHaveClass('ring-1');
+    expect(screen.getByText(/Can/)).toHaveAttribute('dir', 'auto');
+  });
+
+  it('renders quoted context and jumps to the source message', async () => {
+    const user = userEvent.setup();
+    const onJumpToMessage = vi.fn();
+
+    render(
+      <MessageBubble
+        message={makeMessage({
+          _id: 'message-reply',
+          sender: 'user-1',
+          text: 'Reply body',
+          replyTo: {
+            messageId: 'message-source',
+            sender: 'user-2',
+            messageType: 'text',
+            textPreview: 'Original source text',
+            attachmentCount: 0,
+            isDeleted: false,
+            isEncrypted: false,
+            createdAt: '2026-06-08T09:59:00.000Z',
+          },
+        })}
+        isOwnMessage
+        isGroupChat={false}
+        members={makeChat().members}
+        onJumpToMessage={onJumpToMessage}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Jump to quoted message from Grace Hopper: Original source text' }));
+
+    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    expect(screen.getByText('Original source text')).toHaveAttribute('dir', 'auto');
+    expect(onJumpToMessage).toHaveBeenCalledWith('message-source');
+  });
+
+  it('uses safe quoted preview fallbacks for unavailable sources', () => {
+    render(
+      <MessageBubble
+        message={makeMessage({
+          _id: 'message-reply',
+          text: 'Reply body',
+          replyTo: {
+            messageId: 'message-source',
+            sender: 'user-2',
+            messageType: 'text',
+            textPreview: 'Sensitive source',
+            attachmentCount: 0,
+            isDeleted: true,
+            isEncrypted: false,
+            createdAt: '2026-06-08T09:59:00.000Z',
+          },
+        })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+        onJumpToMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.getByLabelText('Quoted message from Grace Hopper: Original message unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Jump to quoted message/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Sensitive source')).not.toBeInTheDocument();
+  });
+
+  it('summarizes quoted attachment and encrypted sources without exposing private content', () => {
+    const { rerender } = render(
+      <MessageBubble
+        message={makeMessage({
+          text: 'Reply body',
+          replyTo: {
+            messageId: 'message-source',
+            sender: 'user-2',
+            messageType: 'text',
+            textPreview: '',
+            attachmentCount: 2,
+            isDeleted: false,
+            isEncrypted: false,
+            createdAt: '2026-06-08T09:59:00.000Z',
+          },
+        })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+        onJumpToMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('2 attachments')).toBeInTheDocument();
+
+    rerender(
+      <MessageBubble
+        message={makeMessage({
+          text: 'Reply body',
+          replyTo: {
+            messageId: 'message-source',
+            sender: 'user-2',
+            messageType: 'encrypted',
+            textPreview: 'ciphertext should not render',
+            attachmentCount: 0,
+            isDeleted: false,
+            isEncrypted: true,
+            createdAt: '2026-06-08T09:59:00.000Z',
+          },
+        })}
+        isOwnMessage={false}
+        isGroupChat={false}
+        members={makeChat().members}
+        onJumpToMessage={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Encrypted message')).toBeInTheDocument();
+    expect(screen.queryByText('ciphertext should not render')).not.toBeInTheDocument();
+  });
+
   it('marks a loaded search result with the temporary highlight class', () => {
     const highlightedMessage = makeMessage({ _id: 'message-highlighted', text: 'Search target' });
     const { container } = render(

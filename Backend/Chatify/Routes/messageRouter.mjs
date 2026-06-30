@@ -10,7 +10,10 @@ import {
   downloadAttachment,
   listSharedAssets,
   listPinnedMessages,
+  listSavedMessages,
   pinMessage,
+  saveMessage,
+  unsaveMessage,
   unpinMessage,
   markMessageAsRead,
   markMessagesAsRead,
@@ -31,6 +34,7 @@ router.route('/context/:chatId/:messageId').get(getMessageContext)
 router.route('/batch/unread-counts').post(getBatchUnreadCounts)
 router.route('/attachments/:attachmentId/preview').get(previewAttachment)
 router.route('/attachments/:attachmentId/download').get(downloadAttachment)
+router.route('/saved').get(listSavedMessages)
 router.route('/:chatId/shared-assets').get(listSharedAssets)
 router.route('/:chatId/pinned').get(listPinnedMessages)
 
@@ -42,5 +46,6 @@ router.route('/:messageId').delete(deleteMessage)
 router.route('/:messageId/edit').patch(editMessage)
 router.route('/:messageId/reaction').post(toggleReaction)
 router.route('/:messageId/pin').post(pinMessage).delete(unpinMessage)
+router.route('/:messageId/save').post(saveMessage).delete(unsaveMessage)
 
 export default router

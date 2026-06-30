@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import {
   Archive,
+  Bookmark,
   Hash,
   Inbox,
   Lock,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { User } from '../../../types/auth';
 import type { Chat, ConversationFocusFilter } from '../../../types/chat';
+import { isEncryptedConversation } from '../../../utils/encryptedMessages';
 import { getChatTitle, getOtherMember } from '../utils/chatDisplay';
 import ChatListItem from './ChatListItem';
 import NewChatDialog from './NewChatDialog';
@@ -35,8 +37,10 @@ interface ChatSidebarProps {
   isNewChatOpen: boolean;
   newChatUsername: string;
   createChatError: string | null;
+  createChatNotice?: string | null;
   isCreatingChat: boolean;
   isCreatingGroupChat: boolean;
+  draftsByChatId?: Record<string, string>;
   unreadCounts?: Map<string, number>;
   mutedChatIds?: string[];
   onlineUsers: Map<string, { isOnline: boolean }>;
@@ -56,6 +60,7 @@ interface ChatSidebarProps {
   workspaceMode?: SidebarWorkspaceMode;
   spacesPanel?: ReactNode;
   onWorkspaceModeChange?: (mode: SidebarWorkspaceMode) => void;
+  onOpenSavedMessages?: () => void;
 }
 
 type NewChatDialogProps = Parameters<typeof NewChatDialog>[0];
@@ -94,6 +99,8 @@ const sortChatsForSidebar = (chats: Chat[]) => [...chats].sort((left, right) => 
 
   return left._id.localeCompare(right._id);
 });
+
+const normalizeDraftText = (value?: string) => value?.replace(/\s+/g, ' ').trim() ?? '';
 
 const matchesFocusFilter = (
   chat: Chat,
@@ -163,8 +170,10 @@ const ChatSidebar = ({
   isNewChatOpen,
   newChatUsername,
   createChatError,
+  createChatNotice,
   isCreatingChat,
   isCreatingGroupChat,
+  draftsByChatId = {},
   unreadCounts,
   mutedChatIds = [],
   onlineUsers,
@@ -184,6 +193,7 @@ const ChatSidebar = ({
   workspaceMode = 'conversations',
   spacesPanel,
   onWorkspaceModeChange,
+  onOpenSavedMessages,
 }: ChatSidebarProps) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isConversationsMode = workspaceMode === 'conversations';
@@ -191,7 +201,12 @@ const ChatSidebar = ({
   const filteredChats = chats ? sortChatsForSidebar(chats).filter((chat) => {
     const title = getChatTitle(chat, user?._id).toLowerCase();
     const latestSnippet = chat.latestMessage?.text?.toLowerCase() ?? '';
-    const matchesSearch = !normalizedQuery || title.includes(normalizedQuery) || latestSnippet.includes(normalizedQuery);
+    const draftSnippet = normalizeDraftText(draftsByChatId[chat._id]);
+    const searchableDraftSnippet = isEncryptedConversation(chat) ? '' : draftSnippet.toLowerCase();
+    const matchesSearch = !normalizedQuery ||
+      title.includes(normalizedQuery) ||
+      latestSnippet.includes(normalizedQuery) ||
+      searchableDraftSnippet.includes(normalizedQuery);
     const unreadCount = unreadCounts?.get(chat._id) ?? 0;
     const matchesFilter = matchesFocusFilter(chat, activeFilter, unreadCount);
     const shouldKeepSelectedChatVisible = activeFilter === 'all' && chat._id === selectedChatId && !normalizedQuery;
@@ -361,6 +376,7 @@ const ChatSidebar = ({
         isOpen={isNewChatOpen}
         username={newChatUsername}
         error={createChatError}
+        notice={createChatNotice}
         isSubmitting={isCreatingChat}
         isGroupSubmitting={isCreatingGroupChat}
         openerRef={newChatButtonRef}
@@ -406,6 +422,7 @@ const ChatSidebar = ({
                   isPinned={chat.organizationState?.pinned}
                   isFavorite={chat.organizationState?.favorite}
                   isArchived={chat.organizationState?.archived}
+                  draftText={draftsByChatId[chat._id]}
                   unreadCount={unreadCounts?.get(chat._id) ?? 0}
                   onSelect={() => onSelectChat(chat._id)}
                 />
@@ -448,24 +465,36 @@ const ChatSidebar = ({
           <Lock aria-hidden="true" className="h-4 w-4" />
           Authenticated private chat
         </span>
-        {user?.role === 'admin' && (
-          <a
-            href="/admin/moderation"
-            className="grid h-8 w-8 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-            aria-label="Open moderation"
-            title="Moderation"
+        <div className="flex shrink-0 items-center gap-1">
+          {user?.role === 'admin' && (
+            <a
+              href="/admin/moderation"
+              className="grid h-8 w-8 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+              aria-label="Open moderation"
+              title="Moderation"
+            >
+              <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={onOpenSavedMessages}
+            className="grid h-8 w-8 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            aria-label="Open saved messages"
+            title="Saved messages"
+            disabled={!onOpenSavedMessages}
           >
-            <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-          </a>
-        )}
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="grid h-8 w-8 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-          aria-label="Open settings"
-        >
-          <Settings aria-hidden="true" className="h-4 w-4" />
-        </button>
+            <Bookmark aria-hidden="true" className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="grid h-8 w-8 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+            aria-label="Open settings"
+          >
+            <Settings aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </aside>
   );
