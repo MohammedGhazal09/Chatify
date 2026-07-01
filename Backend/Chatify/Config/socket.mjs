@@ -1208,6 +1208,23 @@ export const emitToUserSockets = (userId, eventName, payload) => {
   return emittedCount
 }
 
+export const disconnectUserSockets = (userId, reason = 'privacy_deletion_processed') => {
+  const userSockets = getUserSockets(userId)
+  let disconnectedCount = 0
+
+  userSockets.forEach(socketId => {
+    const socket = io?.sockets.sockets.get(socketId)
+
+    if (socket) {
+      socket.emit('auth:revoked', { reason })
+      socket.disconnect(true)
+      disconnectedCount += 1
+    }
+  })
+
+  return disconnectedCount
+}
+
 export const endActiveCallForChatDueToBlock = async (chatId) => {
   const session = await endActiveCallForChat({
     chatId,

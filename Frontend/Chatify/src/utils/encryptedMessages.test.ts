@@ -4,9 +4,11 @@ import {
   decryptMessageText,
   encryptMessageText,
   ensureConversationSecret,
+  exportConversationRecoveryKey,
   generateConversationSecret,
   getConversationSecret,
   hasConversationSecret,
+  importConversationRecoveryKey,
   isEncryptedConversation,
   isEncryptedMessage,
   saveConversationSecret,
@@ -66,5 +68,79 @@ describe('encrypted message helpers', () => {
     expect(isEncryptedConversation({ encryptionMode: 'standard' })).toBe(false);
     expect(isEncryptedMessage({ messageType: 'encrypted' })).toBe(true);
     expect(isEncryptedMessage({ messageType: 'text', encryptionMode: 'e2ee_v1' })).toBe(true);
+  });
+
+  it('exports and imports a chat-bound recovery key without changing the encrypted payload', async () => {
+    const secret = ensureConversationSecret('chat-1');
+    const payload = await encryptMessageText({
+      chatId: 'chat-1',
+      text: 'Recoverable encrypted text',
+      encryptionMode: 'e2ee_v1',
+    });
+    const exported = exportConversationRecoveryKey('chat-1');
+
+    expect(exported).toEqual({
+      ok: true,
+      recoveryKey: expect.stringMatching(/^chatify-e2ee-v1:/),
+    });
+
+    clearConversationSecret('chat-1');
+    expect(hasConversationSecret('chat-1')).toBe(false);
+
+    const importResult = exported.ok
+      ? importConversationRecoveryKey('chat-1', `  ${exported.recoveryKey}  `)
+      : { ok: false };
+
+    expect(importResult).toEqual({ ok: true });
+    expect(getConversationSecret('chat-1')).toBe(secret);
+    await expect(decryptMessageText('chat-1', payload)).resolves.toEqual({
+      ok: true,
+      text: 'Recoverable encrypted text',
+    });
+  });
+
+  it('returns explicit recovery export and import failures', () => {
+    expect(exportConversationRecoveryKey('chat-1')).toEqual({
+      ok: false,
+      reason: 'missing-secret',
+    });
+
+    saveConversationSecret('chat-1', 'not-base64');
+    expect(exportConversationRecoveryKey('chat-1')).toEqual({
+      ok: false,
+      reason: 'invalid-secret',
+    });
+
+    expect(importConversationRecoveryKey('chat-1', '')).toEqual({
+      ok: false,
+      reason: 'empty',
+    });
+    expect(importConversationRecoveryKey('chat-1', 'chatify-e2ee-v1:not-json')).toEqual({
+      ok: false,
+      reason: 'format',
+    });
+    expect(importConversationRecoveryKey('chat-1', 'wrong-prefix')).toEqual({
+      ok: false,
+      reason: 'format',
+    });
+  });
+
+  it('fails closed for wrong-chat recovery keys and preserves the current secret', () => {
+    const originalSecret = ensureConversationSecret('chat-1');
+    const otherSecret = ensureConversationSecret('chat-2');
+    const exported = exportConversationRecoveryKey('chat-2');
+
+    expect(exported.ok).toBe(true);
+
+    const importResult = exported.ok
+      ? importConversationRecoveryKey('chat-1', exported.recoveryKey)
+      : { ok: false };
+
+    expect(importResult).toEqual({
+      ok: false,
+      reason: 'chat-mismatch',
+    });
+    expect(getConversationSecret('chat-1')).toBe(originalSecret);
+    expect(getConversationSecret('chat-2')).toBe(otherSecret);
   });
 });

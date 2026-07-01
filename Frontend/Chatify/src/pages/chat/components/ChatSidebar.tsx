@@ -468,10 +468,10 @@ const ChatSidebar = ({
         <div className="flex shrink-0 items-center gap-1">
           {user?.role === 'admin' && (
             <a
-              href="/admin/moderation"
+              href="/admin"
               className="grid h-8 w-8 place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
-              aria-label="Open moderation"
-              title="Moderation"
+              aria-label="Open admin operations"
+              title="Admin operations"
             >
               <ShieldCheck aria-hidden="true" className="h-4 w-4" />
             </a>

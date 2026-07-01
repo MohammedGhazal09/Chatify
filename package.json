@@ -14,6 +14,7 @@
     "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
     "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
     "evidence:production": "node scripts/production-evidence-check.mjs",
+    "evidence:release-candidate": "node scripts/production-evidence-check.mjs --phase=50",
     "ops:check": "node scripts/ops-check.mjs"
   },
   "author": "Mohammed Ghazal",

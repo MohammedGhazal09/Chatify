@@ -62,7 +62,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 46: Group And Space Mentions** - Let group and space-channel users mention authorized members with server-validated public metadata. (completed locally 2026-06-30)
 - [x] **Phase 47: Expiring And Revokable Invite Links** - Safer shareable invite workflows with expiry, revocation, and max-use limits. (completed locally 2026-06-30)
 - [x] **Phase 48: Saved Messages And Bookmarks** - Plan and implement personal saved-message workflows. (completed locally 2026-06-30)
-- [ ] **Phase 49: Delivery Health Dashboard** - Plan and implement delivery diagnostics and operational visibility.
+- [x] **Phase 49: Delivery Health Dashboard** - Plan and implement delivery diagnostics and operational visibility. (completed locally 2026-06-30)
+- [x] **Phase 50: Release Candidate Evidence And Production Smoke Refresh** - Refresh release-candidate evidence, production smoke, and launch readiness traceability. (complete locally; launch readiness blocked by missing live smoke/TURN env 2026-07-01)
+- [x] **Phase 51: Admin Navigation And Operations Hub** - Add an admin hub and navigation shell for moderation and operations surfaces. (completed locally 2026-07-01)
+- [x] **Phase 52: Encrypted Conversation Recovery And Attachment Hardening** - Harden encrypted conversation recovery, attachment limits, and cross-device safety. (completed locally 2026-07-01)
+- [x] **Phase 53: Privacy Operations Worker And Retention Enforcement** - Automate privacy deletion and retention workflows with operational audit evidence. (completed locally 2026-07-01)
+- [x] **Phase 54: Bot And Integration Permission Runtime** - Add permissioned bot and integration runtime boundaries for future platform extensibility. (completed locally 2026-07-01)
 
 ## Phase Details
 
@@ -1510,3 +1515,107 @@ Notes:
 - The endpoint and dashboard remain metadata-only; message text, notification payload bodies, private emails, and member identities are not serialized.
 - Added `/admin/delivery-health` with localized English/Arabic labels, responsive desktop/mobile/tablet layouts, non-admin, loading, empty, error, refresh, and RTL states.
 - Focused backend/frontend tests, full frontend tests, lint, build, and fallback Hercules-compatible Playwright visual QA passed. Full backend Vitest exceeded the local 304-second timeout.
+
+### Phase 50: Release Candidate Evidence And Production Smoke Refresh
+
+**Goal:** Refresh release-candidate evidence without overstating readiness, regenerate sanitized production/local smoke blockers, and capture current behavior-backed visual QA for the chat and admin diagnostics surfaces.
+**Requirements**: PROD-04, TEST-04, TEST-05, V2-I18N-02, V2-DELIVERY-HEALTH-05
+**Depends on:** Phase 49
+**Plans:** 3/3 plans complete
+
+Plans:
+
+- [x] 50-01 Evidence Profile And Runner
+- [x] 50-02 Visual QA Refresh And Smoke Alignment
+- [x] 50-03 Quality Gates And Traceability
+
+Notes:
+
+- Added `npm run evidence:release-candidate`, backed by a Phase 50 profile in `scripts/production-evidence-check.mjs`.
+- Generated `50-RELEASE-CANDIDATE-EVIDENCE.md`; the release-candidate decision remains blocked because live production smoke, local call/profile smoke, and TURN environment inputs are missing.
+- Refreshed production smoke configuration tests and local operations checks.
+- Refreshed behavior-backed chat/admin visual QA into the Phase 50 artifact directory with desktop/mobile, light/dark, RTL, non-admin, and error states.
+- Updated stale smoke coverage to the current username-based new-chat flow and fixed mobile attachment preview wrapping discovered during visual QA.
+- Focused component tests, frontend lint, production build, production smoke config tests, operations check, and fallback Hercules-compatible Playwright visual QA passed.
+
+### Phase 51: Admin Navigation And Operations Hub
+
+**Goal:** Add a protected admin operations hub that makes existing moderation and delivery-health tools discoverable from one route without expanding admin authority or exposing private data.
+**Requirements**: V2-ADMIN-02, V2-ADMIN-03, V2-ADMIN-04, V2-I18N-02, TEST-04, TEST-05
+**Depends on:** Phase 50
+**Plans:** 3/3 plans complete
+
+Plans:
+
+- [x] 51-01 Hub Route, Access State, And Sidebar Shortcut
+- [x] 51-02 Operations Cards And Aggregate Summaries
+- [x] 51-03 Visual QA, Review, And Traceability
+
+Notes:
+
+- Added `/admin` as the protected admin operations hub.
+- The hub links to `/admin/moderation` and `/admin/delivery-health`.
+- Chat sidebar admin shortcut now opens `/admin`.
+- The hub surfaces aggregate-only moderation and delivery-health summaries; it does not expose raw report details, emails, message text, notification payloads, tokens, or cookies.
+- Added English/Arabic labels, RTL behavior, non-admin restricted state, summary-error state, focused tests, and fallback Hercules-compatible Playwright visual QA.
+
+### Phase 52: Encrypted Conversation Recovery And Attachment Hardening
+
+**Goal:** Users can recover an opt-in encrypted conversation on another browser by moving a local recovery key, while encrypted attachments remain blocked until a complete encrypted-upload design exists.
+**Requirements**: E2EE-REC-01, E2EE-REC-02, E2EE-REC-03, E2EE-REC-04, E2EE-REC-05, E2EE-ATT-01, E2EE-ATT-02, E2EE-ATT-03
+**Depends on:** Phase 51
+**Plans:** 3 plans
+
+Plans:
+
+- [x] 52-01 Recovery Key Helper Contract
+- [x] 52-02 Conversation Recovery UI
+- [x] 52-03 Attachment Hardening Evidence
+
+Notes:
+
+- Recommended approach is local recovery-key export/import, not server-side key escrow.
+- Recovery keys must remain hidden by default and must never be sent to backend APIs, logs, screenshots, or smoke artifacts.
+- Encrypted attachments remain unavailable in this release; the phase strengthens proof and copy rather than implementing encrypted upload.
+- Completed local recovery-key helpers, detail rail/drawer UI, backend encrypted attachment persistence assertions, focused tests, and Hercules-compatible Playwright visual QA.
+
+### Phase 53: Privacy Operations Worker And Retention Enforcement
+
+**Goal:** Automate due privacy deletion and retention cleanup workflows with metadata-only operational evidence and admin visibility.
+**Requirements**:
+1. Due deletion requests are processed only after the reversible waiting period.
+2. Processed accounts are anonymized while preserving conversation references.
+3. Sessions, reset rows, provider identifiers, notification artifacts, expired export audits, expired sessions, and old terminal outbox rows are cleaned by backend-owned operations.
+4. Privacy operation evidence stores aggregate counts/status only and does not expose private payloads.
+5. Admin diagnostics are protected, localized, responsive, and read-only.
+**Depends on:** Phase 52
+**Plans:** 3 plans
+
+Plans:
+
+- [x] 53-01: Backend worker and retention cleanup
+- [x] 53-02: Admin privacy operations diagnostics
+- [x] 53-03: Admin UI and visual QA
+
+**Completion note:** Completed locally with backend worker/runtime cleanup, aggregate admin API, admin diagnostics UI, tests, lint/build, and Hercules-compatible visual QA.
+
+### Phase 54: Bot And Integration Permission Runtime
+
+**Goal:** Add a safe integration runtime foundation with scoped app registration, authorized installation, token-authenticated runtime identity, revocation/rotation, audit evidence, and aggregate admin diagnostics without bot execution or message posting.
+**Requirements**:
+1. Integration apps are owned by authenticated users and limited to a fixed scope allowlist.
+2. Installations are allowed only for eligible space/group targets where the actor is authorized.
+3. Runtime tokens are stored hashed, returned only on install/rotation, and invalidated by rotation or revocation.
+4. Runtime manifest access is token-authenticated and returns only integration identity, target, status, granted scopes, and rotation timestamp.
+5. Audit logs and admin diagnostics are aggregate/privacy-safe and do not expose tokens, token hashes, emails, chat names, or message content.
+6. Admin diagnostics UI is read-only, localized, responsive, and visually verified.
+**Depends on:** Phase 53
+**Plans:** 3 plans
+
+Plans:
+
+- [x] 54-01: Backend permission runtime
+- [x] 54-02: Admin diagnostics API
+- [x] 54-03: Admin UI and visual QA
+
+**Completion note:** Completed locally with scoped integration app/install/runtime APIs, hashed runtime tokens, revocation/rotation, audit logs, aggregate admin diagnostics, localized admin UI, focused tests, lint/build, and Hercules-compatible visual QA.

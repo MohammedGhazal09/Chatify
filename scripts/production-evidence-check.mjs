@@ -3,8 +3,37 @@ import path from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
-const phaseDir = path.join(root, '.planning/phases/25-production-evidence-closure-and-live-smoke-execution');
-const outputPath = path.join(phaseDir, '25-PRODUCTION-EVIDENCE.md');
+
+const reportProfiles = {
+  '25': {
+    artifactPhase: '25-production-evidence-closure-and-live-smoke-execution',
+    phaseDir: '.planning/phases/25-production-evidence-closure-and-live-smoke-execution',
+    outputFile: '25-PRODUCTION-EVIDENCE.md',
+    title: 'Phase 25 Production Evidence',
+    passedDecision: 'Release evidence gate passed. Phase 17 can be updated only after the live smoke commands also show zero blockers.',
+    blockedDecision: 'Release evidence gate remains blocked. Do not claim v1 readiness or hosted/provider success.',
+  },
+  '50': {
+    artifactPhase: '50-release-candidate-evidence-and-production-smoke-refresh',
+    phaseDir: '.planning/phases/50-release-candidate-evidence-and-production-smoke-refresh',
+    outputFile: '50-RELEASE-CANDIDATE-EVIDENCE.md',
+    title: 'Phase 50 Release Candidate Evidence',
+    passedDecision: 'Release-candidate evidence gate passed for the checked command set. Do not extend this claim beyond the recorded origins and artifacts.',
+    blockedDecision: 'Release-candidate evidence gate remains blocked. Do not claim launch readiness, v1 readiness, or hosted/provider success.',
+  },
+};
+
+const getOption = (name) => {
+  const prefix = `--${name}=`;
+  const match = process.argv.slice(2).find((arg) => arg.startsWith(prefix));
+
+  return match ? match.slice(prefix.length) : '';
+};
+
+const profileKey = getOption('phase') || '25';
+const profile = reportProfiles[profileKey] ?? reportProfiles['25'];
+const phaseDir = path.join(root, profile.phaseDir);
+const outputPath = path.join(phaseDir, profile.outputFile);
 
 const artifacts = [
   {
@@ -212,18 +241,16 @@ const writeReport = () => {
       .map((artifact) => `${artifact.label}: status is ${artifact.status}.`),
   ];
   const status = blockers.length === 0 ? 'passed' : 'blocked';
-  const decision = status === 'passed'
-    ? 'Release evidence gate passed. Phase 17 can be updated only after the live smoke commands also show zero blockers.'
-    : 'Release evidence gate remains blocked. Do not claim v1 readiness or hosted/provider success.';
+  const decision = status === 'passed' ? profile.passedDecision : profile.blockedDecision;
   const content = `---
-phase: 25-production-evidence-closure-and-live-smoke-execution
+phase: ${profile.artifactPhase}
 artifact: production-evidence
 status: ${status}
 generated_at: ${generatedAt}
 privacy: sanitized
 ---
 
-# Phase 25 Production Evidence
+# ${profile.title}
 
 ## Decision
 

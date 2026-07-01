@@ -76,6 +76,15 @@ export const privacyRequestLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+export const integrationRuntimeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  skip: skipInTests,
+  message: { status: 'error', message: 'Too many integration runtime requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Throttle self-serve space join attempts to bound join-code guessing.
 export const spaceJoinLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

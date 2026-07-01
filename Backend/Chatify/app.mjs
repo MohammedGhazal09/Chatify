@@ -12,6 +12,8 @@ import moderationRouter from './Routes/moderationRouter.mjs';
 import adminRouter from './Routes/adminRouter.mjs';
 import spaceRouter from './Routes/spaceRouter.mjs';
 import inviteLinkRouter from './Routes/inviteLinkRouter.mjs';
+import integrationRouter from './Routes/integrationRouter.mjs';
+import integrationRuntimeRouter from './Routes/integrationRuntimeRouter.mjs';
 import errHandler from './Controller/errController.mjs';
 import protect from './Middlewares/protectRoutes.mjs';
 import { CustomError } from './Utils/customError.mjs';
@@ -19,6 +21,7 @@ import sanitization from './Middlewares/sanitization.mjs';
 import { requestLogger, errorRequestLogger } from './Middlewares/requestLogger.mjs';
 import { queueStatus, queueHeavyRequests, addQueueHeaders } from './Middlewares/queueMiddleware.mjs';
 import csrfProtection, { createCsrfToken, getCsrfCookieOptions } from './Middlewares/csrfProtection.mjs';
+import { integrationRuntimeLimiter } from './Middlewares/rateLimiters.mjs';
 import passport from 'passport';
 import './Config/passport.mjs'; // Import passport configuration
 import { buildHealthPayload, buildReadinessPayload, getReadinessHttpStatus } from './Utils/operationalReadiness.mjs';
@@ -131,6 +134,8 @@ app.use('/api/moderation', protect, csrfProtection, moderationRouter);
 app.use('/api/admin', protect, csrfProtection, adminRouter);
 app.use('/api/space', protect, csrfProtection, spaceRouter);
 app.use('/api/invite', protect, csrfProtection, inviteLinkRouter);
+app.use('/api/integrations/runtime', integrationRuntimeLimiter, integrationRuntimeRouter);
+app.use('/api/integrations', protect, csrfProtection, integrationRouter);
 
 app.use((req, res, next) => {
   const error = new CustomError(`Can't find ${req.originalUrl} on this server`, 404);

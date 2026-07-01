@@ -1,6 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeChat, makeSharedAsset, makeUser } from '../../../test/chatFixtures';
+import {
+  clearConversationSecret,
+  ensureConversationSecret,
+  exportConversationRecoveryKey,
+  getConversationSecret,
+} from '../../../utils/encryptedMessages';
 import ConversationDetailContent from './ConversationDetailContent';
 
 vi.mock('../../../api/apiOrigin', () => ({
@@ -12,11 +18,13 @@ const renderDetailContent = ({
   profileBio,
   memberProfileStatus,
   presenceProfileStatus,
+  chatOverrides = {},
 }: {
   profilePic?: string;
   profileBio?: string;
   memberProfileStatus?: string;
   presenceProfileStatus?: string;
+  chatOverrides?: Parameters<typeof makeChat>[0];
 } = {}) => {
   const otherMember = makeUser({
     _id: 'user-2',
@@ -32,6 +40,7 @@ const renderDetailContent = ({
       makeUser({ _id: 'user-1', firstName: 'Ada', lastName: 'Lovelace' }),
       otherMember,
     ],
+    ...chatOverrides,
   });
 
   render(
@@ -69,7 +78,20 @@ const renderDetailContent = ({
   );
 };
 
+const clipboardWriteText = vi.fn();
+
 describe('ConversationDetailContent', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    clipboardWriteText.mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    });
+  });
+
   it('renders the other member profile image in the conversation details surface', () => {
     renderDetailContent();
 
@@ -96,6 +118,73 @@ describe('ConversationDetailContent', () => {
     expect(screen.getByText('No voice messages')).toBeInTheDocument();
     expect(screen.queryByText('voice-sample.webm')).not.toBeInTheDocument();
     expect(screen.queryByText('delivery-metrics.xlsx')).not.toBeInTheDocument();
+    expect(screen.queryByText('Encrypted recovery')).not.toBeInTheDocument();
+  });
+
+  it('copies an encrypted conversation recovery key without rendering the raw key', async () => {
+    ensureConversationSecret('chat-1');
+    const exported = exportConversationRecoveryKey('chat-1');
+
+    expect(exported.ok).toBe(true);
+
+    renderDetailContent({
+      chatOverrides: {
+        encryptionMode: 'e2ee_v1',
+      },
+    });
+
+    expect(screen.getByRole('group', { name: 'Encrypted recovery' })).toBeInTheDocument();
+    expect(screen.getByText(/Recovery key ready on this device/)).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy recovery key' }));
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(exported.ok ? exported.recoveryKey : '');
+    });
+    expect(screen.getByText('Recovery key copied. Store it somewhere private.')).toBeInTheDocument();
+    if (exported.ok) {
+      expect(screen.queryByText(exported.recoveryKey)).not.toBeInTheDocument();
+    }
+  });
+
+  it('imports an encrypted conversation recovery key when this device is missing the secret', () => {
+    const originalSecret = ensureConversationSecret('chat-1');
+    const exported = exportConversationRecoveryKey('chat-1');
+    clearConversationSecret('chat-1');
+
+    expect(exported.ok).toBe(true);
+    expect(getConversationSecret('chat-1')).toBeNull();
+
+    renderDetailContent({
+      chatOverrides: {
+        encryptionMode: 'e2ee_v1',
+      },
+    });
+
+    expect(screen.getByText(/This device needs the recovery key/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Recovery key'), {
+      target: { value: exported.ok ? exported.recoveryKey : '' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import recovery key' }));
+
+    expect(getConversationSecret('chat-1')).toBe(originalSecret);
+    expect(screen.getByText('Recovery key imported on this device.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy recovery key' })).toBeEnabled();
+  });
+
+  it('shows a focused recovery import error without saving invalid keys', () => {
+    renderDetailContent({
+      chatOverrides: {
+        encryptionMode: 'e2ee_v1',
+      },
+    });
+
+    fireEvent.change(screen.getByLabelText('Recovery key'), {
+      target: { value: 'not-a-recovery-key' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import recovery key' }));
+
+    expect(getConversationSecret('chat-1')).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent('Recovery key format is invalid.');
   });
 
   it('renders public bio and visible profile status without exposing account email', () => {

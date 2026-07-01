@@ -1,7 +1,9 @@
 import {
+  Clipboard,
   Download,
   ExternalLink,
   FileText,
+  KeyRound,
   Lock,
   Mic,
   MoreHorizontal,
@@ -15,13 +17,19 @@ import {
   Video,
   Wifi,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { useId } from 'react';
+import type { ChangeEvent, FormEvent, ReactNode } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { messageApi } from '../../../api/messageApi';
 import OnlineStatus from '../../../components/OnlineStatus';
 import type { User } from '../../../types/auth';
 import type { Chat, ConversationControls, PinnedMessage, SharedAsset, UserOnlineStatus } from '../../../types/chat';
-import { isEncryptedConversation } from '../../../utils/encryptedMessages';
+import {
+  exportConversationRecoveryKey,
+  hasConversationSecret,
+  importConversationRecoveryKey,
+  isEncryptedConversation,
+} from '../../../utils/encryptedMessages';
+import type { RecoveryImportFailureReason } from '../../../utils/encryptedMessages';
 import { formatFileSize } from '../utils/attachmentDisplay';
 import { getChatTitle } from '../utils/chatDisplay';
 import AttachmentPreview from './AttachmentPreview';
@@ -201,10 +209,13 @@ const ConversationDetailContent = ({
         <ContextAction label="More conversation actions" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} onClick={onOpenMoreMenu} />
       </div>
       {encryptedConversation && (
-        <div className="mt-3 flex items-start gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] px-3 py-2 text-sm text-[var(--chat-text-muted)]" role="status">
-          <Lock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--chat-accent)]" />
-          <p>This device needs the conversation secret to read encrypted messages. Attachments stay unavailable until encrypted upload is supported.</p>
-        </div>
+        <>
+          <div className="mt-3 flex items-start gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] px-3 py-2 text-sm text-[var(--chat-text-muted)]" role="status">
+            <Lock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--chat-accent)]" />
+            <p>This device needs the conversation secret to read encrypted messages. Attachments stay unavailable until encrypted upload is supported.</p>
+          </div>
+          <EncryptedRecoveryPanel chatId={selectedChat._id} />
+        </>
       )}
       <CallAvailabilityNotice
         callDisabledReason={callDisabledReason}
@@ -354,6 +365,144 @@ const getVisibleProfileStatus = (
   const source = status ? status.profileStatus : member?.profileStatus;
 
   return typeof source === 'string' ? source.trim() : '';
+};
+
+const recoveryImportFailureCopy: Record<RecoveryImportFailureReason, string> = {
+  empty: 'Paste a recovery key before importing.',
+  format: 'Recovery key format is invalid.',
+  version: 'Recovery key version is not supported by this browser.',
+  'chat-mismatch': 'This recovery key belongs to a different conversation.',
+  'secret-invalid': 'Recovery key secret is invalid.',
+  'storage-unavailable': 'This browser cannot store recovery keys on this device.',
+};
+
+const EncryptedRecoveryPanel = ({ chatId }: { chatId: string }) => {
+  const titleId = useId();
+  const [hasLocalSecret, setHasLocalSecret] = useState(() => hasConversationSecret(chatId));
+  const [recoveryKeyInput, setRecoveryKeyInput] = useState('');
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setHasLocalSecret(hasConversationSecret(chatId));
+    setRecoveryKeyInput('');
+    setStatusMessage(null);
+    setErrorMessage(null);
+  }, [chatId]);
+
+  const handleCopyRecoveryKey = async () => {
+    const result = exportConversationRecoveryKey(chatId);
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    if (!result.ok) {
+      setHasLocalSecret(false);
+      setErrorMessage(result.reason === 'missing-secret'
+        ? 'This device does not have a recovery key for this conversation.'
+        : 'The stored recovery key is invalid on this device.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(result.recoveryKey);
+      setStatusMessage('Recovery key copied. Store it somewhere private.');
+    } catch {
+      setErrorMessage('Recovery key could not be copied from this browser.');
+    }
+  };
+
+  const handleImportRecoveryKey = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const result = importConversationRecoveryKey(chatId, recoveryKeyInput);
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    if (!result.ok) {
+      setErrorMessage(recoveryImportFailureCopy[result.reason]);
+      return;
+    }
+
+    setRecoveryKeyInput('');
+    setHasLocalSecret(true);
+    setStatusMessage('Recovery key imported on this device.');
+  };
+
+  const handleRecoveryKeyInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    setRecoveryKeyInput(event.target.value);
+    setErrorMessage(null);
+    setStatusMessage(null);
+  };
+
+  return (
+    <div
+      role="group"
+      aria-labelledby={titleId}
+      className="mt-3 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] p-3 text-sm"
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] bg-[var(--chat-panel-subtle)] text-[var(--chat-accent)]">
+          <KeyRound aria-hidden="true" className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 id={titleId} className="text-sm font-bold text-[var(--chat-text)]">Encrypted recovery</h3>
+          <p className="mt-1 text-sm leading-5 text-[var(--chat-text-muted)]">
+            {hasLocalSecret
+              ? 'Recovery key ready on this device. Anyone with the key can read this encrypted conversation.'
+              : 'This device needs the recovery key to read encrypted messages in this conversation.'}
+          </p>
+        </div>
+      </div>
+
+      {hasLocalSecret ? (
+        <button
+          type="button"
+          onClick={() => {
+            void handleCopyRecoveryKey();
+          }}
+          className="mt-3 inline-flex min-h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-panel)] px-3 py-2 font-semibold text-[var(--chat-text)] hover:border-[var(--chat-border-strong)] hover:bg-[var(--chat-panel-subtle)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+        >
+          <Clipboard aria-hidden="true" className="h-4 w-4" />
+          Copy recovery key
+        </button>
+      ) : (
+        <form className="mt-3 space-y-2" onSubmit={handleImportRecoveryKey}>
+          <label className="block text-xs font-semibold uppercase text-[var(--chat-text-soft)]" htmlFor={`${titleId}-input`}>
+            Recovery key
+          </label>
+          <textarea
+            id={`${titleId}-input`}
+            value={recoveryKeyInput}
+            onChange={handleRecoveryKeyInputChange}
+            rows={3}
+            spellCheck={false}
+            className="block w-full resize-none rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-[var(--chat-input-bg)] px-3 py-2 text-sm text-[var(--chat-text)] outline-none placeholder:text-[var(--chat-text-soft)] focus:border-[var(--chat-focus)] focus:ring-2 focus:ring-[var(--chat-focus)]/25"
+            placeholder="Paste recovery key"
+          />
+          <button
+            type="submit"
+            className="inline-flex min-h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--chat-radius-md)] bg-[var(--chat-accent)] px-3 py-2 font-semibold text-[var(--chat-own-text)] hover:bg-[var(--chat-accent-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+          >
+            <KeyRound aria-hidden="true" className="h-4 w-4" />
+            Import recovery key
+          </button>
+        </form>
+      )}
+
+      {statusMessage && (
+        <p className="mt-2 text-sm text-[var(--chat-success)]" role="status">
+          {statusMessage}
+        </p>
+      )}
+      {errorMessage && (
+        <p className="mt-2 text-sm text-[var(--chat-danger)]" role="alert">
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
 };
 
 const ProfileSummary = ({

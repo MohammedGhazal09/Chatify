@@ -6,11 +6,10 @@ import {
   phase06VisualFixture,
 } from './fixtures/phase06VisualFixture';
 
-const phase08ArtifactPath = (fileName: string) => path.resolve(
-  process.cwd(),
-  '../../.planning/phases/08-media-files-and-conversation-detail-implementation',
-  fileName
-);
+const chatSmokeArtifactRoot = process.env.CHATIFY_CHAT_SMOKE_ARTIFACT_DIR
+  ?? path.resolve(process.cwd(), '../../.planning/phases/08-media-files-and-conversation-detail-implementation');
+
+const phase08ArtifactPath = (fileName: string) => path.resolve(chatSmokeArtifactRoot, fileName);
 
 const fulfillJson = (route: Route, body: unknown) =>
   route.fulfill({
@@ -211,7 +210,7 @@ const assertRightRailSearchReuse = async (page: Page) => {
 
 const assertMobileLayout = async (page: Page) => {
   await expect(page.getByRole('button', { name: 'Open conversations' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Call' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Search messages' }).first()).toBeVisible();
   const conversationActions = page.getByRole('button', { name: 'More conversation actions' }).first();
   await expect(conversationActions).toBeVisible();
   await conversationActions.click();
@@ -301,13 +300,13 @@ test('mobile drawer conversation search smoke', async ({ page }) => {
   await expect(page.getByRole('button', { name: /IN-8B21/ })).not.toBeVisible();
 });
 
-test('exact-email New chat continuation selects existing conversation', async ({ page }) => {
+test('username New chat continuation selects existing conversation', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openPhase06Chat(page, 'light');
 
   await page.getByRole('button', { name: 'Start new chat' }).click();
-  await page.getByRole('textbox', { name: 'Email address' }).fill('ds-4c9a@chatify.invalid');
-  await page.getByRole('button', { name: 'Start or continue chat' }).click();
+  await page.getByRole('textbox', { name: 'Username' }).fill('ds.4c9a');
+  await page.getByRole('button', { name: 'Send request or open chat' }).click();
 
   await expect(page.getByTestId('conversation-pane').getByRole('heading', { name: 'DS-4C9A' })).toBeVisible();
   await expect(page.getByTestId('conversation-pane').getByText('Backfill complete.')).toBeVisible();

@@ -2,16 +2,42 @@ import type { Chat, EncryptedPayload, EncryptionMode, Message } from '../types/c
 
 const CONVERSATION_SECRET_PREFIX = 'chatify:e2ee:v1:conversation-secret:';
 const DEVICE_ID_STORAGE_KEY = 'chatify:e2ee:v1:device-id';
+const RECOVERY_KEY_PREFIX = 'chatify-e2ee-v1:';
 const ENCRYPTION_ALGORITHM = 'AES-GCM';
 const ENCRYPTION_KEY_VERSION = 1;
 const AES_GCM_IV_BYTES = 12;
 const AES_256_KEY_BYTES = 32;
 
 type DecryptFailureReason = 'missing-secret' | 'invalid-payload' | 'decrypt-failed';
+type RecoveryExportFailureReason = 'missing-secret' | 'invalid-secret';
+export type RecoveryImportFailureReason =
+  | 'empty'
+  | 'format'
+  | 'version'
+  | 'chat-mismatch'
+  | 'secret-invalid'
+  | 'storage-unavailable';
 
 export type EncryptedDecryptResult =
   | { ok: true; text: string }
   | { ok: false; reason: DecryptFailureReason };
+
+export type ConversationRecoveryKeyExportResult =
+  | { ok: true; recoveryKey: string }
+  | { ok: false; reason: RecoveryExportFailureReason };
+
+export type ConversationRecoveryKeyImportResult =
+  | { ok: true }
+  | { ok: false; reason: RecoveryImportFailureReason };
+
+interface RecoveryKeyEnvelope {
+  version: number;
+  chatId: string;
+  algorithm: typeof ENCRYPTION_ALGORITHM;
+  keyVersion: number;
+  keyBytes: number;
+  secret: string;
+}
 
 export const isEncryptedConversation = (chat?: Pick<Chat, 'encryptionMode'> | null) => (
   chat?.encryptionMode === 'e2ee_v1'
@@ -42,6 +68,15 @@ const base64ToBytes = (value: string) => {
   }
 
   return bytes;
+};
+
+const encodeJsonToBase64 = (value: unknown) => (
+  bytesToBase64(new TextEncoder().encode(JSON.stringify(value)))
+);
+
+const decodeJsonFromBase64 = (value: string) => {
+  const bytes = base64ToBytes(value);
+  return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
 };
 
 const getCrypto = () => {
@@ -98,6 +133,100 @@ export const clearConversationSecret = (chatId: string) => {
   }
 
   window.localStorage.removeItem(getSecretStorageKey(chatId));
+};
+
+const isValidConversationSecret = (secret: string) => {
+  try {
+    return base64ToBytes(secret).byteLength === AES_256_KEY_BYTES;
+  } catch {
+    return false;
+  }
+};
+
+const isRecoveryKeyEnvelope = (value: unknown): value is RecoveryKeyEnvelope => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const envelope = value as Partial<RecoveryKeyEnvelope>;
+
+  return (
+    typeof envelope.version === 'number' &&
+    typeof envelope.chatId === 'string' &&
+    envelope.algorithm === ENCRYPTION_ALGORITHM &&
+    typeof envelope.keyVersion === 'number' &&
+    typeof envelope.keyBytes === 'number' &&
+    typeof envelope.secret === 'string'
+  );
+};
+
+export const exportConversationRecoveryKey = (chatId: string): ConversationRecoveryKeyExportResult => {
+  const secret = getConversationSecret(chatId);
+
+  if (!secret) {
+    return { ok: false, reason: 'missing-secret' };
+  }
+
+  if (!isValidConversationSecret(secret)) {
+    return { ok: false, reason: 'invalid-secret' };
+  }
+
+  return {
+    ok: true,
+    recoveryKey: `${RECOVERY_KEY_PREFIX}${encodeJsonToBase64({
+      version: 1,
+      chatId,
+      algorithm: ENCRYPTION_ALGORITHM,
+      keyVersion: ENCRYPTION_KEY_VERSION,
+      keyBytes: AES_256_KEY_BYTES,
+      secret,
+    } satisfies RecoveryKeyEnvelope)}`,
+  };
+};
+
+export const importConversationRecoveryKey = (
+  chatId: string,
+  recoveryKey: string
+): ConversationRecoveryKeyImportResult => {
+  const normalizedRecoveryKey = recoveryKey.trim();
+
+  if (!chatId || !normalizedRecoveryKey) {
+    return { ok: false, reason: 'empty' };
+  }
+
+  if (!hasStorage()) {
+    return { ok: false, reason: 'storage-unavailable' };
+  }
+
+  if (!normalizedRecoveryKey.startsWith(RECOVERY_KEY_PREFIX)) {
+    return { ok: false, reason: 'format' };
+  }
+
+  let envelope: unknown;
+  try {
+    envelope = decodeJsonFromBase64(normalizedRecoveryKey.slice(RECOVERY_KEY_PREFIX.length));
+  } catch {
+    return { ok: false, reason: 'format' };
+  }
+
+  if (!isRecoveryKeyEnvelope(envelope)) {
+    return { ok: false, reason: 'format' };
+  }
+
+  if (envelope.version !== 1 || envelope.keyVersion !== ENCRYPTION_KEY_VERSION || envelope.keyBytes !== AES_256_KEY_BYTES) {
+    return { ok: false, reason: 'version' };
+  }
+
+  if (envelope.chatId !== chatId) {
+    return { ok: false, reason: 'chat-mismatch' };
+  }
+
+  if (!isValidConversationSecret(envelope.secret)) {
+    return { ok: false, reason: 'secret-invalid' };
+  }
+
+  saveConversationSecret(chatId, envelope.secret);
+  return { ok: true };
 };
 
 export const getLocalEncryptionDeviceId = () => {

@@ -15,6 +15,7 @@ export const PRIVACY_REQUEST_ACTIONS = Object.freeze({
   EXPORT_CREATED: 'export_created',
   DELETION_REQUESTED: 'deletion_requested',
   DELETION_CANCELED: 'deletion_canceled',
+  DELETION_PROCESSED: 'deletion_processed',
 });
 
 const privacyRequestEventSchema = new mongoose.Schema({

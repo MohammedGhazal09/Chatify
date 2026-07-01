@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import Attachment from '../../Models/attachmentModel.mjs';
 import Chats from '../../Models/chatModel.mjs';
 import Message from '../../Models/messageModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
@@ -110,6 +111,7 @@ describe('encrypted message HTTP contract', () => {
     expect(plaintextResponse.body.code).toBe('encrypted_plaintext_rejected');
     expect(attachmentResponse.body.code).toBe('encrypted_attachments_unavailable');
     await expect(Message.countDocuments({ chatId: chat._id })).resolves.toBe(0);
+    await expect(Attachment.countDocuments({ chatId: chat._id })).resolves.toBe(0);
   });
 
   it('keeps encrypted clientMessageId retries idempotent and rejects changed envelopes', async () => {

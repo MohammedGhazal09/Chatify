@@ -4,7 +4,7 @@
 **Status:** blocked
 **Readiness:** Blocked
 **Command:** npm run test:e2e:prod -- --grep "production smoke config"
-**Local git head:** 99656e7
+**Local git head:** 96f2cb1
 
 ## Production Target
 
