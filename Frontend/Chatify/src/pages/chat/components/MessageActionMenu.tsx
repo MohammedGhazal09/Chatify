@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { RefObject } from 'react';
-import { Bookmark, BookmarkCheck, SmilePlus } from 'lucide-react';
+import { SmilePlus } from 'lucide-react';
 import type { Message } from '../../../types/chat';
 import type { MessageContextMenuState } from '../hooks/useChatViewState';
 import LazyEmojiPicker from './LazyEmojiPicker';
@@ -164,11 +164,6 @@ const MessageActionMenu = ({
           onClick={() => onToggleSave(message)}
           className="cursor-pointer flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#F4F7F6] hover:bg-[#181C20] focus:outline-none focus-visible:bg-[#181C20]"
         >
-          {message.savedByRequester ? (
-            <BookmarkCheck aria-hidden="true" className="h-4 w-4 text-[#14B8A6]" />
-          ) : (
-            <Bookmark aria-hidden="true" className="h-4 w-4" />
-          )}
           {message.savedByRequester ? 'Unsave message' : 'Save message'}
         </button>
       )}

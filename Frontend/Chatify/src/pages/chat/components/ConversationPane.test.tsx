@@ -73,6 +73,7 @@ const makeConversationPaneProps = (overrides: Partial<ConversationPaneProps> = {
   onOpenMessageActions: vi.fn(),
   onOpenAttachmentPreview: vi.fn(),
   onJumpToMessage: vi.fn(),
+  onReaction: vi.fn(),
   onStartEdit: vi.fn(),
   onRetryFailed: vi.fn(),
   onDismissFailed: vi.fn(),

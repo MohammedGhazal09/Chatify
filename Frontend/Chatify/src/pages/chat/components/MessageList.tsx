@@ -30,6 +30,8 @@ interface MessageListProps {
   onOpenMessageActions: (event: MouseEvent<HTMLButtonElement>, message: Message, isOwnMessage: boolean) => void;
   onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
   onJumpToMessage: (messageId: string) => void;
+  onReaction: (messageId: string, emoji: string) => void;
+  reactionDisabledReason?: string | null;
   onStartEdit: (messageId: string, currentText: string) => void;
   onRetryFailed: (message: Message) => void;
   onDismissFailed: (message: Message) => void;
@@ -61,6 +63,8 @@ const MessageList = ({
   onOpenMessageActions,
   onOpenAttachmentPreview,
   onJumpToMessage,
+  onReaction,
+  reactionDisabledReason,
   onStartEdit,
   onRetryFailed,
   onDismissFailed,
@@ -168,6 +172,8 @@ const MessageList = ({
                     onOpenActions={onOpenMessageActions}
                     onOpenAttachmentPreview={onOpenAttachmentPreview}
                     onJumpToMessage={onJumpToMessage}
+                    onReaction={onReaction}
+                    reactionDisabledReason={reactionDisabledReason}
                     onDoubleClick={(msg) => onStartEdit(msg._id, msg.text)}
                     onRetryFailed={onRetryFailed}
                     onDismissFailed={onDismissFailed}

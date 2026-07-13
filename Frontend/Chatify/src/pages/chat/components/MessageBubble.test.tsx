@@ -5,6 +5,56 @@ import { makeAttachment, makeChat, makeMessage, makeUser } from '../../../test/c
 import MessageBubble from './MessageBubble';
 
 describe('MessageBubble', () => {
+  it('removes the current user reaction directly from an image message', async () => {
+    const user = userEvent.setup();
+    const onReaction = vi.fn();
+
+    render(
+      <MessageBubble
+        message={makeMessage({
+          reactions: [
+            { user: 'user-1', emoji: '❤️' },
+            { user: 'user-2', emoji: '😂' },
+          ],
+          attachments: [makeAttachment({ kind: 'media', mimeType: 'image/png' })],
+        })}
+        isOwnMessage
+        isGroupChat={false}
+        members={makeChat().members}
+        currentUserId="user-1"
+        onReaction={onReaction}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Remove ❤️ reaction' }));
+
+    expect(onReaction).toHaveBeenCalledWith('message-1', '❤️');
+    expect(screen.queryByRole('button', { name: 'Remove 😂 reaction' })).not.toBeInTheDocument();
+  });
+
+  it('disables direct reaction removal when conversation activity is unavailable', async () => {
+    const user = userEvent.setup();
+    const onReaction = vi.fn();
+
+    render(
+      <MessageBubble
+        message={makeMessage({ reactions: [{ user: 'user-1', emoji: '❤️' }] })}
+        isOwnMessage
+        isGroupChat={false}
+        members={makeChat().members}
+        currentUserId="user-1"
+        onReaction={onReaction}
+        reactionDisabledReason="You are offline."
+      />
+    );
+
+    const reactionButton = screen.getByRole('button', { name: 'Remove ❤️ reaction' });
+    expect(reactionButton).toBeDisabled();
+    expect(reactionButton).toHaveAttribute('title', 'You are offline.');
+    await user.click(reactionButton);
+    expect(onReaction).not.toHaveBeenCalled();
+  });
+
   it('renders failed sends with retry and dismiss callbacks preserving clientMessageId', async () => {
     const user = userEvent.setup();
     const onRetryFailed = vi.fn();

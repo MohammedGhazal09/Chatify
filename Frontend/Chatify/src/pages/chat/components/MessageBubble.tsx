@@ -21,6 +21,8 @@ interface MessageBubbleProps {
   onOpenActions?: (event: MouseEvent<HTMLButtonElement>, message: Message, isOwnMessage: boolean) => void;
   onOpenAttachmentPreview?: (attachment: AttachmentPreviewTarget) => void;
   onJumpToMessage?: (messageId: string) => void;
+  onReaction?: (messageId: string, emoji: string) => void;
+  reactionDisabledReason?: string | null;
   onRetryFailed?: (message: Message) => void;
   onDismissFailed?: (message: Message) => void;
 }
@@ -322,6 +324,8 @@ const MessageBubble = memo(({
   onOpenActions,
   onOpenAttachmentPreview,
   onJumpToMessage,
+  onReaction,
+  reactionDisabledReason,
   onRetryFailed,
   onDismissFailed,
 }: MessageBubbleProps) => {
@@ -342,12 +346,18 @@ const MessageBubble = memo(({
 
   const groupedReactions = useMemo(() => {
     if (!message.reactions || message.reactions.length === 0) return [];
-    const groups = new Map<string, number>();
+    const groups = new Map<string, { count: number; reactedByCurrentUser: boolean }>();
     message.reactions.forEach((reaction) => {
-      groups.set(reaction.emoji, (groups.get(reaction.emoji) || 0) + 1);
+      const group = groups.get(reaction.emoji);
+      groups.set(reaction.emoji, {
+        count: (group?.count ?? 0) + 1,
+        reactedByCurrentUser: Boolean(
+          group?.reactedByCurrentUser || (currentUserId && reaction.user === currentUserId)
+        ),
+      });
     });
-    return Array.from(groups.entries()).map(([emoji, count]) => ({ emoji, count }));
-  }, [message.reactions]);
+    return Array.from(groups.entries()).map(([emoji, group]) => ({ emoji, ...group }));
+  }, [currentUserId, message.reactions]);
 
   const encryptedMessage = isEncryptedMessage(message);
   const [decryptedText, setDecryptedText] = useState<string | null>(message.decryptedText ?? null);
@@ -522,15 +532,39 @@ const MessageBubble = memo(({
         </div>
         {groupedReactions.length > 0 && (
           <div className={`mt-1 flex gap-1 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-            {groupedReactions.map(({ emoji, count }) => (
-              <span
-                key={emoji}
-                className="inline-flex pointer-events-none items-center gap-0.5 rounded-full border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-1.5 py-0.5 text-xs text-[var(--chat-text)]"
-              >
-                <span>{emoji}</span>
-                {count > 1 && <span className="text-[var(--chat-text-muted)]">{count}</span>}
-              </span>
-            ))}
+            {groupedReactions.map(({ emoji, count, reactedByCurrentUser }) => {
+              const content = (
+                <>
+                  <span>{emoji}</span>
+                  {count > 1 && <span className="text-[var(--chat-text-muted)]">{count}</span>}
+                </>
+              );
+
+              return reactedByCurrentUser && onReaction ? (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onReaction(message._id, emoji);
+                  }}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  disabled={Boolean(reactionDisabledReason)}
+                  className="inline-flex min-h-7 cursor-pointer items-center gap-0.5 rounded-full border border-[var(--chat-accent)] bg-[var(--chat-accent-soft)] px-2 py-0.5 text-xs text-[var(--chat-text)] hover:bg-[var(--chat-panel-subtle)] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+                  aria-label={`Remove ${emoji} reaction`}
+                  title={reactionDisabledReason ?? 'Remove your reaction'}
+                >
+                  {content}
+                </button>
+              ) : (
+                <span
+                  key={emoji}
+                  className="inline-flex pointer-events-none items-center gap-0.5 rounded-full border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] px-1.5 py-0.5 text-xs text-[var(--chat-text)]"
+                >
+                  {content}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>

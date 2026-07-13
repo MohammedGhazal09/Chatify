@@ -1447,7 +1447,7 @@ const ChatPage = () => {
       {
         onError: () => {
           refetchMessages();
-          showToast('Failed to add reaction', 'error');
+          showToast('Failed to update reaction', 'error');
         },
       }
     );
@@ -2459,6 +2459,7 @@ const ChatPage = () => {
           onOpenMessageActions={handleOpenMessageActions}
           onOpenAttachmentPreview={handleOpenAttachmentPreview}
           onJumpToMessage={handleJumpToMessage}
+          onReaction={handleReaction}
           onStartEdit={handleStartEdit}
           onRetryFailed={handleRetryFailedMessage}
           onDismissFailed={handleDismissFailedMessage}

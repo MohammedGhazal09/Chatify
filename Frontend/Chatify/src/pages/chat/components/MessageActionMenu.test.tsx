@@ -128,7 +128,9 @@ describe('MessageActionMenu', () => {
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     await user.click(screen.getByRole('button', { name: 'Copy' }));
     await user.click(screen.getByRole('button', { name: 'Pin message' }));
-    await user.click(screen.getByRole('button', { name: 'Save message' }));
+    const saveButton = screen.getByRole('button', { name: 'Save message' });
+    expect(saveButton.querySelector('svg')).toBeNull();
+    await user.click(saveButton);
     await user.click(screen.getByRole('button', { name: 'Delete for me' }));
     await user.click(screen.getByRole('button', { name: 'Delete for everyone' }));
     await user.click(screen.getByRole('button', { name: 'More reactions' }));
@@ -195,7 +197,9 @@ describe('MessageActionMenu', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Open message actions' }));
-    await user.click(screen.getByRole('button', { name: 'Unsave message' }));
+    const unsaveButton = screen.getByRole('button', { name: 'Unsave message' });
+    expect(unsaveButton.querySelector('svg')).toBeNull();
+    await user.click(unsaveButton);
 
     expect(onToggleSave).toHaveBeenCalledWith(expect.objectContaining({ savedByRequester: true }));
 

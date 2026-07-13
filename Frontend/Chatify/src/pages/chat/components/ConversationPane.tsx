@@ -91,6 +91,7 @@ interface ConversationPaneProps {
   onOpenMessageActions: MessageListProps['onOpenMessageActions'];
   onOpenAttachmentPreview: (attachment: AttachmentPreviewTarget) => void;
   onJumpToMessage: MessageListProps['onJumpToMessage'];
+  onReaction: MessageListProps['onReaction'];
   onStartEdit: (messageId: string, currentText: string) => void;
   onRetryFailed: (message: Message) => void;
   onDismissFailed: (message: Message) => void;
@@ -204,6 +205,7 @@ const ConversationPane = ({
   onOpenMessageActions,
   onOpenAttachmentPreview,
   onJumpToMessage,
+  onReaction,
   onStartEdit,
   onRetryFailed,
   onDismissFailed,
@@ -474,6 +476,16 @@ const ConversationPane = ({
           onOpenMessageActions={onOpenMessageActions}
           onOpenAttachmentPreview={onOpenAttachmentPreview}
           onJumpToMessage={onJumpToMessage}
+          onReaction={onReaction}
+          reactionDisabledReason={
+            isOffline
+              ? 'You are offline. Reactions are available when the connection returns.'
+              : isSessionExpired
+                ? 'Your session expired. Sign in again to update reactions.'
+                : conversationControls?.canSendMessage === false
+                  ? sendDisabledReason ?? 'Conversation activity is disabled.'
+                  : null
+          }
           onStartEdit={onStartEdit}
           onRetryFailed={onRetryFailed}
           onDismissFailed={onDismissFailed}
