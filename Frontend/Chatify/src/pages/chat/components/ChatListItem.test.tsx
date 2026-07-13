@@ -35,6 +35,7 @@ describe('ChatListItem', () => {
       'https://backend.test/api/user/user-2/profile-image?v=1'
     );
     expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Grace Hopper/ })).toHaveAttribute('aria-pressed', 'false');
 
     await user.click(screen.getByRole('button', { name: /Grace Hopper/ }));
 

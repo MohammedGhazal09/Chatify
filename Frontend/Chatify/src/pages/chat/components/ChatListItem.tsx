@@ -49,7 +49,8 @@ const ChatListItem = ({
       <button
         type="button"
         onClick={onSelect}
-        className={`min-h-[76px] cursor-pointer w-full rounded-[var(--chat-radius-md)] border-l-4 px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
+        aria-pressed={isActive}
+        className={`chat-list-item min-h-[76px] cursor-pointer w-full rounded-[var(--chat-radius-md)] border-l-4 px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
           isActive ? 'border-[var(--chat-accent)] bg-[var(--chat-accent-soft)] text-[var(--chat-text)]' : 'border-transparent text-[var(--chat-text)] hover:bg-[var(--chat-panel-subtle)]'
         }`}
       >
@@ -62,7 +63,7 @@ const ChatListItem = ({
           />
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2 text-sm font-semibold leading-5">
-              <span className="truncate">{title}</span>
+              <span className="truncate" dir="auto">{title}</span>
               {!chat.isGroupChat && isOnline && <OnlineStatus isOnline size="sm" />}
               {isMuted && (
                 <span
@@ -109,7 +110,7 @@ const ChatListItem = ({
                   <span dir="auto">{draftPreview}</span>
                 </>
               ) : (
-                chat.latestMessage ? chat.latestMessage.text : 'No messages yet'
+                <span dir="auto">{chat.latestMessage ? chat.latestMessage.text : 'No messages yet'}</span>
               )}
             </span>
           </span>

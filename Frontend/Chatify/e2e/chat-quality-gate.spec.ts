@@ -43,14 +43,30 @@ const expectVoiceRecorderControl = async (page: Page) => {
 };
 
 const expectUnsupportedControlsUnavailable = async (page: Page) => {
-  const callButton = page.getByRole('button', { name: 'Call' }).first();
+  let callButton = page.getByRole('button', { name: 'Call' }).first();
+
+  if (await callButton.count() === 0) {
+    await page.getByRole('button', { name: 'More conversation actions' }).first().click();
+    callButton = page.getByRole('menu', { name: 'Conversation actions' }).getByRole('menuitem', { name: 'Call', exact: true });
+  }
+
   await expect(callButton).toBeDisabled();
   await expect(callButton).toHaveAttribute('title', /unavailable|direct chats|online|connection|availability/i);
+  const callTargetBox = await callButton.boundingBox();
+  expect(callTargetBox?.width ?? 0).toBeGreaterThanOrEqual(40);
+  expect(callTargetBox?.height ?? 0).toBeGreaterThanOrEqual(40);
 
-  const videoButton = page.getByRole('button', { name: 'Video call' }).first();
+  const openMenu = page.getByRole('menu', { name: 'Conversation actions' });
+  const videoButton = await openMenu.count()
+    ? openMenu.getByRole('menuitem', { name: 'Video call', exact: true })
+    : page.getByRole('button', { name: 'Video call' }).first();
   if (await videoButton.count()) {
     await expect(videoButton).toBeDisabled();
-      await expect(videoButton).toHaveAttribute('title', /unavailable|direct chats|online|connection|availability/i);
+    await expect(videoButton).toHaveAttribute('title', /unavailable|direct chats|online|connection|availability/i);
+  }
+
+  if (await openMenu.count()) {
+    await page.keyboard.press('Escape');
   }
 
   await expectVoiceRecorderControl(page);
@@ -193,7 +209,7 @@ test.describe('Phase 09 messenger interaction quality gate', () => {
 
     await page.getByRole('button', { name: 'Start new chat' }).click();
     await page.getByRole('textbox', { name: 'Username' }).fill(phase09QualityGateFixture.continuationUsername);
-    await page.getByRole('button', { name: 'Start or continue chat' }).click();
+    await page.getByRole('button', { name: 'Send request or open chat' }).click();
     await expect(page.getByTestId('conversation-pane').getByRole('heading', { name: phase09QualityGateFixture.secondaryTitle })).toBeVisible();
     await page.getByRole('button', { name: /Relay Grid/ }).click();
     await expectDesktopDetailRailReady(page);
@@ -234,7 +250,6 @@ test.describe('Phase 09 messenger interaction quality gate', () => {
 
     await expectVisibleTouchTargets(page, [
       'Open conversations',
-      'Call',
       'More conversation actions',
       'Attach file',
       'Send message',

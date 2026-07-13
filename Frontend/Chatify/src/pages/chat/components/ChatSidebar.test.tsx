@@ -368,6 +368,34 @@ describe('ChatSidebar', () => {
     expect(screen.getByLabelText('Conversation archived')).toBeInTheDocument();
   });
 
+  it('keeps stable-ID selection through five, many, reordered, added, and removed rows', () => {
+    const makeGroupChats = (count: number) => Array.from({ length: count }, (_, index) => makeChat({
+      _id: `group-${index}`,
+      chatName: `Operations room ${index}`,
+      isGroupChat: true,
+      updatedAt: new Date(Date.UTC(2026, 5, 8, 10, index)).toISOString(),
+    }));
+    const fiveChats = makeGroupChats(5);
+    const selectedChatId = fiveChats[2]._id;
+    const props = makeSidebarProps({ chats: fiveChats, selectedChatId });
+    const { rerender } = render(<ChatSidebar {...props} />);
+
+    expect(document.querySelectorAll('.chat-list-item')).toHaveLength(5);
+    expect(screen.getByRole('button', { name: /^Operations room 2\b/ })).toHaveAttribute('aria-pressed', 'true');
+
+    const manyChats = makeGroupChats(25).reverse();
+    rerender(<ChatSidebar {...props} chats={manyChats} />);
+
+    expect(document.querySelectorAll('.chat-list-item')).toHaveLength(25);
+    expect(screen.getByRole('button', { name: /^Operations room 2\b/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelectorAll('.chat-list-item[aria-pressed="true"]')).toHaveLength(1);
+
+    rerender(<ChatSidebar {...props} chats={manyChats.filter((chat) => chat._id !== selectedChatId)} />);
+
+    expect(document.querySelectorAll('.chat-list-item[aria-pressed="true"]')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: /^Operations room 3\b/ })).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('removes a selected conversation from starred when it is no longer starred', () => {
     const unstarredChat = makeChat({
       _id: 'chat-unstarred',

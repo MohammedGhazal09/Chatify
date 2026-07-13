@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
-  PHASE07_CONTINUATION_EMAIL,
+  PHASE07_CONTINUATION_USERNAME,
   PHASE07_PRIMARY_CHAT_ID,
   PHASE07_SECONDARY_CHAT_ID,
   phase07BehaviorFixture,
@@ -12,6 +12,13 @@ import {
   openPhase07Chat,
   phase07ArtifactPath,
 } from './pages/chatPage';
+
+const expectMobileSidebarClosed = async (page: Page) => {
+  await expect.poll(async () => {
+    const box = await page.getByTestId('chat-sidebar').boundingBox();
+    return box ? box.x + box.width : 0;
+  }).toBeLessThanOrEqual(1);
+};
 
 test.describe('Phase 07 functional parity', () => {
   test('functional parity desktop light search send retry and rail evidence', async ({ page }) => {
@@ -32,7 +39,7 @@ test.describe('Phase 07 functional parity', () => {
 
     await page.getByRole('button', { name: 'Search messages' }).first().click();
     await page.getByRole('textbox', { name: 'Search this conversation' }).fill('l');
-    await expect(page.getByText('Type at least 2 characters to search.')).toBeVisible();
+    await expect(page.getByText('Type at least 2 characters to search this conversation.')).toBeVisible();
     await page.getByRole('textbox', { name: 'Search this conversation' }).fill('live');
     await expect(page.getByText('2 results')).toBeVisible();
     await page.getByRole('button', { name: /Jump to message from Relay Node .*Live data handoff completed/ }).click();
@@ -58,7 +65,11 @@ test.describe('Phase 07 functional parity', () => {
     await expect(page.getByRole('menu', { name: 'Conversation actions' }).getByRole('menuitem', { name: 'Conversation details' })).toBeEnabled();
     await page.keyboard.press('Escape');
     await expect(page.locator('button[aria-label="Attach file"]')).toBeEnabled();
-    await expect(page.getByRole('button', { name: 'Voice message unavailable in this phase' })).toBeDisabled();
+    const voiceButton = page.getByRole('button', { name: 'Record voice message' });
+    await expect(voiceButton).toBeVisible();
+    if (await voiceButton.isDisabled()) {
+      await expect(voiceButton).toHaveAttribute('title', /voice recording unavailable/i);
+    }
     await expect(page.getByText('No shared files')).toBeVisible();
     await expect(page.getByText('No shared media')).toBeVisible();
     await expect(page.getByText('No pinned messages')).toBeVisible();
@@ -94,6 +105,7 @@ test.describe('Phase 07 functional parity', () => {
     await page.getByRole('textbox', { name: 'Search conversations' }).fill('matrix');
     await page.getByRole('button', { name: /Matrix Sync/ }).click();
     await expect(page.getByTestId('conversation-pane').getByRole('heading', { name: phase07BehaviorFixture.secondaryTitle })).toBeVisible();
+    await expectMobileSidebarClosed(page);
 
     await expectNoHorizontalOverflow(page);
     await expectComposerDoesNotOverlapLatestMessage(page);
@@ -126,6 +138,7 @@ test.describe('Phase 07 functional parity', () => {
     await expect(page.getByRole('button', { name: /Relay Node/ })).not.toBeVisible();
     await page.getByRole('button', { name: /Matrix Sync/ }).click();
     await expect(page.getByTestId('conversation-pane').getByRole('heading', { name: phase07BehaviorFixture.secondaryTitle })).toBeVisible();
+    await expectMobileSidebarClosed(page);
     await expectNoHorizontalOverflow(page);
     await page.screenshot({ path: phase07ArtifactPath('07-ui-mobile-light-after-drawer.png') });
   });
@@ -141,8 +154,8 @@ test.describe('Phase 07 functional parity', () => {
     await expect(conversationPane.getByRole('heading')).toBeVisible();
 
     await page.getByRole('button', { name: 'Start new chat' }).click();
-    await page.getByRole('textbox', { name: 'Email address' }).fill(PHASE07_CONTINUATION_EMAIL);
-    await page.getByRole('button', { name: 'Start or continue chat' }).click();
+    await page.getByRole('textbox', { name: 'Username' }).fill(PHASE07_CONTINUATION_USERNAME);
+    await page.getByRole('button', { name: 'Send request or open chat' }).click();
     await expect(conversationPane.getByRole('heading', { name: phase07BehaviorFixture.secondaryTitle })).toBeVisible();
     await expect(conversationPane.getByText('Matrix sync is ready for the continuation path.')).toBeVisible();
 

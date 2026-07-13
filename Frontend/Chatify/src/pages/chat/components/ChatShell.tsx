@@ -36,7 +36,7 @@ const ChatShell = ({
       {sidebar}
       <section
         data-testid="conversation-pane"
-        className="flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden bg-[var(--chat-bg)]"
+        className="chat-conversation-panel flex min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-hidden bg-[var(--chat-bg)]"
       >
         {conversation}
       </section>

@@ -19,20 +19,22 @@ import {
   phase19ProductPolishFixture,
 } from '../fixtures/phase19ProductPolishFixture';
 
-export const phase07ArtifactPath = (fileName: string) => path.resolve(
-  process.cwd(),
+const resolveArtifactPath = (fallbackDirectory: string, fileName: string) => path.resolve(
+  process.env.CHATIFY_E2E_ARTIFACT_DIR ?? path.resolve(process.cwd(), fallbackDirectory),
+  fileName
+);
+
+export const phase07ArtifactPath = (fileName: string) => resolveArtifactPath(
   '../../.planning/phases/07-messenger-functional-parity-restoration',
   fileName
 );
 
-export const phase09ArtifactPath = (fileName: string) => path.resolve(
-  process.cwd(),
+export const phase09ArtifactPath = (fileName: string) => resolveArtifactPath(
   '../../.planning/phases/09-messenger-interaction-quality-gate',
   fileName
 );
 
-export const phase19ArtifactPath = (fileName: string) => path.resolve(
-  process.cwd(),
+export const phase19ArtifactPath = (fileName: string) => resolveArtifactPath(
   '../../.planning/phases/19-messenger-product-polish-and-notifications',
   fileName
 );

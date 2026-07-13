@@ -60,7 +60,7 @@ const ConversationHeader = ({
   const profileStatus = getVisibleProfileStatus(otherMember, otherMemberStatus);
 
   return (
-    <div className="flex min-h-20 min-w-0 max-w-full items-center gap-2 overflow-hidden border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-3 py-3 text-[var(--chat-text)] md:gap-3 md:px-8">
+    <div className="conversation-header flex min-h-20 min-w-0 max-w-full items-center gap-2 overflow-hidden border-b border-[var(--chat-border)] bg-[var(--chat-panel)] px-3 py-3 text-[var(--chat-text)] md:gap-3 md:px-6">
       <button
         type="button"
         onClick={onOpenSidebar}
@@ -88,7 +88,7 @@ const ConversationHeader = ({
       ) : null}
 
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-base font-bold text-[var(--chat-text)] md:text-xl" title={title}>{title}</h2>
+        <h2 className="truncate text-base font-bold text-[var(--chat-text)] md:text-xl" title={title} dir="auto">{title}</h2>
         {encryptedConversation ? (
           <p className="inline-flex items-center gap-1 text-xs font-medium text-[var(--chat-text-muted)]">
             <Lock aria-hidden="true" className="h-3.5 w-3.5 text-[var(--chat-accent)]" />

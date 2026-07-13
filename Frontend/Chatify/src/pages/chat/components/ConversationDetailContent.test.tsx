@@ -121,6 +121,25 @@ describe('ConversationDetailContent', () => {
     expect(screen.queryByText('Encrypted recovery')).not.toBeInTheDocument();
   });
 
+  it('keeps detail disclosure state independent and keyboard-reachable', () => {
+    renderDetailContent();
+
+    const pinnedDisclosure = screen.getByRole('button', { name: /Pinned messages/ });
+    const mediaDisclosure = screen.getByRole('button', { name: /Shared media/ });
+
+    expect(pinnedDisclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(mediaDisclosure).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(pinnedDisclosure);
+
+    expect(pinnedDisclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(mediaDisclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('No shared media')).toBeVisible();
+
+    fireEvent.click(pinnedDisclosure);
+    expect(pinnedDisclosure).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('copies an encrypted conversation recovery key without rendering the raw key', async () => {
     ensureConversationSecret('chat-1');
     const exported = exportConversationRecoveryKey('chat-1');

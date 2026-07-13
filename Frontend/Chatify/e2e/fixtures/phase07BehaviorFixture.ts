@@ -8,6 +8,7 @@ export const PHASE07_SECONDARY_CHAT_ID = 'behavior-chat-matrix-sync';
 export const PHASE07_RETRY_CLIENT_ID = 'behavior-client-retry';
 export const PHASE07_DISMISS_CLIENT_ID = 'behavior-client-dismiss';
 export const PHASE07_CONTINUATION_EMAIL = 'matrix-sync@chatify.invalid';
+export const PHASE07_CONTINUATION_USERNAME = 'matrix.sync';
 
 export type CreateMessageInput = {
   chatId: string;
@@ -28,6 +29,7 @@ const relayNode = makeCodedUser('Relay Node', {
 const matrixSync = makeCodedUser('Matrix Sync', {
   _id: 'behavior-user-matrix-sync',
   email: PHASE07_CONTINUATION_EMAIL,
+  username: PHASE07_CONTINUATION_USERNAME,
 });
 
 const signalDock = makeCodedUser('Signal Dock', {
@@ -199,6 +201,7 @@ export const phase07BehaviorFixture = {
   selectedChatId: PHASE07_PRIMARY_CHAT_ID,
   secondaryChatId: PHASE07_SECONDARY_CHAT_ID,
   continuationEmail: PHASE07_CONTINUATION_EMAIL,
+  continuationUsername: PHASE07_CONTINUATION_USERNAME,
   primaryTitle: 'Relay Node',
   secondaryTitle: 'Matrix Sync',
   chats: phase07Chats,

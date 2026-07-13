@@ -64,9 +64,9 @@ test.describe('Phase 19 product polish verification', () => {
     await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
     await expect(page.getByText('Alerts use generic copy. Muted conversations still update unread counts and receipts.')).toBeVisible();
     await expect(page.getByText('Permission: Ask first')).toBeVisible();
-    await page.getByRole('button', { name: 'Enable' }).click();
+    await page.getByRole('button', { name: 'Enable', exact: true }).click();
     await expect(page.getByText('Permission: Allowed')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Disable' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Disable', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Done' }).click();
 
     await page.getByRole('button', { name: 'More conversation actions' }).first().click();

@@ -373,7 +373,7 @@ const MessageComposer = ({
   };
 
   return (
-    <div className="composer-dock relative z-20 w-full max-w-full overflow-visible border-t border-[var(--chat-border)] bg-[var(--chat-panel)] px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 md:px-8">
+    <div className="composer-dock relative z-20 w-full max-w-full shrink-0 overflow-visible border-t border-[var(--chat-border)] bg-[var(--chat-panel)] px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 md:px-8">
       {replyingTo && (
         <div className="mx-auto mb-2 flex max-w-[880px] items-center justify-between rounded-[var(--chat-radius-md)] border-l-4 border-[var(--chat-accent)] bg-[var(--chat-panel-subtle)] px-3 py-2">
           <div className="min-w-0 flex-1">

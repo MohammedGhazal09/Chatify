@@ -20,6 +20,7 @@ import {
 import type { User } from '../../../types/auth';
 import type { Chat, ConversationFocusFilter } from '../../../types/chat';
 import { isEncryptedConversation } from '../../../utils/encryptedMessages';
+import ChatifyIcon from '../../../components/chatifyIcon';
 import { getChatTitle, getOtherMember } from '../utils/chatDisplay';
 import ChatListItem from './ChatListItem';
 import NewChatDialog from './NewChatDialog';
@@ -224,11 +225,25 @@ const ChatSidebar = ({
   return (
     <aside
       data-testid="chat-sidebar"
-      className={`chat-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] max-w-[320px] flex-col border-r border-[var(--chat-border)] bg-[var(--chat-panel)] text-[var(--chat-text)] transition-transform duration-200 ease-out md:static md:z-auto md:w-[320px] md:min-w-[280px] md:max-w-none md:translate-x-0 xl:w-[344px] xl:min-w-[344px] ${
+      className={`chat-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] max-w-[320px] flex-col border-r border-[var(--chat-border)] bg-[var(--chat-panel)] text-[var(--chat-text)] transition-transform duration-200 ease-out md:static md:z-auto md:w-full md:min-w-0 md:max-w-none md:translate-x-0 ${
         isOpen ? 'open translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}
     >
-      <div className="flex min-h-16 items-center gap-3 border-b border-[var(--chat-border)] p-4">
+      <div className="chat-sidebar-brand flex min-h-14 items-center gap-2 px-4 pt-2">
+        <span className="h-8 w-8 shrink-0" aria-hidden="true">
+          <ChatifyIcon />
+        </span>
+        <p className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-[var(--chat-text)]">Chatify</p>
+        <button
+          type="button"
+          onClick={onCloseSidebar}
+          className="grid h-10 w-10 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] transition-colors hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:hidden"
+          aria-label="Close conversations"
+        >
+          <X aria-hidden="true" className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="chat-account-card m-3 mt-2 flex min-h-16 items-center gap-3 rounded-[var(--chat-radius-lg)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] p-3">
         <button
           type="button"
           onClick={onOpenSettings}
@@ -246,7 +261,6 @@ const ChatSidebar = ({
           />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-[var(--chat-text-soft)]">Chatify</p>
           <p className="truncate text-sm font-semibold text-[var(--chat-text)]">{user ? `${user.firstName} ${user.lastName ?? ''}`.trim() : 'Guest'}</p>
           <p className="inline-flex items-center gap-1.5 text-xs text-[var(--chat-success)]">
             <span className="h-2 w-2 rounded-full bg-[var(--chat-success)]" aria-hidden="true" />
@@ -254,14 +268,6 @@ const ChatSidebar = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCloseSidebar}
-            className="grid h-10 w-10 cursor-pointer place-items-center rounded-[var(--chat-radius-md)] text-[var(--chat-text-muted)] transition-colors hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] md:hidden"
-            aria-label="Close conversations"
-          >
-            <X aria-hidden="true" className="h-4 w-4" />
-          </button>
           <button
             type="button"
             onClick={onOpenSettings}
@@ -289,10 +295,10 @@ const ChatSidebar = ({
             type="button"
             onClick={() => onWorkspaceModeChange?.('conversations')}
             aria-pressed={workspaceMode === 'conversations'}
-            className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-[var(--chat-radius-md)] px-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
+            className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border px-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
               workspaceMode === 'conversations'
-                ? 'bg-[var(--chat-panel)] text-[var(--chat-text)] shadow-sm'
-                : 'text-[var(--chat-text-muted)] hover:text-[var(--chat-text)]'
+                ? 'border-[var(--chat-accent)] bg-[var(--chat-accent-soft)] text-[var(--chat-accent)]'
+                : 'border-transparent text-[var(--chat-text-muted)] hover:text-[var(--chat-text)]'
             }`}
           >
             <MessageCircle aria-hidden="true" className="h-3.5 w-3.5" />
@@ -302,10 +308,10 @@ const ChatSidebar = ({
             type="button"
             onClick={() => onWorkspaceModeChange?.('spaces')}
             aria-pressed={workspaceMode === 'spaces'}
-            className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-[var(--chat-radius-md)] px-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
+            className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-[var(--chat-radius-md)] border px-2 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
               workspaceMode === 'spaces'
-                ? 'bg-[var(--chat-panel)] text-[var(--chat-text)] shadow-sm'
-                : 'text-[var(--chat-text-muted)] hover:text-[var(--chat-text)]'
+                ? 'border-[var(--chat-accent)] bg-[var(--chat-accent-soft)] text-[var(--chat-accent)]'
+                : 'border-transparent text-[var(--chat-text-muted)] hover:text-[var(--chat-text)]'
             }`}
           >
             <Hash aria-hidden="true" className="h-3.5 w-3.5" />
@@ -359,10 +365,10 @@ const ChatSidebar = ({
               type="button"
               onClick={() => onFilterChange(option.value)}
               aria-pressed={isActive}
-              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--chat-radius-md)] px-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
+              className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--chat-radius-md)] border px-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
                 isActive
-                  ? 'bg-[var(--chat-accent)] text-[var(--chat-own-text)]'
-                  : 'text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)]'
+                  ? 'border-[var(--chat-accent)] bg-[var(--chat-accent-soft)] text-[var(--chat-accent)]'
+                  : 'border-transparent text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)]'
               }`}
             >
               <Icon aria-hidden="true" className="h-3.5 w-3.5" />

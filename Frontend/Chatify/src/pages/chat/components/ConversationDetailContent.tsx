@@ -1,5 +1,6 @@
 import {
   Clipboard,
+  ChevronDown,
   Download,
   ExternalLink,
   FileText,
@@ -124,89 +125,90 @@ const ConversationDetailContent = ({
 
   return (
     <>
-      <div className="mb-5 flex items-start gap-4">
-        <UserAvatar
-          user={otherMember}
-          label={title}
-          variant="large"
-          className="h-20 w-20"
-        />
-        <div className="min-w-0 flex-1 pt-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="truncate text-xl font-bold text-[var(--chat-text)]">{title}</h2>
-              {encryptedConversation ? (
-                <p className="inline-flex items-center gap-1 text-sm text-[var(--chat-text-muted)]">
-                  <Lock aria-hidden="true" className="h-4 w-4 text-[var(--chat-accent)]" />
-                  <span>
-                    Encrypted conversation{selectedChat.isGroupChat ? ` - ${selectedChat.members.length} members` : ''}
-                  </span>
-                </p>
-              ) : selectedChat.isGroupChat ? (
-                <p className="text-sm text-[var(--chat-text-muted)]">
-                  {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
-                </p>
-              ) : otherMember && isPresenceChecking ? (
-                <p className="text-sm text-[var(--chat-text-muted)]">
-                  Checking availability
-                </p>
-              ) : otherMember ? (
-                <div className="flex min-w-0 items-center gap-2 text-sm text-[var(--chat-text-muted)]">
-                  <OnlineStatus
-                    isOnline={otherMemberStatus?.isOnline ?? false}
-                    lastSeen={otherMemberStatus?.lastSeen}
-                    showText
-                    showDot
-                  />
-                  {profileStatus && (
-                    <>
-                      <span className="text-[var(--chat-text-soft)]" aria-hidden="true">/</span>
-                      <span className="truncate" title={profileStatus}>{profileStatus}</span>
-                    </>
-                  )}
-                </div>
-              ) : null}
+      <div className="chat-detail-profile-card rounded-[var(--chat-radius-lg)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] p-3">
+        <div className="flex items-start gap-4">
+          <UserAvatar
+            user={otherMember}
+            label={title}
+            variant="large"
+            className="h-16 w-16"
+          />
+          <div className="min-w-0 flex-1 pt-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-xl font-bold text-[var(--chat-text)]">{title}</h2>
+                {encryptedConversation ? (
+                  <p className="inline-flex items-center gap-1 text-sm text-[var(--chat-text-muted)]">
+                    <Lock aria-hidden="true" className="h-4 w-4 text-[var(--chat-accent)]" />
+                    <span>
+                      Encrypted conversation{selectedChat.isGroupChat ? ` - ${selectedChat.members.length} members` : ''}
+                    </span>
+                  </p>
+                ) : selectedChat.isGroupChat ? (
+                  <p className="text-sm text-[var(--chat-text-muted)]">
+                    {selectedChat.members.length} member{selectedChat.members.length === 1 ? '' : 's'}
+                  </p>
+                ) : otherMember && isPresenceChecking ? (
+                  <p className="text-sm text-[var(--chat-text-muted)]">
+                    Checking availability
+                  </p>
+                ) : otherMember ? (
+                  <div className="flex min-w-0 items-center gap-2 text-sm text-[var(--chat-text-muted)]">
+                    <OnlineStatus
+                      isOnline={otherMemberStatus?.isOnline ?? false}
+                      lastSeen={otherMemberStatus?.lastSeen}
+                      showText
+                      showDot
+                    />
+                    {profileStatus && (
+                      <>
+                        <span className="text-[var(--chat-text-soft)]" aria-hidden="true">/</span>
+                        <span className="truncate" title={profileStatus}>{profileStatus}</span>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
+                  isFavorite
+                    ? 'text-[var(--chat-warning)] hover:bg-[color-mix(in_srgb,var(--chat-warning)_14%,var(--chat-panel-subtle))]'
+                    : 'text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)]'
+                }`}
+                aria-label={isFavorite ? 'Unstar conversation' : 'Star conversation'}
+                aria-pressed={isFavorite}
+                title={isFavorite ? 'Unstar conversation' : 'Star conversation'}
+              >
+                <Star aria-hidden="true" className="h-5 w-5" fill={isFavorite ? 'currentColor' : 'none'} />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onToggleFavorite}
-              className={`grid h-9 w-9 shrink-0 place-items-center rounded-[var(--chat-radius-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)] ${
-                isFavorite
-                  ? 'text-[var(--chat-warning)] hover:bg-[color-mix(in_srgb,var(--chat-warning)_14%,var(--chat-panel-subtle))]'
-                  : 'text-[var(--chat-text-muted)] hover:bg-[var(--chat-panel-subtle)] hover:text-[var(--chat-accent)]'
-              }`}
-              aria-label={isFavorite ? 'Unstar conversation' : 'Star conversation'}
-              aria-pressed={isFavorite}
-              title={isFavorite ? 'Unstar conversation' : 'Star conversation'}
-            >
-              <Star aria-hidden="true" className="h-5 w-5" fill={isFavorite ? 'currentColor' : 'none'} />
-            </button>
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-2 border-b border-[var(--chat-border)] pb-5">
-        <ContextAction
-          label="Call"
-          title={callDisabledReason ?? 'Start audio call'}
-          icon={<Phone aria-hidden="true" className="h-5 w-5" />}
-          disabledReason={callDisabledReason}
-          onClick={onStartAudioCall}
-        />
-        <ContextAction
-          label="Video call"
-          title={videoCallDisabledReason ?? 'Start video call'}
-          icon={<Video aria-hidden="true" className="h-5 w-5" />}
-          disabledReason={videoCallDisabledReason}
-          onClick={onStartVideoCall}
-        />
-        <ContextAction
-          label="Search messages"
-          icon={<Search aria-hidden="true" className="h-5 w-5" />}
-          disabledReason={encryptedConversation ? 'Server-side search is unavailable for encrypted conversations.' : null}
-          onClick={onSearchMessages}
-        />
-        <ContextAction label="More conversation actions" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} onClick={onOpenMoreMenu} />
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          <ContextAction
+            label="Call"
+            title={callDisabledReason ?? 'Start audio call'}
+            icon={<Phone aria-hidden="true" className="h-5 w-5" />}
+            disabledReason={callDisabledReason}
+            onClick={onStartAudioCall}
+          />
+          <ContextAction
+            label="Video call"
+            title={videoCallDisabledReason ?? 'Start video call'}
+            icon={<Video aria-hidden="true" className="h-5 w-5" />}
+            disabledReason={videoCallDisabledReason}
+            onClick={onStartVideoCall}
+          />
+          <ContextAction
+            label="Search messages"
+            icon={<Search aria-hidden="true" className="h-5 w-5" />}
+            disabledReason={encryptedConversation ? 'Server-side search is unavailable for encrypted conversations.' : null}
+            onClick={onSearchMessages}
+          />
+          <ContextAction label="More conversation actions" icon={<MoreHorizontal aria-hidden="true" className="h-5 w-5" />} onClick={onOpenMoreMenu} />
+        </div>
       </div>
       {encryptedConversation && (
         <>
@@ -747,17 +749,37 @@ const RailSection = ({
   title: string;
   count?: number;
   children: ReactNode;
-}) => (
-  <section className="border-b border-[var(--chat-border)] py-5 last:border-b-0">
-    <div className="mb-3 flex items-center justify-between">
-      <h3 className="text-sm font-bold text-[var(--chat-text)]">{title}</h3>
-      {typeof count === 'number' && (
-        <span className="text-sm text-[var(--chat-text-muted)]">{count}</span>
-      )}
-    </div>
-    {children}
-  </section>
-);
+}) => {
+  const contentId = useId();
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  return (
+    <section className="chat-detail-section mt-3 rounded-[var(--chat-radius-lg)] border border-[var(--chat-border)] bg-[var(--chat-panel-elevated)] p-3">
+      <h3>
+        <button
+          type="button"
+          className="flex min-h-8 w-full items-center gap-2 rounded-[var(--chat-radius-sm)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-focus)]"
+          aria-label={title}
+          aria-expanded={isExpanded}
+          aria-controls={contentId}
+          onClick={() => setIsExpanded((current) => !current)}
+        >
+          <span className="min-w-0 flex-1 text-sm font-bold text-[var(--chat-text)]">{title}</span>
+          {typeof count === 'number' && (
+            <span className="text-sm text-[var(--chat-text-muted)]" aria-hidden="true">{count}</span>
+          )}
+          <ChevronDown
+            aria-hidden="true"
+            className={`h-4 w-4 shrink-0 text-[var(--chat-text-muted)] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </h3>
+      <div id={contentId} className="pt-3" hidden={!isExpanded}>
+        {children}
+      </div>
+    </section>
+  );
+};
 
 const SecurityRow = ({
   icon,
@@ -774,25 +796,15 @@ const SecurityRow = ({
     <span className="text-[var(--chat-text-muted)]">{icon}</span>
     <span className="min-w-0 flex-1 text-[var(--chat-text)]">{label}</span>
     <span
-      className={`inline-flex items-center gap-2 ${
+      className={`inline-flex rounded-[var(--chat-radius-sm)] border px-2 py-1 font-semibold ${
         tone === 'success'
-          ? 'text-[var(--chat-success)]'
+          ? 'border-[color-mix(in_srgb,var(--chat-success)_34%,var(--chat-border))] bg-[color-mix(in_srgb,var(--chat-success)_13%,var(--chat-panel))] text-[var(--chat-success)]'
           : tone === 'warning'
-            ? 'text-[var(--chat-warning)]'
-            : 'text-[var(--chat-text-muted)]'
+            ? 'border-[color-mix(in_srgb,var(--chat-warning)_34%,var(--chat-border))] bg-[color-mix(in_srgb,var(--chat-warning)_12%,var(--chat-panel))] text-[var(--chat-warning)]'
+            : 'border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] text-[var(--chat-text-muted)]'
       }`}
     >
       {value}
-      <span
-        className={`h-2 w-2 rounded-full ${
-          tone === 'success'
-            ? 'bg-[var(--chat-success)]'
-            : tone === 'warning'
-              ? 'bg-[var(--chat-warning)]'
-              : 'bg-[var(--chat-text-soft)]'
-        }`}
-        aria-hidden="true"
-      />
     </span>
   </div>
 );

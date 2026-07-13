@@ -18,10 +18,42 @@ const fulfillJson = (route: Route, body: unknown) =>
     body: JSON.stringify(body),
   });
 
+const collectUnexpectedBrowserErrors = (page: Page) => {
+  const consoleErrors: string[] = [];
+  const failedRequests: string[] = [];
+
+  page.on('console', (message) => {
+    const text = message.text();
+    if (
+      message.type() === 'error' &&
+      !text.startsWith('Failed to load resource:') &&
+      !text.includes('/socket.io/')
+    ) {
+      consoleErrors.push(text);
+    }
+  });
+  page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${error.message}`));
+  page.on('requestfailed', (request) => {
+    if (!request.url().includes('/socket.io/')) {
+      failedRequests.push(new URL(request.url()).pathname);
+    }
+  });
+
+  return { consoleErrors, failedRequests };
+};
+
 const transparentPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
   'base64'
 );
+
+const profileImageSvg = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#109080"/><stop offset="1" stop-color="#005044"/></linearGradient></defs>
+    <rect width="64" height="64" rx="14" fill="url(#g)"/>
+    <path d="M32 12 52 32 32 52 12 32Z M32 20 44 32 32 44 20 32Z" fill="none" stroke="#f0f0f0" stroke-width="2"/>
+  </svg>
+`;
 
 const getMessagesForChat = (chatId: string) => {
   const messagesByChatId = phase06VisualFixture.messagesByChatId as Record<string, unknown[]>;
@@ -57,10 +89,32 @@ const createPresenceSnapshot = () => {
 
 const mockChatifyApi = async (page: Page) => {
   await page.route('**/socket.io/**', (route) => route.abort());
+  await page.route('**/api/user/*/profile-image**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'image/svg+xml',
+    body: profileImageSvg,
+  }));
   await page.route('**/api/csrf-token', (route) => fulfillJson(route, { csrfToken: 'ui-smoke-token' }));
   await page.route('**/api/auth/is-authenticated', (route) => fulfillJson(route, { token: true }));
   await page.route('**/api/user/get-logged-user', (route) => fulfillJson(route, { status: 'success', user: phase06VisualFixture.currentUser }));
   await page.route('**/api/user/online-users', (route) => fulfillJson(route, createPresenceSnapshot()));
+  await page.route('**/api/user/notification-preferences', (route) => fulfillJson(route, {
+    status: 'success',
+    data: {
+      preferences: {
+        pushEnabled: false,
+        emailNotificationsEnabled: false,
+        messagePreviewMode: 'none',
+        emailUnsubscribed: false,
+        pushSubscriptionCount: 0,
+        mutedChatIds: [],
+      },
+    },
+  }));
+  await page.route('**/api/space', (route) => fulfillJson(route, {
+    status: 'success',
+    data: { spaces: [] },
+  }));
   await page.route('**/api/auth/logout', (route) => fulfillJson(route, { status: 'success' }));
   await page.route('**/api/chat/get-all-chats', (route) => fulfillJson(route, {
     status: 'success',
@@ -198,6 +252,29 @@ const assertDesktopLayout = async (page: Page) => {
   await expect(page.getByTestId('conversation-pane')).toBeVisible();
   await expect(page.getByTestId('chat-context-rail')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Video call' }).first()).toBeVisible();
+  const composerMetrics = await page.locator('.composer-dock').evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      bottom: rect.bottom,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(composerMetrics.scrollHeight).toBeLessThanOrEqual(composerMetrics.clientHeight + 1);
+  expect(composerMetrics.bottom).toBeLessThanOrEqual(composerMetrics.viewportHeight + 1);
+  await expectNoHorizontalOverflow(page);
+};
+
+const assertTabletLayout = async (page: Page) => {
+  await expect(page.getByTestId('chat-sidebar')).toBeVisible();
+  await expect(page.getByTestId('conversation-pane')).toBeVisible();
+  await expect(page.getByTestId('chat-context-rail')).toBeHidden();
+  await page.getByRole('button', { name: 'Open conversation details' }).click();
+  const detailsDialog = page.getByRole('dialog', { name: 'Conversation details' });
+  await expect(detailsDialog).toBeVisible();
+  await detailsDialog.getByRole('button', { name: 'Close conversation details' }).click();
   await expectNoHorizontalOverflow(page);
 };
 
@@ -270,21 +347,96 @@ const visualCases = [
     layout: assertMobileLayout,
     hasRightRail: false,
   },
+  {
+    name: 'tablet RTL dark',
+    theme: 'dark' as const,
+    viewport: { width: 768, height: 1024 },
+    screenshot: '08-ui-tablet-rtl-dark.png',
+    layout: assertTabletLayout,
+    hasRightRail: false,
+    locale: 'ar' as const,
+  },
 ];
 
 for (const visualCase of visualCases) {
   test(`Phase 08 ${visualCase.name} behavior-backed visual smoke`, async ({ page }) => {
     await page.setViewportSize(visualCase.viewport);
+    if ('locale' in visualCase && visualCase.locale) {
+      await page.addInitScript((locale) => {
+        window.localStorage.setItem('chatify_locale', locale);
+      }, visualCase.locale);
+    }
     await openPhase06Chat(page, visualCase.theme);
+    if ('locale' in visualCase && visualCase.locale === 'ar') {
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    }
     await assertConversationBasics(page);
     await visualCase.layout(page);
     await page.screenshot({ path: phase08ArtifactPath(visualCase.screenshot) });
+    if (visualCase.name === 'desktop dark') {
+      await page.screenshot({ path: phase08ArtifactPath('08-ui-desktop-dark-full-page.png'), fullPage: true });
+    }
     await assertHeaderSearchReuse(page);
     if (visualCase.hasRightRail) {
       await assertRightRailSearchReuse(page);
     }
   });
 }
+
+test('stable selection, repeated activation, detail disclosure, and keyboard focus visual evidence', async ({ page }) => {
+  const browserErrors = collectUnexpectedBrowserErrors(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openPhase06Chat(page, 'dark');
+
+  const secondChat = page.getByRole('button', { name: /DS-4C9A/ });
+  const middleChat = page.getByRole('button', { name: /PM-3D12/ });
+  const lastChat = page.locator('.chat-list-item').last();
+
+  const restingBackground = await secondChat.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await secondChat.hover();
+  await expect.poll(() => secondChat.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(restingBackground);
+
+  await secondChat.click();
+  await expect(secondChat).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.chat-list-item[aria-pressed="true"]')).toHaveCount(1);
+
+  await middleChat.click();
+  await expect(middleChat).toHaveAttribute('aria-pressed', 'true');
+  await expect(secondChat).toHaveAttribute('aria-pressed', 'false');
+
+  const lastTitle = lastChat.locator('span.truncate[dir="auto"]').first();
+  const originalTitle = await lastTitle.textContent();
+  await lastTitle.evaluate((element) => {
+    element.textContent = 'Cipher Node — International operations, incident coordination, and extremely long localized routing context';
+  });
+  await expectNoHorizontalOverflow(page);
+  await lastTitle.evaluate((element, title) => {
+    element.textContent = title;
+  }, originalTitle);
+
+  await middleChat.focus();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(lastChat).toBeFocused();
+  await page.screenshot({ path: phase08ArtifactPath('08-ui-desktop-dark-keyboard-focus.png') });
+  await page.keyboard.press('Enter');
+  await expect(lastChat).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.chat-list-item[aria-pressed="true"]')).toHaveCount(1);
+
+  const selectedUrl = page.url();
+  await page.keyboard.press('Enter');
+  await expect(lastChat).toHaveAttribute('aria-pressed', 'true');
+  expect(page.url()).toBe(selectedUrl);
+
+  const pinnedDisclosure = page.getByTestId('chat-context-rail').getByRole('button', { name: /Pinned messages/ });
+  const mediaDisclosure = page.getByTestId('chat-context-rail').getByRole('button', { name: /Shared media/ });
+  await pinnedDisclosure.click();
+  await expect(pinnedDisclosure).toHaveAttribute('aria-expanded', 'false');
+  await expect(mediaDisclosure).toHaveAttribute('aria-expanded', 'true');
+  await page.screenshot({ path: phase08ArtifactPath('08-ui-desktop-dark-alternate-selection.png') });
+  expect(browserErrors.consoleErrors).toEqual([]);
+  expect(browserErrors.failedRequests).toEqual([]);
+});
 
 test('mobile drawer conversation search smoke', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
