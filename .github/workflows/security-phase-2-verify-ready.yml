@@ -33,23 +33,28 @@ jobs:
           node-version: "24.19.0"
           package-manager-cache: false
 
-      - name: Regenerate Phase 1 evidence as if this temporary workflow is absent
+      - name: Regenerate Phase 1 and Phase 2 evidence without this workflow
         run: |
           git rm --cached -- .github/workflows/security-phase-2-verify-ready.yml
           npm run security:phase1:generate
           npm run security:phase1:check
+          npm run security:phase2:generate
           npm run security:phase2:check
           git restore --staged -- .github/workflows/security-phase-2-verify-ready.yml
 
       - name: Commit regenerated evidence
         run: |
-          git add docs/security/audit/phase-1/inventory.json docs/security/audit/phase-1/inventory.md
+          git add \
+            docs/security/audit/phase-1/inventory.json \
+            docs/security/audit/phase-1/inventory.md \
+            docs/security/audit/phase-2/threat-model.json \
+            docs/security/audit/phase-2/threat-model.md
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo 'Phase 1 evidence already matches the permanent Phase 2 tree.'
+            echo 'Phase 1 and Phase 2 evidence already match the permanent Phase 2 tree.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'docs(security): finalize Phase 2 inventory baseline'
+          git commit -m 'docs(security): finalize Phase 2 generated evidence'
           git push origin HEAD:security/phase-2-threat-model
