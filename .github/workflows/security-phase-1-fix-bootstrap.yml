@@ -30,33 +30,46 @@ jobs:
           node-version: "24.19.0"
           package-manager-cache: false
 
-      - name: Recover reviewed patch and preserve nested socket handlers
+      - name: Recover reviewed source patch
         run: |
           python - <<'PYEXTRACT'
           from pathlib import Path
           from subprocess import check_output
 
           workflow_path = '.github/workflows/security-phase-1-fix-bootstrap.yml'
-          previous = check_output(['git', 'show', f'HEAD^^:{workflow_path}'], text=True)
+          previous = check_output([
+              'git', 'show',
+              f'837c5df44677e99ec8faa020741e2b7da3c712f5:{workflow_path}',
+          ], text=True)
           start_marker = "          python - <<'PY'\n"
           end_marker = "\n          PY"
           start = previous.index(start_marker) + len(start_marker)
           end = previous.index(end_marker, start)
           body = previous[start:end]
           body = '\n'.join(line[10:] if line.startswith('          ') else line for line in body.splitlines()) + '\n'
+
           nested_skip = "      regex.lastIndex = balanced.endIndex + 1\n"
           if body.count(nested_skip) != 2:
               raise RuntimeError(f'Expected socket and service-worker cursor updates, found {body.count(nested_skip)}')
           body = body.replace(nested_skip, '', 1)
+
+          foundation_patch = "\nfoundation = foundation_path.read_text()\n"
+          foundation_start = body.find(foundation_patch)
+          if foundation_start == -1:
+              raise RuntimeError('Foundation workflow patch marker not found')
+          body = body[:foundation_start] + '\n'
+
           Path('/tmp/phase1-hardening.py').write_text(body)
           PYEXTRACT
           python /tmp/phase1-hardening.py
 
-      - name: Remove temporary bootstrap material
+      - name: Remove ordinary bootstrap material
         run: |
           git rm -r --ignore-unmatch scripts/security/phase1-bootstrap-chunks
-          git rm --ignore-unmatch .github/workflows/security-phase-1-fix-bootstrap.yml
           git rm -r --ignore-unmatch .planning/quick/260820-phase-1-security-inventory
+
+      - name: Exclude temporary workflow from final inventory
+        run: git rm --cached .github/workflows/security-phase-1-fix-bootstrap.yml
 
       - name: Verify parser hardening
         run: |
@@ -71,6 +84,9 @@ jobs:
         run: |
           npm run security:phase1:generate
           npm run security:phase1:check
+
+      - name: Restore temporary workflow to this commit
+        run: git add .github/workflows/security-phase-1-fix-bootstrap.yml
 
       - name: Commit verified Phase 1 implementation
         run: |
