@@ -74,6 +74,9 @@ socket.on('message:new', onMessage)
 self.addEventListener('push', onPush)
 self.addEventListener('notificationclick', onClick)
 `)
+  await write(root, 'Frontend/Chatify/src/window-events.ts', `
+window.addEventListener('message', onWindowMessage)
+`)
 
   await write(root, 'Backend/Chatify/Models/userModel.mjs', `
 import mongoose from 'mongoose'
@@ -120,6 +123,10 @@ export const deliverStatic = async (payload) => axios.post('https://api.example.
 `)
   await write(root, 'Backend/Chatify/Utils/headerReader.mjs', `
 export const readAuthorization = (headers) => headers.get('authorization')
+`)
+  await write(root, 'Backend/Chatify/Config/DBConfig.mjs', `
+database.on('connected', onConnected)
+stream.on('finish', onFinish)
 `)
   await write(root, 'Backend/Chatify/server.mjs', `
 setInterval(() => cleanup(), 60_000)
@@ -175,6 +182,7 @@ test('buildInventory discovers Phase 1 surfaces deterministically and redacts se
   assert.ok(first.entryPoints.socketEvents.some((entry) => (
     entry.dynamicExpression === 'CALL_SOCKET_EVENTS.START' && entry.event === 'call:start'
   )))
+  assert.ok(!first.entryPoints.socketEvents.some((entry) => ['connected', 'finish'].includes(entry.event)))
   assert.deepEqual(
     first.entryPoints.serviceWorkerEvents.map((entry) => entry.event),
     ['notificationclick', 'push'],
@@ -234,6 +242,7 @@ test('git-index inventory hashes every tracked file without parsing generated, v
   t.after(() => rm(root, { recursive: true, force: true }))
 
   await write(root, 'package.json', JSON.stringify({ name: 'tracked-fixture' }, null, 2))
+  await write(root, 'package-lock.json', '{"lockfileVersion":3,"note":"process.env.LOCKFILE_ONLY_SECRET"}\n')
   await write(root, '.artifacts/security/evidence.json', '{"token":"process.env.ARTIFACT_SECRET"}\n')
   await write(root, '.agents/skills/example.md', 'Use process.env.DOCUMENTATION_ONLY_SECRET in this example.\n')
   await write(root, 'docs/runbook.md', 'Set process.env.RUNBOOK_ONLY_SECRET before testing.\n')
@@ -268,4 +277,7 @@ test('git-index inventory hashes every tracked file without parsing generated, v
   assert.ok(!configurationNames.includes('ARTIFACT_SECRET'))
   assert.ok(!configurationNames.includes('DOCUMENTATION_ONLY_SECRET'))
   assert.ok(!configurationNames.includes('RUNBOOK_ONLY_SECRET'))
+  assert.ok(!configurationNames.includes('LOCKFILE_ONLY_SECRET'))
+  assert.equal(inventory.scope.dependencyLockfilesExcludedFromContentParsing, true)
+  assert.match(inventory.scope.contentParsingPolicy, /All Git-tracked files are hashed/)
 })

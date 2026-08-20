@@ -4,18 +4,6 @@
     "repositoryRoot": ".",
     "sourceSelection": "git-index",
     "excludedPaths": [
-      ".git",
-      ".next",
-      ".nuxt",
-      ".turbo",
-      ".vite",
-      "build",
-      "coverage",
-      "dist",
-      "node_modules",
-      "playwright-report",
-      "playwright-report-production",
-      "test-results",
       "docs/security/audit/phase-1/inventory.json",
       "docs/security/audit/phase-1/inventory.md"
     ],
@@ -23,6 +11,27 @@
       "docs/security/audit/phase-1/inventory.json",
       "docs/security/audit/phase-1/inventory.md"
     ],
+    "excludedContentDirectories": [
+      ".agents",
+      ".artifacts",
+      ".git",
+      ".next",
+      ".nuxt",
+      ".planning",
+      ".turbo",
+      ".vite",
+      ".vscode",
+      "build",
+      "coverage",
+      "dist",
+      "docs",
+      "node_modules",
+      "playwright-report",
+      "playwright-report-production",
+      "test-results"
+    ],
+    "dependencyLockfilesExcludedFromContentParsing": true,
+    "contentParsingPolicy": "All Git-tracked files are hashed; only runtime, workflow, package, environment-template, script, and deployment source is parsed.",
     "maximumScannedTextFileBytes": 2097152
   },
   "reproducibility": {
@@ -144,7 +153,10 @@
         "version": "1.0.0",
         "private": false,
         "type": "commonjs-default",
-        "engines": {},
+        "engines": {
+          "node": "24.19.0",
+          "npm": "11.17.0"
+        },
         "scripts": {
           "bootstrap:backend": "npm --prefix Backend/Chatify ci",
           "bootstrap:frontend": "npm --prefix Frontend/Chatify ci",
@@ -339,8 +351,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1512,
-    "totalTrackedBytes": 16478638,
+    "trackedFileCount": 1513,
+    "totalTrackedBytes": 16488108,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -1919,7 +1931,8 @@
         "Backend/Chatify/Models/userModel.mjs"
       ],
       "other": [
-        ".gitignore"
+        ".gitignore",
+        ".nvmrc"
       ],
       "package-manifests": [
         "Backend/Chatify/package.json",
@@ -3957,8 +3970,8 @@
       },
       {
         "path": ".github/workflows/security-and-test-foundation.yml",
-        "bytes": 4812,
-        "sha256": "e78ae7825ae0f0b6d533edee6ec51585ce6d2ba4f28494bab9f1847514df8083",
+        "bytes": 4850,
+        "sha256": "a45313dcbccb51f228b545e6af732b9cd4f4e240beb363ea35fcf72ba04aa510",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -3966,8 +3979,8 @@
       },
       {
         "path": ".github/workflows/security-phase-1-inventory.yml",
-        "bytes": 1373,
-        "sha256": "40fdfaeb86f95f414e1e0caf4e79dddbd4f638d595aeb1c9be0a528afb7a8675",
+        "bytes": 1694,
+        "sha256": "5060874dfc7ad076fbbdebcbff34ff3f6c7b8681ab4fbbf28752aa540846d9c2",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -3977,6 +3990,14 @@
         "path": ".gitignore",
         "bytes": 4364,
         "sha256": "d0c1027f93750b3091469ee59c81d3533ad4ae3d25c0f2c1e3a07963c2103086",
+        "categories": [
+          "other"
+        ]
+      },
+      {
+        "path": ".nvmrc",
+        "bytes": 8,
+        "sha256": "7e8a2fa94951112b894a3dbe3d05efef5e9263741fa49125f0a70f40fedab4cc",
         "categories": [
           "other"
         ]
@@ -14703,8 +14724,8 @@
       },
       {
         "path": "docs/plans/2026-08-20-phase-1-repository-inventory.md",
-        "bytes": 5873,
-        "sha256": "ae8219b1e112df7f4eb5ac9c94d6c79e4a87110d554f95aab95d36bbaa74513a",
+        "bytes": 7478,
+        "sha256": "05b7bae3108962f9f270f07c1e831a69ece08606b595d2be42598da83ed81658",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14712,8 +14733,8 @@
       },
       {
         "path": "docs/security/audit/phase-1/README.md",
-        "bytes": 4746,
-        "sha256": "5104d7a8baedef4a46796833667389fa6247e7cd9af03654503923efe4f01c67",
+        "bytes": 6998,
+        "sha256": "efb3eaa01fd2d364aeaa675dac5a3652315479a433db8d7535e50f810140b681",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17095,8 +17116,8 @@
       },
       {
         "path": "package.json",
-        "bytes": 1659,
-        "sha256": "047d4446345583075ae421aa89fef04983276c15794f16e501c7fd36bf88c73b",
+        "bytes": 1758,
+        "sha256": "adfebe90bed7897277348520f842f571aa978cece5903a88f0f4ff7547ecafb5",
         "categories": [
           "package-manifests",
           "text-source-or-config"
@@ -17130,8 +17151,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase1-inventory.test.mjs",
-        "bytes": 11799,
-        "sha256": "d99c22ac5651f2476de43ebf709bfe8f24db8fd5cfc61c575388ebfb01d56290",
+        "bytes": 12506,
+        "sha256": "b7e02d917135774da60a8c2367819a5948928082e43d8f82f7ecc4ed546a24e8",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17140,8 +17161,8 @@
       },
       {
         "path": "scripts/security/lib/inventory.mjs",
-        "bytes": 56944,
-        "sha256": "cb9ebd83eb7968f23f66ee60a01fb0965885e75bd44a850aca615107d7d0f635",
+        "bytes": 58496,
+        "sha256": "ab58b6882316436dc0cf3df71685752b14e604fb436550c4dc7e0d412fe5f6f2",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17149,8 +17170,8 @@
       },
       {
         "path": "scripts/security/phase1-doctor.mjs",
-        "bytes": 4807,
-        "sha256": "9baadb60c51c28caaa1edf7d7db39bb5aec599f1675ea676bfea4e17a0ad683e",
+        "bytes": 7001,
+        "sha256": "04413a159c8eb3cf0fda6696fa3c36d0bce8e6d7eab6ff6ef4594d6828b34535",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17167,8 +17188,8 @@
       },
       {
         "path": "scripts/security/phase1-reproduce.mjs",
-        "bytes": 4196,
-        "sha256": "ff3f5d6f3e17bc8dc388d79a6b67d7d07852ece36e610fa2e6369a79fb84f4c4",
+        "bytes": 4890,
+        "sha256": "25ea2a60b3ce9188f05df1ea071998bae182f11a25a5bbd07ffa1ffadc8fedb5",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -19418,6 +19439,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 1083
       },
@@ -19427,17 +19449,9 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 1203
-      },
-      {
-        "event": "<dynamic:eventName>",
-        "dynamicExpression": "eventName",
-        "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 906
       },
       {
         "event": "auth:revoked",
@@ -19445,6 +19459,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 1219
       },
@@ -19454,6 +19469,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.ACCEPT",
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 830
       },
@@ -19463,6 +19479,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.ANSWER",
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 936
       },
@@ -19472,6 +19489,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 908
       },
@@ -19481,6 +19499,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.END",
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 886
       },
@@ -19490,6 +19509,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.ERROR",
         "direction": "server-to-client-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Backend/Chatify/Utils/callSocketContract.mjs",
         "line": 71
       },
@@ -19499,6 +19519,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 910
       },
@@ -19508,6 +19529,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.ICE_CANDIDATE",
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 940
       },
@@ -19517,6 +19539,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 909
       },
@@ -19526,6 +19549,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 905
       },
@@ -19535,6 +19559,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.OFFER",
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 932
       },
@@ -19544,6 +19569,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 907
       },
@@ -19553,6 +19579,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.REJECT",
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 859
       },
@@ -19562,6 +19589,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.START",
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 771
       },
@@ -19571,6 +19599,7 @@
         "resolvedFromExpression": "CALL_SOCKET_EVENTS.SYNC",
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 914
       },
@@ -19580,6 +19609,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 906
       },
@@ -19589,6 +19619,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 923
       },
@@ -19598,6 +19629,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 1018
       },
@@ -19607,6 +19639,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 718
       },
@@ -19616,6 +19649,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 1012
       },
@@ -19625,6 +19659,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 1028
       },
@@ -19634,6 +19669,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 945
       },
@@ -19643,6 +19679,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 740
       },
@@ -19652,6 +19689,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 922
       },
@@ -19661,6 +19699,7 @@
         "resolvedFromExpression": null,
         "direction": "transport-lifecycle",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 903
       },
@@ -19670,17 +19709,9 @@
         "resolvedFromExpression": null,
         "direction": "transport-lifecycle",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 897
-      },
-      {
-        "event": "connected",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "client-to-server-listener",
-        "method": "on",
-        "source": "Backend/Chatify/Config/DBConfig.mjs",
-        "line": 11
       },
       {
         "event": "connection",
@@ -19688,6 +19719,7 @@
         "resolvedFromExpression": null,
         "direction": "transport-lifecycle",
         "method": "on",
+        "receiver": "io",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 664
       },
@@ -19697,6 +19729,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 924
       },
@@ -19706,6 +19739,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 925
       },
@@ -19715,6 +19749,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 929
       },
@@ -19724,6 +19759,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 930
       },
@@ -19733,6 +19769,7 @@
         "resolvedFromExpression": null,
         "direction": "transport-lifecycle",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 1075
       },
@@ -19742,116 +19779,9 @@
         "resolvedFromExpression": null,
         "direction": "transport-lifecycle",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 899
-      },
-      {
-        "event": "disconnected",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "client-to-server-listener",
-        "method": "on",
-        "source": "Backend/Chatify/Config/DBConfig.mjs",
-        "line": 22
-      },
-      {
-        "event": "error",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "transport-lifecycle",
-        "method": "on",
-        "source": "Backend/Chatify/Config/DBConfig.mjs",
-        "line": 16
-      },
-      {
-        "event": "error",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "transport-lifecycle",
-        "method": "on",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 1731
-      },
-      {
-        "event": "error",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "transport-lifecycle",
-        "method": "on",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 1775
-      },
-      {
-        "event": "error",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "transport-lifecycle",
-        "method": "on",
-        "source": "Backend/Chatify/Controller/userController.mjs",
-        "line": 780
-      },
-      {
-        "event": "error",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "transport-lifecycle",
-        "method": "on",
-        "source": "Backend/Chatify/Services/attachmentStorageService.mjs",
-        "line": 41
-      },
-      {
-        "event": "error",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "transport-lifecycle",
-        "method": "on",
-        "source": "Backend/Chatify/Services/profileImageStorageService.mjs",
-        "line": 41
-      },
-      {
-        "event": "finish",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "client-to-server-listener",
-        "method": "on",
-        "source": "Backend/Chatify/Middlewares/requestLogger.mjs",
-        "line": 15
-      },
-      {
-        "event": "finish",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "client-to-server-listener",
-        "method": "on",
-        "source": "Backend/Chatify/Services/attachmentStorageService.mjs",
-        "line": 42
-      },
-      {
-        "event": "finish",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "client-to-server-listener",
-        "method": "on",
-        "source": "Backend/Chatify/Services/profileImageStorageService.mjs",
-        "line": 42
-      },
-      {
-        "event": "message:deleted",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 2612
-      },
-      {
-        "event": "message:deleted",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/moderationController.mjs",
-        "line": 73
       },
       {
         "event": "message:deleted",
@@ -19859,6 +19789,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 915
       },
@@ -19868,6 +19799,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 1052
       },
@@ -19877,6 +19809,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 608
       },
@@ -19886,6 +19819,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 945
       },
@@ -19893,17 +19827,9 @@
         "event": "message:edited",
         "dynamicExpression": null,
         "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 2777
-      },
-      {
-        "event": "message:edited",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 916
       },
@@ -19911,26 +19837,9 @@
         "event": "message:new",
         "dynamicExpression": null,
         "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Config/socket.mjs",
-        "line": 267
-      },
-      {
-        "event": "message:new",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 772
-      },
-      {
-        "event": "message:new",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 911
       },
@@ -19940,6 +19849,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 918
       },
@@ -19947,17 +19857,9 @@
         "event": "message:reaction",
         "dynamicExpression": null,
         "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 2882
-      },
-      {
-        "event": "message:reaction",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 917
       },
@@ -19965,17 +19867,9 @@
         "event": "message:read",
         "dynamicExpression": null,
         "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 2298
-      },
-      {
-        "event": "message:read",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 913
       },
@@ -19985,6 +19879,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 762
       },
@@ -19992,35 +19887,9 @@
         "event": "message:status-update",
         "dynamicExpression": null,
         "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Config/socket.mjs",
-        "line": 1007
-      },
-      {
-        "event": "message:status-update",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Config/socket.mjs",
-        "line": 1149
-      },
-      {
-        "event": "message:status-update",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 2308
-      },
-      {
-        "event": "message:status-update",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 912
       },
@@ -20030,6 +19899,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 919
       },
@@ -20037,17 +19907,9 @@
         "event": "messages:read-batch",
         "dynamicExpression": null,
         "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Controller/messageController.mjs",
-        "line": 2398
-      },
-      {
-        "event": "messages:read-batch",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 914
       },
@@ -20057,6 +19919,7 @@
         "resolvedFromExpression": null,
         "direction": "transport-lifecycle",
         "method": "on",
+        "receiver": "socketInstance.io",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 901
       },
@@ -20066,6 +19929,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 482
       },
@@ -20075,6 +19939,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 715
       },
@@ -20084,6 +19949,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 904
       },
@@ -20093,6 +19959,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 699
       },
@@ -20102,6 +19969,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 898
       },
@@ -20111,6 +19979,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 926
       },
@@ -20120,6 +19989,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 928
       },
@@ -20129,6 +19999,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 927
       },
@@ -20138,6 +20009,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 1039
       },
@@ -20147,6 +20019,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 1019
       },
@@ -20156,6 +20029,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 1045
       },
@@ -20165,6 +20039,7 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 1047
       },
@@ -20174,6 +20049,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 932
       },
@@ -20183,8 +20059,9 @@
         "resolvedFromExpression": null,
         "direction": "client-to-server-listener",
         "method": "on",
+        "receiver": "handshake. socket",
         "source": "Backend/Chatify/Config/socket.mjs",
-        "line": 703
+        "line": 702
       },
       {
         "event": "user:connected",
@@ -20192,6 +20069,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-emitter",
         "method": "emit",
+        "receiver": "socket",
         "source": "Backend/Chatify/Config/socket.mjs",
         "line": 700
       },
@@ -20201,6 +20079,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 921
       },
@@ -20210,6 +20089,7 @@
         "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 920
       },
@@ -20217,26 +20097,9 @@
         "event": "user:typing",
         "dynamicExpression": null,
         "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Config/socket.mjs",
-        "line": 1031
-      },
-      {
-        "event": "user:typing",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
-        "direction": "server-to-client-emitter",
-        "method": "emit",
-        "source": "Backend/Chatify/Config/socket.mjs",
-        "line": 1059
-      },
-      {
-        "event": "user:typing",
-        "dynamicExpression": null,
-        "resolvedFromExpression": null,
         "direction": "server-to-client-listener",
         "method": "on",
+        "receiver": "socketInstance",
         "source": "Frontend/Chatify/src/hooks/useChatSocket.ts",
         "line": 931
       }
@@ -20260,17 +20123,17 @@
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 715
+        "line": 736
       },
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 715
+        "line": 736
       },
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 715
+        "line": 736
       },
       {
         "kind": "setInterval",
@@ -24598,7 +24461,7 @@
       "evidence": [
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 988
+          "line": 1009
         }
       ],
       "environmentVariables": [],
@@ -24628,10 +24491,6 @@
           "line": 4
         },
         {
-          "source": "Backend/Chatify/package-lock.json",
-          "line": 27
-        },
-        {
           "source": "Backend/Chatify/package.json",
           "line": 29
         },
@@ -24641,7 +24500,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1080
+          "line": 1101
         }
       ],
       "environmentVariables": [
@@ -24651,15 +24510,6 @@
       "staticHosts": [
         "http://localhost:5173",
         "https://cdn.discordapp.com",
-        "https://dotenvx.com",
-        "https://feross.org",
-        "https://github.com",
-        "https://ko-fi.com",
-        "https://opencollective.com",
-        "https://paulmillr.com",
-        "https://registry.npmjs.org",
-        "https://tidelift.com",
-        "https://www.patreon.com",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017"
       ],
@@ -24695,10 +24545,6 @@
       "provider": "generic-http",
       "evidence": [
         {
-          "source": "Backend/Chatify/package-lock.json",
-          "line": 13
-        },
-        {
           "source": "Backend/Chatify/package.json",
           "line": 15
         },
@@ -24713,10 +24559,6 @@
         {
           "source": "Frontend/Chatify/e2e/pages/productionSmoke.ts",
           "line": 246
-        },
-        {
-          "source": "Frontend/Chatify/package-lock.json",
-          "line": 15
         },
         {
           "source": "Frontend/Chatify/package.json",
@@ -24844,7 +24686,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1117
+          "line": 1138
         }
       ],
       "environmentVariables": [],
@@ -24855,16 +24697,6 @@
         "https://api.example.com",
         "https://chatify-ckmn.onrender.com",
         "https://chatify-ten-rho.vercel.app",
-        "https://dotenvx.com",
-        "https://eslint.org",
-        "https://feross.org",
-        "https://github.com",
-        "https://ko-fi.com",
-        "https://opencollective.com",
-        "https://paulmillr.com",
-        "https://registry.npmjs.org",
-        "https://tidelift.com",
-        "https://www.patreon.com",
         "mongodb://localhost:27017"
       ],
       "controls": [
@@ -24893,10 +24725,6 @@
           "line": 3
         },
         {
-          "source": "Backend/Chatify/package-lock.json",
-          "line": 28
-        },
-        {
           "source": "Backend/Chatify/package.json",
           "line": 30
         },
@@ -24906,7 +24734,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1079
+          "line": 1100
         }
       ],
       "environmentVariables": [
@@ -24921,15 +24749,6 @@
       "staticHosts": [
         "http://localhost:5173",
         "https://cdn.discordapp.com",
-        "https://dotenvx.com",
-        "https://feross.org",
-        "https://github.com",
-        "https://ko-fi.com",
-        "https://opencollective.com",
-        "https://paulmillr.com",
-        "https://registry.npmjs.org",
-        "https://tidelift.com",
-        "https://www.patreon.com",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017"
       ],
@@ -24958,10 +24777,6 @@
           "line": 2
         },
         {
-          "source": "Backend/Chatify/package-lock.json",
-          "line": 29
-        },
-        {
           "source": "Backend/Chatify/package.json",
           "line": 31
         },
@@ -24971,7 +24786,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1078
+          "line": 1099
         }
       ],
       "environmentVariables": [
@@ -24981,15 +24796,6 @@
       "staticHosts": [
         "http://localhost:5173",
         "https://cdn.discordapp.com",
-        "https://dotenvx.com",
-        "https://feross.org",
-        "https://github.com",
-        "https://ko-fi.com",
-        "https://opencollective.com",
-        "https://paulmillr.com",
-        "https://registry.npmjs.org",
-        "https://tidelift.com",
-        "https://www.patreon.com",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017"
       ],
@@ -25043,7 +24849,7 @@
         },
         {
           "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-          "line": 101
+          "line": 104
         }
       ],
       "environmentVariables": [
@@ -25100,7 +24906,7 @@
         },
         {
           "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-          "line": 104
+          "line": 107
         }
       ],
       "environmentVariables": [
@@ -25140,10 +24946,6 @@
           "line": 27
         },
         {
-          "source": "Backend/Chatify/package-lock.json",
-          "line": 32
-        },
-        {
           "source": "Backend/Chatify/package.json",
           "line": 34
         },
@@ -25153,11 +24955,11 @@
         },
         {
           "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-          "line": 109
+          "line": 112
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 990
+          "line": 1011
         }
       ],
       "environmentVariables": [
@@ -25170,15 +24972,6 @@
       "staticHosts": [
         "http://localhost:5173",
         "https://api.example.com",
-        "https://dotenvx.com",
-        "https://feross.org",
-        "https://github.com",
-        "https://ko-fi.com",
-        "https://opencollective.com",
-        "https://paulmillr.com",
-        "https://registry.npmjs.org",
-        "https://tidelift.com",
-        "https://www.patreon.com",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017",
         "mongodb://localhost:27017"
@@ -25231,7 +25024,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 134,
+            "line": 141,
             "kind": "github-secret"
           }
         ],
@@ -25245,7 +25038,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 237,
+            "line": 246,
             "kind": "process-env"
           }
         ],
@@ -25455,7 +25248,7 @@
         "referencedAt": [
           {
             "source": ".github/workflows/security-and-test-foundation.yml",
-            "line": 102,
+            "line": 103,
             "kind": "github-variable"
           }
         ],
@@ -25746,7 +25539,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 238,
+            "line": 247,
             "kind": "process-env"
           }
         ],
@@ -25853,7 +25646,7 @@
           },
           {
             "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 110,
+            "line": 113,
             "kind": "process-env"
           }
         ],
@@ -25906,7 +25699,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/phase1-reproduce.mjs",
-            "line": 50,
+            "line": 54,
             "kind": "process-env"
           }
         ],
@@ -25968,7 +25761,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/phase1-reproduce.mjs",
-            "line": 47,
+            "line": 51,
             "kind": "process-env"
           }
         ],
@@ -25982,7 +25775,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/phase1-reproduce.mjs",
-            "line": 49,
+            "line": 53,
             "kind": "process-env"
           }
         ],
@@ -25996,7 +25789,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/phase1-reproduce.mjs",
-            "line": 48,
+            "line": 52,
             "kind": "process-env"
           }
         ],
@@ -26010,7 +25803,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/phase1-reproduce.mjs",
-            "line": 46,
+            "line": 50,
             "kind": "process-env"
           }
         ],
@@ -26109,6 +25902,34 @@
         "exampleValue": null
       },
       {
+        "name": "ImageOS",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 70,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "ImageVersion",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 71,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
         "name": "JWT_ACCESS_SECRET",
         "category": "authentication-and-sessions",
         "sensitive": true,
@@ -26116,7 +25937,21 @@
         "referencedAt": [
           {
             "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 108,
+            "line": 111,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "LOCKFILE_ONLY_SECRET",
+        "category": "general-runtime",
+        "sensitive": true,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 245,
             "kind": "process-env"
           }
         ],
@@ -26130,7 +25965,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 107,
+            "line": 110,
             "kind": "process-env"
           }
         ],
@@ -26178,7 +26013,7 @@
         "referencedAt": [
           {
             "source": ".github/workflows/security-and-test-foundation.yml",
-            "line": 179,
+            "line": 180,
             "kind": "process-env"
           }
         ],
@@ -26478,7 +26313,63 @@
         "referencedAt": [
           {
             "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 239,
+            "line": 248,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "RUNNER_ARCH",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 67,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "RUNNER_ENVIRONMENT",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 69,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "RUNNER_NAME",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 68,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "RUNNER_OS",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 66,
             "kind": "process-env"
           }
         ],
@@ -26687,7 +26578,7 @@
         "referencedAt": [
           {
             "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 109,
+            "line": 112,
             "kind": "process-env"
           }
         ],
@@ -26715,13 +26606,20 @@
       "GITHUB_RUN_ID",
       "GITHUB_SHA",
       "HERCULES_ARTIFACT_DIR",
+      "ImageOS",
+      "ImageVersion",
       "JWT_ACCESS_SECRET",
+      "LOCKFILE_ONLY_SECRET",
       "MONGO_URI",
       "NEEDS_JSON",
       "PRIVACY_OUTBOX_RETENTION_DAYS",
       "PRIVACY_WORKER_ENABLED",
       "PRIVACY_WORKER_INTERVAL_MS",
       "RUNBOOK_ONLY_SECRET",
+      "RUNNER_ARCH",
+      "RUNNER_ENVIRONMENT",
+      "RUNNER_NAME",
+      "RUNNER_OS",
       "TWO_FACTOR_ENCRYPTION_KEY",
       "WEB_PUSH_PUBLIC_KEY"
     ],
@@ -26786,6 +26684,9 @@
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "HERCULES_ARTIFACT_DIR",
+        "ImageOS",
+        "ImageVersion",
+        "LOCKFILE_ONLY_SECRET",
         "NEEDS_JSON",
         "NODE_ENV",
         "NOTIFICATION_WORKER_ENABLED",
@@ -26796,6 +26697,10 @@
         "PRIVACY_WORKER_ENABLED",
         "PRIVACY_WORKER_INTERVAL_MS",
         "RUNBOOK_ONLY_SECRET",
+        "RUNNER_ARCH",
+        "RUNNER_ENVIRONMENT",
+        "RUNNER_NAME",
+        "RUNNER_OS",
         "TWO_FACTOR_ENCRYPTION_KEY",
         "VITE_BACKEND_URL",
         "VITE_SOCKET_URL"
@@ -26831,7 +26736,8 @@
     "sensitiveConfigurationMapGenerated": true
   },
   "limitations": [
-    "Static discovery intentionally records dynamic route/event expressions instead of evaluating application code.",
+    "Static discovery does not execute application code; unresolved Socket.IO expressions are retained while runtime-computed route registrations require later review.",
+    "All Git-tracked files are hashed, while dependency lockfiles, vendored, generated, artifact, build, report, and documentation content is deliberately not parsed as runtime source.",
     "Client input, response fields, outbound controls, deletion behavior, and some model metadata are heuristic candidates that require later source-to-sink validation.",
     "Runtime-only destinations, injected provider configuration, infrastructure settings, and secret values are outside committed inventory and belong in controlled evidence."
   ]

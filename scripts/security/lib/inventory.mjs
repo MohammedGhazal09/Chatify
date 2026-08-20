@@ -58,6 +58,10 @@ const containsIgnoredDirectory = (relativePath) => relativePath
   .split('/')
   .some((part) => IGNORED_DIRECTORIES.has(part))
 
+const isDependencyLockfilePath = (relativePath) => (
+  /(?:^|\/)(?:package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock)$/.test(relativePath)
+)
+
 const shouldIgnoreFilesystemPath = (relativePath) => {
   if (!relativePath || relativePath === '.') return false
   return isGeneratedInventoryPath(relativePath) || containsIgnoredDirectory(relativePath)
@@ -66,6 +70,7 @@ const shouldIgnoreFilesystemPath = (relativePath) => {
 const shouldExcludeFromStaticAnalysis = (relativePath) => (
   isGeneratedInventoryPath(relativePath)
   || containsIgnoredDirectory(relativePath)
+  || isDependencyLockfilePath(relativePath)
   || NON_RUNTIME_SOURCE_PREFIXES.some((prefix) => relativePath.startsWith(prefix))
 )
 
@@ -645,17 +650,27 @@ const getSocketDirection = (file, method, event) => {
   return null
 }
 
+const isLikelySocketReceiver = (receiver) => {
+  const normalized = receiver.replace(/\s+/g, '')
+  const root = normalized.match(/^[A-Za-z_$][\w$]*/)?.[0] ?? ''
+  if (/socket/i.test(root) || root === 'io') return true
+  return /(?:^|\.)(?:io|socket[A-Za-z_$\d]*)(?:$|\.|\()/i.test(normalized)
+}
+
 const extractSocketEvents = (texts) => {
   const events = []
   const literalConstants = extractLiteralConstantMap(texts)
-  const regex = /\.\s*(on|once|emit)\s*\(/g
+  const regex = /\b([A-Za-z_$][\w$]*(?:(?:\s*\?\.\s*|\s*\.\s*)[A-Za-z_$][\w$]*|\s*\([^()\n]*\))*)\s*(?:\?\.|\.)\s*(on|once|emit)\s*\(/g
 
   for (const [file, source] of texts) {
     if (!file.startsWith('Backend/Chatify/') && !file.startsWith('Frontend/Chatify/')) continue
     if (!/\.[cm]?[jt]sx?$/.test(file) || /(^|\/)(__tests__|test|tests|e2e)(\/|$)|\.(test|spec)\./.test(file)) continue
     let match
     while ((match = regex.exec(source)) !== null) {
-      const openIndex = source.indexOf('(', match.index)
+      const receiver = compactWhitespace(match[1])
+      const method = match[2]
+      if (!isLikelySocketReceiver(receiver)) continue
+      const openIndex = source.indexOf('(', match.index + match[0].lastIndexOf(method) + method.length)
       const balanced = extractBalanced(source, openIndex)
       if (!balanced) continue
       const [firstArgument] = splitTopLevelArguments(balanced.content)
@@ -664,14 +679,15 @@ const extractSocketEvents = (texts) => {
       const expression = literal === null ? compactWhitespace(firstArgument) : null
       const resolvedConstant = expression ? literalConstants.get(expression) ?? null : null
       const event = literal ?? resolvedConstant ?? `<dynamic:${expression}>`
-      const direction = getSocketDirection(file, match[1], event)
+      const direction = getSocketDirection(file, method, event)
       if (!direction) continue
       events.push({
         event,
         dynamicExpression: expression,
         resolvedFromExpression: resolvedConstant ? expression : null,
         direction,
-        method: match[1],
+        method,
+        receiver,
         source: file,
         line: lineNumberAt(source, match.index),
       })
@@ -687,12 +703,17 @@ const extractSocketEvents = (texts) => {
   ))
 }
 
+const isServiceWorkerSource = (file) => (
+  file.startsWith('Frontend/Chatify/')
+  && /(^|\/)(?:[^/]*[-_.])?(?:sw|service-worker|serviceworker)(?:[-_.][^/]*)?\.[cm]?[jt]s$/i.test(file)
+)
+
 const extractServiceWorkerEvents = (texts) => {
   const entries = []
   const regex = /(?:self\s*\.\s*)?addEventListener\s*\(/g
 
   for (const [file, source] of texts) {
-    if (!file.startsWith('Frontend/Chatify/')) continue
+    if (!isServiceWorkerSource(file)) continue
     let match
     while ((match = regex.exec(source)) !== null) {
       const balanced = extractBalanced(source, source.indexOf('(', match.index))
@@ -1221,8 +1242,14 @@ export const buildInventory = async (rootDirectory = process.cwd()) => {
     scope: {
       repositoryRoot: '.',
       sourceSelection: source,
-      excludedPaths: [...IGNORED_DIRECTORIES].sort().concat([...GENERATED_PATHS].sort()),
+      excludedPaths: [...GENERATED_PATHS].sort(),
       generatedOutputsExcludedFromSelfInventory: [...GENERATED_PATHS].sort(),
+      excludedContentDirectories: sortStrings([
+        ...IGNORED_DIRECTORIES,
+        ...NON_RUNTIME_SOURCE_PREFIXES.map((prefix) => prefix.replace(/\/$/, '')),
+      ]),
+      dependencyLockfilesExcludedFromContentParsing: true,
+      contentParsingPolicy: 'All Git-tracked files are hashed; only runtime, workflow, package, environment-template, script, and deployment source is parsed.',
       maximumScannedTextFileBytes: MAX_TEXT_BYTES,
     },
     reproducibility,
@@ -1252,7 +1279,8 @@ export const buildInventory = async (rootDirectory = process.cwd()) => {
       sensitiveConfigurationMapGenerated: true,
     },
     limitations: [
-      'Static discovery intentionally records dynamic route/event expressions instead of evaluating application code.',
+      'Static discovery does not execute application code; unresolved Socket.IO expressions are retained while runtime-computed route registrations require later review.',
+      'All Git-tracked files are hashed, while dependency lockfiles, vendored, generated, artifact, build, report, and documentation content is deliberately not parsed as runtime source.',
       'Client input, response fields, outbound controls, deletion behavior, and some model metadata are heuristic candidates that require later source-to-sink validation.',
       'Runtime-only destinations, injected provider configuration, infrastructure settings, and secret values are outside committed inventory and belong in controlled evidence.',
     ],
