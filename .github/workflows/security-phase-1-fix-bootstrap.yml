@@ -30,208 +30,27 @@ jobs:
           node-version: "24.19.0"
           package-manager-cache: false
 
-      - name: Apply fail-closed Phase 1 hardening
+      - name: Recover reviewed patch and preserve nested socket handlers
         run: |
-          python - <<'PY'
+          python - <<'PYEXTRACT'
           from pathlib import Path
+          from subprocess import check_output
 
-          inventory_path = Path('scripts/security/lib/inventory.mjs')
-          test_path = Path('scripts/security/__tests__/phase1-inventory.test.mjs')
-          foundation_path = Path('.github/workflows/security-and-test-foundation.yml')
-
-          def replace_once(text, old, new, label):
-              count = text.count(old)
-              if count != 1:
-                  raise RuntimeError(f'{label}: expected exactly one literal match, found {count}')
-              return text.replace(old, new, 1)
-
-          def replace_between(text, start, end, replacement, label):
-              start_index = text.find(start)
-              if start_index == -1:
-                  raise RuntimeError(f'{label}: start marker not found')
-              end_index = text.find(end, start_index + len(start))
-              if end_index == -1:
-                  raise RuntimeError(f'{label}: end marker not found')
-              return text[:start_index] + replacement + text[end_index:]
-
-          source = inventory_path.read_text()
-          source = replace_once(
-              source,
-              "const containsIgnoredDirectory = (relativePath) => relativePath\n  .split('/')\n  .some((part) => IGNORED_DIRECTORIES.has(part))\n",
-              "const containsIgnoredDirectory = (relativePath) => relativePath\n  .split('/')\n  .some((part) => IGNORED_DIRECTORIES.has(part))\n\nconst isDependencyLockfilePath = (relativePath) => (\n  /(?:^|\\/)(?:package-lock\\.json|npm-shrinkwrap\\.json|pnpm-lock\\.yaml|yarn\\.lock)$/.test(relativePath)\n)\n",
-              'add dependency lockfile classifier',
-          )
-          source = replace_once(
-              source,
-              "  isGeneratedInventoryPath(relativePath)\n  || containsIgnoredDirectory(relativePath)\n  || NON_RUNTIME_SOURCE_PREFIXES.some((prefix) => relativePath.startsWith(prefix))\n)",
-              "  isGeneratedInventoryPath(relativePath)\n  || containsIgnoredDirectory(relativePath)\n  || isDependencyLockfilePath(relativePath)\n  || NON_RUNTIME_SOURCE_PREFIXES.some((prefix) => relativePath.startsWith(prefix))\n)",
-              'exclude dependency lockfiles from source parsing',
-          )
-
-          socket_block = r'''const getSocketDirection = (file, method, event) => {
-            const backend = file.startsWith('Backend/Chatify/')
-            const frontend = file.startsWith('Frontend/Chatify/')
-            if (!backend && !frontend) return null
-            if (SOCKET_LIFECYCLE_EVENTS.has(event)) return 'transport-lifecycle'
-            if (backend && (method === 'on' || method === 'once')) return 'client-to-server-listener'
-            if (backend && method === 'emit') return 'server-to-client-emitter'
-            if (frontend && method === 'emit') return 'client-to-server-emitter'
-            if (frontend && (method === 'on' || method === 'once')) return 'server-to-client-listener'
-            return null
-          }
-
-          const isLikelySocketReceiver = (receiver) => {
-            const normalized = receiver.replace(/\s+/g, '')
-            const root = normalized.match(/^[A-Za-z_$][\w$]*/)?.[0] ?? ''
-            if (/socket/i.test(root) || root === 'io') return true
-            return /(?:^|\.)(?:io|socket[A-Za-z_$\d]*)(?:$|\.|\()/i.test(normalized)
-          }
-
-          const extractSocketEvents = (texts) => {
-            const events = []
-            const literalConstants = extractLiteralConstantMap(texts)
-            const regex = /\b([A-Za-z_$][\w$]*(?:(?:\s*\?\.\s*|\s*\.\s*)[A-Za-z_$][\w$]*|\s*\([^()\n]*\))*)\s*(?:\?\.|\.)\s*(on|once|emit)\s*\(/g
-
-            for (const [file, source] of texts) {
-              if (!file.startsWith('Backend/Chatify/') && !file.startsWith('Frontend/Chatify/')) continue
-              if (!/\.[cm]?[jt]sx?$/.test(file) || /(^|\/)(__tests__|test|tests|e2e)(\/|$)|\.(test|spec)\./.test(file)) continue
-              let match
-              while ((match = regex.exec(source)) !== null) {
-                const receiver = compactWhitespace(match[1])
-                const method = match[2]
-                if (!isLikelySocketReceiver(receiver)) continue
-                const openIndex = source.indexOf('(', match.index + match[0].lastIndexOf(method) + method.length)
-                const balanced = extractBalanced(source, openIndex)
-                if (!balanced) continue
-                const [firstArgument] = splitTopLevelArguments(balanced.content)
-                if (!firstArgument) continue
-                const literal = parseLiteralString(firstArgument)
-                const expression = literal === null ? compactWhitespace(firstArgument) : null
-                const resolvedConstant = expression ? literalConstants.get(expression) ?? null : null
-                const event = literal ?? resolvedConstant ?? `<dynamic:${expression}>`
-                const direction = getSocketDirection(file, method, event)
-                if (!direction) continue
-                events.push({
-                  event,
-                  dynamicExpression: expression,
-                  resolvedFromExpression: resolvedConstant ? expression : null,
-                  direction,
-                  method,
-                  receiver,
-                  source: file,
-                  line: lineNumberAt(source, match.index),
-                })
-                regex.lastIndex = balanced.endIndex + 1
-              }
-            }
-
-            const deduplicated = new Map(events.map((entry) => [
-              `${entry.direction}:${entry.event}:${entry.source}:${entry.line}`,
-              entry,
-            ]))
-            return [...deduplicated.values()].sort((a, b) => (
-              `${a.event}:${a.direction}:${a.source}:${a.line}`.localeCompare(`${b.event}:${b.direction}:${b.source}:${b.line}`)
-            ))
-          }
-
-          '''
-          source = replace_between(
-              source,
-              'const getSocketDirection = (file, method, event) => {',
-              'const extractServiceWorkerEvents = (texts) => {',
-              socket_block,
-              'replace Socket.IO receiver-aware discovery',
-          )
-
-          service_worker_block = r'''const isServiceWorkerSource = (file) => (
-            file.startsWith('Frontend/Chatify/')
-            && /(^|\/)(?:[^/]*[-_.])?(?:sw|service-worker|serviceworker)(?:[-_.][^/]*)?\.[cm]?[jt]s$/i.test(file)
-          )
-
-          const extractServiceWorkerEvents = (texts) => {
-            const entries = []
-            const regex = /(?:self\s*\.\s*)?addEventListener\s*\(/g
-
-            for (const [file, source] of texts) {
-              if (!isServiceWorkerSource(file)) continue
-              let match
-              while ((match = regex.exec(source)) !== null) {
-                const balanced = extractBalanced(source, source.indexOf('(', match.index))
-                if (!balanced) continue
-                const event = parseLiteralString(splitTopLevelArguments(balanced.content)[0] ?? '')
-                if (!event || !SERVICE_WORKER_EVENTS.has(event)) continue
-                entries.push({ event, source: file, line: lineNumberAt(source, match.index) })
-                regex.lastIndex = balanced.endIndex + 1
-              }
-            }
-
-            return entries.sort((a, b) => `${a.event}:${a.source}:${a.line}`.localeCompare(`${b.event}:${b.source}:${b.line}`))
-          }
-
-          '''
-          source = replace_between(
-              source,
-              'const extractServiceWorkerEvents = (texts) => {',
-              'const extractBackgroundJobs = (texts) => {',
-              service_worker_block,
-              'restrict service-worker listener discovery',
-          )
-          source = replace_once(
-              source,
-              "      excludedPaths: [...IGNORED_DIRECTORIES].sort().concat([...GENERATED_PATHS].sort()),\n      generatedOutputsExcludedFromSelfInventory: [...GENERATED_PATHS].sort(),\n      maximumScannedTextFileBytes: MAX_TEXT_BYTES,",
-              "      excludedPaths: [...GENERATED_PATHS].sort(),\n      generatedOutputsExcludedFromSelfInventory: [...GENERATED_PATHS].sort(),\n      excludedContentDirectories: sortStrings([\n        ...IGNORED_DIRECTORIES,\n        ...NON_RUNTIME_SOURCE_PREFIXES.map((prefix) => prefix.replace(/\\/$/, '')),\n      ]),\n      dependencyLockfilesExcludedFromContentParsing: true,\n      contentParsingPolicy: 'All Git-tracked files are hashed; only runtime, workflow, package, environment-template, script, and deployment source is parsed.',\n      maximumScannedTextFileBytes: MAX_TEXT_BYTES,",
-              'document inventory and content parsing boundaries',
-          )
-          source = replace_once(
-              source,
-              "      'Static discovery intentionally records dynamic route/event expressions instead of evaluating application code.',",
-              "      'Static discovery does not execute application code; unresolved Socket.IO expressions are retained while runtime-computed route registrations require later review.',\n      'All Git-tracked files are hashed, while dependency lockfiles, vendored, generated, artifact, build, report, and documentation content is deliberately not parsed as runtime source.',",
-              'document static-analysis limits',
-          )
-          inventory_path.write_text(source)
-
-          tests = test_path.read_text()
-          tests = replace_once(
-              tests,
-              "  await write(root, 'Frontend/Chatify/public/sw.js', `\nself.addEventListener('push', onPush)\nself.addEventListener('notificationclick', onClick)\n`)\n",
-              "  await write(root, 'Frontend/Chatify/public/sw.js', `\nself.addEventListener('push', onPush)\nself.addEventListener('notificationclick', onClick)\n`)\n  await write(root, 'Frontend/Chatify/src/window-events.ts', `\nwindow.addEventListener('message', onWindowMessage)\n`)\n",
-              'add non-worker frontend listener fixture',
-          )
-          tests = replace_once(
-              tests,
-              "  await write(root, 'Backend/Chatify/server.mjs', `\nsetInterval(() => cleanup(), 60_000)\n`)\n",
-              "  await write(root, 'Backend/Chatify/Config/DBConfig.mjs', `\ndatabase.on('connected', onConnected)\nstream.on('finish', onFinish)\n`)\n  await write(root, 'Backend/Chatify/server.mjs', `\nsetInterval(() => cleanup(), 60_000)\n`)\n",
-              'add non-socket listener fixture',
-          )
-          tests = replace_once(
-              tests,
-              "  assert.ok(first.entryPoints.socketEvents.some((entry) => (\n    entry.dynamicExpression === 'CALL_SOCKET_EVENTS.START' && entry.event === 'call:start'\n  )))\n",
-              "  assert.ok(first.entryPoints.socketEvents.some((entry) => (\n    entry.dynamicExpression === 'CALL_SOCKET_EVENTS.START' && entry.event === 'call:start'\n  )))\n  assert.ok(!first.entryPoints.socketEvents.some((entry) => ['connected', 'finish'].includes(entry.event)))\n",
-              'assert generic event emitters are excluded',
-          )
-          tests = replace_once(
-              tests,
-              "  await write(root, 'package.json', JSON.stringify({ name: 'tracked-fixture' }, null, 2))\n",
-              "  await write(root, 'package.json', JSON.stringify({ name: 'tracked-fixture' }, null, 2))\n  await write(root, 'package-lock.json', '{\"lockfileVersion\":3,\"note\":\"process.env.LOCKFILE_ONLY_SECRET\"}\\n')\n",
-              'add dependency lockfile isolation fixture',
-          )
-          tests = replace_once(
-              tests,
-              "  assert.ok(!configurationNames.includes('RUNBOOK_ONLY_SECRET'))\n",
-              "  assert.ok(!configurationNames.includes('RUNBOOK_ONLY_SECRET'))\n  assert.ok(!configurationNames.includes('LOCKFILE_ONLY_SECRET'))\n  assert.equal(inventory.scope.dependencyLockfilesExcludedFromContentParsing, true)\n  assert.match(inventory.scope.contentParsingPolicy, /All Git-tracked files are hashed/)\n",
-              'assert lockfiles are not parsed as runtime configuration',
-          )
-          test_path.write_text(tests)
-
-          foundation = foundation_path.read_text()
-          foundation = replace_once(
-              foundation,
-              "  operations:\n    name: Operations and release evidence\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v4\n\n      - name: Setup Node\n        uses: actions/setup-node@v6\n        with:\n          node-version: \"lts/*\"\n\n      - name: Run operations guard",
-              "  operations:\n    name: Operations and release evidence\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n\n    steps:\n      - name: Checkout\n        uses: actions/checkout@v4\n\n      - name: Setup Node\n        uses: actions/setup-node@v6\n        with:\n          node-version: \"lts/*\"\n          package-manager-cache: false\n\n      - name: Run operations guard",
-              'disable implicit root npm cache in operations job',
-          )
-          foundation_path.write_text(foundation)
-          PY
+          workflow_path = '.github/workflows/security-phase-1-fix-bootstrap.yml'
+          previous = check_output(['git', 'show', f'HEAD^:{workflow_path}'], text=True)
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY"
+          start = previous.index(start_marker) + len(start_marker)
+          end = previous.index(end_marker, start)
+          body = previous[start:end]
+          body = '\n'.join(line[10:] if line.startswith('          ') else line for line in body.splitlines()) + '\n'
+          nested_skip = "        regex.lastIndex = balanced.endIndex + 1\n"
+          if body.count(nested_skip) != 2:
+              raise RuntimeError(f'Expected socket and service-worker cursor updates, found {body.count(nested_skip)}')
+          body = body.replace(nested_skip, '', 1)
+          Path('/tmp/phase1-hardening.py').write_text(body)
+          PYEXTRACT
+          python /tmp/phase1-hardening.py
 
       - name: Remove temporary bootstrap material
         run: |
