@@ -1,0 +1,4 @@
+ ${relativePath}`)
+}
+await rm('scripts/security/phase1-bootstrap-bundle.mjs', { force: true })
+await rm('.github/workflows/phase1-bootstrap.yml', { force: true })
