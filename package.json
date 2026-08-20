@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "Live Chat app using MERN stack",
   "main": "index.js",
+  "packageManager": "npm@11.17.0",
+  "engines": {
+    "node": "24.19.0",
+    "npm": "11.17.0"
+  },
   "scripts": {
     "test": "npm run quality",
     "quality": "npm run quality:backend && npm run quality:frontend",
@@ -15,7 +20,15 @@
     "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
     "evidence:production": "node scripts/production-evidence-check.mjs",
     "evidence:release-candidate": "node scripts/production-evidence-check.mjs --phase=50",
-    "ops:check": "node scripts/ops-check.mjs"
+    "ops:check": "node scripts/ops-check.mjs",
+    "bootstrap:backend": "npm --prefix Backend/Chatify ci",
+    "bootstrap:frontend": "npm --prefix Frontend/Chatify ci",
+    "bootstrap:full": "npm run bootstrap:backend && npm run bootstrap:frontend",
+    "doctor": "node scripts/security/phase1-doctor.mjs",
+    "security:phase1:test": "node --test scripts/security/__tests__/phase1-inventory.test.mjs",
+    "security:phase1:generate": "node scripts/security/phase1-inventory.mjs --write",
+    "security:phase1:check": "node scripts/security/phase1-inventory.mjs --check",
+    "security:phase1:reproduce": "node scripts/security/phase1-reproduce.mjs"
   },
   "author": "Mohammed Ghazal",
   "license": "ISC"
