@@ -176,6 +176,10 @@
           "security:phase1:generate": "node scripts/security/phase1-inventory.mjs --write",
           "security:phase1:reproduce": "node scripts/security/phase1-reproduce.mjs",
           "security:phase1:test": "node --test scripts/security/__tests__/phase1-inventory.test.mjs",
+          "security:phase2:check": "node scripts/security/phase2-threat-model.mjs --check",
+          "security:phase2:generate": "node scripts/security/phase2-threat-model.mjs --write",
+          "security:phase2:reproduce": "node scripts/security/phase2-reproduce.mjs",
+          "security:phase2:test": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs",
           "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
           "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
           "test": "npm run quality"
@@ -286,6 +290,30 @@
       },
       {
         "cwd": ".",
+        "script": "security:phase2:check",
+        "command": "npm run security:phase2:check",
+        "implementation": "node scripts/security/phase2-threat-model.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase2:generate",
+        "command": "npm run security:phase2:generate",
+        "implementation": "node scripts/security/phase2-threat-model.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase2:reproduce",
+        "command": "npm run security:phase2:reproduce",
+        "implementation": "node scripts/security/phase2-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase2:test",
+        "command": "npm run security:phase2:test",
+        "implementation": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs"
+      },
+      {
+        "cwd": ".",
         "script": "smoke:local",
         "command": "npm run smoke:local",
         "implementation": "npm --prefix Frontend/Chatify run test:ui --"
@@ -352,8 +380,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1513,
-    "totalTrackedBytes": 16488387,
+    "trackedFileCount": 1525,
+    "totalTrackedBytes": 16795711,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -538,10 +566,16 @@
         "scripts/ops-check.mjs",
         "scripts/production-evidence-check.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
+        "scripts/security/__tests__/phase2-threat-model.test.mjs",
         "scripts/security/lib/inventory.mjs",
+        "scripts/security/lib/phase2-policy.mjs",
+        "scripts/security/lib/phase2-reproduction.mjs",
+        "scripts/security/lib/threat-model.mjs",
         "scripts/security/phase1-doctor.mjs",
         "scripts/security/phase1-inventory.mjs",
-        "scripts/security/phase1-reproduce.mjs"
+        "scripts/security/phase1-reproduce.mjs",
+        "scripts/security/phase2-reproduce.mjs",
+        "scripts/security/phase2-threat-model.mjs"
       ],
       "configuration": [
         "Backend/Chatify/Config/DBConfig.mjs",
@@ -1578,7 +1612,12 @@
         "docs/operations/production-smoke.md",
         "docs/operations/rollback.md",
         "docs/plans/2026-08-20-phase-1-repository-inventory.md",
-        "docs/security/audit/phase-1/README.md"
+        "docs/plans/2026-08-21-phase-2-threat-model.md",
+        "docs/security/audit/phase-1/README.md",
+        "docs/security/audit/phase-2/README.md",
+        "docs/security/audit/phase-2/threat-model.json",
+        "docs/security/audit/phase-2/threat-model.md",
+        "docs/security/audit/phase-2/threat-model.source.json"
       ],
       "frontend": [
         "Frontend/Chatify/.env.example",
@@ -2144,7 +2183,8 @@
         "Frontend/Chatify/src/utils/notificationPrivacy.test.ts",
         "Frontend/Chatify/src/utils/sounds.test.ts",
         "Frontend/Chatify/src/utils/validationSchemas.test.ts",
-        "scripts/security/__tests__/phase1-inventory.test.mjs"
+        "scripts/security/__tests__/phase1-inventory.test.mjs",
+        "scripts/security/__tests__/phase2-threat-model.test.mjs"
       ],
       "text-source-or-config": [
         ".agents/skills/csrf-protection/references/double-submit-cookie-pattern.md",
@@ -2182,6 +2222,7 @@
         ".artifacts/oauth-login-qa-20260628-2347/report.json",
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
+        ".github/workflows/security-phase-2-threat-model.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
         ".planning/codebase/CONVENTIONS.md",
@@ -3205,7 +3246,12 @@
         "docs/operations/production-smoke.md",
         "docs/operations/rollback.md",
         "docs/plans/2026-08-20-phase-1-repository-inventory.md",
+        "docs/plans/2026-08-21-phase-2-threat-model.md",
         "docs/security/audit/phase-1/README.md",
+        "docs/security/audit/phase-2/README.md",
+        "docs/security/audit/phase-2/threat-model.json",
+        "docs/security/audit/phase-2/threat-model.md",
+        "docs/security/audit/phase-2/threat-model.source.json",
         "Frontend/Chatify/e2e/admin-delivery-health.spec.ts",
         "Frontend/Chatify/e2e/admin-hub.spec.ts",
         "Frontend/Chatify/e2e/admin-integrations.spec.ts",
@@ -3459,10 +3505,16 @@
         "scripts/ops-check.mjs",
         "scripts/production-evidence-check.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
+        "scripts/security/__tests__/phase2-threat-model.test.mjs",
         "scripts/security/lib/inventory.mjs",
+        "scripts/security/lib/phase2-policy.mjs",
+        "scripts/security/lib/phase2-reproduction.mjs",
+        "scripts/security/lib/threat-model.mjs",
         "scripts/security/phase1-doctor.mjs",
         "scripts/security/phase1-inventory.mjs",
         "scripts/security/phase1-reproduce.mjs",
+        "scripts/security/phase2-reproduce.mjs",
+        "scripts/security/phase2-threat-model.mjs",
         "skills-lock.json"
       ],
       "utilities": [
@@ -3500,7 +3552,8 @@
       ],
       "workflows": [
         ".github/workflows/security-and-test-foundation.yml",
-        ".github/workflows/security-phase-1-inventory.yml"
+        ".github/workflows/security-phase-1-inventory.yml",
+        ".github/workflows/security-phase-2-threat-model.yml"
       ]
     },
     "files": [
@@ -3988,9 +4041,18 @@
         ]
       },
       {
+        "path": ".github/workflows/security-phase-2-threat-model.yml",
+        "bytes": 1975,
+        "sha256": "a433816ff47e3ea3eb9b8696b5589b15f5ad8f02670ea7c3e28f2d065dd40456",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
         "path": ".gitignore",
-        "bytes": 4364,
-        "sha256": "d0c1027f93750b3091469ee59c81d3533ad4ae3d25c0f2c1e3a07963c2103086",
+        "bytes": 4424,
+        "sha256": "ccc9fd1a4e72a2bc91927c1798d922eccb9fce22cee4a6c46d266bf2f88d991b",
         "categories": [
           "other"
         ]
@@ -14733,9 +14795,54 @@
         ]
       },
       {
+        "path": "docs/plans/2026-08-21-phase-2-threat-model.md",
+        "bytes": 6101,
+        "sha256": "ccbdb1654057e17b5c7ff565002f1b293260f9afcdc0927cb0213d582e74157f",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "docs/security/audit/phase-1/README.md",
         "bytes": 6998,
         "sha256": "efb3eaa01fd2d364aeaa675dac5a3652315479a433db8d7535e50f810140b681",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-2/README.md",
+        "bytes": 6066,
+        "sha256": "14403b6dd8cfcb7c998c9909eaf4da29bbc460039f11add29d31817354074038",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-2/threat-model.json",
+        "bytes": 92029,
+        "sha256": "3f4a0b061616abe3bf7899c0f731d3b0b5ba7444f08f1e63be5663e210a6c1f9",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-2/threat-model.md",
+        "bytes": 38504,
+        "sha256": "1ec0091404bb28c0c80127aa843a85c99090877a9dfb4a0cdbcce3ebfa05c281",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-2/threat-model.source.json",
+        "bytes": 86886,
+        "sha256": "83831b9c6f7606da632bf8f530bb85f4be6b9f0622afb494435980f6ea939570",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17117,8 +17224,8 @@
       },
       {
         "path": "package.json",
-        "bytes": 1758,
-        "sha256": "adfebe90bed7897277348520f842f571aa978cece5903a88f0f4ff7547ecafb5",
+        "bytes": 2111,
+        "sha256": "db3cce8c02283e1b7dc0ec474507086bc76776bea5eed110d835ece38472fbf3",
         "categories": [
           "package-manifests",
           "text-source-or-config"
@@ -17161,9 +17268,46 @@
         ]
       },
       {
+        "path": "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "bytes": 19335,
+        "sha256": "61cfc86dbac89e4b0636d0c256f328204195f0091813d2fd52d3a560459f150e",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "scripts/security/lib/inventory.mjs",
         "bytes": 58529,
         "sha256": "0e5edab598d8ac5229c4f13ec330259b18353236381768eb6a20e9f22e02fc33",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/phase2-policy.mjs",
+        "bytes": 27837,
+        "sha256": "a0642c07221210d202851bb6bbf01fcae14edaa3542dd314ec371e98d221bc48",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/phase2-reproduction.mjs",
+        "bytes": 831,
+        "sha256": "143e272c6f67a0ae321012b687deb767375cc31a32a7be32ccff28256551e0ae",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/threat-model.mjs",
+        "bytes": 20531,
+        "sha256": "a6d4e235bed2c68d7f5ec4a06fc5f7f8275f5c34c3f7459f37be55b10f928192",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17191,6 +17335,24 @@
         "path": "scripts/security/phase1-reproduce.mjs",
         "bytes": 4890,
         "sha256": "25ea2a60b3ce9188f05df1ea071998bae182f11a25a5bbd07ffa1ffadc8fedb5",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase2-reproduce.mjs",
+        "bytes": 4841,
+        "sha256": "50f7cc33cab87408e8ae8dfa3211346b5213035d2516d848aa80f8ca5da9cbff",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase2-threat-model.mjs",
+        "bytes": 1975,
+        "sha256": "69bf047720fe5b02c9d9863e3eaf1406d4a13d172dc19377634d1f5b88f73bd8",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -20315,6 +20477,26 @@
       },
       {
         "cwd": ".",
+        "name": "security:phase2:check",
+        "implementation": "node scripts/security/phase2-threat-model.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase2:generate",
+        "implementation": "node scripts/security/phase2-threat-model.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase2:reproduce",
+        "implementation": "node scripts/security/phase2-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase2:test",
+        "implementation": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs"
+      },
+      {
+        "cwd": ".",
         "name": "smoke:local",
         "implementation": "npm --prefix Frontend/Chatify run test:ui --"
       },
@@ -20900,7 +21082,8 @@
         "Backend/Chatify/test/message/message.voice.test.mjs",
         "Frontend/Chatify/src/pages/chat/components/ConversationDetailContent.tsx",
         "Frontend/Chatify/src/pages/chat/components/MessageComposer.test.tsx",
-        "Frontend/Chatify/src/pages/chat/components/MessageComposer.tsx"
+        "Frontend/Chatify/src/pages/chat/components/MessageComposer.tsx",
+        "scripts/security/lib/phase2-policy.mjs"
       ],
       "clientInputCandidates": [
         "assignedTo",
@@ -23393,7 +23576,8 @@
         "Backend/Chatify/test/auth/session.management.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
         "Backend/Chatify/Utils/sessionMetadata.mjs",
-        "Backend/Chatify/Utils/tokenCookieGenerator.mjs"
+        "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
+        "scripts/security/lib/phase2-policy.mjs"
       ],
       "clientInputCandidates": [
         "code",
@@ -24927,6 +25111,10 @@
         {
           "source": "scripts/security/lib/inventory.mjs",
           "line": 1012
+        },
+        {
+          "source": "scripts/security/lib/phase2-policy.mjs",
+          "line": 42
         }
       ],
       "environmentVariables": [
@@ -25617,6 +25805,11 @@
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 54,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 60,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -25679,6 +25872,11 @@
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 51,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 57,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -25692,6 +25890,11 @@
           {
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 53,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 59,
             "kind": "process-env"
           }
         ],
@@ -25707,6 +25910,11 @@
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 52,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 58,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -25720,6 +25928,11 @@
           {
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 50,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 56,
             "kind": "process-env"
           }
         ],
@@ -25827,6 +26040,11 @@
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 70,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 76,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -25840,6 +26058,11 @@
           {
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 71,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 77,
             "kind": "process-env"
           }
         ],
@@ -26189,6 +26412,11 @@
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 67,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 73,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26202,6 +26430,11 @@
           {
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 69,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 75,
             "kind": "process-env"
           }
         ],
@@ -26217,6 +26450,11 @@
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 68,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 74,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26230,6 +26468,11 @@
           {
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 66,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase2-reproduce.mjs",
+            "line": 72,
             "kind": "process-env"
           }
         ],
