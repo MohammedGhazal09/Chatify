@@ -380,8 +380,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1529,
-    "totalTrackedBytes": 16807936,
+    "trackedFileCount": 1525,
+    "totalTrackedBytes": 16795711,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -2222,11 +2222,7 @@
         ".artifacts/oauth-login-qa-20260628-2347/report.json",
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
-        ".github/workflows/security-phase-2-bootstrap.yml",
-        ".github/workflows/security-phase-2-finalize.yml",
-        ".github/workflows/security-phase-2-source-repair.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
-        ".github/workflows/security-phase-2-verify-ready.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
         ".planning/codebase/CONVENTIONS.md",
@@ -3557,11 +3553,7 @@
       "workflows": [
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
-        ".github/workflows/security-phase-2-bootstrap.yml",
-        ".github/workflows/security-phase-2-finalize.yml",
-        ".github/workflows/security-phase-2-source-repair.yml",
-        ".github/workflows/security-phase-2-threat-model.yml",
-        ".github/workflows/security-phase-2-verify-ready.yml"
+        ".github/workflows/security-phase-2-threat-model.yml"
       ]
     },
     "files": [
@@ -4049,45 +4041,9 @@
         ]
       },
       {
-        "path": ".github/workflows/security-phase-2-bootstrap.yml",
-        "bytes": 2668,
-        "sha256": "ea4f1253c59a7c8f4210ae1bdcc011fd2f2f8c8be6684217f9f6c658f9386c4d",
-        "categories": [
-          "text-source-or-config",
-          "workflows"
-        ]
-      },
-      {
-        "path": ".github/workflows/security-phase-2-finalize.yml",
-        "bytes": 3913,
-        "sha256": "c3446024ee0acf34a419679506c51c50f728cf1d75fcb23652e4b0efb86dd58d",
-        "categories": [
-          "text-source-or-config",
-          "workflows"
-        ]
-      },
-      {
-        "path": ".github/workflows/security-phase-2-source-repair.yml",
-        "bytes": 3077,
-        "sha256": "8b259a1424cb6b3acd0b8c479044b50d36b67956f076ebefec20bde6521b422e",
-        "categories": [
-          "text-source-or-config",
-          "workflows"
-        ]
-      },
-      {
         "path": ".github/workflows/security-phase-2-threat-model.yml",
         "bytes": 1975,
         "sha256": "a433816ff47e3ea3eb9b8696b5589b15f5ad8f02670ea7c3e28f2d065dd40456",
-        "categories": [
-          "text-source-or-config",
-          "workflows"
-        ]
-      },
-      {
-        "path": ".github/workflows/security-phase-2-verify-ready.yml",
-        "bytes": 2567,
-        "sha256": "de7c861c1a97bd352038898b6e3c137c4621a030a7ef5a36db178429962e7b96",
         "categories": [
           "text-source-or-config",
           "workflows"
