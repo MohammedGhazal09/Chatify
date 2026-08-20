@@ -380,8 +380,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1530,
-    "totalTrackedBytes": 16808874,
+    "trackedFileCount": 1529,
+    "totalTrackedBytes": 16807936,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -2223,7 +2223,6 @@
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
         ".github/workflows/security-phase-2-bootstrap.yml",
-        ".github/workflows/security-phase-2-cleanup.yml",
         ".github/workflows/security-phase-2-finalize.yml",
         ".github/workflows/security-phase-2-source-repair.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
@@ -3559,7 +3558,6 @@
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
         ".github/workflows/security-phase-2-bootstrap.yml",
-        ".github/workflows/security-phase-2-cleanup.yml",
         ".github/workflows/security-phase-2-finalize.yml",
         ".github/workflows/security-phase-2-source-repair.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
@@ -4060,15 +4058,6 @@
         ]
       },
       {
-        "path": ".github/workflows/security-phase-2-cleanup.yml",
-        "bytes": 1762,
-        "sha256": "587bcd3d7b2333331914646ab5b3793cb61b0060a4be66494a139ae2de493d7b",
-        "categories": [
-          "text-source-or-config",
-          "workflows"
-        ]
-      },
-      {
         "path": ".github/workflows/security-phase-2-finalize.yml",
         "bytes": 3913,
         "sha256": "c3446024ee0acf34a419679506c51c50f728cf1d75fcb23652e4b0efb86dd58d",
@@ -4097,8 +4086,8 @@
       },
       {
         "path": ".github/workflows/security-phase-2-verify-ready.yml",
-        "bytes": 1743,
-        "sha256": "8210c2d0e56c8bd068bd4c04e76779fd1e0fbc11dc674e5ea06173707915c180",
+        "bytes": 2567,
+        "sha256": "de7c861c1a97bd352038898b6e3c137c4621a030a7ef5a36db178429962e7b96",
         "categories": [
           "text-source-or-config",
           "workflows"
