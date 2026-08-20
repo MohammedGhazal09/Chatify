@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - security/phase-1-repository-inventory
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
