@@ -37,14 +37,14 @@ jobs:
           from subprocess import check_output
 
           workflow_path = '.github/workflows/security-phase-1-fix-bootstrap.yml'
-          previous = check_output(['git', 'show', f'HEAD^:{workflow_path}'], text=True)
+          previous = check_output(['git', 'show', f'HEAD^^:{workflow_path}'], text=True)
           start_marker = "          python - <<'PY'\n"
           end_marker = "\n          PY"
           start = previous.index(start_marker) + len(start_marker)
           end = previous.index(end_marker, start)
           body = previous[start:end]
           body = '\n'.join(line[10:] if line.startswith('          ') else line for line in body.splitlines()) + '\n'
-          nested_skip = "        regex.lastIndex = balanced.endIndex + 1\n"
+          nested_skip = "      regex.lastIndex = balanced.endIndex + 1\n"
           if body.count(nested_skip) != 2:
               raise RuntimeError(f'Expected socket and service-worker cursor updates, found {body.count(nested_skip)}')
           body = body.replace(nested_skip, '', 1)
