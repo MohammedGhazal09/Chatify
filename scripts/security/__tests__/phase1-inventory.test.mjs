@@ -51,6 +51,7 @@ app.use('/api/message', protect, csrfProtection, messageRouter)
   await write(root, 'Backend/Chatify/Routes/authRouter.mjs', `
 router.post('/login', login)
 router.get('/verify/:token', verify)
+router.route('/sessions').get(protect, listSessions).post(protect, createSession)
 `)
   await write(root, 'Backend/Chatify/Routes/messageRouter.mjs', `
 router.post('/', upload.single('file'), createMessage)
@@ -115,6 +116,10 @@ export const deliver = async (targetUrl, payload) => axios.post(targetUrl, paylo
   maxRedirects: 0,
   maxContentLength: 1048576,
 })
+export const deliverStatic = async (payload) => axios.post('https://api.example.com/hook', payload)
+`)
+  await write(root, 'Backend/Chatify/Utils/headerReader.mjs', `
+export const readAuthorization = (headers) => headers.get('authorization')
 `)
   await write(root, 'Backend/Chatify/server.mjs', `
 setInterval(() => cleanup(), 60_000)
@@ -151,8 +156,15 @@ test('buildInventory discovers Phase 1 surfaces deterministically and redacts se
   assert.ok(routes.includes('GET /api/health'))
   assert.ok(routes.includes('POST /api/auth/login'))
   assert.ok(routes.includes('GET /api/auth/verify/:token'))
+  assert.ok(routes.includes('GET /api/auth/sessions'))
+  assert.ok(routes.includes('POST /api/auth/sessions'))
   assert.ok(routes.includes('POST /api/message/'))
   assert.ok(routes.includes('DELETE /api/message/:messageId'))
+  assert.ok(!routes.includes('POST https://api.example.com/hook'))
+  assert.ok(!routes.includes('GET authorization'))
+  assert.ok(first.entryPoints.httpRoutes.every((route) => (
+    route.source === 'Backend/Chatify/app.mjs' || route.source.startsWith('Backend/Chatify/Routes/')
+  )))
 
   assert.ok(first.entryPoints.socketEvents.some((entry) => (
     entry.direction === 'client-to-server-listener' && entry.event === 'chat:join'
@@ -217,12 +229,14 @@ test('generated inventory write/check detects stale output without timestamps', 
   assert.equal(json.schemaVersion, 1)
 })
 
-test('git-index inventory hashes every tracked file without parsing generated or vendored content', async (t) => {
+test('git-index inventory hashes every tracked file without parsing generated, vendored, or documentation content', async (t) => {
   const root = await mkdtemp(path.join(tmpdir(), 'chatify-phase1-git-'))
   t.after(() => rm(root, { recursive: true, force: true }))
 
   await write(root, 'package.json', JSON.stringify({ name: 'tracked-fixture' }, null, 2))
   await write(root, '.artifacts/security/evidence.json', '{"token":"process.env.ARTIFACT_SECRET"}\n')
+  await write(root, '.agents/skills/example.md', 'Use process.env.DOCUMENTATION_ONLY_SECRET in this example.\n')
+  await write(root, 'docs/runbook.md', 'Set process.env.RUNBOOK_ONLY_SECRET before testing.\n')
   await write(root, 'Frontend/Chatify/dist/tracked.js', "router.get('/generated-route', handler)\n")
   await write(root, 'node_modules/tracked-package/index.js', "socket.on('vendored:event', handler)\n")
   await write(root, 'Backend/Chatify/app.mjs', "app.get('/api/health', health)\n")
@@ -236,9 +250,12 @@ test('git-index inventory hashes every tracked file without parsing generated or
   const paths = inventory.components.files.map((record) => record.path)
   const routes = inventory.entryPoints.httpRoutes.map((route) => route.fullPath)
   const events = inventory.entryPoints.socketEvents.map((event) => event.event)
+  const configurationNames = inventory.sensitiveConfiguration.variables.map((entry) => entry.name)
 
   assert.equal(inventory.scope.sourceSelection, 'git-index')
   assert.ok(paths.includes('.artifacts/security/evidence.json'))
+  assert.ok(paths.includes('.agents/skills/example.md'))
+  assert.ok(paths.includes('docs/runbook.md'))
   assert.ok(paths.includes('Frontend/Chatify/dist/tracked.js'))
   assert.ok(paths.includes('node_modules/tracked-package/index.js'))
   assert.ok(!paths.includes('node_modules/untracked-package/index.js'))
@@ -248,5 +265,7 @@ test('git-index inventory hashes every tracked file without parsing generated or
   assert.ok(routes.includes('/api/health'))
   assert.ok(!routes.includes('/generated-route'))
   assert.ok(!events.includes('vendored:event'))
-  assert.ok(!inventory.sensitiveConfiguration.variables.some((entry) => entry.name === 'ARTIFACT_SECRET'))
+  assert.ok(!configurationNames.includes('ARTIFACT_SECRET'))
+  assert.ok(!configurationNames.includes('DOCUMENTATION_ONLY_SECRET'))
+  assert.ok(!configurationNames.includes('RUNBOOK_ONLY_SECRET'))
 })
