@@ -17,14 +17,74 @@ const exists = async (relativePath) => {
   }
 }
 const readJson = async (relativePath) => JSON.parse(await readFile(path.join(root, relativePath), 'utf8'))
+const normalizeVersion = (value) => String(value ?? '').trim().replace(/^v/, '')
+const isExactVersion = (value) => /^\d+\.\d+\.\d+$/.test(value)
 
-const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10)
-add(nodeMajor >= 20 ? 'pass' : 'fail', 'Node.js runtime', `${process.version}; required major >= 20`)
+let rootManifest = {}
+try {
+  rootManifest = await readJson('package.json')
+} catch (error) {
+  add('fail', 'Root manifest metadata', `unable to parse package.json: ${error.message}`)
+}
+
+let expectedNodeVersion = null
+try {
+  expectedNodeVersion = normalizeVersion(await readFile(path.join(root, '.nvmrc'), 'utf8'))
+  add(
+    isExactVersion(expectedNodeVersion) ? 'pass' : 'fail',
+    'Pinned Node.js version',
+    isExactVersion(expectedNodeVersion) ? `${expectedNodeVersion} from .nvmrc` : `.nvmrc must contain an exact x.y.z version; received ${expectedNodeVersion || '<empty>'}`,
+  )
+} catch (error) {
+  add('fail', 'Pinned Node.js version', `unable to read .nvmrc: ${error.message}`)
+}
+
+if (expectedNodeVersion && isExactVersion(expectedNodeVersion)) {
+  add(
+    process.versions.node === expectedNodeVersion ? 'pass' : 'fail',
+    'Node.js runtime',
+    `${process.version}; required v${expectedNodeVersion} from .nvmrc`,
+  )
+  const declaredNodeVersion = normalizeVersion(rootManifest.engines?.node)
+  add(
+    declaredNodeVersion === expectedNodeVersion ? 'pass' : 'fail',
+    'Node.js engine declaration',
+    declaredNodeVersion
+      ? `package.json declares ${declaredNodeVersion}; required ${expectedNodeVersion}`
+      : `package.json must declare engines.node as ${expectedNodeVersion}`,
+  )
+} else {
+  add('fail', 'Node.js runtime', `${process.version}; no valid pinned version is available`)
+}
+
+const packageManagerMatch = /^npm@(\d+\.\d+\.\d+)$/.exec(rootManifest.packageManager ?? '')
+const expectedNpmVersion = packageManagerMatch?.[1] ?? null
+add(
+  expectedNpmVersion ? 'pass' : 'fail',
+  'Pinned npm version',
+  expectedNpmVersion
+    ? `${expectedNpmVersion} from package.json packageManager`
+    : 'package.json packageManager must be an exact npm@x.y.z value',
+)
+
+if (expectedNpmVersion) {
+  const declaredNpmVersion = normalizeVersion(rootManifest.engines?.npm)
+  add(
+    declaredNpmVersion === expectedNpmVersion ? 'pass' : 'fail',
+    'npm engine declaration',
+    declaredNpmVersion
+      ? `package.json declares ${declaredNpmVersion}; required ${expectedNpmVersion}`
+      : `package.json must declare engines.npm as ${expectedNpmVersion}`,
+  )
+}
 
 try {
   const npmVersion = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim()
-  const npmMajor = Number.parseInt(npmVersion.split('.')[0], 10)
-  add(npmMajor >= 10 ? 'pass' : 'warn', 'npm runtime', `${npmVersion}; recommended major >= 10`)
+  add(
+    expectedNpmVersion && npmVersion === expectedNpmVersion ? 'pass' : 'fail',
+    'npm runtime',
+    expectedNpmVersion ? `${npmVersion}; required ${expectedNpmVersion}` : `${npmVersion}; no valid pinned version is available`,
+  )
 } catch (error) {
   add('fail', 'npm runtime', error.message)
 }
@@ -60,7 +120,6 @@ for (const manifestPath of packageLocations) {
   }
 }
 
-const rootManifest = await readJson('package.json')
 const requiredScripts = [
   'bootstrap:full',
   'doctor',
@@ -74,6 +133,7 @@ for (const script of requiredScripts) {
 }
 
 const requiredFiles = [
+  '.nvmrc',
   'Backend/Chatify/package-lock.json',
   'Frontend/Chatify/package-lock.json',
   'scripts/security/phase1-inventory.mjs',
@@ -82,7 +142,8 @@ const requiredFiles = [
   'docs/security/audit/phase-1/inventory.md',
 ]
 for (const requiredFile of requiredFiles) {
-  add(await exists(requiredFile) ? 'pass' : 'fail', `Required file ${requiredFile}`, await exists(requiredFile) ? 'present' : 'missing')
+  const present = await exists(requiredFile)
+  add(present ? 'pass' : 'fail', `Required file ${requiredFile}`, present ? 'present' : 'missing')
 }
 
 const environmentTemplates = [
