@@ -5,8 +5,8 @@ This document is generated deterministically from tracked repository files. Run 
 ## Method and boundaries
 
 - Source selection: `git-index`.
-- Tracked files inventoried: **1513**.
-- Tracked bytes inventoried: **16488387**.
+- Tracked files inventoried: **1514**.
+- Tracked bytes inventoried: **16490715**.
 - Generated inventory files are excluded from their own input set.
 - Secret-like example values are redacted; live environment values are never read.
 - Runtime execution evidence is stored in the `GitHub Actions artifact: phase-1-reproduction-evidence` artifact rather than committed.
@@ -17,7 +17,7 @@ This document is generated deterministically from tracked repository files. Run 
 | --- | --- | --- | --- | --- |
 | Backend/Chatify | backend | 1.0.0 | Backend/Chatify/package-lock.json | start, test, test:watch |
 | Frontend/Chatify | chatify | 0.0.0 | Frontend/Chatify/package-lock.json | build, dev, lint, preview, test, test:e2e:prod, test:ui |
-| . | live-chat | 1.0.0 | none | bootstrap:backend, bootstrap:frontend, bootstrap:full, doctor, evidence:production, evidence:release-candidate, ops:check, quality, quality:backend, quality:frontend, quality:frontend:build, quality:frontend:lint, quality:frontend:test, security:phase1:check, security:phase1:generate, security:phase1:reproduce, security:phase1:test, smoke:local, smoke:prod, test |
+| . | live-chat | 1.0.0 | none | bootstrap:backend, bootstrap:frontend, bootstrap:full, doctor, evidence:production, evidence:release-candidate, ops:check, quality, quality:backend, quality:frontend, quality:frontend:build, quality:frontend:lint, quality:frontend:test, security:phase1:check, security:phase1:generate, security:phase1:reproduce, security:phase1:test, security:phase2:check, security:phase2:generate, security:phase2:reproduce, security:phase2:test, smoke:local, smoke:prod, test |
 
 ### Clean install commands
 
@@ -44,6 +44,10 @@ This document is generated deterministically from tracked repository files. Run 
 | . | security:phase1:generate | npm run security:phase1:generate | node scripts/security/phase1-inventory.mjs --write |
 | . | security:phase1:reproduce | npm run security:phase1:reproduce | node scripts/security/phase1-reproduce.mjs |
 | . | security:phase1:test | npm run security:phase1:test | node --test scripts/security/__tests__/phase1-inventory.test.mjs |
+| . | security:phase2:check | npm run security:phase2:check | node scripts/security/phase2-threat-model.mjs --check |
+| . | security:phase2:generate | npm run security:phase2:generate | node scripts/security/phase2-threat-model.mjs --write |
+| . | security:phase2:reproduce | npm run security:phase2:reproduce | node scripts/security/phase2-reproduce.mjs |
+| . | security:phase2:test | npm run security:phase2:test | node --test scripts/security/__tests__/phase2-threat-model.test.mjs |
 | . | smoke:local | npm run smoke:local | npm --prefix Frontend/Chatify run test:ui -- |
 | . | smoke:prod | npm run smoke:prod | npm --prefix Frontend/Chatify run test:e2e:prod -- |
 | . | test | npm run test | npm run quality |
@@ -75,9 +79,9 @@ This document is generated deterministically from tracked repository files. Run 
 | routes | 10 |
 | services | 5 |
 | tests | 185 |
-| text-source-or-config | 1317 |
+| text-source-or-config | 1318 |
 | utilities | 31 |
-| workflows | 2 |
+| workflows | 3 |
 
 Detailed paths and SHA-256 hashes are in `inventory.json`.
 

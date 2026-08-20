@@ -176,6 +176,10 @@
           "security:phase1:generate": "node scripts/security/phase1-inventory.mjs --write",
           "security:phase1:reproduce": "node scripts/security/phase1-reproduce.mjs",
           "security:phase1:test": "node --test scripts/security/__tests__/phase1-inventory.test.mjs",
+          "security:phase2:check": "node scripts/security/phase2-threat-model.mjs --check",
+          "security:phase2:generate": "node scripts/security/phase2-threat-model.mjs --write",
+          "security:phase2:reproduce": "node scripts/security/phase2-reproduce.mjs",
+          "security:phase2:test": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs",
           "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
           "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
           "test": "npm run quality"
@@ -286,6 +290,30 @@
       },
       {
         "cwd": ".",
+        "script": "security:phase2:check",
+        "command": "npm run security:phase2:check",
+        "implementation": "node scripts/security/phase2-threat-model.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase2:generate",
+        "command": "npm run security:phase2:generate",
+        "implementation": "node scripts/security/phase2-threat-model.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase2:reproduce",
+        "command": "npm run security:phase2:reproduce",
+        "implementation": "node scripts/security/phase2-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase2:test",
+        "command": "npm run security:phase2:test",
+        "implementation": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs"
+      },
+      {
+        "cwd": ".",
         "script": "smoke:local",
         "command": "npm run smoke:local",
         "implementation": "npm --prefix Frontend/Chatify run test:ui --"
@@ -352,8 +380,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1513,
-    "totalTrackedBytes": 16488387,
+    "trackedFileCount": 1514,
+    "totalTrackedBytes": 16490715,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -2182,6 +2210,7 @@
         ".artifacts/oauth-login-qa-20260628-2347/report.json",
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
+        ".github/workflows/security-phase-2-threat-model.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
         ".planning/codebase/CONVENTIONS.md",
@@ -3500,7 +3529,8 @@
       ],
       "workflows": [
         ".github/workflows/security-and-test-foundation.yml",
-        ".github/workflows/security-phase-1-inventory.yml"
+        ".github/workflows/security-phase-1-inventory.yml",
+        ".github/workflows/security-phase-2-threat-model.yml"
       ]
     },
     "files": [
@@ -3982,6 +4012,15 @@
         "path": ".github/workflows/security-phase-1-inventory.yml",
         "bytes": 1694,
         "sha256": "5060874dfc7ad076fbbdebcbff34ff3f6c7b8681ab4fbbf28752aa540846d9c2",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
+        "path": ".github/workflows/security-phase-2-threat-model.yml",
+        "bytes": 1975,
+        "sha256": "a433816ff47e3ea3eb9b8696b5589b15f5ad8f02670ea7c3e28f2d065dd40456",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -17117,8 +17156,8 @@
       },
       {
         "path": "package.json",
-        "bytes": 1758,
-        "sha256": "adfebe90bed7897277348520f842f571aa978cece5903a88f0f4ff7547ecafb5",
+        "bytes": 2111,
+        "sha256": "db3cce8c02283e1b7dc0ec474507086bc76776bea5eed110d835ece38472fbf3",
         "categories": [
           "package-manifests",
           "text-source-or-config"
@@ -20312,6 +20351,26 @@
         "cwd": ".",
         "name": "security:phase1:test",
         "implementation": "node --test scripts/security/__tests__/phase1-inventory.test.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase2:check",
+        "implementation": "node scripts/security/phase2-threat-model.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase2:generate",
+        "implementation": "node scripts/security/phase2-threat-model.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase2:reproduce",
+        "implementation": "node scripts/security/phase2-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase2:test",
+        "implementation": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs"
       },
       {
         "cwd": ".",

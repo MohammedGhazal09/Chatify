@@ -1,0 +1,2974 @@
+{
+  "schemaVersion": 1,
+  "repository": "MohammedGhazal09/Chatify",
+  "version": "46dff3834a9f727840cfb02a2e8acaef43cf06f8",
+  "inventory": {
+    "runtimeSurfaceSha256": "041f4923078281d523011e157011f7e747159798008fec12a49b9c0f303ae949",
+    "schemaVersion": 1,
+    "sourceSelection": "git-index",
+    "surfaceCounts": {
+      "httpRoutes": 116,
+      "socketEvents": 67,
+      "serviceWorkerEvents": 2,
+      "backgroundJobs": 18,
+      "dataModels": 22,
+      "externalProviders": 9
+    }
+  },
+  "overview": {
+    "purpose": "Chatify is a browser-based MERN messaging system that combines cookie-authenticated HTTP APIs, Socket.IO real-time delivery and calling, MongoDB/GridFS persistence, OAuth login, notification delivery, integrations, moderation, and privacy operations.",
+    "securityObjectives": [
+      "Bind every privileged operation to a server-verified user, session, administrator, or scoped integration identity.",
+      "Keep messages, attachments, social graphs, presence, calls, moderation records, and privacy records confidential to authorized principals.",
+      "Preserve message and account integrity across retries, concurrent sockets, background workers, token rotation, and provider callbacks.",
+      "Prevent browser-origin attacks, cross-site request forgery, cross-room Socket.IO access, injection, unsafe uploads, and attacker-directed outbound requests.",
+      "Keep authentication, integration, encryption, notification, TURN, database, CI, and deployment secrets out of clients, logs, generated evidence, and repository history.",
+      "Maintain availability through bounded payloads, rate limits, queues, idempotency, worker leases, and graceful degradation of third-party providers.",
+      "Make security-relevant architectural drift visible when a route, Socket.IO event, model, worker, or external provider is added."
+    ],
+    "included": [
+      "Backend Express application, controllers, middleware, models, services, utilities, and Socket.IO runtime under Backend/Chatify.",
+      "Frontend React application, API clients, Socket.IO client, service worker, browser storage, and production browser configuration under Frontend/Chatify.",
+      "MongoDB and GridFS data accessed by the application, including account, session, message, attachment, integration, notification, moderation, and privacy collections.",
+      "OAuth, email, web-push, STUN/TURN, integration-client, GitHub Actions, deployment configuration, and operator-secret trust boundaries represented in the repository.",
+      "Repository workflows and operational scripts when they consume privileged credentials or produce release/security evidence."
+    ],
+    "excluded": [
+      "Compromise of an end-user operating system, browser binary, hardware, or already-unlocked device.",
+      "A fully malicious or compromised MongoDB, OAuth, email, push, STUN/TURN, cloud, DNS, certificate-authority, or hosting provider acting outside its documented contract.",
+      "Social engineering, credential phishing, SIM swapping, and physical attacks that do not exploit Chatify code or deployment configuration.",
+      "Cryptographic proof of browser WebRTC, TLS, Argon2, JWT, AES-GCM, and third-party library primitives; misuse and integration of those primitives remain in scope.",
+      "Production network controls, secret stores, backups, firewall rules, and provider-console settings that are not represented by repository evidence; unsafe repository assumptions about them remain in scope."
+    ]
+  },
+  "actors": [
+    {
+      "id": "unauthenticated-internet-user",
+      "name": "Unauthenticated internet user",
+      "control": "attacker-controlled",
+      "capabilities": [
+        "Send arbitrary public HTTP requests",
+        "Initiate OAuth and password-reset flows",
+        "Probe health, readiness, queue, CSRF, and authentication surfaces"
+      ]
+    },
+    {
+      "id": "authenticated-user",
+      "name": "Authenticated user",
+      "control": "attacker-controlled",
+      "capabilities": [
+        "Send cookie-authenticated HTTP requests",
+        "Open authenticated Socket.IO connections",
+        "Choose route parameters, message content, uploads, profile data, and protocol payloads"
+      ]
+    },
+    {
+      "id": "conversation-peer",
+      "name": "Conversation or channel member",
+      "control": "attacker-controlled",
+      "capabilities": [
+        "Observe content and metadata intentionally shared with a conversation",
+        "Send messages, reactions, read/delivery state, typing state, and call signaling when authorized"
+      ]
+    },
+    {
+      "id": "group-space-manager",
+      "name": "Group or space manager",
+      "control": "attacker-controlled",
+      "capabilities": [
+        "Manage membership, invite links, roles, and conversation settings within server-authorized scope"
+      ]
+    },
+    {
+      "id": "administrator",
+      "name": "Chatify administrator or moderator",
+      "control": "operator-controlled",
+      "capabilities": [
+        "Use admin and moderation endpoints",
+        "Review redacted reports, privacy operations, integration diagnostics, and delivery health"
+      ]
+    },
+    {
+      "id": "integration-client",
+      "name": "Third-party integration client",
+      "control": "attacker-controlled",
+      "capabilities": [
+        "Present a bearer integration token",
+        "Call the integration runtime manifest within granted installation scope"
+      ]
+    },
+    {
+      "id": "external-identity-provider",
+      "name": "OAuth identity provider",
+      "control": "third-party-controlled",
+      "capabilities": [
+        "Return provider identities and callback parameters",
+        "Host provider profile images and authorization responses"
+      ]
+    },
+    {
+      "id": "delivery-provider",
+      "name": "Email or push delivery provider",
+      "control": "third-party-controlled",
+      "capabilities": [
+        "Receive minimized notification payloads and delivery credentials",
+        "Return provider status and errors"
+      ]
+    },
+    {
+      "id": "network-peer",
+      "name": "WebRTC peer and STUN/TURN service",
+      "control": "third-party-controlled",
+      "capabilities": [
+        "Exchange bounded signaling metadata and relay media connectivity",
+        "Observe network metadata inherent to WebRTC"
+      ]
+    },
+    {
+      "id": "operator-ci-developer",
+      "name": "Operator, CI workflow, or repository developer",
+      "control": "developer-controlled",
+      "capabilities": [
+        "Change code and workflows",
+        "Configure deployment origins and secrets",
+        "Run migrations, tests, audits, and release evidence"
+      ]
+    },
+    {
+      "id": "malicious-web-origin",
+      "name": "Malicious web origin",
+      "control": "attacker-controlled",
+      "capabilities": [
+        "Cause a victim browser to send cross-origin requests",
+        "Attempt cross-site Socket.IO handshakes and CSRF"
+      ]
+    }
+  ],
+  "zones": [
+    {
+      "id": "browser-client",
+      "name": "React browser client",
+      "trust": "untrusted-client"
+    },
+    {
+      "id": "service-worker",
+      "name": "Browser service worker",
+      "trust": "untrusted-client-extension"
+    },
+    {
+      "id": "http-edge",
+      "name": "Hosting proxy and HTTP edge",
+      "trust": "operator-controlled-edge"
+    },
+    {
+      "id": "http-runtime",
+      "name": "Express HTTP application",
+      "trust": "trusted-runtime"
+    },
+    {
+      "id": "socket-runtime",
+      "name": "Socket.IO application",
+      "trust": "trusted-runtime"
+    },
+    {
+      "id": "database-gridfs",
+      "name": "MongoDB and GridFS",
+      "trust": "privileged-data-store"
+    },
+    {
+      "id": "oauth-providers",
+      "name": "OAuth providers",
+      "trust": "third-party"
+    },
+    {
+      "id": "delivery-providers",
+      "name": "Email and web-push providers",
+      "trust": "third-party"
+    },
+    {
+      "id": "stun-turn-peers",
+      "name": "STUN/TURN services and WebRTC peers",
+      "trust": "third-party"
+    },
+    {
+      "id": "integration-clients",
+      "name": "Integration clients",
+      "trust": "external-service-client"
+    },
+    {
+      "id": "ci-operator",
+      "name": "GitHub Actions, developer, and deployment control plane",
+      "trust": "privileged-control-plane"
+    }
+  ],
+  "dataClasses": [
+    {
+      "id": "public-profile",
+      "name": "Public profile data",
+      "sensitivity": "internal",
+      "examples": [
+        "username",
+        "display name",
+        "approved profile image",
+        "profile bio and status according to privacy settings"
+      ]
+    },
+    {
+      "id": "account-pii",
+      "name": "Account PII",
+      "sensitivity": "restricted",
+      "examples": [
+        "email",
+        "OAuth provider identifiers",
+        "account lifecycle state"
+      ]
+    },
+    {
+      "id": "auth-secrets",
+      "name": "Authentication secrets",
+      "sensitivity": "secret",
+      "examples": [
+        "password hashes",
+        "JWT signing secret",
+        "refresh-token hashes",
+        "reset-token hashes",
+        "TOTP secrets",
+        "backup-code hashes"
+      ]
+    },
+    {
+      "id": "session-device-metadata",
+      "name": "Session and device metadata",
+      "sensitivity": "restricted",
+      "examples": [
+        "session identifiers",
+        "IP hash",
+        "user-agent hash",
+        "last-seen timestamps",
+        "remember-me state"
+      ]
+    },
+    {
+      "id": "conversation-content",
+      "name": "Conversation content",
+      "sensitivity": "restricted",
+      "examples": [
+        "message text",
+        "replies",
+        "mentions",
+        "call activity",
+        "group and channel descriptions"
+      ]
+    },
+    {
+      "id": "encrypted-message-material",
+      "name": "Encrypted-message material",
+      "sensitivity": "secret",
+      "examples": [
+        "ciphertext",
+        "encrypted envelope",
+        "fingerprint",
+        "key version",
+        "sender device identifier"
+      ]
+    },
+    {
+      "id": "social-graph-presence",
+      "name": "Social graph and presence",
+      "sensitivity": "restricted",
+      "examples": [
+        "chat membership",
+        "contacts",
+        "blocks",
+        "spaces",
+        "online state",
+        "typing state",
+        "read and delivery state"
+      ]
+    },
+    {
+      "id": "media-attachments",
+      "name": "Media and attachments",
+      "sensitivity": "restricted",
+      "examples": [
+        "uploaded files",
+        "voice messages",
+        "profile images",
+        "storage identifiers",
+        "MIME and size metadata"
+      ]
+    },
+    {
+      "id": "moderation-safety",
+      "name": "Moderation and safety data",
+      "sensitivity": "restricted",
+      "examples": [
+        "reports",
+        "redacted evidence",
+        "enforcements",
+        "appeals",
+        "review history"
+      ]
+    },
+    {
+      "id": "privacy-operations",
+      "name": "Privacy-operation data",
+      "sensitivity": "restricted",
+      "examples": [
+        "export requests",
+        "deletion requests",
+        "operation runs",
+        "retention metadata"
+      ]
+    },
+    {
+      "id": "integration-credentials-audit",
+      "name": "Integration credentials and audit data",
+      "sensitivity": "secret",
+      "examples": [
+        "installation token hashes",
+        "scopes",
+        "rotation state",
+        "integration audit records"
+      ]
+    },
+    {
+      "id": "notification-contact-data",
+      "name": "Notification contact and endpoint data",
+      "sensitivity": "secret",
+      "examples": [
+        "email recipients",
+        "push endpoints",
+        "push authentication keys",
+        "unsubscribe token hashes",
+        "notification payloads"
+      ]
+    },
+    {
+      "id": "operational-telemetry",
+      "name": "Operational telemetry",
+      "sensitivity": "internal",
+      "examples": [
+        "health and readiness state",
+        "queue depth",
+        "sanitized logs",
+        "delivery diagnostics",
+        "workflow evidence"
+      ]
+    },
+    {
+      "id": "configuration-ci-secrets",
+      "name": "Configuration and CI secrets",
+      "sensitivity": "secret",
+      "examples": [
+        "database URI",
+        "OAuth secrets",
+        "Brevo key",
+        "VAPID private key",
+        "TURN credential",
+        "two-factor encryption key"
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "account-identity",
+      "name": "Accounts, identities, and public profiles",
+      "dataClassIds": [
+        "public-profile",
+        "account-pii",
+        "auth-secrets"
+      ],
+      "invariantIds": [
+        "INV-IDENTITY-SOURCE",
+        "INV-ACCOUNT-LINKING",
+        "INV-OUTPUT-MINIMIZATION"
+      ]
+    },
+    {
+      "id": "authentication-session",
+      "name": "Authentication, MFA, password reset, cookies, and sessions",
+      "dataClassIds": [
+        "auth-secrets",
+        "session-device-metadata"
+      ],
+      "invariantIds": [
+        "INV-ACTIVE-SESSION",
+        "INV-TOKEN-ROTATION",
+        "INV-CSRF",
+        "INV-COOKIE-BOUNDARY",
+        "INV-RESET-MFA"
+      ]
+    },
+    {
+      "id": "conversation-messaging",
+      "name": "Chats, messages, calls, reactions, and delivery state",
+      "dataClassIds": [
+        "conversation-content",
+        "encrypted-message-material",
+        "social-graph-presence"
+      ],
+      "invariantIds": [
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-SOCKET-ROOM-AUTHORIZATION",
+        "INV-SOCKET-PAYLOADS",
+        "INV-E2EE-CONTRACT"
+      ]
+    },
+    {
+      "id": "media-storage",
+      "name": "Attachments, voice content, and profile-image storage",
+      "dataClassIds": [
+        "media-attachments",
+        "conversation-content"
+      ],
+      "invariantIds": [
+        "INV-STORAGE-AUTHORIZATION",
+        "INV-UPLOAD-VALIDATION",
+        "INV-OUTPUT-MINIMIZATION"
+      ]
+    },
+    {
+      "id": "social-spaces",
+      "name": "Contacts, spaces, groups, membership, invites, blocks, and presence",
+      "dataClassIds": [
+        "public-profile",
+        "social-graph-presence"
+      ],
+      "invariantIds": [
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-ROLE-AUTHORIZATION",
+        "INV-PRIVACY-MINIMIZATION"
+      ]
+    },
+    {
+      "id": "moderation-privacy",
+      "name": "Moderation, safety, privacy exports, deletion, and retention",
+      "dataClassIds": [
+        "moderation-safety",
+        "privacy-operations",
+        "account-pii",
+        "conversation-content"
+      ],
+      "invariantIds": [
+        "INV-ADMIN-AUTHORIZATION",
+        "INV-PRIVACY-LIFECYCLE",
+        "INV-AUDIT-REDACTION"
+      ]
+    },
+    {
+      "id": "integrations",
+      "name": "Integration applications, installations, runtime access, and audit logs",
+      "dataClassIds": [
+        "integration-credentials-audit",
+        "account-pii"
+      ],
+      "invariantIds": [
+        "INV-INTEGRATION-TOKENS",
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-AUDIT-REDACTION"
+      ]
+    },
+    {
+      "id": "notifications",
+      "name": "Notification preferences, outbox jobs, email, and push delivery",
+      "dataClassIds": [
+        "notification-contact-data",
+        "conversation-content",
+        "social-graph-presence"
+      ],
+      "invariantIds": [
+        "INV-NOTIFICATION-PRIVACY",
+        "INV-WORKER-IDEMPOTENCY",
+        "INV-OUTBOUND-DESTINATIONS"
+      ]
+    },
+    {
+      "id": "operations-control-plane",
+      "name": "Runtime configuration, logs, health, queues, CI, and deployment evidence",
+      "dataClassIds": [
+        "operational-telemetry",
+        "configuration-ci-secrets"
+      ],
+      "invariantIds": [
+        "INV-SECRET-HANDLING",
+        "INV-AUDIT-REDACTION",
+        "INV-AVAILABILITY",
+        "INV-ORIGIN-ALIGNMENT"
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "id": "BOUNDARY-PUBLIC-HTTP",
+      "name": "Public internet and browser to HTTP edge",
+      "fromZoneId": "browser-client",
+      "toZoneId": "http-edge",
+      "actorIds": [
+        "unauthenticated-internet-user",
+        "authenticated-user",
+        "malicious-web-origin"
+      ],
+      "channels": [
+        "HTTPS"
+      ],
+      "controls": [
+        "Helmet headers",
+        "CORS allowlist",
+        "global and route-specific rate limits",
+        "bounded JSON and URL-encoded bodies",
+        "sanitization and HPP",
+        "request logging"
+      ],
+      "assumptions": [
+        "TLS and forwarded-host/protocol metadata are supplied only by authorized hosting proxies",
+        "Production FRONTEND_ORIGIN identifies the only browser origin allowed to send credentialed requests"
+      ]
+    },
+    {
+      "id": "BOUNDARY-COOKIE-HTTP",
+      "name": "Cookie-authenticated browser to Express authorization boundary",
+      "fromZoneId": "http-edge",
+      "toZoneId": "http-runtime",
+      "actorIds": [
+        "authenticated-user",
+        "malicious-web-origin"
+      ],
+      "channels": [
+        "HTTP requests carrying access/refresh cookies and CSRF headers"
+      ],
+      "controls": [
+        "JWT verification",
+        "active-session claim validation",
+        "signed double-submit CSRF token",
+        "route middleware",
+        "resource membership and ownership checks"
+      ],
+      "assumptions": [
+        "Controllers do not trust user identifiers from request bodies when a verified identity exists",
+        "Mutating cookie-authenticated routes remain behind csrfProtection"
+      ]
+    },
+    {
+      "id": "BOUNDARY-SOCKET",
+      "name": "Browser to Socket.IO handshake and event boundary",
+      "fromZoneId": "browser-client",
+      "toZoneId": "socket-runtime",
+      "actorIds": [
+        "authenticated-user",
+        "conversation-peer",
+        "malicious-web-origin"
+      ],
+      "channels": [
+        "WSS or trusted same-origin proxy transport"
+      ],
+      "controls": [
+        "Origin allowlist",
+        "cookie access-token verification",
+        "active-session validation",
+        "per-event rate windows",
+        "bounded call signaling",
+        "chat and message membership checks",
+        "room-scoped and user-scoped emission"
+      ],
+      "assumptions": [
+        "A shared adapter and shared presence/rate state are introduced before horizontal Socket.IO scaling",
+        "Every new client-to-server event receives explicit authentication, validation, authorization, and abuse controls"
+      ]
+    },
+    {
+      "id": "BOUNDARY-DATABASE",
+      "name": "Application runtime to MongoDB and GridFS",
+      "fromZoneId": "http-runtime",
+      "toZoneId": "database-gridfs",
+      "actorIds": [
+        "operator-ci-developer"
+      ],
+      "channels": [
+        "MongoDB protocol"
+      ],
+      "controls": [
+        "Mongoose schemas and indexes",
+        "hashing and encryption of selected secrets",
+        "private-field selection",
+        "application-level membership checks",
+        "TTL and lifecycle workers"
+      ],
+      "assumptions": [
+        "Database credentials are operator-controlled secrets",
+        "MongoDB network access is restricted to authorized application and operations identities"
+      ]
+    },
+    {
+      "id": "BOUNDARY-OAUTH",
+      "name": "Application and browser to OAuth providers",
+      "fromZoneId": "http-runtime",
+      "toZoneId": "oauth-providers",
+      "actorIds": [
+        "unauthenticated-internet-user",
+        "authenticated-user",
+        "external-identity-provider"
+      ],
+      "channels": [
+        "HTTPS redirects and callbacks"
+      ],
+      "controls": [
+        "Passport strategies",
+        "state and handoff records",
+        "provider-specific identifiers",
+        "server-controlled callback and frontend destinations"
+      ],
+      "assumptions": [
+        "Provider TLS and identity assertions are valid",
+        "Account linking requires an explicit server-side identity decision rather than trusting profile email alone"
+      ]
+    },
+    {
+      "id": "BOUNDARY-DELIVERY",
+      "name": "Application to email and web-push providers",
+      "fromZoneId": "http-runtime",
+      "toZoneId": "delivery-providers",
+      "actorIds": [
+        "delivery-provider",
+        "operator-ci-developer"
+      ],
+      "channels": [
+        "HTTPS provider API and Web Push"
+      ],
+      "controls": [
+        "Outbox deduplication",
+        "notification preferences",
+        "privacy-minimized templates",
+        "hashed endpoint identity",
+        "dry-run/test mode",
+        "sanitized provider errors"
+      ],
+      "assumptions": [
+        "Provider credentials are stored outside the repository",
+        "Notification payloads do not contain message previews unless a future reviewed policy explicitly permits them"
+      ]
+    },
+    {
+      "id": "BOUNDARY-WEBRTC",
+      "name": "Browser and Socket.IO signaling to STUN/TURN and peers",
+      "fromZoneId": "browser-client",
+      "toZoneId": "stun-turn-peers",
+      "actorIds": [
+        "authenticated-user",
+        "conversation-peer",
+        "network-peer"
+      ],
+      "channels": [
+        "Socket.IO signaling",
+        "STUN/TURN",
+        "WebRTC media"
+      ],
+      "controls": [
+        "Chat membership checks",
+        "call-session state machine",
+        "participant targeting",
+        "bounded SDP and ICE fields",
+        "event rate limits",
+        "operator-controlled ICE configuration"
+      ],
+      "assumptions": [
+        "TURN credentials and relay policies are appropriately short-lived or scoped in production",
+        "Media confidentiality relies on WebRTC transport and endpoint security"
+      ]
+    },
+    {
+      "id": "BOUNDARY-INTEGRATION-RUNTIME",
+      "name": "Integration client to runtime API",
+      "fromZoneId": "integration-clients",
+      "toZoneId": "http-runtime",
+      "actorIds": [
+        "integration-client"
+      ],
+      "channels": [
+        "HTTPS bearer token"
+      ],
+      "controls": [
+        "Dedicated integrationRuntimeAuth middleware",
+        "hashed installation tokens",
+        "scopes",
+        "rotation and revocation",
+        "runtime rate limiting",
+        "integration audit logs"
+      ],
+      "assumptions": [
+        "Bearer tokens are transmitted only over TLS and are not embedded in browser URLs or logs",
+        "Every future runtime operation checks installation scope in addition to token validity"
+      ]
+    },
+    {
+      "id": "BOUNDARY-SERVICE-WORKER",
+      "name": "Push provider and service worker to browser UI",
+      "fromZoneId": "delivery-providers",
+      "toZoneId": "service-worker",
+      "actorIds": [
+        "delivery-provider",
+        "authenticated-user"
+      ],
+      "channels": [
+        "Web Push and browser notification APIs"
+      ],
+      "controls": [
+        "VAPID authentication",
+        "subscription ownership",
+        "privacy-minimized payloads",
+        "notification click routing"
+      ],
+      "assumptions": [
+        "The browser enforces service-worker origin isolation",
+        "Notification content remains generic and does not expose conversation text on a locked device"
+      ]
+    },
+    {
+      "id": "BOUNDARY-CI-OPERATOR",
+      "name": "Developer and CI control plane to repository and deployment",
+      "fromZoneId": "ci-operator",
+      "toZoneId": "http-runtime",
+      "actorIds": [
+        "operator-ci-developer",
+        "administrator"
+      ],
+      "channels": [
+        "Git commits and pull requests",
+        "GitHub Actions",
+        "deployment configuration and secret injection"
+      ],
+      "controls": [
+        "Read-only audit workflows",
+        "pinned action revisions for security workflows",
+        "clean installs",
+        "tests, lint, build, operations and evidence gates",
+        "secret scanning in operations checks"
+      ],
+      "assumptions": [
+        "Branch protection and secret permissions are configured outside this repository",
+        "Workflow changes receive privileged review before deployment"
+      ]
+    }
+  ],
+  "entryPointGroups": [
+    {
+      "id": "HTTP-AUTHENTICATION",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/auth"
+      ],
+      "assetIds": [
+        "account-identity",
+        "authentication-session"
+      ],
+      "dataClassIds": [
+        "account-pii",
+        "auth-secrets",
+        "session-device-metadata"
+      ]
+    },
+    {
+      "id": "HTTP-USERS",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/user"
+      ],
+      "assetIds": [
+        "account-identity",
+        "media-storage",
+        "notifications",
+        "moderation-privacy"
+      ],
+      "dataClassIds": [
+        "public-profile",
+        "account-pii",
+        "auth-secrets",
+        "media-attachments",
+        "notification-contact-data",
+        "privacy-operations"
+      ]
+    },
+    {
+      "id": "HTTP-CHATS",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/chat"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "HTTP-MESSAGES",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/message"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "media-storage"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "encrypted-message-material",
+        "media-attachments",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "HTTP-MODERATION",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/moderation"
+      ],
+      "assetIds": [
+        "moderation-privacy",
+        "conversation-messaging"
+      ],
+      "dataClassIds": [
+        "moderation-safety",
+        "conversation-content",
+        "account-pii"
+      ]
+    },
+    {
+      "id": "HTTP-ADMIN",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/admin"
+      ],
+      "assetIds": [
+        "moderation-privacy",
+        "integrations",
+        "notifications",
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "moderation-safety",
+        "privacy-operations",
+        "integration-credentials-audit",
+        "operational-telemetry"
+      ]
+    },
+    {
+      "id": "HTTP-SPACES",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/space"
+      ],
+      "assetIds": [
+        "social-spaces",
+        "conversation-messaging"
+      ],
+      "dataClassIds": [
+        "social-graph-presence",
+        "conversation-content",
+        "public-profile"
+      ]
+    },
+    {
+      "id": "HTTP-INVITES",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/invite"
+      ],
+      "assetIds": [
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "HTTP-INTEGRATION-RUNTIME",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-INTEGRATION-RUNTIME",
+      "pathPrefixes": [
+        "/api/integrations/runtime"
+      ],
+      "assetIds": [
+        "integrations"
+      ],
+      "dataClassIds": [
+        "integration-credentials-audit"
+      ]
+    },
+    {
+      "id": "HTTP-INTEGRATIONS",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-COOKIE-HTTP",
+      "pathPrefixes": [
+        "/api/integrations"
+      ],
+      "excludePrefixes": [
+        "/api/integrations/runtime"
+      ],
+      "assetIds": [
+        "integrations"
+      ],
+      "dataClassIds": [
+        "integration-credentials-audit",
+        "account-pii"
+      ]
+    },
+    {
+      "id": "HTTP-CSRF-BOOTSTRAP",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-PUBLIC-HTTP",
+      "exactPaths": [
+        "/api/csrf-token"
+      ],
+      "assetIds": [
+        "authentication-session"
+      ],
+      "dataClassIds": [
+        "auth-secrets"
+      ]
+    },
+    {
+      "id": "HTTP-HEALTH-READINESS",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-PUBLIC-HTTP",
+      "exactPaths": [
+        "/api/health",
+        "/api/ready"
+      ],
+      "assetIds": [
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "operational-telemetry"
+      ]
+    },
+    {
+      "id": "HTTP-QUEUE-STATUS",
+      "kind": "http",
+      "boundaryId": "BOUNDARY-PUBLIC-HTTP",
+      "exactPaths": [
+        "/api/queue-status"
+      ],
+      "assetIds": [
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "operational-telemetry"
+      ]
+    },
+    {
+      "id": "SOCKET-CALL-C2S",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "client-to-server-listener"
+      ],
+      "events": [
+        "call:start",
+        "call:accept",
+        "call:reject",
+        "call:end",
+        "call:offer",
+        "call:answer",
+        "call:ice-candidate",
+        "call:sync"
+      ],
+      "assetIds": [
+        "conversation-messaging"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "SOCKET-CHAT-C2S",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "client-to-server-listener"
+      ],
+      "events": [
+        "chat:join",
+        "chat:leave"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "SOCKET-MESSAGE-C2S",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "client-to-server-listener"
+      ],
+      "events": [
+        "message:delivered",
+        "message:send"
+      ],
+      "assetIds": [
+        "conversation-messaging"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "SOCKET-TYPING-C2S",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "client-to-server-listener"
+      ],
+      "events": [
+        "typing:start",
+        "typing:stop"
+      ],
+      "assetIds": [
+        "conversation-messaging"
+      ],
+      "dataClassIds": [
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "SOCKET-USER-C2S",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "client-to-server-listener"
+      ],
+      "events": [
+        "user:connect"
+      ],
+      "assetIds": [
+        "account-identity",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "public-profile",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "SOCKET-CLIENT-EMITTERS",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "client-to-server-emitter"
+      ],
+      "matchAllEvents": true,
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "SOCKET-SERVER-EMITTERS",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "server-to-client-emitter"
+      ],
+      "matchAllEvents": true,
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces",
+        "authentication-session"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence",
+        "session-device-metadata"
+      ]
+    },
+    {
+      "id": "SOCKET-SERVER-LISTENERS",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "server-to-client-listener"
+      ],
+      "matchAllEvents": true,
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces",
+        "authentication-session"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence",
+        "session-device-metadata"
+      ]
+    },
+    {
+      "id": "SOCKET-LIFECYCLE",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "transport-lifecycle"
+      ],
+      "matchAllEvents": true,
+      "assetIds": [
+        "authentication-session",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "session-device-metadata",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "SOCKET-DYNAMIC-DISPATCH",
+      "kind": "socket",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "directions": [
+        "client-to-server-emitter",
+        "server-to-client-emitter"
+      ],
+      "dynamic": true,
+      "matchAllEvents": true,
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "SERVICE-WORKER-NOTIFICATIONS",
+      "kind": "service-worker",
+      "boundaryId": "BOUNDARY-SERVICE-WORKER",
+      "events": [
+        "push",
+        "notificationclick"
+      ],
+      "assetIds": [
+        "notifications",
+        "conversation-messaging"
+      ],
+      "dataClassIds": [
+        "notification-contact-data",
+        "conversation-content"
+      ]
+    },
+    {
+      "id": "BACKGROUND-NOTIFICATION-WORKER",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-DELIVERY",
+      "sourcePrefixes": [
+        "Backend/Chatify/Services/notificationService.mjs"
+      ],
+      "assetIds": [
+        "notifications"
+      ],
+      "dataClassIds": [
+        "notification-contact-data",
+        "conversation-content"
+      ]
+    },
+    {
+      "id": "BACKGROUND-PRIVACY-WORKER",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-DATABASE",
+      "sourcePrefixes": [
+        "Backend/Chatify/Services/privacyOperationsService.mjs"
+      ],
+      "assetIds": [
+        "moderation-privacy",
+        "account-identity",
+        "conversation-messaging"
+      ],
+      "dataClassIds": [
+        "privacy-operations",
+        "account-pii",
+        "conversation-content"
+      ]
+    },
+    {
+      "id": "BACKGROUND-SOCKET-TIMERS",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "sourcePrefixes": [
+        "Backend/Chatify/Config/socket.mjs"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "social-graph-presence",
+        "conversation-content"
+      ]
+    },
+    {
+      "id": "BACKGROUND-BACKEND-QUEUE",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-PUBLIC-HTTP",
+      "sourcePrefixes": [
+        "Backend/Chatify/Utils/requestQueue.mjs"
+      ],
+      "assetIds": [
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "operational-telemetry"
+      ]
+    },
+    {
+      "id": "BACKGROUND-FRONTEND-HTTP",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-PUBLIC-HTTP",
+      "sourcePrefixes": [
+        "Frontend/Chatify/src/api/"
+      ],
+      "assetIds": [
+        "authentication-session",
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "session-device-metadata",
+        "operational-telemetry"
+      ]
+    },
+    {
+      "id": "BACKGROUND-FRONTEND-HOOKS",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-SOCKET",
+      "sourcePrefixes": [
+        "Frontend/Chatify/src/hooks/"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces",
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence",
+        "operational-telemetry"
+      ]
+    },
+    {
+      "id": "BACKGROUND-FRONTEND-UTILITIES",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-PUBLIC-HTTP",
+      "sourcePrefixes": [
+        "Frontend/Chatify/src/utils/"
+      ],
+      "assetIds": [
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "operational-telemetry"
+      ]
+    }
+  ],
+  "modelGroups": [
+    {
+      "id": "MODELS-ACCOUNT-SESSION",
+      "modelSources": [
+        "Backend/Chatify/Models/userModel.mjs",
+        "Backend/Chatify/Models/oauthHandoffModel.mjs",
+        "Backend/Chatify/Models/passwordResetModel.mjs",
+        "Backend/Chatify/Models/sessionModel.mjs",
+        "Backend/Chatify/Models/twoFactorChallengeModel.mjs"
+      ],
+      "assetIds": [
+        "account-identity",
+        "authentication-session"
+      ],
+      "dataClassIds": [
+        "public-profile",
+        "account-pii",
+        "auth-secrets",
+        "session-device-metadata"
+      ]
+    },
+    {
+      "id": "MODELS-CONVERSATION",
+      "modelSources": [
+        "Backend/Chatify/Models/attachmentModel.mjs",
+        "Backend/Chatify/Models/callSessionModel.mjs",
+        "Backend/Chatify/Models/chatModel.mjs",
+        "Backend/Chatify/Models/messageModel.mjs",
+        "Backend/Chatify/Models/savedMessageModel.mjs"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "media-storage"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "encrypted-message-material",
+        "media-attachments",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "MODELS-SOCIAL-SPACES",
+      "modelSources": [
+        "Backend/Chatify/Models/contactRequestModel.mjs",
+        "Backend/Chatify/Models/conversationOrganizationModel.mjs",
+        "Backend/Chatify/Models/inviteLinkModel.mjs",
+        "Backend/Chatify/Models/spaceModel.mjs",
+        "Backend/Chatify/Models/userBlockModel.mjs"
+      ],
+      "assetIds": [
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "public-profile",
+        "social-graph-presence"
+      ]
+    },
+    {
+      "id": "MODELS-MODERATION-PRIVACY",
+      "modelSources": [
+        "Backend/Chatify/Models/abuseReportModel.mjs",
+        "Backend/Chatify/Models/privacyOperationRunModel.mjs",
+        "Backend/Chatify/Models/privacyRequestModel.mjs"
+      ],
+      "assetIds": [
+        "moderation-privacy"
+      ],
+      "dataClassIds": [
+        "moderation-safety",
+        "privacy-operations",
+        "account-pii",
+        "conversation-content"
+      ]
+    },
+    {
+      "id": "MODELS-INTEGRATIONS",
+      "modelSources": [
+        "Backend/Chatify/Models/integrationAppModel.mjs",
+        "Backend/Chatify/Models/integrationAuditLogModel.mjs",
+        "Backend/Chatify/Models/integrationInstallationModel.mjs"
+      ],
+      "assetIds": [
+        "integrations"
+      ],
+      "dataClassIds": [
+        "integration-credentials-audit",
+        "account-pii"
+      ]
+    },
+    {
+      "id": "MODELS-NOTIFICATIONS",
+      "modelSources": [
+        "Backend/Chatify/Models/notificationOutboxModel.mjs"
+      ],
+      "assetIds": [
+        "notifications"
+      ],
+      "dataClassIds": [
+        "notification-contact-data",
+        "conversation-content",
+        "social-graph-presence"
+      ]
+    }
+  ],
+  "providerGroups": [
+    {
+      "id": "PROVIDER-HEURISTIC-CLOUDINARY",
+      "providers": [
+        "cloudinary"
+      ],
+      "boundaryId": "BOUNDARY-DELIVERY",
+      "status": "heuristic-only"
+    },
+    {
+      "id": "PROVIDERS-OAUTH",
+      "providers": [
+        "discord-oauth",
+        "github-oauth",
+        "google-oauth"
+      ],
+      "boundaryId": "BOUNDARY-OAUTH",
+      "status": "runtime-observed"
+    },
+    {
+      "id": "PROVIDERS-DELIVERY-HTTP",
+      "providers": [
+        "email",
+        "generic-http"
+      ],
+      "boundaryId": "BOUNDARY-DELIVERY",
+      "status": "mixed-runtime-and-client-observed"
+    },
+    {
+      "id": "PROVIDER-MONGODB",
+      "providers": [
+        "mongodb"
+      ],
+      "boundaryId": "BOUNDARY-DATABASE",
+      "status": "runtime-observed"
+    },
+    {
+      "id": "PROVIDER-STUN-TURN",
+      "providers": [
+        "stun-turn"
+      ],
+      "boundaryId": "BOUNDARY-WEBRTC",
+      "status": "runtime-observed"
+    },
+    {
+      "id": "PROVIDER-WEB-PUSH",
+      "providers": [
+        "web-push"
+      ],
+      "boundaryId": "BOUNDARY-DELIVERY",
+      "status": "runtime-observed"
+    }
+  ],
+  "dataFlows": [
+    {
+      "id": "FLOW-LOCAL-AUTH",
+      "name": "Signup, login, MFA challenge, refresh, logout, and session management",
+      "fromZoneId": "browser-client",
+      "toZoneId": "http-runtime",
+      "boundaryIds": [
+        "BOUNDARY-PUBLIC-HTTP",
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "account-identity",
+        "authentication-session"
+      ],
+      "dataClassIds": [
+        "account-pii",
+        "auth-secrets",
+        "session-device-metadata"
+      ],
+      "invariantIds": [
+        "INV-IDENTITY-SOURCE",
+        "INV-ACTIVE-SESSION",
+        "INV-TOKEN-ROTATION",
+        "INV-CSRF",
+        "INV-COOKIE-BOUNDARY",
+        "INV-RESET-MFA"
+      ],
+      "controls": [
+        "Argon2 password hashing",
+        "JWT access tokens",
+        "hashed refresh tokens",
+        "active session records",
+        "MFA challenges and encrypted TOTP secrets",
+        "rate limiting and CSRF"
+      ],
+      "failureModes": [
+        "Account takeover",
+        "session fixation or replay",
+        "MFA bypass",
+        "credential or reset-token disclosure"
+      ]
+    },
+    {
+      "id": "FLOW-OAUTH",
+      "name": "OAuth authorization, callback, handoff, account linking, and finalization",
+      "fromZoneId": "browser-client",
+      "toZoneId": "oauth-providers",
+      "boundaryIds": [
+        "BOUNDARY-PUBLIC-HTTP",
+        "BOUNDARY-OAUTH",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "account-identity",
+        "authentication-session"
+      ],
+      "dataClassIds": [
+        "account-pii",
+        "auth-secrets",
+        "session-device-metadata"
+      ],
+      "invariantIds": [
+        "INV-ACCOUNT-LINKING",
+        "INV-IDENTITY-SOURCE",
+        "INV-COOKIE-BOUNDARY"
+      ],
+      "controls": [
+        "Provider-specific identifiers",
+        "server-stored OAuth handoff",
+        "controlled callback routes",
+        "session issuance only after server-side finalization"
+      ],
+      "failureModes": [
+        "Account confusion or takeover",
+        "open redirect",
+        "OAuth state replay",
+        "provider-profile data overexposure"
+      ]
+    },
+    {
+      "id": "FLOW-PASSWORD-RESET",
+      "name": "Password-reset request, code verification, and password replacement",
+      "fromZoneId": "browser-client",
+      "toZoneId": "delivery-providers",
+      "boundaryIds": [
+        "BOUNDARY-PUBLIC-HTTP",
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DELIVERY",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "account-identity",
+        "authentication-session",
+        "notifications"
+      ],
+      "dataClassIds": [
+        "account-pii",
+        "auth-secrets",
+        "notification-contact-data"
+      ],
+      "invariantIds": [
+        "INV-RESET-MFA",
+        "INV-NOTIFICATION-PRIVACY",
+        "INV-SECRET-HANDLING"
+      ],
+      "controls": [
+        "Non-enumerating response",
+        "hashed reset token",
+        "expiry and one-time use",
+        "rate limiting",
+        "sanitized delivery errors"
+      ],
+      "failureModes": [
+        "Account takeover",
+        "account enumeration",
+        "reset-code brute force or replay",
+        "secret leakage through email or logs"
+      ]
+    },
+    {
+      "id": "FLOW-MESSAGE-HTTP",
+      "name": "Chat, message, attachment, reaction, read, delivery, pin, save, search, and mutation APIs",
+      "fromZoneId": "browser-client",
+      "toZoneId": "database-gridfs",
+      "boundaryIds": [
+        "BOUNDARY-PUBLIC-HTTP",
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "media-storage",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "encrypted-message-material",
+        "media-attachments",
+        "social-graph-presence"
+      ],
+      "invariantIds": [
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-STORAGE-AUTHORIZATION",
+        "INV-UPLOAD-VALIDATION",
+        "INV-E2EE-CONTRACT",
+        "INV-OUTPUT-MINIMIZATION"
+      ],
+      "controls": [
+        "Protected routes",
+        "chat and message membership checks",
+        "idempotent client message IDs",
+        "bounded text and upload parsing",
+        "protected attachment preview and download"
+      ],
+      "failureModes": [
+        "IDOR across conversations",
+        "stored XSS or unsafe file delivery",
+        "message tampering",
+        "plaintext leakage from encrypted chats",
+        "resource exhaustion"
+      ]
+    },
+    {
+      "id": "FLOW-SOCKET-MESSAGING",
+      "name": "Socket authentication, room membership, presence, typing, delivery, unread, and conversation events",
+      "fromZoneId": "browser-client",
+      "toZoneId": "socket-runtime",
+      "boundaryIds": [
+        "BOUNDARY-SOCKET",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces",
+        "authentication-session"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence",
+        "session-device-metadata"
+      ],
+      "invariantIds": [
+        "INV-ACTIVE-SESSION",
+        "INV-SOCKET-ORIGIN",
+        "INV-SOCKET-ROOM-AUTHORIZATION",
+        "INV-SOCKET-PAYLOADS",
+        "INV-AVAILABILITY"
+      ],
+      "controls": [
+        "Cookie JWT and active-session handshake",
+        "origin validation",
+        "membership checks",
+        "room- and user-targeted emission",
+        "per-event rate limits",
+        "deprecated direct message send"
+      ],
+      "failureModes": [
+        "Unauthorized room access",
+        "cross-user event delivery",
+        "presence leakage",
+        "event flood or unbounded payload",
+        "revoked session remaining connected"
+      ]
+    },
+    {
+      "id": "FLOW-CALLS",
+      "name": "Audio/video call session creation, participant targeting, signaling, timeout, and activity persistence",
+      "fromZoneId": "browser-client",
+      "toZoneId": "stun-turn-peers",
+      "boundaryIds": [
+        "BOUNDARY-SOCKET",
+        "BOUNDARY-WEBRTC",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces"
+      ],
+      "dataClassIds": [
+        "conversation-content",
+        "social-graph-presence",
+        "session-device-metadata"
+      ],
+      "invariantIds": [
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-SOCKET-PAYLOADS",
+        "INV-SOCKET-ROOM-AUTHORIZATION",
+        "INV-OUTBOUND-DESTINATIONS"
+      ],
+      "controls": [
+        "Call-session state machine",
+        "participant and block checks",
+        "bounded SDP/ICE fields",
+        "rate limits",
+        "operator-controlled ICE configuration",
+        "metadata-only call activity"
+      ],
+      "failureModes": [
+        "Call signaling injection",
+        "ringing unauthorized users",
+        "TURN credential abuse",
+        "SDP/ICE memory exhaustion",
+        "call metadata leakage"
+      ]
+    },
+    {
+      "id": "FLOW-SPACES-INVITES",
+      "name": "Contact requests, spaces, groups, membership, blocks, organization state, and invite links",
+      "fromZoneId": "browser-client",
+      "toZoneId": "database-gridfs",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DATABASE",
+        "BOUNDARY-SOCKET"
+      ],
+      "assetIds": [
+        "social-spaces",
+        "conversation-messaging",
+        "account-identity"
+      ],
+      "dataClassIds": [
+        "public-profile",
+        "social-graph-presence",
+        "conversation-content"
+      ],
+      "invariantIds": [
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-ROLE-AUTHORIZATION",
+        "INV-PRIVACY-MINIMIZATION",
+        "INV-SOCKET-ROOM-AUTHORIZATION"
+      ],
+      "controls": [
+        "Owner/admin role checks",
+        "membership constraints",
+        "hashed invite tokens",
+        "expiry and maximum use counts",
+        "block enforcement",
+        "authorized socket fanout"
+      ],
+      "failureModes": [
+        "Unauthorized membership or role escalation",
+        "invite replay or race",
+        "contact graph enumeration",
+        "blocked-user activity bypass"
+      ]
+    },
+    {
+      "id": "FLOW-MODERATION-PRIVACY",
+      "name": "Reports, moderation review, appeals, privacy exports, deletion, and lifecycle workers",
+      "fromZoneId": "browser-client",
+      "toZoneId": "database-gridfs",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DATABASE",
+        "BOUNDARY-CI-OPERATOR"
+      ],
+      "assetIds": [
+        "moderation-privacy",
+        "account-identity",
+        "conversation-messaging"
+      ],
+      "dataClassIds": [
+        "moderation-safety",
+        "privacy-operations",
+        "account-pii",
+        "conversation-content"
+      ],
+      "invariantIds": [
+        "INV-ADMIN-AUTHORIZATION",
+        "INV-PRIVACY-LIFECYCLE",
+        "INV-AUDIT-REDACTION",
+        "INV-WORKER-IDEMPOTENCY",
+        "INV-OUTPUT-MINIMIZATION"
+      ],
+      "controls": [
+        "Admin and requester authorization",
+        "redacted report context",
+        "metadata-only operational views",
+        "reversible pending deletion period",
+        "idempotent workers and evidence"
+      ],
+      "failureModes": [
+        "Unauthorized review or enforcement",
+        "privacy export of another user",
+        "incomplete deletion",
+        "sensitive evidence leakage",
+        "worker double processing"
+      ]
+    },
+    {
+      "id": "FLOW-INTEGRATIONS",
+      "name": "Integration registration, installation, token issuance, rotation, revocation, runtime access, and audit",
+      "fromZoneId": "integration-clients",
+      "toZoneId": "http-runtime",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-INTEGRATION-RUNTIME",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "integrations",
+        "account-identity"
+      ],
+      "dataClassIds": [
+        "integration-credentials-audit",
+        "account-pii"
+      ],
+      "invariantIds": [
+        "INV-INTEGRATION-TOKENS",
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-AUDIT-REDACTION",
+        "INV-AVAILABILITY"
+      ],
+      "controls": [
+        "Authenticated installation management",
+        "hashed bearer tokens",
+        "scope validation",
+        "rotation and revocation",
+        "runtime limiter",
+        "audit log"
+      ],
+      "failureModes": [
+        "Token disclosure or replay",
+        "scope escalation",
+        "cross-installation access",
+        "unaudited token lifecycle",
+        "runtime abuse"
+      ]
+    },
+    {
+      "id": "FLOW-NOTIFICATIONS",
+      "name": "Notification preferences, outbox enqueue, delivery worker, email, push, and unsubscribe",
+      "fromZoneId": "http-runtime",
+      "toZoneId": "delivery-providers",
+      "boundaryIds": [
+        "BOUNDARY-DATABASE",
+        "BOUNDARY-DELIVERY",
+        "BOUNDARY-SERVICE-WORKER"
+      ],
+      "assetIds": [
+        "notifications",
+        "conversation-messaging",
+        "account-identity"
+      ],
+      "dataClassIds": [
+        "notification-contact-data",
+        "conversation-content",
+        "social-graph-presence"
+      ],
+      "invariantIds": [
+        "INV-NOTIFICATION-PRIVACY",
+        "INV-WORKER-IDEMPOTENCY",
+        "INV-OUTBOUND-DESTINATIONS",
+        "INV-SECRET-HANDLING"
+      ],
+      "controls": [
+        "Server-owned preferences",
+        "no message preview mode",
+        "outbox dedupe",
+        "endpoint hashing",
+        "provider error sanitization",
+        "dry-run mode"
+      ],
+      "failureModes": [
+        "Private message content in notifications",
+        "delivery to stale or foreign endpoint",
+        "duplicate notification storms",
+        "provider credential exposure"
+      ]
+    },
+    {
+      "id": "FLOW-OPERATIONS",
+      "name": "Health, readiness, queues, logs, diagnostics, CI, and release evidence",
+      "fromZoneId": "ci-operator",
+      "toZoneId": "http-runtime",
+      "boundaryIds": [
+        "BOUNDARY-PUBLIC-HTTP",
+        "BOUNDARY-CI-OPERATOR",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "operations-control-plane",
+        "moderation-privacy",
+        "integrations",
+        "notifications"
+      ],
+      "dataClassIds": [
+        "operational-telemetry",
+        "configuration-ci-secrets",
+        "moderation-safety",
+        "privacy-operations",
+        "integration-credentials-audit"
+      ],
+      "invariantIds": [
+        "INV-SECRET-HANDLING",
+        "INV-AUDIT-REDACTION",
+        "INV-ADMIN-AUTHORIZATION",
+        "INV-AVAILABILITY",
+        "INV-ORIGIN-ALIGNMENT"
+      ],
+      "controls": [
+        "Cheap health endpoint",
+        "sanitized readiness components",
+        "admin diagnostics",
+        "structured redacted logging",
+        "clean-install CI and evidence artifacts"
+      ],
+      "failureModes": [
+        "Secret or PII logging",
+        "sensitive diagnostics exposed publicly",
+        "untrusted workflow execution",
+        "release despite failed security gates"
+      ]
+    }
+  ],
+  "invariants": [
+    {
+      "id": "INV-IDENTITY-SOURCE",
+      "statement": "HTTP and Socket.IO identities must come only from verified credentials and server-side session claims; client-supplied user identifiers cannot select the acting principal.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Middlewares/protectRoutes.mjs",
+        "Backend/Chatify/Config/socket.mjs",
+        "Backend/Chatify/Utils/authToken.mjs",
+        "Backend/Chatify/Utils/sessionMetadata.mjs"
+      ]
+    },
+    {
+      "id": "INV-ACTIVE-SESSION",
+      "statement": "Every access token and authenticated socket must carry a session identifier that still belongs to the user and remains active; revocation must terminate future access and notify connected clients.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Middlewares/protectRoutes.mjs",
+        "Backend/Chatify/Config/socket.mjs",
+        "Backend/Chatify/Models/sessionModel.mjs"
+      ]
+    },
+    {
+      "id": "INV-TOKEN-ROTATION",
+      "statement": "Refresh tokens are hashed at rest, rotated on use, linked to one session, and rejected after revocation, replacement, expiry, or reuse.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Models/sessionModel.mjs",
+        "Backend/Chatify/Controller/authController.mjs",
+        "Backend/Chatify/Utils/authToken.mjs"
+      ]
+    },
+    {
+      "id": "INV-COOKIE-BOUNDARY",
+      "statement": "Authentication cookies are HttpOnly, Secure in production, appropriately SameSite-scoped for the deployment topology, bounded by path and lifetime, and cleared consistently.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
+        "Backend/Chatify/Controller/authController.mjs"
+      ]
+    },
+    {
+      "id": "INV-CSRF",
+      "statement": "Every unsafe cookie-authenticated HTTP operation requires a valid signed double-submit CSRF token, while CORS and origin configuration admit only the intended frontend.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Middlewares/csrfProtection.mjs",
+        "Backend/Chatify/app.mjs",
+        "Frontend/Chatify/src/api/axios.ts"
+      ]
+    },
+    {
+      "id": "INV-ACCOUNT-LINKING",
+      "statement": "OAuth identities link to accounts only through explicit provider identifiers and safe server-side handoff state; provider profile email alone cannot silently merge identities.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Config/passport.mjs",
+        "Backend/Chatify/Utils/oauthConfig.mjs",
+        "Backend/Chatify/Models/oauthHandoffModel.mjs",
+        "Backend/Chatify/Controller/authController.mjs"
+      ]
+    },
+    {
+      "id": "INV-RESET-MFA",
+      "statement": "Password reset and MFA challenges are non-enumerating, short-lived, rate-limited, one-time, cryptographically protected, and invalidate or rotate affected sessions after sensitive changes.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Models/passwordResetModel.mjs",
+        "Backend/Chatify/Models/twoFactorChallengeModel.mjs",
+        "Backend/Chatify/Utils/twoFactor.mjs",
+        "Backend/Chatify/Controller/authController.mjs"
+      ]
+    },
+    {
+      "id": "INV-RESOURCE-AUTHORIZATION",
+      "statement": "Every resource identifier supplied by a user or integration is re-authorized server-side for ownership, membership, visibility, and current block or enforcement state at the operation that uses it.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Utils/chatAccess.mjs",
+        "Backend/Chatify/Utils/conversationControls.mjs",
+        "Backend/Chatify/Controller/messageController.mjs",
+        "Backend/Chatify/Controller/chatController.mjs"
+      ]
+    },
+    {
+      "id": "INV-ROLE-AUTHORIZATION",
+      "statement": "Group, space, moderation, and administrative actions use server-side role state; role fields are not writable or readable through ordinary user payloads.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Middlewares/requireAdmin.mjs",
+        "Backend/Chatify/Routes/adminRouter.mjs",
+        "Backend/Chatify/Models/userModel.mjs",
+        "Backend/Chatify/Controller/spaceController.mjs"
+      ]
+    },
+    {
+      "id": "INV-ADMIN-AUTHORIZATION",
+      "statement": "Admin diagnostics, moderation review, enforcement, and aggregate privacy/integration operations require a verified active session plus an administrator role and disclose only the minimum operational data.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Routes/adminRouter.mjs",
+        "Backend/Chatify/Middlewares/requireAdmin.mjs",
+        "Backend/Chatify/Controller/adminController.mjs"
+      ]
+    },
+    {
+      "id": "INV-SOCKET-ORIGIN",
+      "statement": "Production Socket.IO handshakes accept only the configured frontend origin or a trusted same-origin proxy request and never treat absence of Origin as trusted by default.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Config/socket.mjs"
+      ]
+    },
+    {
+      "id": "INV-SOCKET-ROOM-AUTHORIZATION",
+      "statement": "Joining, leaving, reading, delivering, typing, calling, and receiving Socket.IO events are scoped to verified chat membership or explicit user targeting; room identifiers alone confer no authority.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Config/socket.mjs",
+        "Backend/Chatify/Utils/chatAccess.mjs",
+        "Backend/Chatify/Utils/callSessionState.mjs"
+      ]
+    },
+    {
+      "id": "INV-SOCKET-PAYLOADS",
+      "statement": "Every client-to-server Socket.IO event has a bounded schema, authorization decision, sanitized error, and explicit event-rate budget; direct message persistence remains on the HTTP path.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Config/socket.mjs",
+        "Backend/Chatify/Utils/callSocketContract.mjs"
+      ]
+    },
+    {
+      "id": "INV-E2EE-CONTRACT",
+      "statement": "Encrypted conversations store and return encrypted envelopes and metadata without substituting plaintext content or leaking key material through server logs, search, previews, notifications, or moderation paths.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Models/messageModel.mjs",
+        "Backend/Chatify/Utils/messageState.mjs",
+        "Frontend/Chatify/src/utils/encryptedMessages.ts"
+      ]
+    },
+    {
+      "id": "INV-STORAGE-AUTHORIZATION",
+      "statement": "Attachment and profile-image storage identifiers are private implementation details; preview, download, replacement, and deletion paths authorize the requester and return safe content headers.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Services/attachmentStorageService.mjs",
+        "Backend/Chatify/Services/profileImageStorageService.mjs",
+        "Backend/Chatify/Controller/messageController.mjs",
+        "Backend/Chatify/Controller/userController.mjs"
+      ]
+    },
+    {
+      "id": "INV-UPLOAD-VALIDATION",
+      "statement": "Uploads are size-limited, count-limited, MIME- and magic-byte validated, normalized to server-owned metadata, and never executed or served as active content.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Middlewares/uploadMessageAttachments.mjs",
+        "Backend/Chatify/Services/attachmentStorageService.mjs",
+        "Backend/Chatify/Controller/userController.mjs"
+      ]
+    },
+    {
+      "id": "INV-OUTPUT-MINIMIZATION",
+      "statement": "API, socket, export, moderation, notification, and log serializers omit passwords, hashes, provider IDs, roles, raw push subscriptions, storage IDs, internal errors, and unrelated peer PII.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Models/userModel.mjs",
+        "Backend/Chatify/Utils/messageState.mjs",
+        "Backend/Chatify/Utils/observabilityLogger.mjs",
+        "Backend/Chatify/Services/privacyOperationsService.mjs"
+      ]
+    },
+    {
+      "id": "INV-PRIVACY-MINIMIZATION",
+      "statement": "Presence, last-seen, profile status, contact graph, membership, and conversation metadata honor privacy settings and are disclosed only to users with a current relationship or authorization.",
+      "severityIfBroken": "medium",
+      "evidence": [
+        "Backend/Chatify/Models/userModel.mjs",
+        "Backend/Chatify/Config/socket.mjs",
+        "Backend/Chatify/Controller/userController.mjs"
+      ]
+    },
+    {
+      "id": "INV-INTEGRATION-TOKENS",
+      "statement": "Integration tokens are high-entropy bearer secrets shown only when issued, stored only as hashes, scoped to an installation, rotated and revoked atomically, rate-limited, and represented in audit records.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/Middlewares/integrationRuntimeAuth.mjs",
+        "Backend/Chatify/Utils/integrationPermissions.mjs",
+        "Backend/Chatify/Models/integrationInstallationModel.mjs",
+        "Backend/Chatify/Models/integrationAuditLogModel.mjs"
+      ]
+    },
+    {
+      "id": "INV-NOTIFICATION-PRIVACY",
+      "statement": "Email, push, browser notifications, and provider logs contain generic or explicitly consented content only; message previews, peer email, endpoint secrets, and encrypted plaintext are excluded.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Services/notificationService.mjs",
+        "Backend/Chatify/Utils/notificationPreferences.mjs",
+        "Frontend/Chatify/public/sw.js"
+      ]
+    },
+    {
+      "id": "INV-WORKER-IDEMPOTENCY",
+      "statement": "Notification and privacy workers claim work safely, deduplicate operations, tolerate retries, preserve terminal state, and cannot process the same irreversible operation twice.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Services/notificationService.mjs",
+        "Backend/Chatify/Services/privacyOperationsService.mjs",
+        "Backend/Chatify/Models/notificationOutboxModel.mjs"
+      ]
+    },
+    {
+      "id": "INV-PRIVACY-LIFECYCLE",
+      "statement": "Privacy exports and deletion requests are requester-bound, auditable, retention-aware, reversible only during the documented grace period, and complete across account-owned data without exposing other users.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Services/privacyOperationsService.mjs",
+        "Backend/Chatify/Models/privacyRequestModel.mjs",
+        "Backend/Chatify/Models/privacyOperationRunModel.mjs"
+      ]
+    },
+    {
+      "id": "INV-OUTBOUND-DESTINATIONS",
+      "statement": "Outbound HTTP, OAuth, email, push, database, and ICE destinations come from reviewed operator configuration or fixed provider endpoints, not user-controlled request values; requests use appropriate timeout, redirect, size, TLS, and error controls.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/Services/emailService.mjs",
+        "Backend/Chatify/Services/notificationService.mjs",
+        "Backend/Chatify/Utils/callIceConfig.mjs",
+        "Backend/Chatify/Config/DBConfig.mjs"
+      ]
+    },
+    {
+      "id": "INV-SECRET-HANDLING",
+      "statement": "Secrets remain in approved environment or CI secret stores, are never committed or emitted to generated evidence, and are redacted from logs and provider errors.",
+      "severityIfBroken": "critical",
+      "evidence": [
+        "Backend/Chatify/.env.example",
+        "Frontend/Chatify/.env.example",
+        "scripts/ops-check.mjs",
+        "scripts/security/lib/inventory.mjs"
+      ]
+    },
+    {
+      "id": "INV-AUDIT-REDACTION",
+      "statement": "Security-relevant actions are observable with stable event names and actor/resource metadata while tokens, cookies, message content, provider payloads, raw endpoints, and unrelated PII are redacted.",
+      "severityIfBroken": "medium",
+      "evidence": [
+        "Backend/Chatify/Utils/observabilityLogger.mjs",
+        "Backend/Chatify/Middlewares/requestLogger.mjs",
+        "Backend/Chatify/Models/integrationAuditLogModel.mjs",
+        "Backend/Chatify/Models/abuseReportModel.mjs"
+      ]
+    },
+    {
+      "id": "INV-AVAILABILITY",
+      "statement": "Public, authenticated, socket, upload, search, notification, integration, and administrative workloads have bounded request sizes, concurrency, retry, rate, and queue behavior and fail closed without unbounded memory growth.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/app.mjs",
+        "Backend/Chatify/Middlewares/rateLimiters.mjs",
+        "Backend/Chatify/Middlewares/queueMiddleware.mjs",
+        "Backend/Chatify/Config/socket.mjs"
+      ]
+    },
+    {
+      "id": "INV-ORIGIN-ALIGNMENT",
+      "statement": "HTTP CORS, Socket.IO origin checks, cookie SameSite/Secure settings, OAuth callbacks, frontend API/socket origins, and deployment URLs describe one authorized topology and fail closed when production origins are absent or inconsistent.",
+      "severityIfBroken": "high",
+      "evidence": [
+        "Backend/Chatify/app.mjs",
+        "Backend/Chatify/Config/socket.mjs",
+        "Backend/Chatify/Config/passport.mjs",
+        "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
+        "Frontend/Chatify/src/api/apiOrigin.ts"
+      ]
+    }
+  ],
+  "attackerStories": [
+    {
+      "id": "STORY-ACCOUNT-TAKEOVER",
+      "title": "Forge or replay an authentication/session credential",
+      "actorId": "unauthenticated-internet-user",
+      "boundaryIds": [
+        "BOUNDARY-PUBLIC-HTTP",
+        "BOUNDARY-COOKIE-HTTP"
+      ],
+      "assetIds": [
+        "account-identity",
+        "authentication-session"
+      ],
+      "invariantIds": [
+        "INV-IDENTITY-SOURCE",
+        "INV-ACTIVE-SESSION",
+        "INV-TOKEN-ROTATION"
+      ],
+      "severity": "critical",
+      "preconditions": [
+        "Attacker can send arbitrary authentication or refresh requests"
+      ],
+      "attack": "Exploit token verification, session binding, refresh rotation, or revocation to impersonate another user.",
+      "securityOutcome": "Account takeover and access to private conversations and connected sockets.",
+      "mitigations": [
+        "Signed JWTs",
+        "hashed refresh tokens",
+        "active session records",
+        "rotation and revocation tests"
+      ]
+    },
+    {
+      "id": "STORY-OAUTH-CONFUSION",
+      "title": "Link an attacker-controlled OAuth identity to a victim account",
+      "actorId": "unauthenticated-internet-user",
+      "boundaryIds": [
+        "BOUNDARY-OAUTH",
+        "BOUNDARY-COOKIE-HTTP"
+      ],
+      "assetIds": [
+        "account-identity",
+        "authentication-session"
+      ],
+      "invariantIds": [
+        "INV-ACCOUNT-LINKING",
+        "INV-IDENTITY-SOURCE"
+      ],
+      "severity": "critical",
+      "preconditions": [
+        "Attacker can complete a provider callback with a chosen provider account"
+      ],
+      "attack": "Abuse email matching, callback state, or handoff finalization to merge or log in as the victim.",
+      "securityOutcome": "Persistent account takeover.",
+      "mitigations": [
+        "Provider identifier binding",
+        "OAuth handoff records",
+        "explicit finalization",
+        "account-linking tests"
+      ]
+    },
+    {
+      "id": "STORY-RESET-MFA-BYPASS",
+      "title": "Bypass password-reset or MFA challenge controls",
+      "actorId": "unauthenticated-internet-user",
+      "boundaryIds": [
+        "BOUNDARY-PUBLIC-HTTP",
+        "BOUNDARY-DELIVERY"
+      ],
+      "assetIds": [
+        "account-identity",
+        "authentication-session",
+        "notifications"
+      ],
+      "invariantIds": [
+        "INV-RESET-MFA",
+        "INV-NOTIFICATION-PRIVACY"
+      ],
+      "severity": "critical",
+      "preconditions": [
+        "Attacker knows or guesses an account identifier"
+      ],
+      "attack": "Enumerate accounts, brute-force or replay a reset/MFA token, or reuse a backup code.",
+      "securityOutcome": "Account takeover or MFA downgrade.",
+      "mitigations": [
+        "Non-enumerating responses",
+        "rate limits",
+        "hashing",
+        "expiry",
+        "one-time backup-code use"
+      ]
+    },
+    {
+      "id": "STORY-HTTP-IDOR",
+      "title": "Read or mutate another conversation through an object identifier",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "media-storage",
+        "social-spaces"
+      ],
+      "invariantIds": [
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-STORAGE-AUTHORIZATION"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "Attacker has a valid account and obtains or guesses another resource identifier"
+      ],
+      "attack": "Call message, attachment, chat, invite, space, saved-message, or moderation endpoints with a foreign identifier.",
+      "securityOutcome": "Cross-user confidentiality or integrity violation.",
+      "mitigations": [
+        "Resource-level membership/ownership helpers",
+        "protected routes",
+        "authorization tests"
+      ]
+    },
+    {
+      "id": "STORY-SOCKET-ROOM",
+      "title": "Join or receive events from an unauthorized Socket.IO room",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-SOCKET"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "social-spaces"
+      ],
+      "invariantIds": [
+        "INV-SOCKET-ROOM-AUTHORIZATION",
+        "INV-ACTIVE-SESSION",
+        "INV-SOCKET-ORIGIN"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "Attacker has a valid account or victim browser context"
+      ],
+      "attack": "Supply a foreign chat ID, reuse a revoked session, or exploit origin handling to receive room or user events.",
+      "securityOutcome": "Private message, presence, call, or social-graph disclosure.",
+      "mitigations": [
+        "Origin allowlist",
+        "session validation",
+        "membership checks",
+        "room/user-targeted emission"
+      ]
+    },
+    {
+      "id": "STORY-SOCKET-DOS",
+      "title": "Exhaust Socket.IO resources with event or signaling floods",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-SOCKET",
+        "BOUNDARY-WEBRTC"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "operations-control-plane"
+      ],
+      "invariantIds": [
+        "INV-SOCKET-PAYLOADS",
+        "INV-AVAILABILITY"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "Attacker can establish one or more authenticated sockets"
+      ],
+      "attack": "Flood chat, typing, delivery, call, SDP, or ICE events or create timers/state faster than cleanup.",
+      "securityOutcome": "Memory, CPU, database, or peer-notification exhaustion.",
+      "mitigations": [
+        "Per-event windows",
+        "payload length limits",
+        "session state machine",
+        "cleanup on disconnect"
+      ]
+    },
+    {
+      "id": "STORY-UPLOAD-ACTIVE-CONTENT",
+      "title": "Store or serve malicious attachment or profile content",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "media-storage",
+        "conversation-messaging",
+        "account-identity"
+      ],
+      "invariantIds": [
+        "INV-UPLOAD-VALIDATION",
+        "INV-STORAGE-AUTHORIZATION"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "Attacker can upload a file or profile image"
+      ],
+      "attack": "Use MIME confusion, polyglots, oversized files, executable SVG/HTML, or foreign storage IDs.",
+      "securityOutcome": "Stored XSS, malware delivery, storage abuse, or cross-chat file access.",
+      "mitigations": [
+        "Size/count limits",
+        "magic-byte validation",
+        "protected delivery routes",
+        "server-owned metadata"
+      ]
+    },
+    {
+      "id": "STORY-E2EE-PLAINTEXT",
+      "title": "Cause encrypted-chat plaintext or key material to reach the server or notifications",
+      "actorId": "conversation-peer",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-SOCKET",
+        "BOUNDARY-DELIVERY"
+      ],
+      "assetIds": [
+        "conversation-messaging",
+        "notifications"
+      ],
+      "invariantIds": [
+        "INV-E2EE-CONTRACT",
+        "INV-NOTIFICATION-PRIVACY",
+        "INV-AUDIT-REDACTION"
+      ],
+      "severity": "critical",
+      "preconditions": [
+        "Conversation is represented to users as encrypted"
+      ],
+      "attack": "Exploit a fallback, serializer, search, reply, moderation, logging, or notification path that handles plaintext.",
+      "securityOutcome": "Systemic breach of the encrypted-conversation promise.",
+      "mitigations": [
+        "Encrypted envelope model",
+        "encrypted-message utilities",
+        "metadata-only notifications and activity records",
+        "E2EE tests"
+      ]
+    },
+    {
+      "id": "STORY-ROLE-ESCALATION",
+      "title": "Escalate to group manager, moderator, or administrator",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "social-spaces",
+        "moderation-privacy",
+        "operations-control-plane"
+      ],
+      "invariantIds": [
+        "INV-ROLE-AUTHORIZATION",
+        "INV-ADMIN-AUTHORIZATION",
+        "INV-OUTPUT-MINIMIZATION"
+      ],
+      "severity": "critical",
+      "preconditions": [
+        "Attacker has a normal user account"
+      ],
+      "attack": "Mass-assign role/status fields, exploit stale membership, or bypass requireAdmin and manager checks.",
+      "securityOutcome": "Unauthorized moderation, diagnostics, privacy operations, membership changes, or broad data access.",
+      "mitigations": [
+        "Server-side role state",
+        "private role selection",
+        "admin middleware",
+        "role-specific tests"
+      ]
+    },
+    {
+      "id": "STORY-INTEGRATION-TOKEN",
+      "title": "Steal, replay, or over-scope an integration token",
+      "actorId": "integration-client",
+      "boundaryIds": [
+        "BOUNDARY-INTEGRATION-RUNTIME",
+        "BOUNDARY-DATABASE"
+      ],
+      "assetIds": [
+        "integrations",
+        "account-identity"
+      ],
+      "invariantIds": [
+        "INV-INTEGRATION-TOKENS",
+        "INV-RESOURCE-AUTHORIZATION",
+        "INV-AUDIT-REDACTION"
+      ],
+      "severity": "critical",
+      "preconditions": [
+        "Attacker obtains a token or can install an integration"
+      ],
+      "attack": "Recover a plaintext token from storage/logs, replay a revoked token, or call an operation outside installation scope.",
+      "securityOutcome": "Persistent third-party access or cross-installation compromise.",
+      "mitigations": [
+        "Token hashing",
+        "rotation/revocation",
+        "scope checks",
+        "runtime rate limit",
+        "audit log"
+      ]
+    },
+    {
+      "id": "STORY-CSRF-CROSS-ORIGIN",
+      "title": "Drive state changes from a malicious origin",
+      "actorId": "malicious-web-origin",
+      "boundaryIds": [
+        "BOUNDARY-PUBLIC-HTTP",
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-SOCKET"
+      ],
+      "assetIds": [
+        "authentication-session",
+        "account-identity",
+        "conversation-messaging",
+        "social-spaces"
+      ],
+      "invariantIds": [
+        "INV-CSRF",
+        "INV-SOCKET-ORIGIN",
+        "INV-ORIGIN-ALIGNMENT"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "Victim is logged in and visits an attacker-controlled origin"
+      ],
+      "attack": "Submit credentialed mutation requests or initiate a cross-site socket using ambient cookies.",
+      "securityOutcome": "Unwanted account, conversation, membership, or session actions.",
+      "mitigations": [
+        "Signed double-submit CSRF",
+        "credentialed CORS allowlist",
+        "Socket.IO origin allowlist",
+        "SameSite/Secure cookie settings"
+      ]
+    },
+    {
+      "id": "STORY-OUTBOUND-SSRF",
+      "title": "Redirect an outbound request to an attacker-selected destination",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-DELIVERY",
+        "BOUNDARY-OAUTH",
+        "BOUNDARY-WEBRTC"
+      ],
+      "assetIds": [
+        "operations-control-plane",
+        "notifications",
+        "account-identity"
+      ],
+      "invariantIds": [
+        "INV-OUTBOUND-DESTINATIONS",
+        "INV-SECRET-HANDLING"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "Attacker controls a URL-like value consumed by backend networking"
+      ],
+      "attack": "Inject a loopback, link-local, metadata-service, redirect, proxy, webhook, image, or ICE destination.",
+      "securityOutcome": "SSRF, internal service access, credential leakage, or resource exhaustion.",
+      "mitigations": [
+        "Fixed/operator-controlled destinations",
+        "provider-specific configuration",
+        "timeout/redirect/size controls",
+        "later source-to-sink validation"
+      ]
+    },
+    {
+      "id": "STORY-NOTIFICATION-LEAK",
+      "title": "Expose private content through email, push, or browser notifications",
+      "actorId": "delivery-provider",
+      "boundaryIds": [
+        "BOUNDARY-DELIVERY",
+        "BOUNDARY-SERVICE-WORKER"
+      ],
+      "assetIds": [
+        "notifications",
+        "conversation-messaging"
+      ],
+      "invariantIds": [
+        "INV-NOTIFICATION-PRIVACY",
+        "INV-OUTPUT-MINIMIZATION"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "A notification is generated for a private conversation"
+      ],
+      "attack": "Include message text, sender email, encrypted plaintext, or a reusable endpoint/token in a provider or lock-screen payload.",
+      "securityOutcome": "Conversation disclosure outside authorized Chatify UI.",
+      "mitigations": [
+        "No-preview policy",
+        "generic templates",
+        "endpoint hashing",
+        "preference controls"
+      ]
+    },
+    {
+      "id": "STORY-PRIVACY-OPERATION",
+      "title": "Export or delete another user or incompletely delete the requester",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-DATABASE",
+        "BOUNDARY-CI-OPERATOR"
+      ],
+      "assetIds": [
+        "moderation-privacy",
+        "account-identity",
+        "conversation-messaging"
+      ],
+      "invariantIds": [
+        "INV-PRIVACY-LIFECYCLE",
+        "INV-WORKER-IDEMPOTENCY",
+        "INV-OUTPUT-MINIMIZATION"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "Attacker can submit privacy requests or influence worker state"
+      ],
+      "attack": "Swap a user identifier, replay a job, race cancellation, or omit related records from export/deletion.",
+      "securityOutcome": "Cross-user data disclosure, unauthorized deletion, or regulatory/contractual failure.",
+      "mitigations": [
+        "Requester binding",
+        "pending grace state",
+        "idempotent operation runs",
+        "metadata-only evidence",
+        "privacy tests"
+      ]
+    },
+    {
+      "id": "STORY-LOG-SECRET-LEAK",
+      "title": "Leak tokens, cookies, PII, or message content through logs and evidence",
+      "actorId": "operator-ci-developer",
+      "boundaryIds": [
+        "BOUNDARY-CI-OPERATOR",
+        "BOUNDARY-DATABASE",
+        "BOUNDARY-DELIVERY"
+      ],
+      "assetIds": [
+        "operations-control-plane",
+        "authentication-session",
+        "integrations",
+        "notifications",
+        "conversation-messaging"
+      ],
+      "invariantIds": [
+        "INV-SECRET-HANDLING",
+        "INV-AUDIT-REDACTION",
+        "INV-OUTPUT-MINIMIZATION"
+      ],
+      "severity": "high",
+      "preconditions": [
+        "An error, audit event, workflow artifact, or diagnostic captures attacker-influenced data"
+      ],
+      "attack": "Trigger logging of Authorization headers, cookies, provider responses, raw endpoints, encrypted/plain message content, or environment values.",
+      "securityOutcome": "Secondary credential or privacy breach through operational systems.",
+      "mitigations": [
+        "Structured redaction",
+        "sanitized provider errors",
+        "inventory redaction",
+        "ops secret patterns"
+      ]
+    },
+    {
+      "id": "STORY-PRESENCE-ENUMERATION",
+      "title": "Enumerate users, presence, membership, or relationship state",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-COOKIE-HTTP",
+        "BOUNDARY-SOCKET"
+      ],
+      "assetIds": [
+        "social-spaces",
+        "account-identity"
+      ],
+      "invariantIds": [
+        "INV-PRIVACY-MINIMIZATION",
+        "INV-OUTPUT-MINIMIZATION",
+        "INV-SOCKET-ROOM-AUTHORIZATION"
+      ],
+      "severity": "medium",
+      "preconditions": [
+        "Attacker has a normal account"
+      ],
+      "attack": "Probe usernames, contact requests, chat membership, last-seen, typing, or online state for unrelated users.",
+      "securityOutcome": "Targeting, stalking, and social-graph disclosure.",
+      "mitigations": [
+        "Username normalization and bounded search",
+        "relationship/membership checks",
+        "privacy settings",
+        "targeted socket events"
+      ]
+    },
+    {
+      "id": "STORY-WORKER-REPLAY",
+      "title": "Replay or race notification and privacy jobs",
+      "actorId": "authenticated-user",
+      "boundaryIds": [
+        "BOUNDARY-DATABASE",
+        "BOUNDARY-DELIVERY"
+      ],
+      "assetIds": [
+        "notifications",
+        "moderation-privacy"
+      ],
+      "invariantIds": [
+        "INV-WORKER-IDEMPOTENCY",
+        "INV-AVAILABILITY",
+        "INV-PRIVACY-LIFECYCLE"
+      ],
+      "severity": "medium",
+      "preconditions": [
+        "Attacker can cause duplicate application events or exploit worker restart/concurrency"
+      ],
+      "attack": "Create duplicate outbox entries, race claims, or repeatedly process a deletion/export operation.",
+      "securityOutcome": "Duplicate notifications, inconsistent privacy state, or service degradation.",
+      "mitigations": [
+        "Dedupe keys",
+        "terminal status",
+        "claim logic",
+        "operation-run evidence"
+      ]
+    }
+  ],
+  "outOfScope": [
+    "Reading data from a victim device that is already unlocked, rooted, malware-infected, or controlled by a malicious browser extension.",
+    "Breaking TLS, WebRTC transport encryption, Argon2, AES-256-GCM, JWT signatures, MongoDB authentication, or OAuth provider cryptography without an integration or configuration flaw in Chatify.",
+    "A trusted administrator intentionally abusing legitimate production database, secret-store, hosting, or provider-console access; missing least privilege, auditability, or guardrails for that access remain relevant infrastructure findings.",
+    "Provider-wide outages or malicious behavior by Google, GitHub, Discord, Brevo/email, push services, MongoDB, STUN/TURN, Vercel, Render, GitHub, DNS, or certificate authorities, except where Chatify fails to validate, minimize, isolate, or degrade safely.",
+    "Phishing, password reuse, social engineering, and attacks on user email accounts that do not exploit Chatify; Chatify recovery and session invalidation behavior after such events remains in scope."
+  ],
+  "severityCalibration": {
+    "critical": [
+      "Authentication or active-session bypass that permits reliable takeover of another account or broad impersonation.",
+      "Normal-user escalation to administrator, unrestricted moderation/privacy operations, or cross-tenant-style access to many conversations.",
+      "OAuth account-linking confusion, reset/MFA bypass, integration-token forgery, or exposed signing/encryption secrets enabling persistent privileged access.",
+      "Systemic disclosure of plaintext or key material from conversations represented as end-to-end encrypted."
+    ],
+    "high": [
+      "IDOR or Socket.IO room authorization failure exposing or modifying another user or conversation.",
+      "Stored active-content upload, CSRF with meaningful state change, bearer-token leakage, or attacker-controlled backend destination with internal-network impact.",
+      "Notification, moderation, privacy export, attachment, or operational-log path disclosing private content or reusable secrets.",
+      "Remotely triggerable resource exhaustion that materially degrades messaging, calling, authentication, storage, or workers."
+    ],
+    "medium": [
+      "Bounded presence, last-seen, membership, username, queue, or relationship enumeration without direct message-content access.",
+      "Limited worker replay, audit gap, or error-detail leak that requires an authenticated attacker and exposes only constrained metadata.",
+      "Defense-in-depth weakness whose exploitation requires a separate privileged compromise or unsafe external configuration."
+    ],
+    "low": [
+      "Non-sensitive version, health, or generic operational detail that does not materially aid an attack.",
+      "Minor rate-limit, logging, or hardening inconsistency with no demonstrated confidentiality, integrity, availability, authentication, or authorization impact.",
+      "Test-only, documentation-only, or heuristic scanner evidence that is not reachable in a deployed or privileged workflow."
+    ]
+  },
+  "coverage": {
+    "httpRoutes": {
+      "mapped": 116,
+      "total": 116,
+      "unmapped": [],
+      "ambiguous": [],
+      "groups": [
+        {
+          "id": "HTTP-ADMIN",
+          "count": 3
+        },
+        {
+          "id": "HTTP-AUTHENTICATION",
+          "count": 24
+        },
+        {
+          "id": "HTTP-CHATS",
+          "count": 12
+        },
+        {
+          "id": "HTTP-CSRF-BOOTSTRAP",
+          "count": 1
+        },
+        {
+          "id": "HTTP-HEALTH-READINESS",
+          "count": 2
+        },
+        {
+          "id": "HTTP-INTEGRATION-RUNTIME",
+          "count": 1
+        },
+        {
+          "id": "HTTP-INTEGRATIONS",
+          "count": 6
+        },
+        {
+          "id": "HTTP-INVITES",
+          "count": 7
+        },
+        {
+          "id": "HTTP-MESSAGES",
+          "count": 20
+        },
+        {
+          "id": "HTTP-MODERATION",
+          "count": 10
+        },
+        {
+          "id": "HTTP-QUEUE-STATUS",
+          "count": 1
+        },
+        {
+          "id": "HTTP-SPACES",
+          "count": 8
+        },
+        {
+          "id": "HTTP-USERS",
+          "count": 21
+        }
+      ]
+    },
+    "socketEvents": {
+      "mapped": 67,
+      "total": 67,
+      "unmapped": [],
+      "ambiguous": [],
+      "groups": [
+        {
+          "id": "SOCKET-CALL-C2S",
+          "count": 8
+        },
+        {
+          "id": "SOCKET-CHAT-C2S",
+          "count": 2
+        },
+        {
+          "id": "SOCKET-CLIENT-EMITTERS",
+          "count": 8
+        },
+        {
+          "id": "SOCKET-DYNAMIC-DISPATCH",
+          "count": 2
+        },
+        {
+          "id": "SOCKET-LIFECYCLE",
+          "count": 6
+        },
+        {
+          "id": "SOCKET-MESSAGE-C2S",
+          "count": 2
+        },
+        {
+          "id": "SOCKET-SERVER-EMITTERS",
+          "count": 6
+        },
+        {
+          "id": "SOCKET-SERVER-LISTENERS",
+          "count": 30
+        },
+        {
+          "id": "SOCKET-TYPING-C2S",
+          "count": 2
+        },
+        {
+          "id": "SOCKET-USER-C2S",
+          "count": 1
+        }
+      ]
+    },
+    "serviceWorkerEvents": {
+      "mapped": 2,
+      "total": 2,
+      "unmapped": [],
+      "ambiguous": [],
+      "groups": [
+        {
+          "id": "SERVICE-WORKER-NOTIFICATIONS",
+          "count": 2
+        }
+      ]
+    },
+    "backgroundJobs": {
+      "mapped": 18,
+      "total": 18,
+      "unmapped": [],
+      "ambiguous": [],
+      "groups": [
+        {
+          "id": "BACKGROUND-BACKEND-QUEUE",
+          "count": 1
+        },
+        {
+          "id": "BACKGROUND-FRONTEND-HOOKS",
+          "count": 9
+        },
+        {
+          "id": "BACKGROUND-FRONTEND-HTTP",
+          "count": 1
+        },
+        {
+          "id": "BACKGROUND-FRONTEND-UTILITIES",
+          "count": 3
+        },
+        {
+          "id": "BACKGROUND-NOTIFICATION-WORKER",
+          "count": 1
+        },
+        {
+          "id": "BACKGROUND-PRIVACY-WORKER",
+          "count": 1
+        },
+        {
+          "id": "BACKGROUND-SOCKET-TIMERS",
+          "count": 2
+        }
+      ],
+      "ignoredDevelopmentOnly": [
+        "scripts/security/lib/inventory.mjs"
+      ]
+    },
+    "dataModels": {
+      "mapped": 22,
+      "total": 22,
+      "unmapped": [],
+      "ambiguous": [],
+      "groups": [
+        {
+          "id": "MODELS-ACCOUNT-SESSION",
+          "count": 5
+        },
+        {
+          "id": "MODELS-CONVERSATION",
+          "count": 5
+        },
+        {
+          "id": "MODELS-INTEGRATIONS",
+          "count": 3
+        },
+        {
+          "id": "MODELS-MODERATION-PRIVACY",
+          "count": 3
+        },
+        {
+          "id": "MODELS-NOTIFICATIONS",
+          "count": 1
+        },
+        {
+          "id": "MODELS-SOCIAL-SPACES",
+          "count": 5
+        }
+      ]
+    },
+    "externalProviders": {
+      "mapped": 9,
+      "total": 9,
+      "unmapped": [],
+      "ambiguous": [],
+      "groups": [
+        {
+          "id": "PROVIDER-HEURISTIC-CLOUDINARY",
+          "count": 1
+        },
+        {
+          "id": "PROVIDER-MONGODB",
+          "count": 1
+        },
+        {
+          "id": "PROVIDER-STUN-TURN",
+          "count": 1
+        },
+        {
+          "id": "PROVIDER-WEB-PUSH",
+          "count": 1
+        },
+        {
+          "id": "PROVIDERS-DELIVERY-HTTP",
+          "count": 2
+        },
+        {
+          "id": "PROVIDERS-OAUTH",
+          "count": 3
+        }
+      ]
+    }
+  },
+  "exitGate": {
+    "sourceReferencesValid": true,
+    "allHttpRoutesMapped": true,
+    "allSocketEventsMapped": true,
+    "allServiceWorkerEventsMapped": true,
+    "allRuntimeBackgroundJobsMapped": true,
+    "allDataModelsMapped": true,
+    "allExternalProvidersMapped": true,
+    "allCurrentSurfacesMapped": true
+  }
+}
