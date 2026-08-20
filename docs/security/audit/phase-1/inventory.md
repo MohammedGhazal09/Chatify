@@ -5,8 +5,8 @@ This document is generated deterministically from tracked repository files. Run 
 ## Method and boundaries
 
 - Source selection: `git-index`.
-- Tracked files inventoried: **1503**.
-- Tracked bytes inventoried: **15857663**.
+- Tracked files inventoried: **1512**.
+- Tracked bytes inventoried: **16478638**.
 - Generated inventory files are excluded from their own input set.
 - Secret-like example values are redacted; live environment values are never read.
 - Runtime execution evidence is stored in the `GitHub Actions artifact: phase-1-reproduction-evidence` artifact rather than committed.
@@ -60,13 +60,13 @@ This document is generated deterministically from tracked repository files. Run 
 | Category | Tracked files |
 | --- | --- |
 | backend | 177 |
-| cli-and-operations | 2 |
+| cli-and-operations | 7 |
 | configuration | 3 |
 | controllers | 12 |
 | deployment | 1 |
-| documentation-and-runbooks | 1011 |
-| frontend | 251 |
-| generated-or-development-only | 56 |
+| documentation-and-runbooks | 1013 |
+| frontend | 252 |
+| generated-or-development-only | 57 |
 | lockfiles | 2 |
 | middleware | 8 |
 | models | 22 |
@@ -74,10 +74,10 @@ This document is generated deterministically from tracked repository files. Run 
 | package-manifests | 3 |
 | routes | 10 |
 | services | 5 |
-| tests | 184 |
-| text-source-or-config | 1308 |
+| tests | 185 |
+| text-source-or-config | 1317 |
 | utilities | 31 |
-| workflows | 1 |
+| workflows | 2 |
 
 Detailed paths and SHA-256 hashes are in `inventory.json`.
 
@@ -85,20 +85,122 @@ Detailed paths and SHA-256 hashes are in `inventory.json`.
 
 | Method | Resolved path | Source | Middleware/handler tokens |
 | --- | --- | --- | --- |
+| GET | /api/admin/delivery-health | Backend/Chatify/Routes/adminRouter.mjs:10 | csrfProtection, protect, getDeliveryHealth, moderationReviewLimiter, requireAdmin |
+| GET | /api/admin/integrations | Backend/Chatify/Routes/adminRouter.mjs:18 | csrfProtection, protect, getIntegrationDiagnostics, moderationReviewLimiter, requireAdmin |
+| GET | /api/admin/privacy-operations | Backend/Chatify/Routes/adminRouter.mjs:14 | csrfProtection, protect, getPrivacyOperations, moderationReviewLimiter, requireAdmin |
+| POST | /api/auth/2fa/backup-codes/regenerate | Backend/Chatify/Routes/authRouter.mjs:56 | csrfProtection, authLimiter, protect, regenerateBackupCodes |
+| POST | /api/auth/2fa/challenge | Backend/Chatify/Routes/authRouter.mjs:32 | csrfProtection, authLimiter, verifyTwoFactorLogin |
+| POST | /api/auth/2fa/confirm | Backend/Chatify/Routes/authRouter.mjs:54 | csrfProtection, authLimiter, confirmTwoFactor, protect |
+| POST | /api/auth/2fa/disable | Backend/Chatify/Routes/authRouter.mjs:55 | csrfProtection, authLimiter, disableTwoFactor, protect |
+| POST | /api/auth/2fa/setup | Backend/Chatify/Routes/authRouter.mjs:53 | csrfProtection, authLimiter, protect, setupTwoFactor |
+| GET | /api/auth/2fa/status | Backend/Chatify/Routes/authRouter.mjs:52 | csrfProtection, getTwoFactorStatus, protect |
 | GET | /api/auth/discord | Backend/Chatify/app.mjs:120 | discordAuth |
 | GET | /api/auth/discord/callback | Backend/Chatify/app.mjs:121 | discordCallback |
+| POST | /api/auth/forgot-password | Backend/Chatify/Routes/authRouter.mjs:33 | csrfProtection, authLimiter, forgotPassword |
 | GET | /api/auth/github | Backend/Chatify/app.mjs:116 | githubAuth |
 | GET | /api/auth/github/callback | Backend/Chatify/app.mjs:117 | githubCallback |
 | GET | /api/auth/google | Backend/Chatify/app.mjs:112 | googleAuth |
 | GET | /api/auth/google/callback | Backend/Chatify/app.mjs:113 | googleCallback |
+| GET | /api/auth/is-authenticated | Backend/Chatify/Routes/authRouter.mjs:38 | csrfProtection, isAuthenticated, sessionCheckLimiter |
+| POST | /api/auth/login | Backend/Chatify/Routes/authRouter.mjs:31 | csrfProtection, authLimiter, login |
+| POST | /api/auth/logout | Backend/Chatify/Routes/authRouter.mjs:59 | csrfProtection, logout |
+| GET | /api/auth/oauth/finalize | Backend/Chatify/Routes/authRouter.mjs:41 | csrfProtection, authLimiter, finalizeOAuth |
+| POST | /api/auth/refresh-token | Backend/Chatify/Routes/authRouter.mjs:44 | csrfProtection, refreshToken, refreshTokenLimiter |
+| POST | /api/auth/reset-password | Backend/Chatify/Routes/authRouter.mjs:35 | csrfProtection, authLimiter, resetPassword |
+| GET | /api/auth/sessions | Backend/Chatify/Routes/authRouter.mjs:47 | csrfProtection, listActiveSessions, protect |
+| DELETE | /api/auth/sessions/:sessionId | Backend/Chatify/Routes/authRouter.mjs:49 | csrfProtection, protect, revokeSession |
+| POST | /api/auth/sessions/revoke-all | Backend/Chatify/Routes/authRouter.mjs:48 | csrfProtection, protect, revokeAllSessions |
+| POST | /api/auth/signup | Backend/Chatify/Routes/authRouter.mjs:30 | csrfProtection, authLimiter, signup |
+| POST | /api/auth/verify-reset-code | Backend/Chatify/Routes/authRouter.mjs:34 | csrfProtection, authLimiter, verifyResetCode |
+| DELETE | /api/chat/:chatId | Backend/Chatify/Routes/chatRouter.mjs:28 | csrfProtection, protect, deleteChat |
+| DELETE | /api/chat/:chatId/block | Backend/Chatify/Routes/chatRouter.mjs:27 | csrfProtection, protect, unblockChatPeer |
+| POST | /api/chat/:chatId/block | Backend/Chatify/Routes/chatRouter.mjs:27 | csrfProtection, protect, blockChatPeer |
+| PATCH | /api/chat/:chatId/organization | Backend/Chatify/Routes/chatRouter.mjs:26 | csrfProtection, protect, updateChatOrganization |
+| GET | /api/chat/contact-requests | Backend/Chatify/Routes/chatRouter.mjs:22 | csrfProtection, protect, getContactRequests |
+| POST | /api/chat/contact-requests | Backend/Chatify/Routes/chatRouter.mjs:22 | csrfProtection, protect, createContactRequest |
+| DELETE | /api/chat/contact-requests/:requestId | Backend/Chatify/Routes/chatRouter.mjs:25 | csrfProtection, protect, cancelContactRequest |
+| POST | /api/chat/contact-requests/:requestId/accept | Backend/Chatify/Routes/chatRouter.mjs:23 | csrfProtection, protect, acceptContactRequest |
+| POST | /api/chat/contact-requests/:requestId/decline | Backend/Chatify/Routes/chatRouter.mjs:24 | csrfProtection, protect, declineContactRequest |
+| POST | /api/chat/create-group-chat | Backend/Chatify/Routes/chatRouter.mjs:20 | csrfProtection, protect, createGroupChat |
+| POST | /api/chat/create-new-chat | Backend/Chatify/Routes/chatRouter.mjs:19 | csrfProtection, protect, createChat |
+| GET | /api/chat/get-all-chats | Backend/Chatify/Routes/chatRouter.mjs:21 | csrfProtection, protect, getAllChats |
 | GET | /api/csrf-token | Backend/Chatify/app.mjs:123 | const, createCsrfToken, end, getCsrfCookieOptions, req, res, res.cookie, res.status, token, TOKEN, XSRF |
 | GET | /api/health | Backend/Chatify/app.mjs:95 | buildHealthPayload, json, req, res, res.status |
+| GET | /api/integrations/apps | Backend/Chatify/Routes/integrationRouter.mjs:13 | csrfProtection, protect, listIntegrationApps |
+| POST | /api/integrations/apps | Backend/Chatify/Routes/integrationRouter.mjs:13 | csrfProtection, protect, createIntegrationApp |
+| POST | /api/integrations/apps/:appId/installations | Backend/Chatify/Routes/integrationRouter.mjs:14 | csrfProtection, protect, installIntegrationApp |
+| GET | /api/integrations/installations | Backend/Chatify/Routes/integrationRouter.mjs:15 | csrfProtection, protect, listIntegrationInstallations |
+| POST | /api/integrations/installations/:installationId/revoke | Backend/Chatify/Routes/integrationRouter.mjs:16 | csrfProtection, protect, revokeIntegrationInstallation |
+| POST | /api/integrations/installations/:installationId/rotate-token | Backend/Chatify/Routes/integrationRouter.mjs:17 | csrfProtection, protect, rotateIntegrationToken |
+| GET | /api/integrations/runtime/manifest | Backend/Chatify/Routes/integrationRuntimeRouter.mjs:7 | integrationRuntimeLimiter, getIntegrationRuntimeManifest, integrationRuntimeAuth |
+| DELETE | /api/invite/:inviteId | Backend/Chatify/Routes/inviteLinkRouter.mjs:18 | csrfProtection, protect, revokeInviteLink |
+| GET | /api/invite/group/:chatId | Backend/Chatify/Routes/inviteLinkRouter.mjs:14 | csrfProtection, protect, listGroupInviteLinks |
+| POST | /api/invite/group/:chatId | Backend/Chatify/Routes/inviteLinkRouter.mjs:14 | csrfProtection, protect, createGroupInviteLink |
+| POST | /api/invite/join | Backend/Chatify/Routes/inviteLinkRouter.mjs:16 | csrfProtection, protect, joinInviteLink, spaceJoinLimiter |
+| POST | /api/invite/join/:token | Backend/Chatify/Routes/inviteLinkRouter.mjs:17 | csrfProtection, protect, joinInviteLink, spaceJoinLimiter |
+| GET | /api/invite/space/:spaceId | Backend/Chatify/Routes/inviteLinkRouter.mjs:15 | csrfProtection, protect, listSpaceInviteLinks |
+| POST | /api/invite/space/:spaceId | Backend/Chatify/Routes/inviteLinkRouter.mjs:15 | csrfProtection, protect, createSpaceInviteLink |
+| PATCH | /api/message/:chatId/mark-read | Backend/Chatify/Routes/messageRouter.mjs:43 | csrfProtection, messageLimiter, protect, markMessagesAsRead |
+| GET | /api/message/:chatId/pinned | Backend/Chatify/Routes/messageRouter.mjs:39 | csrfProtection, messageLimiter, protect, listPinnedMessages |
+| GET | /api/message/:chatId/shared-assets | Backend/Chatify/Routes/messageRouter.mjs:38 | csrfProtection, messageLimiter, protect, listSharedAssets |
+| GET | /api/message/:chatId/unread-count | Backend/Chatify/Routes/messageRouter.mjs:44 | csrfProtection, messageLimiter, protect, getUnreadCount |
+| DELETE | /api/message/:messageId | Backend/Chatify/Routes/messageRouter.mjs:45 | csrfProtection, messageLimiter, protect, deleteMessage |
+| PATCH | /api/message/:messageId/edit | Backend/Chatify/Routes/messageRouter.mjs:46 | csrfProtection, messageLimiter, protect, editMessage |
+| DELETE | /api/message/:messageId/pin | Backend/Chatify/Routes/messageRouter.mjs:48 | csrfProtection, messageLimiter, protect, unpinMessage |
+| POST | /api/message/:messageId/pin | Backend/Chatify/Routes/messageRouter.mjs:48 | csrfProtection, messageLimiter, protect, pinMessage |
+| POST | /api/message/:messageId/reaction | Backend/Chatify/Routes/messageRouter.mjs:47 | csrfProtection, messageLimiter, protect, toggleReaction |
+| PATCH | /api/message/:messageId/read | Backend/Chatify/Routes/messageRouter.mjs:42 | csrfProtection, messageLimiter, protect, markMessageAsRead |
+| DELETE | /api/message/:messageId/save | Backend/Chatify/Routes/messageRouter.mjs:49 | csrfProtection, messageLimiter, protect, unsaveMessage |
+| POST | /api/message/:messageId/save | Backend/Chatify/Routes/messageRouter.mjs:49 | csrfProtection, messageLimiter, protect, saveMessage |
+| GET | /api/message/attachments/:attachmentId/download | Backend/Chatify/Routes/messageRouter.mjs:36 | csrfProtection, messageLimiter, protect, downloadAttachment |
+| GET | /api/message/attachments/:attachmentId/preview | Backend/Chatify/Routes/messageRouter.mjs:35 | csrfProtection, messageLimiter, protect, previewAttachment |
+| POST | /api/message/batch/unread-counts | Backend/Chatify/Routes/messageRouter.mjs:34 | csrfProtection, messageLimiter, protect, getBatchUnreadCounts |
+| GET | /api/message/context/:chatId/:messageId | Backend/Chatify/Routes/messageRouter.mjs:33 | csrfProtection, messageLimiter, protect, getMessageContext |
+| GET | /api/message/get-all-messages/:id | Backend/Chatify/Routes/messageRouter.mjs:31 | csrfProtection, messageLimiter, protect, getAllMessages |
+| POST | /api/message/new-message | Backend/Chatify/Routes/messageRouter.mjs:30 | csrfProtection, messageLimiter, protect, attachmentUploadLimiter, newMessage, parseMessageAttachments |
+| GET | /api/message/saved | Backend/Chatify/Routes/messageRouter.mjs:37 | csrfProtection, messageLimiter, protect, listSavedMessages |
+| GET | /api/message/search/:chatId | Backend/Chatify/Routes/messageRouter.mjs:32 | csrfProtection, messageLimiter, protect, searchMessages |
+| GET | /api/moderation/my-enforcements | Backend/Chatify/Routes/moderationRouter.mjs:29 | csrfProtection, protect, listMyModerationEnforcements, moderationReviewLimiter |
+| GET | /api/moderation/ops-summary | Backend/Chatify/Routes/moderationRouter.mjs:33 | csrfProtection, protect, getModerationOpsSummary, moderationReviewLimiter, requireAdmin |
+| GET | /api/moderation/reports | Backend/Chatify/Routes/moderationRouter.mjs:25 | csrfProtection, protect, listAbuseReports, moderationReviewLimiter, requireAdmin |
+| POST | /api/moderation/reports | Backend/Chatify/Routes/moderationRouter.mjs:24 | csrfProtection, protect, abuseReportLimiter, createAbuseReport |
+| GET | /api/moderation/reports/:reportId | Backend/Chatify/Routes/moderationRouter.mjs:41 | csrfProtection, protect, getAbuseReport, moderationReviewLimiter, requireAdmin |
+| POST | /api/moderation/reports/:reportId/appeal | Backend/Chatify/Routes/moderationRouter.mjs:49 | csrfProtection, protect, moderationReviewLimiter, submitModerationAppeal |
+| PATCH | /api/moderation/reports/:reportId/appeals/:appealId | Backend/Chatify/Routes/moderationRouter.mjs:53 | csrfProtection, protect, moderationReviewLimiter, requireAdmin, reviewModerationAppeal |
+| PATCH | /api/moderation/reports/:reportId/assign | Backend/Chatify/Routes/moderationRouter.mjs:45 | csrfProtection, protect, assignAbuseReport, moderationReviewLimiter, requireAdmin |
+| PATCH | /api/moderation/reports/:reportId/review | Backend/Chatify/Routes/moderationRouter.mjs:57 | csrfProtection, protect, moderationReviewLimiter, requireAdmin, reviewAbuseReport |
+| GET | /api/moderation/users/:userId/enforcement-history | Backend/Chatify/Routes/moderationRouter.mjs:37 | csrfProtection, protect, getUserEnforcementHistory, moderationReviewLimiter, requireAdmin |
 | GET | /api/queue-status | Backend/Chatify/app.mjs:105 | queueStatus |
 | GET | /api/ready | Backend/Chatify/app.mjs:99 | buildReadinessPayload, const, getReadinessHttpStatus, json, payload, req, res, res.status |
-| GET | authorization | Backend/Chatify/Utils/integrationPermissions.mjs:125 |  |
-| POST | https://api.brevo.com/v3/smtp/email | Backend/Chatify/Services/emailService.mjs:20 | accept, api, application, Content, headers, json, key, payload, process.env.BREVO_API_KEY, Type |
-| GET | x-request-id | Backend/Chatify/Middlewares/requestLogger.mjs:5 |  |
-| GET | x-xsrf-token | Backend/Chatify/Middlewares/csrfProtection.mjs:56 |  |
+| GET | /api/space/ | Backend/Chatify/Routes/spaceRouter.mjs:16 | csrfProtection, protect, getSpaces |
+| POST | /api/space/ | Backend/Chatify/Routes/spaceRouter.mjs:16 | csrfProtection, protect, createSpace |
+| GET | /api/space/:spaceId | Backend/Chatify/Routes/spaceRouter.mjs:18 | csrfProtection, protect, getSpace |
+| GET | /api/space/:spaceId/channels | Backend/Chatify/Routes/spaceRouter.mjs:21 | csrfProtection, protect, getSpaceChannels |
+| POST | /api/space/:spaceId/channels | Backend/Chatify/Routes/spaceRouter.mjs:21 | csrfProtection, protect, createSpaceChannel |
+| POST | /api/space/:spaceId/members | Backend/Chatify/Routes/spaceRouter.mjs:19 | csrfProtection, protect, addSpaceMember |
+| DELETE | /api/space/:spaceId/members/:memberId | Backend/Chatify/Routes/spaceRouter.mjs:20 | csrfProtection, protect, removeSpaceMember |
+| POST | /api/space/join | Backend/Chatify/Routes/spaceRouter.mjs:17 | csrfProtection, protect, joinSpace, spaceJoinLimiter |
+| GET | /api/user/:userId/profile-image | Backend/Chatify/Routes/userRouter.mjs:44 | getProfileImage, protect |
+| GET | /api/user/get-all-users | Backend/Chatify/Routes/userRouter.mjs:35 | getAllUsers, protect |
+| GET | /api/user/get-logged-user | Backend/Chatify/Routes/userRouter.mjs:34 | getLoggedUser, protect |
+| PATCH | /api/user/identity | Backend/Chatify/Routes/userRouter.mjs:45 | csrfProtection, protect, updateIdentityMark |
+| GET | /api/user/lookup/:username | Backend/Chatify/Routes/userRouter.mjs:38 | lookupUserByUsername, protect |
+| GET | /api/user/notification-preferences | Backend/Chatify/Routes/userRouter.mjs:52 | getNotificationPreferences, protect |
+| PATCH | /api/user/notification-preferences | Backend/Chatify/Routes/userRouter.mjs:53 | csrfProtection, protect, updateNotificationPreferences |
+| POST | /api/user/notification-preferences/email-unsubscribe | Backend/Chatify/Routes/userRouter.mjs:55 | csrfProtection, protect, unsubscribeNotificationEmail |
+| GET | /api/user/online-status/:userId | Backend/Chatify/Routes/userRouter.mjs:36 | getOnlineStatus, protect |
+| GET | /api/user/online-users | Backend/Chatify/Routes/userRouter.mjs:37 | getOnlineUsers, protect |
+| PATCH | /api/user/privacy-settings | Backend/Chatify/Routes/userRouter.mjs:46 | csrfProtection, protect, updatePrivacySettings |
+| POST | /api/user/privacy/deletion-request | Backend/Chatify/Routes/userRouter.mjs:49 | csrfProtection, privacyRequestLimiter, protect, requestAccountDeletion |
+| POST | /api/user/privacy/deletion-request/cancel | Backend/Chatify/Routes/userRouter.mjs:50 | cancelAccountDeletion, csrfProtection, privacyRequestLimiter, protect |
+| POST | /api/user/privacy/export | Backend/Chatify/Routes/userRouter.mjs:48 | csrfProtection, exportAccountData, privacyRequestLimiter, protect |
+| GET | /api/user/privacy/summary | Backend/Chatify/Routes/userRouter.mjs:47 | getPrivacySummary, protect |
+| DELETE | /api/user/profile-image | Backend/Chatify/Routes/userRouter.mjs:43 | csrfProtection, protect, removeProfileImage |
+| PATCH | /api/user/profile-image | Backend/Chatify/Routes/userRouter.mjs:42 | csrfProtection, parseProfileImageUpload, profileImageUploadLimiter, protect, uploadProfileImage |
+| PATCH | /api/user/profile | Backend/Chatify/Routes/userRouter.mjs:40 | csrfProtection, protect, updateProfile |
+| DELETE | /api/user/push-subscriptions | Backend/Chatify/Routes/userRouter.mjs:58 | csrfProtection, protect, removePushSubscription |
+| POST | /api/user/push-subscriptions | Backend/Chatify/Routes/userRouter.mjs:57 | csrfProtection, protect, registerPushSubscription |
+| PATCH | /api/user/username | Backend/Chatify/Routes/userRouter.mjs:39 | csrfProtection, protect, setUsername |
 
 ### Router mounts
 
@@ -223,6 +325,9 @@ Dynamic constants are retained as `<dynamic:EXPRESSION>` and must be resolved du
 
 | Job kind | Source |
 | --- | --- |
+| cron-or-scheduler | scripts/security/lib/inventory.mjs:715 |
+| cron-or-scheduler | scripts/security/lib/inventory.mjs:715 |
+| cron-or-scheduler | scripts/security/lib/inventory.mjs:715 |
 | setInterval | Backend/Chatify/Services/notificationService.mjs:463 |
 | setInterval | Backend/Chatify/Services/privacyOperationsService.mjs:420 |
 | setInterval | Frontend/Chatify/src/hooks/useQueueStatus.ts:49 |
@@ -275,21 +380,23 @@ The JSON inventory additionally records field definitions, unique/TTL candidates
 
 | Provider | Environment variables | Static hosts | Control signals | User-controlled destination candidate | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| discord-oauth | DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET | http://localhost:5173, https://cdn.discordapp.com, https://dotenvx.com, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 |  | no | Backend/Chatify/.env.example:19, Backend/Chatify/Config/passport.mjs:4, Backend/Chatify/package-lock.json:27, Backend/Chatify/package.json:29, Backend/Chatify/test/setup/env.mjs:11 |
+| cloudinary |  |  | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | scripts/security/lib/inventory.mjs:988 |
+| discord-oauth | DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET | http://localhost:5173, https://cdn.discordapp.com, https://dotenvx.com, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:19, Backend/Chatify/Config/passport.mjs:4, Backend/Chatify/package-lock.json:27, Backend/Chatify/package.json:29, Backend/Chatify/test/setup/env.mjs:11, scripts/security/lib/inventory.mjs:1080 |
 | email | EMAIL_USER_SENDER |  |  | no |  |
-| generic-http |  | http://localhost:3000, https://api.brevo.com, https://chatify-ckmn.onrender.com, https://chatify-ten-rho.vercel.app, https://dotenvx.com, https://eslint.org, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com | retry-control, timeout | yes | Backend/Chatify/package-lock.json:13, Backend/Chatify/package.json:15, Backend/Chatify/Services/emailService.mjs:1, Frontend/Chatify/e2e/pages/phase15CallAcceptance.ts:291, Frontend/Chatify/e2e/pages/productionSmoke.ts:246, Frontend/Chatify/package-lock.json:15, Frontend/Chatify/package.json:20, Frontend/Chatify/src/api/authApi.ts:1, Frontend/Chatify/src/api/axios.test.ts:1, Frontend/Chatify/src/api/axios.ts:1, Frontend/Chatify/src/api/chatApi.ts:1, Frontend/Chatify/src/api/deliveryHealthApi.test.ts:7, Frontend/Chatify/src/api/deliveryHealthApi.ts:1, Frontend/Chatify/src/api/integrationDiagnosticsApi.test.ts:7, Frontend/Chatify/src/api/integrationDiagnosticsApi.ts:1, Frontend/Chatify/src/api/inviteApi.ts:1, Frontend/Chatify/src/api/messageApi.test.ts:14, Frontend/Chatify/src/api/messageApi.ts:1, Frontend/Chatify/src/api/moderationApi.test.ts:9, Frontend/Chatify/src/api/moderationApi.ts:1, Frontend/Chatify/src/api/privacyOperationsApi.test.ts:7, Frontend/Chatify/src/api/privacyOperationsApi.ts:1, Frontend/Chatify/src/api/spaceApi.test.ts:9, Frontend/Chatify/src/api/spaceApi.ts:1, Frontend/Chatify/src/api/userApi.ts:1, Frontend/Chatify/src/api/userPrivacyApi.test.ts:8, Frontend/Chatify/src/hooks/useAuthQuery.test.tsx:2, Frontend/Chatify/src/hooks/useChatQueries.test.tsx:4, Frontend/Chatify/src/hooks/useChatSocket.test.tsx:176, Frontend/Chatify/src/hooks/useChatSocket.ts:5, Frontend/Chatify/src/pages/admin/AdminModeration.tsx:3, Frontend/Chatify/src/pages/chat/chat.tsx:3, Frontend/Chatify/src/pages/forgotPassword/forgotPassword.tsx:5, Frontend/Chatify/src/pages/login/login.tsx:9, Frontend/Chatify/src/pages/setupUsername/SetupUsername.tsx:2, Frontend/Chatify/src/pages/signup/signup.tsx:12 |
-| github-oauth | GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET | http://localhost:5173, https://cdn.discordapp.com, https://dotenvx.com, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 |  | no | Backend/Chatify/.env.example:17, Backend/Chatify/Config/passport.mjs:3, Backend/Chatify/package-lock.json:28, Backend/Chatify/package.json:30, Backend/Chatify/test/setup/env.mjs:9 |
-| google-oauth | GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET | http://localhost:5173, https://cdn.discordapp.com, https://dotenvx.com, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 |  | no | Backend/Chatify/.env.example:15, Backend/Chatify/Config/passport.mjs:2, Backend/Chatify/package-lock.json:29, Backend/Chatify/package.json:31, Backend/Chatify/test/setup/env.mjs:7 |
-| mongodb | MONGODB_URL | http://localhost:5173, https://chatify.example.test, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://example.invalid |  | no | Backend/Chatify/.env.example:5, Backend/Chatify/Config/DBConfig.mjs:4, Backend/Chatify/Services/attachmentStorageService.mjs:18, Backend/Chatify/Services/profileImageStorageService.mjs:18, Backend/Chatify/test/observability/health-readiness.test.mjs:42, Backend/Chatify/test/setup/mongo.mjs:8, Backend/Chatify/Utils/operationalReadiness.mjs:14, scripts/ops-check.mjs:24 |
-| stun-turn | CALL_STUN_URLS, CALL_TURN_CREDENTIAL, CALL_TURN_URLS, CALL_TURN_USERNAME | http://localhost:3000, http://localhost:5173, https://chatify.example.test, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://example.invalid | retry-control, timeout | no | Backend/Chatify/.env.example:36, Backend/Chatify/Config/socket.mjs:420, Backend/Chatify/test/observability/health-readiness.test.mjs:96, Backend/Chatify/Utils/callIceConfig.mjs:1, Backend/Chatify/Utils/callSocketContract.mjs:11, Frontend/Chatify/src/hooks/useChatSocket.test.tsx:1362 |
-| web-push | VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT, VITE_VAPID_PUBLIC_KEY | http://localhost:5173, https://dotenvx.com, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 |  | no | Backend/Chatify/.env.example:27, Backend/Chatify/package-lock.json:32, Backend/Chatify/package.json:34, Backend/Chatify/Services/notificationService.mjs:1 |
+| generic-http |  | http://localhost:3000, http://localhost:5173, https://api.brevo.com, https://api.example.com, https://chatify-ckmn.onrender.com, https://chatify-ten-rho.vercel.app, https://dotenvx.com, https://eslint.org, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, mongodb://localhost:27017 | redirect-limit, response-size-limit, retry-control, timeout, tls-validation-disabled-signal | yes | Backend/Chatify/package-lock.json:13, Backend/Chatify/package.json:15, Backend/Chatify/Services/emailService.mjs:1, Frontend/Chatify/e2e/pages/phase15CallAcceptance.ts:291, Frontend/Chatify/e2e/pages/productionSmoke.ts:246, Frontend/Chatify/package-lock.json:15, Frontend/Chatify/package.json:20, Frontend/Chatify/src/api/authApi.ts:1, Frontend/Chatify/src/api/axios.test.ts:1, Frontend/Chatify/src/api/axios.ts:1, Frontend/Chatify/src/api/chatApi.ts:1, Frontend/Chatify/src/api/deliveryHealthApi.test.ts:7, Frontend/Chatify/src/api/deliveryHealthApi.ts:1, Frontend/Chatify/src/api/integrationDiagnosticsApi.test.ts:7, Frontend/Chatify/src/api/integrationDiagnosticsApi.ts:1, Frontend/Chatify/src/api/inviteApi.ts:1, Frontend/Chatify/src/api/messageApi.test.ts:14, Frontend/Chatify/src/api/messageApi.ts:1, Frontend/Chatify/src/api/moderationApi.test.ts:9, Frontend/Chatify/src/api/moderationApi.ts:1, Frontend/Chatify/src/api/privacyOperationsApi.test.ts:7, Frontend/Chatify/src/api/privacyOperationsApi.ts:1, Frontend/Chatify/src/api/spaceApi.test.ts:9, Frontend/Chatify/src/api/spaceApi.ts:1, Frontend/Chatify/src/api/userApi.ts:1, Frontend/Chatify/src/api/userPrivacyApi.test.ts:8, Frontend/Chatify/src/hooks/useAuthQuery.test.tsx:2, Frontend/Chatify/src/hooks/useChatQueries.test.tsx:4, Frontend/Chatify/src/hooks/useChatSocket.test.tsx:176, Frontend/Chatify/src/hooks/useChatSocket.ts:5, Frontend/Chatify/src/pages/admin/AdminModeration.tsx:3, Frontend/Chatify/src/pages/chat/chat.tsx:3, Frontend/Chatify/src/pages/forgotPassword/forgotPassword.tsx:5, Frontend/Chatify/src/pages/login/login.tsx:9, Frontend/Chatify/src/pages/setupUsername/SetupUsername.tsx:2, Frontend/Chatify/src/pages/signup/signup.tsx:12, scripts/security/__tests__/phase1-inventory.test.mjs:34, scripts/security/lib/inventory.mjs:1117 |
+| github-oauth | GITHUB_ACTOR, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REF_NAME, GITHUB_RUN_ATTEMPT, GITHUB_RUN_ID, GITHUB_SHA | http://localhost:5173, https://cdn.discordapp.com, https://dotenvx.com, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:17, Backend/Chatify/Config/passport.mjs:3, Backend/Chatify/package-lock.json:28, Backend/Chatify/package.json:30, Backend/Chatify/test/setup/env.mjs:9, scripts/security/lib/inventory.mjs:1079 |
+| google-oauth | GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET | http://localhost:5173, https://cdn.discordapp.com, https://dotenvx.com, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:15, Backend/Chatify/Config/passport.mjs:2, Backend/Chatify/package-lock.json:29, Backend/Chatify/package.json:31, Backend/Chatify/test/setup/env.mjs:7, scripts/security/lib/inventory.mjs:1078 |
+| mongodb | MONGO_URI, MONGODB_URL | http://localhost:5173, https://api.example.com, https://chatify.example.test, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://example.invalid, mongodb://localhost:27017 | redirect-limit, response-size-limit, timeout | no | Backend/Chatify/.env.example:5, Backend/Chatify/Config/DBConfig.mjs:4, Backend/Chatify/Services/attachmentStorageService.mjs:18, Backend/Chatify/Services/profileImageStorageService.mjs:18, Backend/Chatify/test/observability/health-readiness.test.mjs:42, Backend/Chatify/test/setup/mongo.mjs:8, Backend/Chatify/Utils/operationalReadiness.mjs:14, scripts/ops-check.mjs:24, scripts/security/__tests__/phase1-inventory.test.mjs:101 |
+| stun-turn | CALL_STUN_URLS, CALL_TURN_CREDENTIAL, CALL_TURN_URLS, CALL_TURN_USERNAME | http://localhost:3000, http://localhost:5173, https://api.example.com, https://chatify.example.test, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://example.invalid, mongodb://localhost:27017 | redirect-limit, response-size-limit, retry-control, timeout | no | Backend/Chatify/.env.example:36, Backend/Chatify/Config/socket.mjs:420, Backend/Chatify/test/observability/health-readiness.test.mjs:96, Backend/Chatify/Utils/callIceConfig.mjs:1, Backend/Chatify/Utils/callSocketContract.mjs:11, Frontend/Chatify/src/hooks/useChatSocket.test.tsx:1362, scripts/security/__tests__/phase1-inventory.test.mjs:104 |
+| web-push | VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT, VITE_VAPID_PUBLIC_KEY, WEB_PUSH_PUBLIC_KEY | http://localhost:5173, https://api.example.com, https://dotenvx.com, https://feross.org, https://github.com, https://ko-fi.com, https://opencollective.com, https://paulmillr.com, https://registry.npmjs.org, https://tidelift.com, https://www.patreon.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://localhost:27017 | redirect-limit, response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:27, Backend/Chatify/package-lock.json:32, Backend/Chatify/package.json:34, Backend/Chatify/Services/notificationService.mjs:1, scripts/security/__tests__/phase1-inventory.test.mjs:109, scripts/security/lib/inventory.mjs:990 |
 
 ## Sensitive configuration map
 
 | Variable | Category | Sensitive | Example value | Example definition | Usage |
 | --- | --- | --- | --- | --- | --- |
 | ACCESS_TOKEN_EXPIRES_IN | authentication-and-sessions | yes | <redacted> | Backend/Chatify/.env.example:8 | Backend/Chatify/Utils/tokenCookieGenerator.mjs:11 |
-| API_KEY | general-runtime | yes | missing |  | .agents/skills/vitest/references/features-mocking.md:199 |
+| API_TOKEN | authentication-and-sessions | yes | missing |  | scripts/security/__tests__/phase1-inventory.test.mjs:134 |
+| ARTIFACT_SECRET | general-runtime | yes | missing |  | scripts/security/__tests__/phase1-inventory.test.mjs:237 |
 | BREVO_API_KEY | general-runtime | yes | <redacted> | Backend/Chatify/.env.example:23 | Backend/Chatify/Services/emailService.mjs:25, Backend/Chatify/Services/notificationService.mjs:270, Backend/Chatify/test/notification/notification.delivery.test.mjs:13, Backend/Chatify/test/notification/notification.delivery.test.mjs:46, Backend/Chatify/test/notification/notification.delivery.test.mjs:69, Backend/Chatify/test/observability/health-readiness.test.mjs:45, Backend/Chatify/test/setup/env.mjs:14 |
 | CALL_STUN_URLS | webrtc-and-turn | no | stun:stun.l.google.com:19302 | Backend/Chatify/.env.example:36 |  |
 | CALL_TURN_CREDENTIAL | webrtc-and-turn | yes | <redacted> | Backend/Chatify/.env.example:39 |  |
@@ -310,24 +417,30 @@ The JSON inventory additionally records field definitions, unique/TTL candidates
 | CHATIFY_NOTIFICATION_DRY_RUN | general-runtime | no | 1 | Backend/Chatify/.env.example:24 | Backend/Chatify/Services/notificationService.mjs:46, Backend/Chatify/test/notification/notification.delivery.test.mjs:12, Backend/Chatify/test/notification/notification.delivery.test.mjs:45, Backend/Chatify/test/notification/notification.delivery.test.mjs:68 |
 | CHATIFY_PROD_FRONTEND_URL | general-runtime | no | missing |  | Frontend/Chatify/playwright.production.config.ts:3 |
 | CHATIFY_TEST_LOGS | audit-logging-and-metrics | no | 0 | Backend/Chatify/.env.example:33 | Backend/Chatify/test/observability/observability-logger.test.mjs:112, Backend/Chatify/test/observability/observability-logger.test.mjs:113, Backend/Chatify/test/observability/observability-logger.test.mjs:134, Backend/Chatify/Utils/observabilityLogger.mjs:87 |
-| CI | general-runtime | no | missing |  | .agents/skills/vitest/references/core-cli.md:158, .agents/skills/vitest/references/core-describe.md:65, .agents/skills/vitest/references/core-describe.md:66, .agents/skills/vitest/references/core-test-api.md:65, .agents/skills/vitest/references/core-test-api.md:66, .agents/skills/vitest/references/features-filtering.md:173, .agents/skills/vitest/references/features-filtering.md:94, .agents/skills/vitest/references/features-filtering.md:95, Frontend/Chatify/playwright.config.ts:23 |
-| COOKIE_SECRET | cookies-and-csrf | yes | missing |  | .agents/skills/session-management/references/session-middleware-chain.md:12 |
+| CI | general-runtime | no | missing |  | Frontend/Chatify/playwright.config.ts:23 |
 | CSRF_SECRET | cookies-and-csrf | yes | <redacted> | Backend/Chatify/.env.example:9 | Backend/Chatify/Middlewares/csrfProtection.mjs:10 |
 | DISCORD_CLIENT_ID | general-runtime | no | <placeholder> | Backend/Chatify/.env.example:19 | Backend/Chatify/Config/passport.mjs:180, Backend/Chatify/test/setup/env.mjs:11 |
 | DISCORD_CLIENT_SECRET | general-runtime | yes | <redacted> | Backend/Chatify/.env.example:20 | Backend/Chatify/Config/passport.mjs:181, Backend/Chatify/test/setup/env.mjs:12 |
+| DOCUMENTATION_ONLY_SECRET | general-runtime | yes | missing |  | scripts/security/__tests__/phase1-inventory.test.mjs:238 |
 | EMAIL_USER_SENDER | email | no | <placeholder> | Backend/Chatify/.env.example:22 | Backend/Chatify/Services/emailService.mjs:8, Backend/Chatify/Services/notificationService.mjs:270, Backend/Chatify/test/setup/env.mjs:13 |
 | EXPIRES_IN | retention-and-lifecycle | no | 15m | Backend/Chatify/.env.example:7 | Backend/Chatify/test/setup/env.mjs:3 |
-| FRONTEND_ORIGIN | cors-and-proxy | no | <placeholder> | Backend/Chatify/.env.example:12 | Backend/Chatify/app.mjs:76, Backend/Chatify/Config/socket.mjs:73, Backend/Chatify/Controller/authController.mjs:38, Backend/Chatify/test/setup/env.mjs:5, Backend/Chatify/test/socket/socket.auth.test.mjs:32, Backend/Chatify/test/socket/socket.auth.test.mjs:36, Backend/Chatify/test/socket/socket.auth.test.mjs:40, Backend/Chatify/Utils/inviteLinks.mjs:101 |
+| FRONTEND_ORIGIN | cors-and-proxy | no | <placeholder> | Backend/Chatify/.env.example:12 | Backend/Chatify/app.mjs:76, Backend/Chatify/Config/socket.mjs:73, Backend/Chatify/Controller/authController.mjs:38, Backend/Chatify/test/setup/env.mjs:5, Backend/Chatify/test/socket/socket.auth.test.mjs:32, Backend/Chatify/test/socket/socket.auth.test.mjs:36, Backend/Chatify/test/socket/socket.auth.test.mjs:40, Backend/Chatify/Utils/inviteLinks.mjs:101, scripts/security/__tests__/phase1-inventory.test.mjs:110 |
 | FRONTEND_ORIGIN_DEV | cors-and-proxy | no | http://localhost:5173/ | Backend/Chatify/.env.example:13 | Backend/Chatify/app.mjs:77, Backend/Chatify/Config/socket.mjs:75, Backend/Chatify/test/setup/env.mjs:6, Backend/Chatify/test/socket/socket.auth.test.mjs:79, Backend/Chatify/Utils/inviteLinks.mjs:102 |
+| GITHUB_ACTOR | general-runtime | no | missing |  | scripts/security/phase1-reproduce.mjs:50 |
 | GITHUB_CLIENT_ID | general-runtime | no | <placeholder> | Backend/Chatify/.env.example:17 | Backend/Chatify/Config/passport.mjs:167, Backend/Chatify/test/setup/env.mjs:9 |
 | GITHUB_CLIENT_SECRET | general-runtime | yes | <redacted> | Backend/Chatify/.env.example:18 | Backend/Chatify/Config/passport.mjs:168, Backend/Chatify/test/setup/env.mjs:10 |
+| GITHUB_REF_NAME | general-runtime | no | missing |  | scripts/security/phase1-reproduce.mjs:47 |
+| GITHUB_RUN_ATTEMPT | general-runtime | no | missing |  | scripts/security/phase1-reproduce.mjs:49 |
+| GITHUB_RUN_ID | general-runtime | no | missing |  | scripts/security/phase1-reproduce.mjs:48 |
+| GITHUB_SHA | general-runtime | no | missing |  | scripts/security/phase1-reproduce.mjs:46 |
 | GOOGLE_CLIENT_ID | general-runtime | no | <placeholder> | Backend/Chatify/.env.example:15 | Backend/Chatify/Config/passport.mjs:153, Backend/Chatify/test/setup/env.mjs:7 |
 | GOOGLE_CLIENT_SECRET | general-runtime | yes | <redacted> | Backend/Chatify/.env.example:16 | Backend/Chatify/Config/passport.mjs:154, Backend/Chatify/test/setup/env.mjs:8 |
 | HERCULES_ARTIFACT_DIR | general-runtime | no | missing |  | Frontend/Chatify/e2e/admin-delivery-health.spec.ts:6, Frontend/Chatify/e2e/admin-hub.spec.ts:5, Frontend/Chatify/e2e/admin-integrations.spec.ts:5, Frontend/Chatify/e2e/admin-privacy-operations.spec.ts:5, Frontend/Chatify/e2e/chat-phase42-47-visual-qa.spec.ts:19, Frontend/Chatify/e2e/chat-phase52-encrypted-recovery.spec.ts:14, Frontend/Chatify/e2e/chat-saved-messages.spec.ts:11 |
-| JWT_SECRET | authentication-and-sessions | yes | missing |  | .agents/skills/session-management/references/nodejsexpress-jwt-implementation.md:13 |
+| JWT_ACCESS_SECRET | authentication-and-sessions | yes | missing |  | scripts/security/__tests__/phase1-inventory.test.mjs:108 |
+| MONGO_URI | database | no | missing |  | scripts/security/__tests__/phase1-inventory.test.mjs:107 |
 | MONGODB_URL | database | no | mongodb://127.0.0.1:27017/chatify | Backend/Chatify/.env.example:5 | Backend/Chatify/Config/DBConfig.mjs:4, Backend/Chatify/test/observability/health-readiness.test.mjs:43, Backend/Chatify/test/setup/mongo.mjs:14, Backend/Chatify/test/setup/mongo.mjs:15 |
 | NEEDS_JSON | general-runtime | no | missing |  | .github/workflows/security-and-test-foundation.yml:179 |
-| NODE_ENV | general-runtime | no | development | Backend/Chatify/.env.example:1 | .agents/skills/session-management/references/session-middleware-chain.md:22, .agents/skills/vitest/references/features-filtering.md:172, .planning/phases/02-authenticated-realtime-contract/02-REVIEW.md:79, Backend/Chatify/app.mjs:37, Backend/Chatify/app.mjs:51, Backend/Chatify/app.mjs:62, Backend/Chatify/app.mjs:73, Backend/Chatify/Config/socket.mjs:51, Backend/Chatify/Controller/authController.mjs:36, Backend/Chatify/Controller/errController.mjs:82, Backend/Chatify/Controller/errController.mjs:82, Backend/Chatify/Middlewares/csrfProtection.mjs:8, Backend/Chatify/Middlewares/rateLimiters.mjs:3, Backend/Chatify/Middlewares/requestLogger.mjs:37, Backend/Chatify/Services/notificationService.mjs:451, Backend/Chatify/Services/notificationService.mjs:47, Backend/Chatify/Services/notificationService.mjs:48, Backend/Chatify/Services/privacyOperationsService.mjs:82, Backend/Chatify/test/notification/notification.delivery.test.mjs:11, Backend/Chatify/test/notification/notification.delivery.test.mjs:44, Backend/Chatify/test/notification/notification.delivery.test.mjs:67, Backend/Chatify/test/setup/env.mjs:1, Backend/Chatify/test/socket/socket.auth.test.mjs:31, Backend/Chatify/test/socket/socket.auth.test.mjs:35, Backend/Chatify/test/socket/socket.auth.test.mjs:39, Backend/Chatify/Utils/observabilityLogger.mjs:87, Backend/Chatify/Utils/tokenCookieGenerator.mjs:17, Backend/Chatify/Utils/tokenCookieGenerator.mjs:29, Backend/Chatify/Utils/twoFactor.mjs:172 |
+| NODE_ENV | general-runtime | no | development | Backend/Chatify/.env.example:1 | Backend/Chatify/app.mjs:37, Backend/Chatify/app.mjs:51, Backend/Chatify/app.mjs:62, Backend/Chatify/app.mjs:73, Backend/Chatify/Config/socket.mjs:51, Backend/Chatify/Controller/authController.mjs:36, Backend/Chatify/Controller/errController.mjs:82, Backend/Chatify/Controller/errController.mjs:82, Backend/Chatify/Middlewares/csrfProtection.mjs:8, Backend/Chatify/Middlewares/rateLimiters.mjs:3, Backend/Chatify/Middlewares/requestLogger.mjs:37, Backend/Chatify/Services/notificationService.mjs:451, Backend/Chatify/Services/notificationService.mjs:47, Backend/Chatify/Services/notificationService.mjs:48, Backend/Chatify/Services/privacyOperationsService.mjs:82, Backend/Chatify/test/notification/notification.delivery.test.mjs:11, Backend/Chatify/test/notification/notification.delivery.test.mjs:44, Backend/Chatify/test/notification/notification.delivery.test.mjs:67, Backend/Chatify/test/setup/env.mjs:1, Backend/Chatify/test/socket/socket.auth.test.mjs:31, Backend/Chatify/test/socket/socket.auth.test.mjs:35, Backend/Chatify/test/socket/socket.auth.test.mjs:39, Backend/Chatify/Utils/observabilityLogger.mjs:87, Backend/Chatify/Utils/tokenCookieGenerator.mjs:17, Backend/Chatify/Utils/tokenCookieGenerator.mjs:29, Backend/Chatify/Utils/twoFactor.mjs:172 |
 | NOTIFICATION_WORKER_ENABLED | general-runtime | no | 1 | Backend/Chatify/.env.example:25 | Backend/Chatify/Services/notificationService.mjs:452 |
 | NOTIFICATION_WORKER_INTERVAL_MS | general-runtime | no | 30000 | Backend/Chatify/.env.example:26 | Backend/Chatify/Services/notificationService.mjs:458 |
 | PASSWORD_RESET_SECRET | general-runtime | yes | <redacted> | Backend/Chatify/.env.example:10 | Backend/Chatify/Controller/authController.mjs:469, Backend/Chatify/test/setup/env.mjs:4 |
@@ -336,9 +449,8 @@ The JSON inventory additionally records field definitions, unique/TTL candidates
 | PRIVACY_OUTBOX_RETENTION_DAYS | retention-and-lifecycle | no | missing |  | Backend/Chatify/Services/privacyOperationsService.mjs:62 |
 | PRIVACY_WORKER_ENABLED | general-runtime | no | missing |  | Backend/Chatify/Services/privacyOperationsService.mjs:83 |
 | PRIVACY_WORKER_INTERVAL_MS | general-runtime | no | missing |  | Backend/Chatify/Services/privacyOperationsService.mjs:74 |
-| SECRET_JWT_KEY | authentication-and-sessions | yes | <redacted> | Backend/Chatify/.env.example:6 | .planning/phases/02-authenticated-realtime-contract/02-01-PLAN.md:113, Backend/Chatify/Controller/authController.mjs:390, Backend/Chatify/Controller/authController.mjs:97, Backend/Chatify/Middlewares/csrfProtection.mjs:10, Backend/Chatify/test/auth/auth.lifecycle.test.mjs:56, Backend/Chatify/test/observability/health-readiness.test.mjs:44, Backend/Chatify/test/setup/env.mjs:2, Backend/Chatify/test/socket/socket.auth.test.mjs:172, Backend/Chatify/test/socket/socket.auth.test.mjs:195, Backend/Chatify/Utils/authToken.mjs:44, Backend/Chatify/Utils/tokenCookieGenerator.mjs:56, Backend/Chatify/Utils/twoFactor.mjs:176, Backend/Chatify/Utils/twoFactor.mjs:180 |
-| SESSION_SECRET | authentication-and-sessions | yes | missing |  | .agents/skills/csrf-protection/references/nodejsexpress-csrf-protection.md:102, .agents/skills/session-management/references/session-middleware-chain.md:17 |
-| token_urlsafe | general-runtime | yes | missing |  | .agents/skills/session-management/references/session-storage-with-redis.md:26 |
+| RUNBOOK_ONLY_SECRET | general-runtime | yes | missing |  | scripts/security/__tests__/phase1-inventory.test.mjs:239 |
+| SECRET_JWT_KEY | authentication-and-sessions | yes | <redacted> | Backend/Chatify/.env.example:6 | Backend/Chatify/Controller/authController.mjs:390, Backend/Chatify/Controller/authController.mjs:97, Backend/Chatify/Middlewares/csrfProtection.mjs:10, Backend/Chatify/test/auth/auth.lifecycle.test.mjs:56, Backend/Chatify/test/observability/health-readiness.test.mjs:44, Backend/Chatify/test/setup/env.mjs:2, Backend/Chatify/test/socket/socket.auth.test.mjs:172, Backend/Chatify/test/socket/socket.auth.test.mjs:195, Backend/Chatify/Utils/authToken.mjs:44, Backend/Chatify/Utils/tokenCookieGenerator.mjs:56, Backend/Chatify/Utils/twoFactor.mjs:176, Backend/Chatify/Utils/twoFactor.mjs:180 |
 | TWO_FACTOR_ENCRYPTION_KEY | general-runtime | no | missing |  | Backend/Chatify/Utils/twoFactor.mjs:162, Backend/Chatify/Utils/twoFactor.mjs:168 |
 | VAPID_PRIVATE_KEY | web-push | yes | <redacted> | Backend/Chatify/.env.example:29 | Backend/Chatify/Services/notificationService.mjs:282 |
 | VAPID_PUBLIC_KEY | web-push | no | <empty> | Backend/Chatify/.env.example:28 | Backend/Chatify/Services/notificationService.mjs:281 |
@@ -346,11 +458,11 @@ The JSON inventory additionally records field definitions, unique/TTL candidates
 | VITE_BACKEND_URL | general-runtime | no | http://localhost:5000/ | Frontend/Chatify/.env.example:1 |  |
 | VITE_SOCKET_URL | general-runtime | no | http://localhost:5000/ | Frontend/Chatify/.env.example:2 |  |
 | VITE_VAPID_PUBLIC_KEY | web-push | no | <empty> | Frontend/Chatify/.env.example:3 | Frontend/Chatify/src/utils/pushNotifications.ts:4 |
-| VITEST | general-runtime | no | missing |  | .agents/skills/vitest/references/core-config.md:123, .agents/skills/vitest/references/core-config.md:167 |
+| WEB_PUSH_PUBLIC_KEY | web-push | no | missing |  | scripts/security/__tests__/phase1-inventory.test.mjs:109 |
 
 ### Configuration drift candidates
 
-- Referenced but absent from committed examples: `API_KEY`, `CHATIFY_ALLOW_NONLOCAL_DELIVERY_SMOKE`, `CHATIFY_ALLOW_NONLOCAL_PROFILE_IMAGE_ACCEPTANCE`, `CHATIFY_CALL_SMOKE`, `CHATIFY_CHAT_SMOKE_ARTIFACT_DIR`, `CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE`, `CHATIFY_E2E_ARTIFACT_DIR`, `CHATIFY_LOCAL_BACKEND_URL`, `CHATIFY_LOCAL_DELIVERY_SMOKE`, `CHATIFY_LOCAL_EPHEMERAL_BACKEND`, `CHATIFY_PROD_FRONTEND_URL`, `CI`, `COOKIE_SECRET`, `HERCULES_ARTIFACT_DIR`, `JWT_SECRET`, `NEEDS_JSON`, `PRIVACY_OUTBOX_RETENTION_DAYS`, `PRIVACY_WORKER_ENABLED`, `PRIVACY_WORKER_INTERVAL_MS`, `SESSION_SECRET`, `token_urlsafe`, `TWO_FACTOR_ENCRYPTION_KEY`, `VITEST`.
+- Referenced but absent from committed examples: `API_TOKEN`, `ARTIFACT_SECRET`, `CHATIFY_ALLOW_NONLOCAL_DELIVERY_SMOKE`, `CHATIFY_ALLOW_NONLOCAL_PROFILE_IMAGE_ACCEPTANCE`, `CHATIFY_CALL_SMOKE`, `CHATIFY_CHAT_SMOKE_ARTIFACT_DIR`, `CHATIFY_CI_REQUIRE_PRODUCTION_EVIDENCE`, `CHATIFY_E2E_ARTIFACT_DIR`, `CHATIFY_LOCAL_BACKEND_URL`, `CHATIFY_LOCAL_DELIVERY_SMOKE`, `CHATIFY_LOCAL_EPHEMERAL_BACKEND`, `CHATIFY_PROD_FRONTEND_URL`, `CI`, `DOCUMENTATION_ONLY_SECRET`, `GITHUB_ACTOR`, `GITHUB_REF_NAME`, `GITHUB_RUN_ATTEMPT`, `GITHUB_RUN_ID`, `GITHUB_SHA`, `HERCULES_ARTIFACT_DIR`, `JWT_ACCESS_SECRET`, `MONGO_URI`, `NEEDS_JSON`, `PRIVACY_OUTBOX_RETENTION_DAYS`, `PRIVACY_WORKER_ENABLED`, `PRIVACY_WORKER_INTERVAL_MS`, `RUNBOOK_ONLY_SECRET`, `TWO_FACTOR_ENCRYPTION_KEY`, `WEB_PUSH_PUBLIC_KEY`.
 - Defined in examples but not statically referenced: `CALL_STUN_URLS`, `CALL_TURN_CREDENTIAL`, `CALL_TURN_URLS`, `CALL_TURN_USERNAME`, `VITE_BACKEND_URL`, `VITE_SOCKET_URL`.
 
 ## Phase 1 exit-gate evidence

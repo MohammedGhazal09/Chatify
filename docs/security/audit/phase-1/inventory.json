@@ -339,8 +339,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1503,
-    "totalTrackedBytes": 15857663,
+    "trackedFileCount": 1512,
+    "totalTrackedBytes": 16478638,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -523,7 +523,12 @@
       ],
       "cli-and-operations": [
         "scripts/ops-check.mjs",
-        "scripts/production-evidence-check.mjs"
+        "scripts/production-evidence-check.mjs",
+        "scripts/security/__tests__/phase1-inventory.test.mjs",
+        "scripts/security/lib/inventory.mjs",
+        "scripts/security/phase1-doctor.mjs",
+        "scripts/security/phase1-inventory.mjs",
+        "scripts/security/phase1-reproduce.mjs"
       ],
       "configuration": [
         "Backend/Chatify/Config/DBConfig.mjs",
@@ -1558,7 +1563,9 @@
         "docs/operations/incident-triage.md",
         "docs/operations/local-startup.md",
         "docs/operations/production-smoke.md",
-        "docs/operations/rollback.md"
+        "docs/operations/rollback.md",
+        "docs/plans/2026-08-20-phase-1-repository-inventory.md",
+        "docs/security/audit/phase-1/README.md"
       ],
       "frontend": [
         "Frontend/Chatify/.env.example",
@@ -1596,6 +1603,7 @@
         "Frontend/Chatify/index.html",
         "Frontend/Chatify/package-lock.json",
         "Frontend/Chatify/package.json",
+        "Frontend/Chatify/playwright-report-production/index.html",
         "Frontend/Chatify/playwright.config.ts",
         "Frontend/Chatify/playwright.production.config.ts",
         "Frontend/Chatify/public/chatify-service-worker.js",
@@ -1869,7 +1877,8 @@
         ".artifacts/oauth-login-qa-20260628-2347/screenshots/login-desktop-viewport.png",
         ".artifacts/oauth-login-qa-20260628-2347/screenshots/login-mobile-viewport.png",
         ".vscode/settings.json",
-        "Backend/Chatify/bash.exe.stackdump"
+        "Backend/Chatify/bash.exe.stackdump",
+        "Frontend/Chatify/playwright-report-production/index.html"
       ],
       "lockfiles": [
         "Backend/Chatify/package-lock.json",
@@ -2120,7 +2129,8 @@
         "Frontend/Chatify/src/utils/encryptedMessages.test.ts",
         "Frontend/Chatify/src/utils/notificationPrivacy.test.ts",
         "Frontend/Chatify/src/utils/sounds.test.ts",
-        "Frontend/Chatify/src/utils/validationSchemas.test.ts"
+        "Frontend/Chatify/src/utils/validationSchemas.test.ts",
+        "scripts/security/__tests__/phase1-inventory.test.mjs"
       ],
       "text-source-or-config": [
         ".agents/skills/csrf-protection/references/double-submit-cookie-pattern.md",
@@ -2157,6 +2167,7 @@
         ".agents/skills/vitest/SKILL.md",
         ".artifacts/oauth-login-qa-20260628-2347/report.json",
         ".github/workflows/security-and-test-foundation.yml",
+        ".github/workflows/security-phase-1-inventory.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
         ".planning/codebase/CONVENTIONS.md",
@@ -3179,6 +3190,8 @@
         "docs/operations/local-startup.md",
         "docs/operations/production-smoke.md",
         "docs/operations/rollback.md",
+        "docs/plans/2026-08-20-phase-1-repository-inventory.md",
+        "docs/security/audit/phase-1/README.md",
         "Frontend/Chatify/e2e/admin-delivery-health.spec.ts",
         "Frontend/Chatify/e2e/admin-hub.spec.ts",
         "Frontend/Chatify/e2e/admin-integrations.spec.ts",
@@ -3212,6 +3225,7 @@
         "Frontend/Chatify/index.html",
         "Frontend/Chatify/package-lock.json",
         "Frontend/Chatify/package.json",
+        "Frontend/Chatify/playwright-report-production/index.html",
         "Frontend/Chatify/playwright.config.ts",
         "Frontend/Chatify/playwright.production.config.ts",
         "Frontend/Chatify/public/chatify-service-worker.js",
@@ -3430,6 +3444,11 @@
         "README.md",
         "scripts/ops-check.mjs",
         "scripts/production-evidence-check.mjs",
+        "scripts/security/__tests__/phase1-inventory.test.mjs",
+        "scripts/security/lib/inventory.mjs",
+        "scripts/security/phase1-doctor.mjs",
+        "scripts/security/phase1-inventory.mjs",
+        "scripts/security/phase1-reproduce.mjs",
         "skills-lock.json"
       ],
       "utilities": [
@@ -3466,7 +3485,8 @@
         "Backend/Chatify/Utils/usernameValidation.mjs"
       ],
       "workflows": [
-        ".github/workflows/security-and-test-foundation.yml"
+        ".github/workflows/security-and-test-foundation.yml",
+        ".github/workflows/security-phase-1-inventory.yml"
       ]
     },
     "files": [
@@ -3939,6 +3959,15 @@
         "path": ".github/workflows/security-and-test-foundation.yml",
         "bytes": 4812,
         "sha256": "e78ae7825ae0f0b6d533edee6ec51585ce6d2ba4f28494bab9f1847514df8083",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
+        "path": ".github/workflows/security-phase-1-inventory.yml",
+        "bytes": 1373,
+        "sha256": "40fdfaeb86f95f414e1e0caf4e79dddbd4f638d595aeb1c9be0a528afb7a8675",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -14673,6 +14702,24 @@
         ]
       },
       {
+        "path": "docs/plans/2026-08-20-phase-1-repository-inventory.md",
+        "bytes": 5873,
+        "sha256": "ae8219b1e112df7f4eb5ac9c94d6c79e4a87110d554f95aab95d36bbaa74513a",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-1/README.md",
+        "bytes": 4746,
+        "sha256": "5104d7a8baedef4a46796833667389fa6247e7cd9af03654503923efe4f01c67",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "Frontend/Chatify/.env.example",
         "bytes": 100,
         "sha256": "d3e882159441d993a273f7f09a7bff876c255ec829339440d015d50f1df39f36",
@@ -15013,6 +15060,16 @@
         "categories": [
           "frontend",
           "package-manifests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Frontend/Chatify/playwright-report-production/index.html",
+        "bytes": 529840,
+        "sha256": "48548554586b8abd04d0113e9572be2a76fa402f13923608c983533e313218f7",
+        "categories": [
+          "frontend",
+          "generated-or-development-only",
           "text-source-or-config"
         ]
       },
@@ -17072,6 +17129,52 @@
         ]
       },
       {
+        "path": "scripts/security/__tests__/phase1-inventory.test.mjs",
+        "bytes": 11799,
+        "sha256": "d99c22ac5651f2476de43ebf709bfe8f24db8fd5cfc61c575388ebfb01d56290",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/inventory.mjs",
+        "bytes": 56944,
+        "sha256": "cb9ebd83eb7968f23f66ee60a01fb0965885e75bd44a850aca615107d7d0f635",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase1-doctor.mjs",
+        "bytes": 4807,
+        "sha256": "9baadb60c51c28caaa1edf7d7db39bb5aec599f1675ea676bfea4e17a0ad683e",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase1-inventory.mjs",
+        "bytes": 1397,
+        "sha256": "3fbb4eece91fc06d1983569ad5b91e4343362cc7aa0ec9d9812cb7840b79e8b2",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase1-reproduce.mjs",
+        "bytes": 4196,
+        "sha256": "ff3f5d6f3e17bc8dc388d79a6b67d7d07852ece36e610fa2e6369a79fb84f4c4",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "skills-lock.json",
         "bytes": 766,
         "sha256": "b9c581ebba80c692a250493248ba30858d14ec6c564efef2ad90b4e34864dda4",
@@ -17083,6 +17186,178 @@
   },
   "entryPoints": {
     "httpRoutes": [
+      {
+        "method": "GET",
+        "localPath": "/delivery-health",
+        "mountPath": "/api/admin",
+        "fullPath": "/api/admin/delivery-health",
+        "source": "Backend/Chatify/Routes/adminRouter.mjs",
+        "line": 10,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 134,
+        "middlewareAndHandlerTokens": [
+          "getDeliveryHealth",
+          "moderationReviewLimiter",
+          "requireAdmin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/integrations",
+        "mountPath": "/api/admin",
+        "fullPath": "/api/admin/integrations",
+        "source": "Backend/Chatify/Routes/adminRouter.mjs",
+        "line": 18,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 134,
+        "middlewareAndHandlerTokens": [
+          "getIntegrationDiagnostics",
+          "moderationReviewLimiter",
+          "requireAdmin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/privacy-operations",
+        "mountPath": "/api/admin",
+        "fullPath": "/api/admin/privacy-operations",
+        "source": "Backend/Chatify/Routes/adminRouter.mjs",
+        "line": 14,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 134,
+        "middlewareAndHandlerTokens": [
+          "getPrivacyOperations",
+          "moderationReviewLimiter",
+          "requireAdmin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/2fa/backup-codes/regenerate",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/2fa/backup-codes/regenerate",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 56,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "protect",
+          "regenerateBackupCodes"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/2fa/challenge",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/2fa/challenge",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 32,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "verifyTwoFactorLogin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/2fa/confirm",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/2fa/confirm",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 54,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "confirmTwoFactor",
+          "protect"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/2fa/disable",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/2fa/disable",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 55,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "disableTwoFactor",
+          "protect"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/2fa/setup",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/2fa/setup",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 53,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "protect",
+          "setupTwoFactor"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/2fa/status",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/2fa/status",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 52,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "getTwoFactorStatus",
+          "protect"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
       {
         "method": "GET",
         "localPath": "/api/auth/discord",
@@ -17112,6 +17387,24 @@
           "discordCallback"
         ],
         "mountMiddlewareTokens": []
+      },
+      {
+        "method": "POST",
+        "localPath": "/forgot-password",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/forgot-password",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 33,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "forgotPassword"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
       },
       {
         "method": "GET",
@@ -17175,6 +17468,419 @@
       },
       {
         "method": "GET",
+        "localPath": "/is-authenticated",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/is-authenticated",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 38,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "isAuthenticated",
+          "sessionCheckLimiter"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/login",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/login",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 31,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "login"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/logout",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/logout",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 59,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "logout"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/oauth/finalize",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/oauth/finalize",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 41,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "finalizeOAuth"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/refresh-token",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/refresh-token",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 44,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "refreshToken",
+          "refreshTokenLimiter"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/reset-password",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/reset-password",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 35,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "resetPassword"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/sessions",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/sessions",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 47,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "listActiveSessions",
+          "protect"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/sessions/:sessionId",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/sessions/:sessionId",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 49,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "protect",
+          "revokeSession"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/sessions/revoke-all",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/sessions/revoke-all",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 48,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "protect",
+          "revokeAllSessions"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/signup",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/signup",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 30,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "signup"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/verify-reset-code",
+        "mountPath": "/api/auth",
+        "fullPath": "/api/auth/verify-reset-code",
+        "source": "Backend/Chatify/Routes/authRouter.mjs",
+        "line": 34,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 129,
+        "middlewareAndHandlerTokens": [
+          "authLimiter",
+          "verifyResetCode"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/:chatId",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/:chatId",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 28,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "deleteChat"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/:chatId/block",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/:chatId/block",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 27,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "unblockChatPeer"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/:chatId/block",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/:chatId/block",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 27,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "blockChatPeer"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/:chatId/organization",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/:chatId/organization",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 26,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "updateChatOrganization"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/contact-requests",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/contact-requests",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 22,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "getContactRequests"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/contact-requests",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/contact-requests",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 22,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "createContactRequest"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/contact-requests/:requestId",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/contact-requests/:requestId",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 25,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "cancelContactRequest"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/contact-requests/:requestId/accept",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/contact-requests/:requestId/accept",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 23,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "acceptContactRequest"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/contact-requests/:requestId/decline",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/contact-requests/:requestId/decline",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 24,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "declineContactRequest"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/create-group-chat",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/create-group-chat",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 20,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "createGroupChat"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/create-new-chat",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/create-new-chat",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 19,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "createChat"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/get-all-chats",
+        "mountPath": "/api/chat",
+        "fullPath": "/api/chat/get-all-chats",
+        "source": "Backend/Chatify/Routes/chatRouter.mjs",
+        "line": 21,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 131,
+        "middlewareAndHandlerTokens": [
+          "getAllChats"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
         "localPath": "/api/csrf-token",
         "mountPath": null,
         "fullPath": "/api/csrf-token",
@@ -17219,6 +17925,839 @@
       },
       {
         "method": "GET",
+        "localPath": "/apps",
+        "mountPath": "/api/integrations",
+        "fullPath": "/api/integrations/apps",
+        "source": "Backend/Chatify/Routes/integrationRouter.mjs",
+        "line": 13,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 138,
+        "middlewareAndHandlerTokens": [
+          "listIntegrationApps"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/apps",
+        "mountPath": "/api/integrations",
+        "fullPath": "/api/integrations/apps",
+        "source": "Backend/Chatify/Routes/integrationRouter.mjs",
+        "line": 13,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 138,
+        "middlewareAndHandlerTokens": [
+          "createIntegrationApp"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/apps/:appId/installations",
+        "mountPath": "/api/integrations",
+        "fullPath": "/api/integrations/apps/:appId/installations",
+        "source": "Backend/Chatify/Routes/integrationRouter.mjs",
+        "line": 14,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 138,
+        "middlewareAndHandlerTokens": [
+          "installIntegrationApp"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/installations",
+        "mountPath": "/api/integrations",
+        "fullPath": "/api/integrations/installations",
+        "source": "Backend/Chatify/Routes/integrationRouter.mjs",
+        "line": 15,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 138,
+        "middlewareAndHandlerTokens": [
+          "listIntegrationInstallations"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/installations/:installationId/revoke",
+        "mountPath": "/api/integrations",
+        "fullPath": "/api/integrations/installations/:installationId/revoke",
+        "source": "Backend/Chatify/Routes/integrationRouter.mjs",
+        "line": 16,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 138,
+        "middlewareAndHandlerTokens": [
+          "revokeIntegrationInstallation"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/installations/:installationId/rotate-token",
+        "mountPath": "/api/integrations",
+        "fullPath": "/api/integrations/installations/:installationId/rotate-token",
+        "source": "Backend/Chatify/Routes/integrationRouter.mjs",
+        "line": 17,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 138,
+        "middlewareAndHandlerTokens": [
+          "rotateIntegrationToken"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/manifest",
+        "mountPath": "/api/integrations/runtime",
+        "fullPath": "/api/integrations/runtime/manifest",
+        "source": "Backend/Chatify/Routes/integrationRuntimeRouter.mjs",
+        "line": 7,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 137,
+        "middlewareAndHandlerTokens": [
+          "getIntegrationRuntimeManifest",
+          "integrationRuntimeAuth"
+        ],
+        "mountMiddlewareTokens": [
+          "integrationRuntimeLimiter"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/:inviteId",
+        "mountPath": "/api/invite",
+        "fullPath": "/api/invite/:inviteId",
+        "source": "Backend/Chatify/Routes/inviteLinkRouter.mjs",
+        "line": 18,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 136,
+        "middlewareAndHandlerTokens": [
+          "revokeInviteLink"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/group/:chatId",
+        "mountPath": "/api/invite",
+        "fullPath": "/api/invite/group/:chatId",
+        "source": "Backend/Chatify/Routes/inviteLinkRouter.mjs",
+        "line": 14,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 136,
+        "middlewareAndHandlerTokens": [
+          "listGroupInviteLinks"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/group/:chatId",
+        "mountPath": "/api/invite",
+        "fullPath": "/api/invite/group/:chatId",
+        "source": "Backend/Chatify/Routes/inviteLinkRouter.mjs",
+        "line": 14,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 136,
+        "middlewareAndHandlerTokens": [
+          "createGroupInviteLink"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/join",
+        "mountPath": "/api/invite",
+        "fullPath": "/api/invite/join",
+        "source": "Backend/Chatify/Routes/inviteLinkRouter.mjs",
+        "line": 16,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 136,
+        "middlewareAndHandlerTokens": [
+          "joinInviteLink",
+          "spaceJoinLimiter"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/join/:token",
+        "mountPath": "/api/invite",
+        "fullPath": "/api/invite/join/:token",
+        "source": "Backend/Chatify/Routes/inviteLinkRouter.mjs",
+        "line": 17,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 136,
+        "middlewareAndHandlerTokens": [
+          "joinInviteLink",
+          "spaceJoinLimiter"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/space/:spaceId",
+        "mountPath": "/api/invite",
+        "fullPath": "/api/invite/space/:spaceId",
+        "source": "Backend/Chatify/Routes/inviteLinkRouter.mjs",
+        "line": 15,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 136,
+        "middlewareAndHandlerTokens": [
+          "listSpaceInviteLinks"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/space/:spaceId",
+        "mountPath": "/api/invite",
+        "fullPath": "/api/invite/space/:spaceId",
+        "source": "Backend/Chatify/Routes/inviteLinkRouter.mjs",
+        "line": 15,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 136,
+        "middlewareAndHandlerTokens": [
+          "createSpaceInviteLink"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/:chatId/mark-read",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:chatId/mark-read",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 43,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "markMessagesAsRead"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/:chatId/pinned",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:chatId/pinned",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 39,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "listPinnedMessages"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/:chatId/shared-assets",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:chatId/shared-assets",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 38,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "listSharedAssets"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/:chatId/unread-count",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:chatId/unread-count",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 44,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "getUnreadCount"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/:messageId",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:messageId",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 45,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "deleteMessage"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/:messageId/edit",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:messageId/edit",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 46,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "editMessage"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/:messageId/pin",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:messageId/pin",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 48,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "unpinMessage"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/:messageId/pin",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:messageId/pin",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 48,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "pinMessage"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/:messageId/reaction",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:messageId/reaction",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 47,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "toggleReaction"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/:messageId/read",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:messageId/read",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 42,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "markMessageAsRead"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/:messageId/save",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:messageId/save",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 49,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "unsaveMessage"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/:messageId/save",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/:messageId/save",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 49,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "saveMessage"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/attachments/:attachmentId/download",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/attachments/:attachmentId/download",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 36,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "downloadAttachment"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/attachments/:attachmentId/preview",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/attachments/:attachmentId/preview",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 35,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "previewAttachment"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/batch/unread-counts",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/batch/unread-counts",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 34,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "getBatchUnreadCounts"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/context/:chatId/:messageId",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/context/:chatId/:messageId",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 33,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "getMessageContext"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/get-all-messages/:id",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/get-all-messages/:id",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 31,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "getAllMessages"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/new-message",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/new-message",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 30,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "attachmentUploadLimiter",
+          "newMessage",
+          "parseMessageAttachments"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/saved",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/saved",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 37,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "listSavedMessages"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/search/:chatId",
+        "mountPath": "/api/message",
+        "fullPath": "/api/message/search/:chatId",
+        "source": "Backend/Chatify/Routes/messageRouter.mjs",
+        "line": 32,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 132,
+        "middlewareAndHandlerTokens": [
+          "searchMessages"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "messageLimiter",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/my-enforcements",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/my-enforcements",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 29,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "listMyModerationEnforcements",
+          "moderationReviewLimiter"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/ops-summary",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/ops-summary",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 33,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "getModerationOpsSummary",
+          "moderationReviewLimiter",
+          "requireAdmin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/reports",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/reports",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 25,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "listAbuseReports",
+          "moderationReviewLimiter",
+          "requireAdmin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/reports",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/reports",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 24,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "abuseReportLimiter",
+          "createAbuseReport"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/reports/:reportId",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/reports/:reportId",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 41,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "getAbuseReport",
+          "moderationReviewLimiter",
+          "requireAdmin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/reports/:reportId/appeal",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/reports/:reportId/appeal",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 49,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "moderationReviewLimiter",
+          "submitModerationAppeal"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/reports/:reportId/appeals/:appealId",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/reports/:reportId/appeals/:appealId",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 53,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "moderationReviewLimiter",
+          "requireAdmin",
+          "reviewModerationAppeal"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/reports/:reportId/assign",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/reports/:reportId/assign",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 45,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "assignAbuseReport",
+          "moderationReviewLimiter",
+          "requireAdmin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/reports/:reportId/review",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/reports/:reportId/review",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 57,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "moderationReviewLimiter",
+          "requireAdmin",
+          "reviewAbuseReport"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/users/:userId/enforcement-history",
+        "mountPath": "/api/moderation",
+        "fullPath": "/api/moderation/users/:userId/enforcement-history",
+        "source": "Backend/Chatify/Routes/moderationRouter.mjs",
+        "line": 37,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 133,
+        "middlewareAndHandlerTokens": [
+          "getUserEnforcementHistory",
+          "moderationReviewLimiter",
+          "requireAdmin"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
         "localPath": "/api/queue-status",
         "mountPath": null,
         "fullPath": "/api/queue-status",
@@ -17256,65 +18795,501 @@
       },
       {
         "method": "GET",
-        "localPath": "authorization",
-        "mountPath": null,
-        "fullPath": "authorization",
-        "source": "Backend/Chatify/Utils/integrationPermissions.mjs",
-        "line": 125,
-        "receiver": "req",
-        "mountSource": null,
-        "mountLine": null,
-        "middlewareAndHandlerTokens": [],
-        "mountMiddlewareTokens": []
+        "localPath": "/",
+        "mountPath": "/api/space",
+        "fullPath": "/api/space/",
+        "source": "Backend/Chatify/Routes/spaceRouter.mjs",
+        "line": 16,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 135,
+        "middlewareAndHandlerTokens": [
+          "getSpaces"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
       },
       {
         "method": "POST",
-        "localPath": "https://api.brevo.com/v3/smtp/email",
-        "mountPath": null,
-        "fullPath": "https://api.brevo.com/v3/smtp/email",
-        "source": "Backend/Chatify/Services/emailService.mjs",
-        "line": 20,
-        "receiver": "axios",
-        "mountSource": null,
-        "mountLine": null,
+        "localPath": "/",
+        "mountPath": "/api/space",
+        "fullPath": "/api/space/",
+        "source": "Backend/Chatify/Routes/spaceRouter.mjs",
+        "line": 16,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 135,
         "middlewareAndHandlerTokens": [
-          "accept",
-          "api",
-          "application",
-          "Content",
-          "headers",
-          "json",
-          "key",
-          "payload",
-          "process.env.BREVO_API_KEY",
-          "Type"
+          "createSpace"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/:spaceId",
+        "mountPath": "/api/space",
+        "fullPath": "/api/space/:spaceId",
+        "source": "Backend/Chatify/Routes/spaceRouter.mjs",
+        "line": 18,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 135,
+        "middlewareAndHandlerTokens": [
+          "getSpace"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/:spaceId/channels",
+        "mountPath": "/api/space",
+        "fullPath": "/api/space/:spaceId/channels",
+        "source": "Backend/Chatify/Routes/spaceRouter.mjs",
+        "line": 21,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 135,
+        "middlewareAndHandlerTokens": [
+          "getSpaceChannels"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/:spaceId/channels",
+        "mountPath": "/api/space",
+        "fullPath": "/api/space/:spaceId/channels",
+        "source": "Backend/Chatify/Routes/spaceRouter.mjs",
+        "line": 21,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 135,
+        "middlewareAndHandlerTokens": [
+          "createSpaceChannel"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/:spaceId/members",
+        "mountPath": "/api/space",
+        "fullPath": "/api/space/:spaceId/members",
+        "source": "Backend/Chatify/Routes/spaceRouter.mjs",
+        "line": 19,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 135,
+        "middlewareAndHandlerTokens": [
+          "addSpaceMember"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/:spaceId/members/:memberId",
+        "mountPath": "/api/space",
+        "fullPath": "/api/space/:spaceId/members/:memberId",
+        "source": "Backend/Chatify/Routes/spaceRouter.mjs",
+        "line": 20,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 135,
+        "middlewareAndHandlerTokens": [
+          "removeSpaceMember"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "POST",
+        "localPath": "/join",
+        "mountPath": "/api/space",
+        "fullPath": "/api/space/join",
+        "source": "Backend/Chatify/Routes/spaceRouter.mjs",
+        "line": 17,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 135,
+        "middlewareAndHandlerTokens": [
+          "joinSpace",
+          "spaceJoinLimiter"
+        ],
+        "mountMiddlewareTokens": [
+          "csrfProtection",
+          "protect"
+        ]
+      },
+      {
+        "method": "GET",
+        "localPath": "/:userId/profile-image",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/:userId/profile-image",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 44,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "getProfileImage",
+          "protect"
         ],
         "mountMiddlewareTokens": []
       },
       {
         "method": "GET",
-        "localPath": "x-request-id",
-        "mountPath": null,
-        "fullPath": "x-request-id",
-        "source": "Backend/Chatify/Middlewares/requestLogger.mjs",
-        "line": 5,
-        "receiver": "req",
-        "mountSource": null,
-        "mountLine": null,
-        "middlewareAndHandlerTokens": [],
+        "localPath": "/get-all-users",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/get-all-users",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 35,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "getAllUsers",
+          "protect"
+        ],
         "mountMiddlewareTokens": []
       },
       {
         "method": "GET",
-        "localPath": "x-xsrf-token",
-        "mountPath": null,
-        "fullPath": "x-xsrf-token",
-        "source": "Backend/Chatify/Middlewares/csrfProtection.mjs",
-        "line": 56,
-        "receiver": "req",
-        "mountSource": null,
-        "mountLine": null,
-        "middlewareAndHandlerTokens": [],
+        "localPath": "/get-logged-user",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/get-logged-user",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 34,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "getLoggedUser",
+          "protect"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/identity",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/identity",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 45,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "updateIdentityMark"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "GET",
+        "localPath": "/lookup/:username",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/lookup/:username",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 38,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "lookupUserByUsername",
+          "protect"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "GET",
+        "localPath": "/notification-preferences",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/notification-preferences",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 52,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "getNotificationPreferences",
+          "protect"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/notification-preferences",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/notification-preferences",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 53,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "updateNotificationPreferences"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "POST",
+        "localPath": "/notification-preferences/email-unsubscribe",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/notification-preferences/email-unsubscribe",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 55,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "unsubscribeNotificationEmail"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "GET",
+        "localPath": "/online-status/:userId",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/online-status/:userId",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 36,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "getOnlineStatus",
+          "protect"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "GET",
+        "localPath": "/online-users",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/online-users",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 37,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "getOnlineUsers",
+          "protect"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/privacy-settings",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/privacy-settings",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 46,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "updatePrivacySettings"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "POST",
+        "localPath": "/privacy/deletion-request",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/privacy/deletion-request",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 49,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "privacyRequestLimiter",
+          "protect",
+          "requestAccountDeletion"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "POST",
+        "localPath": "/privacy/deletion-request/cancel",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/privacy/deletion-request/cancel",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 50,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "cancelAccountDeletion",
+          "csrfProtection",
+          "privacyRequestLimiter",
+          "protect"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "POST",
+        "localPath": "/privacy/export",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/privacy/export",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 48,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "exportAccountData",
+          "privacyRequestLimiter",
+          "protect"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "GET",
+        "localPath": "/privacy/summary",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/privacy/summary",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 47,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "getPrivacySummary",
+          "protect"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/profile-image",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/profile-image",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 43,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "removeProfileImage"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/profile-image",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/profile-image",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 42,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "parseProfileImageUpload",
+          "profileImageUploadLimiter",
+          "protect",
+          "uploadProfileImage"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/profile",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/profile",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 40,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "updateProfile"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "DELETE",
+        "localPath": "/push-subscriptions",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/push-subscriptions",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 58,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "removePushSubscription"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "POST",
+        "localPath": "/push-subscriptions",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/push-subscriptions",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 57,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "registerPushSubscription"
+        ],
+        "mountMiddlewareTokens": []
+      },
+      {
+        "method": "PATCH",
+        "localPath": "/username",
+        "mountPath": "/api/user",
+        "fullPath": "/api/user/username",
+        "source": "Backend/Chatify/Routes/userRouter.mjs",
+        "line": 39,
+        "receiver": "router",
+        "mountSource": "Backend/Chatify/app.mjs",
+        "mountLine": 130,
+        "middlewareAndHandlerTokens": [
+          "csrfProtection",
+          "protect",
+          "setUsername"
+        ],
         "mountMiddlewareTokens": []
       }
     ],
@@ -18282,6 +20257,21 @@
       }
     ],
     "backgroundJobs": [
+      {
+        "kind": "cron-or-scheduler",
+        "source": "scripts/security/lib/inventory.mjs",
+        "line": 715
+      },
+      {
+        "kind": "cron-or-scheduler",
+        "source": "scripts/security/lib/inventory.mjs",
+        "line": 715
+      },
+      {
+        "kind": "cron-or-scheduler",
+        "source": "scripts/security/lib/inventory.mjs",
+        "line": 715
+      },
       {
         "kind": "setInterval",
         "source": "Backend/Chatify/Services/notificationService.mjs",
@@ -22448,7 +24438,8 @@
         "Frontend/Chatify/src/pages/chat/components/ChatSidebar.tsx",
         "Frontend/Chatify/src/pages/chat/components/ConversationDetailContent.tsx",
         "Frontend/Chatify/src/pages/chat/components/NewChatDialog.tsx",
-        "Frontend/Chatify/src/pages/chat/components/SpacesSidebar.tsx"
+        "Frontend/Chatify/src/pages/chat/components/SpacesSidebar.tsx",
+        "scripts/security/__tests__/phase1-inventory.test.mjs"
       ],
       "clientInputCandidates": [
         "assignedTo",
@@ -22472,6 +24463,7 @@
         "password",
         "rememberMe",
         "replyToMessageId",
+        "role",
         "showLastSeen",
         "showOnlineStatus",
         "showProfileStatus",
@@ -22491,6 +24483,7 @@
         "firstName",
         "githubId",
         "googleId",
+        "id",
         "isOnline",
         "kind",
         "lastName",
@@ -22601,6 +24594,29 @@
   ],
   "externalCommunications": [
     {
+      "provider": "cloudinary",
+      "evidence": [
+        {
+          "source": "scripts/security/lib/inventory.mjs",
+          "line": 988
+        }
+      ],
+      "environmentVariables": [],
+      "staticHosts": [],
+      "controls": [
+        "response-size-limit",
+        "retry-control",
+        "timeout",
+        "tls-validation-disabled-signal"
+      ],
+      "userControlledDestinationCandidate": false,
+      "reviewFields": {
+        "credentialSource": "environmentVariables and provider configuration evidence above",
+        "protocolsAndDestinations": "staticHosts plus runtime/provider configuration",
+        "timeoutRedirectSizeRetryLogging": "controls are static signals; validate effective runtime behavior in later phases"
+      }
+    },
+    {
       "provider": "discord-oauth",
       "evidence": [
         {
@@ -22622,6 +24638,10 @@
         {
           "source": "Backend/Chatify/test/setup/env.mjs",
           "line": 11
+        },
+        {
+          "source": "scripts/security/lib/inventory.mjs",
+          "line": 1080
         }
       ],
       "environmentVariables": [
@@ -22643,7 +24663,12 @@
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017"
       ],
-      "controls": [],
+      "controls": [
+        "response-size-limit",
+        "retry-control",
+        "timeout",
+        "tls-validation-disabled-signal"
+      ],
       "userControlledDestinationCandidate": false,
       "reviewFields": {
         "credentialSource": "environmentVariables and provider configuration evidence above",
@@ -22812,12 +24837,22 @@
         {
           "source": "Frontend/Chatify/src/pages/signup/signup.tsx",
           "line": 12
+        },
+        {
+          "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+          "line": 34
+        },
+        {
+          "source": "scripts/security/lib/inventory.mjs",
+          "line": 1117
         }
       ],
       "environmentVariables": [],
       "staticHosts": [
         "http://localhost:3000",
+        "http://localhost:5173",
         "https://api.brevo.com",
+        "https://api.example.com",
         "https://chatify-ckmn.onrender.com",
         "https://chatify-ten-rho.vercel.app",
         "https://dotenvx.com",
@@ -22829,11 +24864,15 @@
         "https://paulmillr.com",
         "https://registry.npmjs.org",
         "https://tidelift.com",
-        "https://www.patreon.com"
+        "https://www.patreon.com",
+        "mongodb://localhost:27017"
       ],
       "controls": [
+        "redirect-limit",
+        "response-size-limit",
         "retry-control",
-        "timeout"
+        "timeout",
+        "tls-validation-disabled-signal"
       ],
       "userControlledDestinationCandidate": true,
       "reviewFields": {
@@ -22864,11 +24903,20 @@
         {
           "source": "Backend/Chatify/test/setup/env.mjs",
           "line": 9
+        },
+        {
+          "source": "scripts/security/lib/inventory.mjs",
+          "line": 1079
         }
       ],
       "environmentVariables": [
+        "GITHUB_ACTOR",
         "GITHUB_CLIENT_ID",
-        "GITHUB_CLIENT_SECRET"
+        "GITHUB_CLIENT_SECRET",
+        "GITHUB_REF_NAME",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_RUN_ID",
+        "GITHUB_SHA"
       ],
       "staticHosts": [
         "http://localhost:5173",
@@ -22885,7 +24933,12 @@
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017"
       ],
-      "controls": [],
+      "controls": [
+        "response-size-limit",
+        "retry-control",
+        "timeout",
+        "tls-validation-disabled-signal"
+      ],
       "userControlledDestinationCandidate": false,
       "reviewFields": {
         "credentialSource": "environmentVariables and provider configuration evidence above",
@@ -22915,6 +24968,10 @@
         {
           "source": "Backend/Chatify/test/setup/env.mjs",
           "line": 7
+        },
+        {
+          "source": "scripts/security/lib/inventory.mjs",
+          "line": 1078
         }
       ],
       "environmentVariables": [
@@ -22936,7 +24993,12 @@
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017"
       ],
-      "controls": [],
+      "controls": [
+        "response-size-limit",
+        "retry-control",
+        "timeout",
+        "tls-validation-disabled-signal"
+      ],
       "userControlledDestinationCandidate": false,
       "reviewFields": {
         "credentialSource": "environmentVariables and provider configuration evidence above",
@@ -22978,19 +25040,30 @@
         {
           "source": "scripts/ops-check.mjs",
           "line": 24
+        },
+        {
+          "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+          "line": 101
         }
       ],
       "environmentVariables": [
+        "MONGO_URI",
         "MONGODB_URL"
       ],
       "staticHosts": [
         "http://localhost:5173",
+        "https://api.example.com",
         "https://chatify.example.test",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017",
-        "mongodb://example.invalid"
+        "mongodb://example.invalid",
+        "mongodb://localhost:27017"
       ],
-      "controls": [],
+      "controls": [
+        "redirect-limit",
+        "response-size-limit",
+        "timeout"
+      ],
       "userControlledDestinationCandidate": false,
       "reviewFields": {
         "credentialSource": "environmentVariables and provider configuration evidence above",
@@ -23024,6 +25097,10 @@
         {
           "source": "Frontend/Chatify/src/hooks/useChatSocket.test.tsx",
           "line": 1362
+        },
+        {
+          "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+          "line": 104
         }
       ],
       "environmentVariables": [
@@ -23035,12 +25112,16 @@
       "staticHosts": [
         "http://localhost:3000",
         "http://localhost:5173",
+        "https://api.example.com",
         "https://chatify.example.test",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017",
-        "mongodb://example.invalid"
+        "mongodb://example.invalid",
+        "mongodb://localhost:27017"
       ],
       "controls": [
+        "redirect-limit",
+        "response-size-limit",
         "retry-control",
         "timeout"
       ],
@@ -23069,16 +25150,26 @@
         {
           "source": "Backend/Chatify/Services/notificationService.mjs",
           "line": 1
+        },
+        {
+          "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+          "line": 109
+        },
+        {
+          "source": "scripts/security/lib/inventory.mjs",
+          "line": 990
         }
       ],
       "environmentVariables": [
         "VAPID_PRIVATE_KEY",
         "VAPID_PUBLIC_KEY",
         "VAPID_SUBJECT",
-        "VITE_VAPID_PUBLIC_KEY"
+        "VITE_VAPID_PUBLIC_KEY",
+        "WEB_PUSH_PUBLIC_KEY"
       ],
       "staticHosts": [
         "http://localhost:5173",
+        "https://api.example.com",
         "https://dotenvx.com",
         "https://feross.org",
         "https://github.com",
@@ -23089,9 +25180,16 @@
         "https://tidelift.com",
         "https://www.patreon.com",
         "https://your-frontend.example.com",
-        "mongodb://127.0.0.1:27017"
+        "mongodb://127.0.0.1:27017",
+        "mongodb://localhost:27017"
       ],
-      "controls": [],
+      "controls": [
+        "redirect-limit",
+        "response-size-limit",
+        "retry-control",
+        "timeout",
+        "tls-validation-disabled-signal"
+      ],
       "userControlledDestinationCandidate": false,
       "reviewFields": {
         "credentialSource": "environmentVariables and provider configuration evidence above",
@@ -23126,15 +25224,29 @@
         "exampleValue": "<redacted>"
       },
       {
-        "name": "API_KEY",
+        "name": "API_TOKEN",
+        "category": "authentication-and-sessions",
+        "sensitive": true,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 134,
+            "kind": "github-secret"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "ARTIFACT_SECRET",
         "category": "general-runtime",
         "sensitive": true,
         "definedInExamples": [],
         "referencedAt": [
           {
-            "source": ".agents/skills/vitest/references/features-mocking.md",
-            "line": 199,
-            "kind": "vite-env"
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 237,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -23552,62 +25664,8 @@
         "definedInExamples": [],
         "referencedAt": [
           {
-            "source": ".agents/skills/vitest/references/core-cli.md",
-            "line": 158,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/core-describe.md",
-            "line": 65,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/core-describe.md",
-            "line": 66,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/core-test-api.md",
-            "line": 65,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/core-test-api.md",
-            "line": 66,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/features-filtering.md",
-            "line": 173,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/features-filtering.md",
-            "line": 94,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/features-filtering.md",
-            "line": 95,
-            "kind": "process-env"
-          },
-          {
             "source": "Frontend/Chatify/playwright.config.ts",
             "line": 23,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
-      },
-      {
-        "name": "COOKIE_SECRET",
-        "category": "cookies-and-csrf",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": ".agents/skills/session-management/references/session-middleware-chain.md",
-            "line": 12,
             "kind": "process-env"
           }
         ],
@@ -23679,6 +25737,20 @@
           }
         ],
         "exampleValue": "<redacted>"
+      },
+      {
+        "name": "DOCUMENTATION_ONLY_SECRET",
+        "category": "general-runtime",
+        "sensitive": true,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 238,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
       },
       {
         "name": "EMAIL_USER_SENDER",
@@ -23778,6 +25850,11 @@
             "source": "Backend/Chatify/Utils/inviteLinks.mjs",
             "line": 101,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 110,
+            "kind": "process-env"
           }
         ],
         "exampleValue": "<placeholder>"
@@ -23820,6 +25897,20 @@
           }
         ],
         "exampleValue": "http://localhost:5173/"
+      },
+      {
+        "name": "GITHUB_ACTOR",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 50,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
       },
       {
         "name": "GITHUB_CLIENT_ID",
@@ -23868,6 +25959,62 @@
           }
         ],
         "exampleValue": "<redacted>"
+      },
+      {
+        "name": "GITHUB_REF_NAME",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 47,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "GITHUB_RUN_ATTEMPT",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 49,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "GITHUB_RUN_ID",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 48,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "GITHUB_SHA",
+        "category": "general-runtime",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/phase1-reproduce.mjs",
+            "line": 46,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
       },
       {
         "name": "GOOGLE_CLIENT_ID",
@@ -23962,14 +26109,28 @@
         "exampleValue": null
       },
       {
-        "name": "JWT_SECRET",
+        "name": "JWT_ACCESS_SECRET",
         "category": "authentication-and-sessions",
         "sensitive": true,
         "definedInExamples": [],
         "referencedAt": [
           {
-            "source": ".agents/skills/session-management/references/nodejsexpress-jwt-implementation.md",
-            "line": 13,
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 108,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "MONGO_URI",
+        "category": "database",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 107,
             "kind": "process-env"
           }
         ],
@@ -24034,21 +26195,6 @@
           }
         ],
         "referencedAt": [
-          {
-            "source": ".agents/skills/session-management/references/session-middleware-chain.md",
-            "line": 22,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/features-filtering.md",
-            "line": 172,
-            "kind": "process-env"
-          },
-          {
-            "source": ".planning/phases/02-authenticated-realtime-contract/02-REVIEW.md",
-            "line": 79,
-            "kind": "process-env"
-          },
           {
             "source": "Backend/Chatify/app.mjs",
             "line": 37,
@@ -24325,6 +26471,20 @@
         "exampleValue": null
       },
       {
+        "name": "RUNBOOK_ONLY_SECRET",
+        "category": "general-runtime",
+        "sensitive": true,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 239,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
         "name": "SECRET_JWT_KEY",
         "category": "authentication-and-sessions",
         "sensitive": true,
@@ -24335,11 +26495,6 @@
           }
         ],
         "referencedAt": [
-          {
-            "source": ".planning/phases/02-authenticated-realtime-contract/02-01-PLAN.md",
-            "line": 113,
-            "kind": "process-env"
-          },
           {
             "source": "Backend/Chatify/Controller/authController.mjs",
             "line": 390,
@@ -24402,39 +26557,6 @@
           }
         ],
         "exampleValue": "<redacted>"
-      },
-      {
-        "name": "SESSION_SECRET",
-        "category": "authentication-and-sessions",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": ".agents/skills/csrf-protection/references/nodejsexpress-csrf-protection.md",
-            "line": 102,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/session-management/references/session-middleware-chain.md",
-            "line": 17,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
-      },
-      {
-        "name": "token_urlsafe",
-        "category": "general-runtime",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": ".agents/skills/session-management/references/session-storage-with-redis.md",
-            "line": 26,
-            "kind": "github-secret"
-          }
-        ],
-        "exampleValue": null
       },
       {
         "name": "TWO_FACTOR_ENCRYPTION_KEY",
@@ -24558,19 +26680,14 @@
         "exampleValue": "<empty>"
       },
       {
-        "name": "VITEST",
-        "category": "general-runtime",
+        "name": "WEB_PUSH_PUBLIC_KEY",
+        "category": "web-push",
         "sensitive": false,
         "definedInExamples": [],
         "referencedAt": [
           {
-            "source": ".agents/skills/vitest/references/core-config.md",
-            "line": 123,
-            "kind": "process-env"
-          },
-          {
-            "source": ".agents/skills/vitest/references/core-config.md",
-            "line": 167,
+            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
+            "line": 109,
             "kind": "process-env"
           }
         ],
@@ -24578,7 +26695,8 @@
       }
     ],
     "missingFromExamples": [
-      "API_KEY",
+      "API_TOKEN",
+      "ARTIFACT_SECRET",
       "CHATIFY_ALLOW_NONLOCAL_DELIVERY_SMOKE",
       "CHATIFY_ALLOW_NONLOCAL_PROFILE_IMAGE_ACCEPTANCE",
       "CHATIFY_CALL_SMOKE",
@@ -24590,17 +26708,22 @@
       "CHATIFY_LOCAL_EPHEMERAL_BACKEND",
       "CHATIFY_PROD_FRONTEND_URL",
       "CI",
-      "COOKIE_SECRET",
+      "DOCUMENTATION_ONLY_SECRET",
+      "GITHUB_ACTOR",
+      "GITHUB_REF_NAME",
+      "GITHUB_RUN_ATTEMPT",
+      "GITHUB_RUN_ID",
+      "GITHUB_SHA",
       "HERCULES_ARTIFACT_DIR",
-      "JWT_SECRET",
+      "JWT_ACCESS_SECRET",
+      "MONGO_URI",
       "NEEDS_JSON",
       "PRIVACY_OUTBOX_RETENTION_DAYS",
       "PRIVACY_WORKER_ENABLED",
       "PRIVACY_WORKER_INTERVAL_MS",
-      "SESSION_SECRET",
-      "token_urlsafe",
+      "RUNBOOK_ONLY_SECRET",
       "TWO_FACTOR_ENCRYPTION_KEY",
-      "VITEST"
+      "WEB_PUSH_PUBLIC_KEY"
     ],
     "unusedExamples": [
       "CALL_STUN_URLS",
@@ -24617,12 +26740,11 @@
       ],
       "authentication-and-sessions": [
         "ACCESS_TOKEN_EXPIRES_IN",
-        "JWT_SECRET",
-        "SECRET_JWT_KEY",
-        "SESSION_SECRET"
+        "API_TOKEN",
+        "JWT_ACCESS_SECRET",
+        "SECRET_JWT_KEY"
       ],
       "cookies-and-csrf": [
-        "COOKIE_SECRET",
         "CSRF_SECRET"
       ],
       "cors-and-proxy": [
@@ -24630,13 +26752,14 @@
         "FRONTEND_ORIGIN_DEV"
       ],
       "database": [
+        "MONGO_URI",
         "MONGODB_URL"
       ],
       "email": [
         "EMAIL_USER_SENDER"
       ],
       "general-runtime": [
-        "API_KEY",
+        "ARTIFACT_SECRET",
         "BREVO_API_KEY",
         "CHATIFY_ALLOW_NONLOCAL_DELIVERY_SMOKE",
         "CHATIFY_ALLOW_NONLOCAL_PROFILE_IMAGE_ACCEPTANCE",
@@ -24652,8 +26775,14 @@
         "CI",
         "DISCORD_CLIENT_ID",
         "DISCORD_CLIENT_SECRET",
+        "DOCUMENTATION_ONLY_SECRET",
+        "GITHUB_ACTOR",
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
+        "GITHUB_REF_NAME",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_RUN_ID",
+        "GITHUB_SHA",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "HERCULES_ARTIFACT_DIR",
@@ -24666,11 +26795,10 @@
         "PORT_NUMBER",
         "PRIVACY_WORKER_ENABLED",
         "PRIVACY_WORKER_INTERVAL_MS",
-        "token_urlsafe",
+        "RUNBOOK_ONLY_SECRET",
         "TWO_FACTOR_ENCRYPTION_KEY",
         "VITE_BACKEND_URL",
-        "VITE_SOCKET_URL",
-        "VITEST"
+        "VITE_SOCKET_URL"
       ],
       "retention-and-lifecycle": [
         "EXPIRES_IN",
@@ -24680,7 +26808,8 @@
         "VAPID_PRIVATE_KEY",
         "VAPID_PUBLIC_KEY",
         "VAPID_SUBJECT",
-        "VITE_VAPID_PUBLIC_KEY"
+        "VITE_VAPID_PUBLIC_KEY",
+        "WEB_PUSH_PUBLIC_KEY"
       ],
       "webrtc-and-turn": [
         "CALL_STUN_URLS",

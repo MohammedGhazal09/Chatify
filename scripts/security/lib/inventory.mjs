@@ -45,12 +45,29 @@ const pathExists = async (target) => {
   }
 }
 
-const shouldIgnoreRelativePath = (relativePath) => {
+const NON_RUNTIME_SOURCE_PREFIXES = [
+  '.agents/',
+  '.artifacts/',
+  '.planning/',
+  '.vscode/',
+  'docs/',
+]
+
+const isGeneratedInventoryPath = (relativePath) => GENERATED_PATHS.has(relativePath)
+const containsIgnoredDirectory = (relativePath) => relativePath
+  .split('/')
+  .some((part) => IGNORED_DIRECTORIES.has(part))
+
+const shouldIgnoreFilesystemPath = (relativePath) => {
   if (!relativePath || relativePath === '.') return false
-  if (GENERATED_PATHS.has(relativePath)) return true
-  const parts = relativePath.split('/')
-  return parts.some((part) => IGNORED_DIRECTORIES.has(part))
+  return isGeneratedInventoryPath(relativePath) || containsIgnoredDirectory(relativePath)
 }
+
+const shouldExcludeFromStaticAnalysis = (relativePath) => (
+  isGeneratedInventoryPath(relativePath)
+  || containsIgnoredDirectory(relativePath)
+  || NON_RUNTIME_SOURCE_PREFIXES.some((prefix) => relativePath.startsWith(prefix))
+)
 
 const walkFilesystem = async (root, current = root) => {
   const entries = await readdir(current, { withFileTypes: true })
@@ -59,7 +76,7 @@ const walkFilesystem = async (root, current = root) => {
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const absolutePath = path.join(current, entry.name)
     const relativePath = toPosix(path.relative(root, absolutePath))
-    if (shouldIgnoreRelativePath(relativePath)) continue
+    if (shouldIgnoreFilesystemPath(relativePath)) continue
 
     if (entry.isDirectory()) {
       files.push(...await walkFilesystem(root, absolutePath))
@@ -77,7 +94,7 @@ const listRepositoryFiles = async (root) => {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     })
-    const files = output.split('\0').filter(Boolean).map(toPosix).filter((file) => !shouldIgnoreRelativePath(file))
+    const files = output.split('\0').filter(Boolean).map(toPosix).filter((file) => !isGeneratedInventoryPath(file))
     if (files.length > 0) {
       return { files: sortStrings(files), source: 'git-index' }
     }
@@ -90,7 +107,7 @@ const listRepositoryFiles = async (root) => {
 
 const readTextIfSafe = async (root, relativePath, size) => {
   const isEnvironmentTemplate = /(^|\/)\.env\.(example|sample|template)$/.test(relativePath)
-  if (size > MAX_TEXT_BYTES || (!isEnvironmentTemplate && !SCANNABLE_EXTENSIONS.has(path.posix.extname(relativePath)))) return null
+  if (shouldExcludeFromStaticAnalysis(relativePath) || size > MAX_TEXT_BYTES || (!isEnvironmentTemplate && !SCANNABLE_EXTENSIONS.has(path.posix.extname(relativePath)))) return null
   try {
     return await readFile(path.join(root, relativePath), 'utf8')
   } catch {
@@ -102,6 +119,7 @@ const classifyComponent = (relativePath) => {
   const lower = relativePath.toLowerCase()
   const categories = []
   const extension = path.posix.extname(relativePath)
+  const parts = relativePath.split('/')
 
   if (relativePath.endsWith('package.json')) categories.push('package-manifests')
   if (/package-lock\.json$|npm-shrinkwrap\.json$|yarn\.lock$|pnpm-lock\.yaml$/.test(relativePath)) categories.push('lockfiles')
@@ -120,7 +138,7 @@ const classifyComponent = (relativePath) => {
   if (/(^|\/)(__tests__|test|tests|e2e)(\/|$)|\.(spec|test)\.[cm]?[jt]sx?$/.test(relativePath)) categories.push('tests')
   if (/(^|\/)(sw|service-worker|serviceworker)\.[cm]?[jt]s$/.test(lower) || lower.includes('vite-plugin-pwa')) categories.push('pwa-and-service-worker')
   if (/(^|\/)(dockerfile|compose\.ya?ml|render.*\.ya?ml|vercel\.json|netlify\.toml|Procfile)$/i.test(relativePath)) categories.push('deployment')
-  if (relativePath.startsWith('.artifacts/') || relativePath.startsWith('.agents/') || relativePath.startsWith('.vscode/') || relativePath.endsWith('.stackdump')) categories.push('generated-or-development-only')
+  if (relativePath.startsWith('.artifacts/') || relativePath.startsWith('.agents/') || relativePath.startsWith('.vscode/') || relativePath.endsWith('.stackdump') || parts.some((part) => IGNORED_DIRECTORIES.has(part))) categories.push('generated-or-development-only')
   if (SOURCE_EXTENSIONS.has(extension)) categories.push('text-source-or-config')
   if (categories.length === 0) categories.push('other')
 
@@ -181,7 +199,7 @@ const buildReproducibility = (fileRecords, texts) => {
   const fileRecordByPath = new Map(fileRecords.map((record) => [record.path, record]))
   const manifestPaths = fileRecords
     .map((record) => record.path)
-    .filter((file) => file.endsWith('package.json'))
+    .filter((file) => file.endsWith('package.json') && texts.has(file))
     .sort((a, b) => a.localeCompare(b))
   const packages = []
 
@@ -381,6 +399,115 @@ const extractCalls = (source, methods) => {
   return calls
 }
 
+const skipSourceTrivia = (source, startIndex) => {
+  let index = startIndex
+
+  while (index < source.length) {
+    if (/\s/.test(source[index])) {
+      index += 1
+      continue
+    }
+    if (source[index] === '/' && source[index + 1] === '/') {
+      const newline = source.indexOf('\n', index + 2)
+      index = newline === -1 ? source.length : newline + 1
+      continue
+    }
+    if (source[index] === '/' && source[index + 1] === '*') {
+      const end = source.indexOf('*/', index + 2)
+      index = end === -1 ? source.length : end + 2
+      continue
+    }
+    break
+  }
+
+  return index
+}
+
+const getExpressReceivers = (source, sourcePath) => {
+  const receivers = new Set()
+  const patterns = [
+    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:express\s*\.\s*)?Router\s*\(/g,
+    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*express\s*\(/g,
+  ]
+
+  for (const pattern of patterns) {
+    let match
+    while ((match = pattern.exec(source)) !== null) receivers.add(match[1])
+  }
+
+  if (sourcePath === 'Backend/Chatify/app.mjs') receivers.add('app')
+  if (sourcePath.startsWith('Backend/Chatify/Routes/')) receivers.add('router')
+  return receivers
+}
+
+const escapeRegExp = (value) => value.replaceAll('$', '\$')
+
+const extractRouteChainCalls = (source, receivers) => {
+  if (receivers.size === 0) return []
+
+  const receiverPattern = [...receivers].map(escapeRegExp).join('|')
+  const regex = new RegExp(`\\b(${receiverPattern})\\s*\\.\\s*route\\s*\\(`, 'g')
+  const calls = []
+  let match
+
+  while ((match = regex.exec(source)) !== null) {
+    const openIndex = source.indexOf('(', match.index + match[0].lastIndexOf('route') + 'route'.length)
+    const routeCall = extractBalanced(source, openIndex)
+    if (!routeCall) continue
+
+    const [pathExpression = ''] = splitTopLevelArguments(routeCall.content)
+    let cursor = routeCall.endIndex + 1
+
+    while (cursor < source.length) {
+      cursor = skipSourceTrivia(source, cursor)
+      if (source[cursor] !== '.') break
+      cursor = skipSourceTrivia(source, cursor + 1)
+
+      const methodMatch = /^[A-Za-z_$][\w$]*/.exec(source.slice(cursor))
+      if (!methodMatch || !HTTP_METHODS.has(methodMatch[0])) break
+
+      const method = methodMatch[0]
+      const methodIndex = cursor
+      cursor = skipSourceTrivia(source, cursor + method.length)
+      if (source[cursor] !== '(') break
+
+      const methodCall = extractBalanced(source, cursor)
+      if (!methodCall) break
+      calls.push({
+        receiver: match[1],
+        method,
+        index: methodIndex,
+        line: lineNumberAt(source, methodIndex),
+        pathExpression,
+        arguments: splitTopLevelArguments(methodCall.content),
+        raw: methodCall.content,
+      })
+      cursor = methodCall.endIndex + 1
+    }
+
+    regex.lastIndex = Math.max(regex.lastIndex, cursor)
+  }
+
+  return calls
+}
+
+const extractExpressHttpCalls = (source, receivers) => {
+  const directCalls = extractCalls(source, HTTP_METHODS)
+    .filter((call) => receivers.has(call.receiver))
+    .map((call) => ({
+      ...call,
+      pathExpression: call.arguments[0] ?? '',
+      middlewareArguments: call.arguments.slice(1),
+    }))
+  const routeChainCalls = extractRouteChainCalls(source, receivers)
+    .map((call) => ({
+      ...call,
+      middlewareArguments: call.arguments,
+    }))
+
+  return [...directCalls, ...routeChainCalls]
+}
+
 const parseDefaultImports = (source, sourcePath, knownFiles) => {
   const imports = new Map()
   const regex = /\bimport\s+([A-Za-z_$][\w$]*)\s+from\s+['"]([^'"]+)['"]/g
@@ -410,7 +537,9 @@ const extractIdentifierTokens = (expressions) => sortStrings(expressions.flatMap
 
 const extractHttpRoutes = (texts, knownFiles) => {
   const routeFiles = [...texts.keys()].filter((file) => (
-    file.startsWith('Backend/Chatify/') && /\.[cm]?[jt]s$/.test(file) && !/(^|\/)(__tests__|test|tests)(\/|$)/.test(file)
+    (file === 'Backend/Chatify/app.mjs' || file.startsWith('Backend/Chatify/Routes/'))
+    && /\.[cm]?[jt]s$/.test(file)
+    && !/(^|\/)(__tests__|test|tests)(\/|$)/.test(file)
   ))
   const mountsByTarget = new Map()
   const directMounts = []
@@ -418,7 +547,9 @@ const extractHttpRoutes = (texts, knownFiles) => {
   for (const file of routeFiles) {
     const source = texts.get(file)
     const imports = parseDefaultImports(source, file, knownFiles)
+    const expressReceivers = getExpressReceivers(source, file)
     for (const call of extractCalls(source, new Set(['use']))) {
+      if (!expressReceivers.has(call.receiver)) continue
       const prefix = parseLiteralString(call.arguments[0] ?? '')
       if (!prefix) continue
       const targetExpression = call.arguments.at(-1)?.trim() ?? ''
@@ -445,8 +576,9 @@ const extractHttpRoutes = (texts, knownFiles) => {
   const routes = []
   for (const file of routeFiles) {
     const source = texts.get(file)
-    for (const call of extractCalls(source, HTTP_METHODS)) {
-      const localPath = parseLiteralString(call.arguments[0] ?? '')
+    const expressReceivers = getExpressReceivers(source, file)
+    for (const call of extractExpressHttpCalls(source, expressReceivers)) {
+      const localPath = parseLiteralString(call.pathExpression ?? '')
       if (localPath === null) continue
       const mounts = mountsByTarget.get(file)
       const applicableMounts = mounts?.length ? mounts : [null]
@@ -461,7 +593,7 @@ const extractHttpRoutes = (texts, knownFiles) => {
           receiver: call.receiver,
           mountSource: mount?.source ?? null,
           mountLine: mount?.line ?? null,
-          middlewareAndHandlerTokens: extractIdentifierTokens(call.arguments.slice(1)),
+          middlewareAndHandlerTokens: extractIdentifierTokens(call.middlewareArguments),
           mountMiddlewareTokens: mount?.middlewareTokens ?? [],
         })
       }
