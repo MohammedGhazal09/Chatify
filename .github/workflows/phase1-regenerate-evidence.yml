@@ -1,0 +1,66 @@
+name: Phase 1 Regenerate Evidence
+
+on:
+  push:
+    branches:
+      - security/phase-1-repository-inventory
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase-1-regenerate-evidence
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Phase 1 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-1-repository-inventory
+          fetch-depth: 0
+
+      - name: Setup pinned Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: ".nvmrc"
+          check-latest: false
+
+      - name: Exclude temporary workflow from inventory source set
+        run: git rm --cached -- .github/workflows/phase1-regenerate-evidence.yml
+
+      - name: Verify Phase 1 tooling
+        run: |
+          node --check scripts/security/lib/inventory.mjs
+          node --check scripts/security/phase1-inventory.mjs
+          node --check scripts/security/phase1-doctor.mjs
+          node --check scripts/security/phase1-reproduce.mjs
+          npm run security:phase1:test
+          npm run doctor
+
+      - name: Regenerate deterministic inventory
+        run: |
+          npm run security:phase1:generate
+          npm run security:phase1:check
+
+      - name: Commit generated evidence only
+        run: |
+          git reset HEAD -- .github/workflows/phase1-regenerate-evidence.yml
+          git add \
+            docs/security/audit/phase-1/inventory.json \
+            docs/security/audit/phase-1/inventory.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Expected regenerated Phase 1 evidence was not produced.' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'docs(security): refresh Phase 1 inventory evidence'
+          git push origin HEAD:security/phase-1-repository-inventory
