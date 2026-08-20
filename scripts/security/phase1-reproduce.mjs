@@ -29,6 +29,10 @@ const npmVersion = (() => {
   }
 })()
 
+const rootManifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
+const expectedNodeVersion = (await readFile(path.join(root, '.nvmrc'), 'utf8')).trim().replace(/^v/, '')
+const expectedNpmVersion = /^npm@(\d+\.\d+\.\d+)$/.exec(rootManifest.packageManager ?? '')?.[1] ?? null
+
 const commandPlan = [
   { name: 'clean-install-backend', command: 'npm', args: ['ci'], cwd: 'Backend/Chatify' },
   { name: 'clean-install-frontend', command: 'npm', args: ['ci'], cwd: 'Frontend/Chatify' },
@@ -51,10 +55,20 @@ const evidence = {
     statusBefore: runGit(['status', '--porcelain=v1']),
   },
   runtime: {
-    node: process.version,
-    npm: npmVersion,
+    expectedNode: expectedNodeVersion,
+    actualNode: process.versions.node,
+    expectedNpm: expectedNpmVersion,
+    actualNpm: npmVersion,
     platform: process.platform,
     architecture: process.arch,
+  },
+  runner: {
+    os: process.env.RUNNER_OS || null,
+    architecture: process.env.RUNNER_ARCH || null,
+    name: process.env.RUNNER_NAME || null,
+    environment: process.env.RUNNER_ENVIRONMENT || null,
+    imageOs: process.env.ImageOS || null,
+    imageVersion: process.env.ImageVersion || null,
   },
   lockfiles: [],
   commands: [],
