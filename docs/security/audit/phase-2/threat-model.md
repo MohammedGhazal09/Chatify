@@ -30,7 +30,7 @@ Chatify is a browser-based MERN messaging system that combines cookie-authentica
 - Cryptographic proof of browser WebRTC, TLS, Argon2, JWT, AES-GCM, and third-party library primitives; misuse and integration of those primitives remain in scope.
 - Production network controls, secret stores, backups, firewall rules, and provider-console settings that are not represented by repository evidence; unsafe repository assumptions about them remain in scope.
 
-The model is derived from Phase 1 runtime-surface SHA-256 `041f4923078281d523011e157011f7e747159798008fec12a49b9c0f303ae949`, covering 116 HTTP routes, 67 Socket.IO registrations, 22 data models, and 9 external-provider groups. File-only audit and documentation changes do not alter this digest. It is a repository-scoped threat model, not a vulnerability report.
+The model is derived from Phase 1 runtime-surface SHA-256 `792d82634889f745014b851c2d32fe75fe2482d1f87fd58300a1fc08d883edf3`, covering 116 HTTP routes, 67 Socket.IO registrations, 22 data models, and 9 external-provider groups. File-only audit and documentation changes do not alter this digest. It is a repository-scoped threat model, not a vulnerability report.
 
 ## Threat Model, Trust Boundaries, and Assumptions
 
