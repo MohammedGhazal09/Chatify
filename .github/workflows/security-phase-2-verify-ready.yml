@@ -1,4 +1,4 @@
-name: Temporary Phase 2 verify and ready
+name: Temporary Phase 2 inventory finalizer
 
 on:
   push:
@@ -8,18 +8,16 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
-  issues: write
 
 concurrency:
-  group: phase2-verify-ready-${{ github.ref }}
+  group: phase2-inventory-finalizer-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify-ready:
+  finalize:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Phase 2 branch
@@ -32,66 +30,25 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24.19.0"
-          cache: npm
-          cache-dependency-path: |
-            Backend/Chatify/package-lock.json
-            Frontend/Chatify/package-lock.json
+          package-manager-cache: false
 
-      - name: Materialize the final tracked-file baseline
+      - name: Regenerate Phase 1 evidence as if this temporary workflow is absent
         run: |
-          git rm --cached .github/workflows/security-phase-2-verify-ready.yml
-          npm run security:phase2:check
+          git rm --cached -- .github/workflows/security-phase-2-verify-ready.yml
           npm run security:phase1:generate
           npm run security:phase1:check
           npm run security:phase2:check
+          git restore --staged -- .github/workflows/security-phase-2-verify-ready.yml
 
-      - name: Run complete Phase 2 clean reproduction
-        run: npm run security:phase2:reproduce
-
-      - name: Upload verified Phase 2 evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: phase-2-final-verification-evidence
-          path: |
-            .artifacts/security/phase-2/run-evidence.json
-            docs/security/audit/phase-1/inventory.json
-            docs/security/audit/phase-1/inventory.md
-            docs/security/audit/phase-2/threat-model.json
-            docs/security/audit/phase-2/threat-model.md
-          if-no-files-found: error
-          include-hidden-files: true
-          retention-days: 30
-
-      - name: Commit final self-excluding inventory baseline
+      - name: Commit regenerated evidence
         run: |
-          git add .github/workflows/security-phase-2-verify-ready.yml
           git add docs/security/audit/phase-1/inventory.json docs/security/audit/phase-1/inventory.md
           git diff --cached --check
-          if ! git diff --cached --quiet; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'docs(security): record verified Phase 2 inventory baseline'
-            git push origin HEAD:security/phase-2-threat-model
+          if git diff --cached --quiet; then
+            echo 'Phase 1 evidence already matches the permanent Phase 2 tree.'
+            exit 0
           fi
-
-      - name: Publish verification summary and mark PR ready
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          node - <<'NODE' > /tmp/phase2-verification.md
-          const fs = require('node:fs')
-          const evidence = JSON.parse(fs.readFileSync('.artifacts/security/phase-2/run-evidence.json', 'utf8'))
-          const counts = evidence.threatModel.surfaceCounts
-          console.log('## Phase 2 final verification')
-          console.log('')
-          console.log(`- Result: **${evidence.summary.result}** — ${evidence.summary.passed} commands passed, ${evidence.summary.failed} failed.`)
-          console.log(`- Runtime surface digest: \`${evidence.threatModel.runtimeSurfaceSha256}\`.`)
-          console.log(`- Model catalog: ${evidence.threatModel.actorCount} actors, ${evidence.threatModel.assetCount} assets, ${evidence.threatModel.dataClassCount} data classes, ${evidence.threatModel.trustBoundaryCount} trust boundaries, ${evidence.threatModel.invariantCount} invariants, and ${evidence.threatModel.attackerStoryCount} attacker stories.`)
-          console.log(`- Covered surfaces: ${counts.httpRoutes} HTTP routes, ${counts.socketEvents} Socket.IO registrations, ${counts.backgroundJobs} background jobs, ${counts.models} model sources, and ${counts.providers} provider groups.`)
-          console.log(`- Toolchain: Node ${evidence.runtime.actualNode}, npm ${evidence.runtime.actualNpm}.`)
-          console.log('- Verification includes backend/frontend clean installs, Phase 1 tests and drift check, environment doctor, Phase 2 tests and drift check, backend/frontend tests, frontend lint/build, and operations guard.')
-          console.log(`- Workflow evidence: ${process.env.RUN_URL}`)
-          NODE
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/3/comments" -f body="$(cat /tmp/phase2-verification.md)"
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/3" -F draft=false >/dev/null
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'docs(security): finalize Phase 2 inventory baseline'
+          git push origin HEAD:security/phase-2-threat-model
