@@ -1,0 +1,84 @@
+name: Temporary Phase 2 source repair
+
+on:
+  push:
+    branches:
+      - security/phase-2-threat-model
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase2-source-repair-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Phase 2 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-2-threat-model
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          package-manager-cache: false
+
+      - name: Apply reviewed host-redaction correction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          target = Path('scripts/security/lib/threat-model.mjs')
+          source = target.read_text()
+          old = "    return `${parsed.protocol}//${parsed.host}`\n"
+          new = "    const redactedCredentials = parsed.username || parsed.password ? '<redacted>@' : ''\n    return `${parsed.protocol}//${redactedCredentials}${parsed.host}`\n"
+          if source.count(old) != 1:
+              raise RuntimeError(f'Expected one host sanitizer return, found {source.count(old)}')
+          target.write_text(source.replace(old, new, 1))
+          PY
+
+      - name: Ignore generated runtime evidence
+        run: |
+          if ! grep -qxF '.artifacts/security/' .gitignore; then
+            printf '\n# Generated security runtime evidence\n.artifacts/security/\n' >> .gitignore
+          fi
+
+      - name: Verify source and regression tests
+        run: |
+          node --check scripts/security/lib/phase2-policy.mjs
+          node --check scripts/security/lib/threat-model.mjs
+          node --check scripts/security/phase2-threat-model.mjs
+          node --check scripts/security/phase2-reproduce.mjs
+          npm run security:phase1:test
+          npm run security:phase2:test
+
+      - name: Generate Phase 2 then Phase 1 evidence
+        run: |
+          npm run security:phase2:generate
+          git add .gitignore docs/security/audit/phase-2/threat-model.json docs/security/audit/phase-2/threat-model.md scripts/security/lib/threat-model.mjs
+          npm run security:phase1:generate
+          npm run security:phase2:check
+          npm run security:phase1:check
+          npm run doctor
+
+      - name: Commit corrected source and generated evidence
+        run: |
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Expected Phase 2 correction and generated evidence were not produced.' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(security): finalize Phase 2 threat model generation'
+          git push origin HEAD:security/phase-2-threat-model
