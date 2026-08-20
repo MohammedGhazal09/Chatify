@@ -1,9 +1,6 @@
 name: Phase 1 Branch Bootstrap
 
 on:
-  push:
-    branches:
-      - security/phase-1-repository-inventory
   pull_request:
     branches:
       - main
@@ -12,8 +9,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: phase-1-branch-bootstrap
-  cancel-in-progress: false
+  group: phase-1-bootstrap-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   materialize-and-verify:
@@ -21,9 +18,10 @@ jobs:
     timeout-minutes: 50
 
     steps:
-      - name: Checkout branch
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
       - name: Materialize reviewed Phase 1 implementation
