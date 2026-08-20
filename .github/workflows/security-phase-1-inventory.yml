@@ -26,11 +26,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup pinned Node.js
+      - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version-file: ".nvmrc"
-          check-latest: false
+          node-version: "24.19.0"
           cache: npm
           cache-dependency-path: |
             Backend/Chatify/package-lock.json
@@ -42,6 +41,11 @@ jobs:
       - name: Verify generated inventory has no drift
         run: git diff --exit-code -- docs/security/audit/phase-1
 
+      - name: Regenerate expected inventory for failed-run evidence
+        if: failure()
+        continue-on-error: true
+        run: npm run security:phase1:generate
+
       - name: Upload Phase 1 evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -52,4 +56,5 @@ jobs:
             docs/security/audit/phase-1/inventory.json
             docs/security/audit/phase-1/inventory.md
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 30
