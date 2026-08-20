@@ -380,8 +380,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1529,
-    "totalTrackedBytes": 16807071,
+    "trackedFileCount": 1530,
+    "totalTrackedBytes": 16808874,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -2227,6 +2227,7 @@
         ".github/workflows/security-phase-2-finalize.yml",
         ".github/workflows/security-phase-2-source-repair.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
+        ".github/workflows/security-phase-2-verify-ready.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
         ".planning/codebase/CONVENTIONS.md",
@@ -3561,7 +3562,8 @@
         ".github/workflows/security-phase-2-cleanup.yml",
         ".github/workflows/security-phase-2-finalize.yml",
         ".github/workflows/security-phase-2-source-repair.yml",
-        ".github/workflows/security-phase-2-threat-model.yml"
+        ".github/workflows/security-phase-2-threat-model.yml",
+        ".github/workflows/security-phase-2-verify-ready.yml"
       ]
     },
     "files": [
@@ -4094,9 +4096,18 @@
         ]
       },
       {
+        "path": ".github/workflows/security-phase-2-verify-ready.yml",
+        "bytes": 1743,
+        "sha256": "8210c2d0e56c8bd068bd4c04e76779fd1e0fbc11dc674e5ea06173707915c180",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
         "path": ".gitignore",
-        "bytes": 4364,
-        "sha256": "d0c1027f93750b3091469ee59c81d3533ad4ae3d25c0f2c1e3a07963c2103086",
+        "bytes": 4424,
+        "sha256": "ccc9fd1a4e72a2bc91927c1798d922eccb9fce22cee4a6c46d266bf2f88d991b",
         "categories": [
           "other"
         ]
@@ -14868,7 +14879,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.json",
         "bytes": 92029,
-        "sha256": "ef9c507ff1eadf9159985adb9d84fa8fe41a93796bd9f4db40db3c4314eacbdf",
+        "sha256": "3f4a0b061616abe3bf7899c0f731d3b0b5ba7444f08f1e63be5663e210a6c1f9",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14877,7 +14888,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.md",
         "bytes": 38504,
-        "sha256": "16afa2de820fac16b9f77c78daf6b1fa3e8ff01c3a205af57641547c31ae6f35",
+        "sha256": "1ec0091404bb28c0c80127aa843a85c99090877a9dfb4a0cdbcce3ebfa05c281",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
