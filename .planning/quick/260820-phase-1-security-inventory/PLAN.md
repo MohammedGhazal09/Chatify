@@ -25,3 +25,7 @@ npm run security:phase1:reproduce
 ## Boundaries
 
 Dependency vulnerability remediation belongs to Phase 4. Production-only smoke tests require an authorized deployed topology and are recorded as not executed by Phase 1 rather than represented as passing.
+
+## Execution state
+
+The final bootstrap is committed and must delete its temporary workflow and payload after applying the remaining parser hardening and regenerating evidence.
