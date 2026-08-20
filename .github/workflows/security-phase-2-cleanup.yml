@@ -1,0 +1,55 @@
+name: Temporary Phase 2 cleanup
+
+on:
+  push:
+    branches:
+      - security/phase-2-threat-model
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase2-cleanup-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Phase 2 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-2-threat-model
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          package-manager-cache: false
+
+      - name: Regenerate final inventory without this temporary workflow
+        run: |
+          git rm --cached .github/workflows/security-phase-2-cleanup.yml
+          npm run security:phase2:check
+          npm run security:phase1:generate
+          npm run security:phase1:check
+          npm run security:phase2:check
+          git add .github/workflows/security-phase-2-cleanup.yml
+
+      - name: Commit the final Phase 1 baseline
+        run: |
+          git add docs/security/audit/phase-1/inventory.json docs/security/audit/phase-1/inventory.md
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Final Phase 1 inventory was already current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'docs(security): synchronize final Phase 2 inventory baseline'
+          git push origin HEAD:security/phase-2-threat-model
