@@ -51,6 +51,7 @@ const NON_RUNTIME_SOURCE_PREFIXES = [
   '.planning/',
   '.vscode/',
   'docs/',
+  'scripts/security/__tests__/',
 ]
 
 const isGeneratedInventoryPath = (relativePath) => GENERATED_PATHS.has(relativePath)

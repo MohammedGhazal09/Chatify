@@ -141,6 +141,10 @@ jobs:
           API_TOKEN: \${{ secrets.API_TOKEN }}
 `)
 
+  await write(root, 'scripts/security/__tests__/fixture.test.mjs', `
+const fixtureOnly = process.env.PHASE1_FIXTURE_ONLY_SECRET
+`)
+
   return root
 }
 
@@ -204,6 +208,7 @@ test('buildInventory discovers Phase 1 surfaces deterministically and redacts se
   assert.equal(jwtConfig.sensitive, true)
   assert.equal(jwtConfig.exampleValue, '<redacted>')
   assert.ok(first.sensitiveConfiguration.missingFromExamples.includes('WEB_PUSH_PUBLIC_KEY'))
+  assert.ok(!first.sensitiveConfiguration.variables.some((entry) => entry.name === 'PHASE1_FIXTURE_ONLY_SECRET'))
 
   const integration = first.externalCommunications.find((entry) => entry.provider === 'generic-http')
   assert.ok(integration)

@@ -28,6 +28,7 @@
       "node_modules",
       "playwright-report",
       "playwright-report-production",
+      "scripts/security/__tests__",
       "test-results"
     ],
     "dependencyLockfilesExcludedFromContentParsing": true,
@@ -352,7 +353,7 @@
   },
   "components": {
     "trackedFileCount": 1513,
-    "totalTrackedBytes": 16488108,
+    "totalTrackedBytes": 16488387,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -17151,8 +17152,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase1-inventory.test.mjs",
-        "bytes": 12506,
-        "sha256": "b7e02d917135774da60a8c2367819a5948928082e43d8f82f7ecc4ed546a24e8",
+        "bytes": 12752,
+        "sha256": "e0b093e8aba7638bdd2659eeb44fb9f0f59b4185705e4f7efab4e9b47b87c03c",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17161,8 +17162,8 @@
       },
       {
         "path": "scripts/security/lib/inventory.mjs",
-        "bytes": 58496,
-        "sha256": "ab58b6882316436dc0cf3df71685752b14e604fb436550c4dc7e0d412fe5f6f2",
+        "bytes": 58529,
+        "sha256": "0e5edab598d8ac5229c4f13ec330259b18353236381768eb6a20e9f22e02fc33",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -20123,17 +20124,17 @@
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 736
+        "line": 737
       },
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 736
+        "line": 737
       },
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 736
+        "line": 737
       },
       {
         "kind": "setInterval",
@@ -24301,8 +24302,7 @@
         "Frontend/Chatify/src/pages/chat/components/ChatSidebar.tsx",
         "Frontend/Chatify/src/pages/chat/components/ConversationDetailContent.tsx",
         "Frontend/Chatify/src/pages/chat/components/NewChatDialog.tsx",
-        "Frontend/Chatify/src/pages/chat/components/SpacesSidebar.tsx",
-        "scripts/security/__tests__/phase1-inventory.test.mjs"
+        "Frontend/Chatify/src/pages/chat/components/SpacesSidebar.tsx"
       ],
       "clientInputCandidates": [
         "assignedTo",
@@ -24326,7 +24326,6 @@
         "password",
         "rememberMe",
         "replyToMessageId",
-        "role",
         "showLastSeen",
         "showOnlineStatus",
         "showProfileStatus",
@@ -24346,7 +24345,6 @@
         "firstName",
         "githubId",
         "googleId",
-        "id",
         "isOnline",
         "kind",
         "lastName",
@@ -24461,7 +24459,7 @@
       "evidence": [
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1009
+          "line": 1010
         }
       ],
       "environmentVariables": [],
@@ -24500,7 +24498,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1101
+          "line": 1102
         }
       ],
       "environmentVariables": [
@@ -24681,26 +24679,18 @@
           "line": 12
         },
         {
-          "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-          "line": 34
-        },
-        {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1138
+          "line": 1139
         }
       ],
       "environmentVariables": [],
       "staticHosts": [
         "http://localhost:3000",
-        "http://localhost:5173",
         "https://api.brevo.com",
-        "https://api.example.com",
         "https://chatify-ckmn.onrender.com",
-        "https://chatify-ten-rho.vercel.app",
-        "mongodb://localhost:27017"
+        "https://chatify-ten-rho.vercel.app"
       ],
       "controls": [
-        "redirect-limit",
         "response-size-limit",
         "retry-control",
         "timeout",
@@ -24734,7 +24724,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1100
+          "line": 1101
         }
       ],
       "environmentVariables": [
@@ -24786,7 +24776,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1099
+          "line": 1100
         }
       ],
       "environmentVariables": [
@@ -24846,30 +24836,19 @@
         {
           "source": "scripts/ops-check.mjs",
           "line": 24
-        },
-        {
-          "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-          "line": 104
         }
       ],
       "environmentVariables": [
-        "MONGO_URI",
         "MONGODB_URL"
       ],
       "staticHosts": [
         "http://localhost:5173",
-        "https://api.example.com",
         "https://chatify.example.test",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017",
-        "mongodb://example.invalid",
-        "mongodb://localhost:27017"
+        "mongodb://example.invalid"
       ],
-      "controls": [
-        "redirect-limit",
-        "response-size-limit",
-        "timeout"
-      ],
+      "controls": [],
       "userControlledDestinationCandidate": false,
       "reviewFields": {
         "credentialSource": "environmentVariables and provider configuration evidence above",
@@ -24903,10 +24882,6 @@
         {
           "source": "Frontend/Chatify/src/hooks/useChatSocket.test.tsx",
           "line": 1362
-        },
-        {
-          "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-          "line": 107
         }
       ],
       "environmentVariables": [
@@ -24918,16 +24893,12 @@
       "staticHosts": [
         "http://localhost:3000",
         "http://localhost:5173",
-        "https://api.example.com",
         "https://chatify.example.test",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017",
-        "mongodb://example.invalid",
-        "mongodb://localhost:27017"
+        "mongodb://example.invalid"
       ],
       "controls": [
-        "redirect-limit",
-        "response-size-limit",
         "retry-control",
         "timeout"
       ],
@@ -24954,30 +24925,22 @@
           "line": 1
         },
         {
-          "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-          "line": 112
-        },
-        {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1011
+          "line": 1012
         }
       ],
       "environmentVariables": [
         "VAPID_PRIVATE_KEY",
         "VAPID_PUBLIC_KEY",
         "VAPID_SUBJECT",
-        "VITE_VAPID_PUBLIC_KEY",
-        "WEB_PUSH_PUBLIC_KEY"
+        "VITE_VAPID_PUBLIC_KEY"
       ],
       "staticHosts": [
         "http://localhost:5173",
-        "https://api.example.com",
         "https://your-frontend.example.com",
-        "mongodb://127.0.0.1:27017",
-        "mongodb://localhost:27017"
+        "mongodb://127.0.0.1:27017"
       ],
       "controls": [
-        "redirect-limit",
         "response-size-limit",
         "retry-control",
         "timeout",
@@ -25015,34 +24978,6 @@
           }
         ],
         "exampleValue": "<redacted>"
-      },
-      {
-        "name": "API_TOKEN",
-        "category": "authentication-and-sessions",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 141,
-            "kind": "github-secret"
-          }
-        ],
-        "exampleValue": null
-      },
-      {
-        "name": "ARTIFACT_SECRET",
-        "category": "general-runtime",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 246,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
       },
       {
         "name": "BREVO_API_KEY",
@@ -25532,20 +25467,6 @@
         "exampleValue": "<redacted>"
       },
       {
-        "name": "DOCUMENTATION_ONLY_SECRET",
-        "category": "general-runtime",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 247,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
-      },
-      {
         "name": "EMAIL_USER_SENDER",
         "category": "email",
         "sensitive": false,
@@ -25642,11 +25563,6 @@
           {
             "source": "Backend/Chatify/Utils/inviteLinks.mjs",
             "line": 101,
-            "kind": "process-env"
-          },
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 113,
             "kind": "process-env"
           }
         ],
@@ -25924,48 +25840,6 @@
           {
             "source": "scripts/security/phase1-reproduce.mjs",
             "line": 71,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
-      },
-      {
-        "name": "JWT_ACCESS_SECRET",
-        "category": "authentication-and-sessions",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 111,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
-      },
-      {
-        "name": "LOCKFILE_ONLY_SECRET",
-        "category": "general-runtime",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 245,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
-      },
-      {
-        "name": "MONGO_URI",
-        "category": "database",
-        "sensitive": false,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 110,
             "kind": "process-env"
           }
         ],
@@ -26306,20 +26180,6 @@
         "exampleValue": null
       },
       {
-        "name": "RUNBOOK_ONLY_SECRET",
-        "category": "general-runtime",
-        "sensitive": true,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 248,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
-      },
-      {
         "name": "RUNNER_ARCH",
         "category": "general-runtime",
         "sensitive": false,
@@ -26569,25 +26429,9 @@
           }
         ],
         "exampleValue": "<empty>"
-      },
-      {
-        "name": "WEB_PUSH_PUBLIC_KEY",
-        "category": "web-push",
-        "sensitive": false,
-        "definedInExamples": [],
-        "referencedAt": [
-          {
-            "source": "scripts/security/__tests__/phase1-inventory.test.mjs",
-            "line": 112,
-            "kind": "process-env"
-          }
-        ],
-        "exampleValue": null
       }
     ],
     "missingFromExamples": [
-      "API_TOKEN",
-      "ARTIFACT_SECRET",
       "CHATIFY_ALLOW_NONLOCAL_DELIVERY_SMOKE",
       "CHATIFY_ALLOW_NONLOCAL_PROFILE_IMAGE_ACCEPTANCE",
       "CHATIFY_CALL_SMOKE",
@@ -26599,7 +26443,6 @@
       "CHATIFY_LOCAL_EPHEMERAL_BACKEND",
       "CHATIFY_PROD_FRONTEND_URL",
       "CI",
-      "DOCUMENTATION_ONLY_SECRET",
       "GITHUB_ACTOR",
       "GITHUB_REF_NAME",
       "GITHUB_RUN_ATTEMPT",
@@ -26608,20 +26451,15 @@
       "HERCULES_ARTIFACT_DIR",
       "ImageOS",
       "ImageVersion",
-      "JWT_ACCESS_SECRET",
-      "LOCKFILE_ONLY_SECRET",
-      "MONGO_URI",
       "NEEDS_JSON",
       "PRIVACY_OUTBOX_RETENTION_DAYS",
       "PRIVACY_WORKER_ENABLED",
       "PRIVACY_WORKER_INTERVAL_MS",
-      "RUNBOOK_ONLY_SECRET",
       "RUNNER_ARCH",
       "RUNNER_ENVIRONMENT",
       "RUNNER_NAME",
       "RUNNER_OS",
-      "TWO_FACTOR_ENCRYPTION_KEY",
-      "WEB_PUSH_PUBLIC_KEY"
+      "TWO_FACTOR_ENCRYPTION_KEY"
     ],
     "unusedExamples": [
       "CALL_STUN_URLS",
@@ -26638,8 +26476,6 @@
       ],
       "authentication-and-sessions": [
         "ACCESS_TOKEN_EXPIRES_IN",
-        "API_TOKEN",
-        "JWT_ACCESS_SECRET",
         "SECRET_JWT_KEY"
       ],
       "cookies-and-csrf": [
@@ -26650,14 +26486,12 @@
         "FRONTEND_ORIGIN_DEV"
       ],
       "database": [
-        "MONGO_URI",
         "MONGODB_URL"
       ],
       "email": [
         "EMAIL_USER_SENDER"
       ],
       "general-runtime": [
-        "ARTIFACT_SECRET",
         "BREVO_API_KEY",
         "CHATIFY_ALLOW_NONLOCAL_DELIVERY_SMOKE",
         "CHATIFY_ALLOW_NONLOCAL_PROFILE_IMAGE_ACCEPTANCE",
@@ -26673,7 +26507,6 @@
         "CI",
         "DISCORD_CLIENT_ID",
         "DISCORD_CLIENT_SECRET",
-        "DOCUMENTATION_ONLY_SECRET",
         "GITHUB_ACTOR",
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
@@ -26686,7 +26519,6 @@
         "HERCULES_ARTIFACT_DIR",
         "ImageOS",
         "ImageVersion",
-        "LOCKFILE_ONLY_SECRET",
         "NEEDS_JSON",
         "NODE_ENV",
         "NOTIFICATION_WORKER_ENABLED",
@@ -26696,7 +26528,6 @@
         "PORT_NUMBER",
         "PRIVACY_WORKER_ENABLED",
         "PRIVACY_WORKER_INTERVAL_MS",
-        "RUNBOOK_ONLY_SECRET",
         "RUNNER_ARCH",
         "RUNNER_ENVIRONMENT",
         "RUNNER_NAME",
@@ -26713,8 +26544,7 @@
         "VAPID_PRIVATE_KEY",
         "VAPID_PUBLIC_KEY",
         "VAPID_SUBJECT",
-        "VITE_VAPID_PUBLIC_KEY",
-        "WEB_PUSH_PUBLIC_KEY"
+        "VITE_VAPID_PUBLIC_KEY"
       ],
       "webrtc-and-turn": [
         "CALL_STUN_URLS",
