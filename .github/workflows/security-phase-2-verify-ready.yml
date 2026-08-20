@@ -1,18 +1,19 @@
-name: Temporary Phase 2 clean evidence export
+name: Temporary Phase 2 clean evidence commit
 
 on:
   pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: phase2-clean-evidence-export
+  group: phase2-clean-evidence-commit
   cancel-in-progress: true
 
 jobs:
-  export:
+  commit-clean-evidence:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -41,15 +42,28 @@ jobs:
           npm run security:phase1:check
           npm run security:phase2:generate
           npm run security:phase2:check
+          git restore --staged -- \
+            .github/workflows/security-phase-2-bootstrap.yml \
+            .github/workflows/security-phase-2-cleanup.yml \
+            .github/workflows/security-phase-2-finalize.yml \
+            .github/workflows/security-phase-2-source-repair.yml \
+            .github/workflows/security-phase-2-verify-ready.yml
 
-      - name: Upload clean generated evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: phase-2-clean-generated-evidence
-          path: |
-            docs/security/audit/phase-1/inventory.json
-            docs/security/audit/phase-1/inventory.md
-            docs/security/audit/phase-2/threat-model.json
+      - name: Commit clean generated evidence
+        run: |
+          git add \
+            docs/security/audit/phase-1/inventory.json \
+            docs/security/audit/phase-1/inventory.md \
+            docs/security/audit/phase-2/threat-model.json \
             docs/security/audit/phase-2/threat-model.md
-          if-no-files-found: error
-          retention-days: 7
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Generated evidence already represents the permanent Phase 2 tree.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'docs(security): record permanent Phase 2 evidence'
+          git fetch origin security/phase-2-threat-model
+          git rebase origin/security/phase-2-threat-model
+          git push origin HEAD:security/phase-2-threat-model
