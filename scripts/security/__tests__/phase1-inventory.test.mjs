@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -214,4 +215,38 @@ test('generated inventory write/check detects stale output without timestamps', 
     'utf8',
   ))
   assert.equal(json.schemaVersion, 1)
+})
+
+test('git-index inventory hashes every tracked file without parsing generated or vendored content', async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'chatify-phase1-git-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+
+  await write(root, 'package.json', JSON.stringify({ name: 'tracked-fixture' }, null, 2))
+  await write(root, '.artifacts/security/evidence.json', '{"token":"process.env.ARTIFACT_SECRET"}\n')
+  await write(root, 'Frontend/Chatify/dist/tracked.js', "router.get('/generated-route', handler)\n")
+  await write(root, 'node_modules/tracked-package/index.js', "socket.on('vendored:event', handler)\n")
+  await write(root, 'Backend/Chatify/app.mjs', "app.get('/api/health', health)\n")
+
+  execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' })
+  execFileSync('git', ['add', '--all'], { cwd: root, stdio: 'ignore' })
+
+  await write(root, 'node_modules/untracked-package/index.js', "app.get('/untracked', handler)\n")
+
+  const inventory = await buildInventory(root)
+  const paths = inventory.components.files.map((record) => record.path)
+  const routes = inventory.entryPoints.httpRoutes.map((route) => route.fullPath)
+  const events = inventory.entryPoints.socketEvents.map((event) => event.event)
+
+  assert.equal(inventory.scope.sourceSelection, 'git-index')
+  assert.ok(paths.includes('.artifacts/security/evidence.json'))
+  assert.ok(paths.includes('Frontend/Chatify/dist/tracked.js'))
+  assert.ok(paths.includes('node_modules/tracked-package/index.js'))
+  assert.ok(!paths.includes('node_modules/untracked-package/index.js'))
+  assert.ok(inventory.components.categories['generated-or-development-only'].includes('.artifacts/security/evidence.json'))
+  assert.ok(inventory.components.categories['generated-or-development-only'].includes('Frontend/Chatify/dist/tracked.js'))
+  assert.ok(inventory.components.categories['generated-or-development-only'].includes('node_modules/tracked-package/index.js'))
+  assert.ok(routes.includes('/api/health'))
+  assert.ok(!routes.includes('/generated-route'))
+  assert.ok(!events.includes('vendored:event'))
+  assert.ok(!inventory.sensitiveConfiguration.variables.some((entry) => entry.name === 'ARTIFACT_SECRET'))
 })
