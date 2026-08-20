@@ -36,6 +36,7 @@ jobs:
       - name: Apply Phase 1 implementation correction
         run: |
           cat scripts/security/phase1-bootstrap-chunks/part-*.b64 | base64 --decode > scripts/security/phase1-fix-bootstrap.py
+          nl -ba scripts/security/phase1-fix-bootstrap.py | sed -n '230,285p'
           python scripts/security/phase1-fix-bootstrap.py
           rm -rf scripts/security/phase1-bootstrap-chunks
 
