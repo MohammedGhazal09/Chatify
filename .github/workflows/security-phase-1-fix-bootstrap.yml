@@ -1,6 +1,7 @@
 name: Temporary Phase 1 inventory repair
 
 on:
+  pull_request:
   push:
     branches:
       - security/phase-1-repository-inventory
@@ -11,10 +12,11 @@ permissions:
 
 concurrency:
   group: phase1-bootstrap-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   repair:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
