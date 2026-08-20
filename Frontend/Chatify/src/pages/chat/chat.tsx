@@ -1,0 +1,2698 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent, KeyboardEventHandler, MouseEvent as ReactMouseEvent } from 'react';
+import axios from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
+import { AUTH_EXPIRED_EVENT } from '../../api/axios';
+import LoadingSpinner from '../../components/loadingSpinner';
+import SettingsModal from '../../components/SettingsModal';
+import { useToast } from '../../components/Toast';
+import useLocalStorage from '../../hooks/useLocalStorage';
+import { useNotificationPreferences } from '../../hooks/useNotificationPreferences';
+import { useSessionBroadcast } from '../../hooks/useSessionBroadcast';
+import { useAuthStore } from '../../store/authstore';
+import { usePresenceStore } from '../../store/presenceStore';
+import { useLogout } from '../../hooks/useAuthQuery';
+import {
+  useChats,
+  useContacts,
+  useContactRequests,
+  useAcceptContactRequest,
+  useDeclineContactRequest,
+  useCancelContactRequest,
+  useCreateChat,
+  useCreateGroupChat,
+  useMessages,
+  useSendMessage,
+  useMarkMessagesAsRead,
+  useDeleteMessage,
+  useEditMessage,
+  useUnreadCounts,
+  useToggleReaction,
+  useMessageSearch,
+  useMessageContext,
+  useSharedAssets,
+  usePaginatedSharedAssets,
+  usePinnedMessages,
+  usePinMessage,
+  useSaveMessage,
+  useUnsaveMessage,
+  useUnpinMessage,
+  useUpdateChatOrganization,
+  useBlockChatPeer,
+  useUnblockChatPeer,
+  useOnlinePresence,
+} from '../../hooks/useChatQueries';
+import {
+  useCreateSpace,
+  useCreateSpaceChannel,
+  useJoinSpace,
+  useSpaceChannels,
+  useSpaces,
+} from '../../hooks/useSpaceQueries';
+import { useChatSocket } from '../../hooks/useChatSocket';
+import { useCallController } from '../../hooks/useCallController';
+import { useSubmitAbuseReport } from '../../hooks/useModerationReports';
+import type {
+  BatchReadEvent,
+  AttachmentSummary,
+  Chat,
+  ComposerAttachmentDraft,
+  ComposerSendPayload,
+  ConversationControls,
+  ConversationFocusFilter,
+  ConversationOrganizationPatch,
+  CreateGroupChatPayload,
+  EncryptionMode,
+  Message,
+  MessageDeletedEvent,
+  MessageEditedEvent,
+  MessageReactionEvent,
+  MessageReplyTo,
+  SavedMessage,
+  MessageSearchFilters,
+  MessageStatusUpdateEvent,
+} from '../../types/chat';
+import type { CreateSpaceChannelPayload, CreateSpacePayload, JoinSpacePayload, SpaceChannel } from '../../types/space';
+import {
+  ChatContextRail,
+  CallOverlay,
+  ChatShell,
+  ChatSidebar,
+  AttachmentPreviewModal,
+  ConversationMoreMenu,
+  ConversationDetailDrawer,
+  ConversationPane,
+  InviteLinksDialog,
+  MessageActionMenu,
+  SavedMessagesDialog,
+  SpacesSidebar,
+  StartConversationDialog,
+  VoiceMessagesModal,
+} from './components';
+import type { AttachmentPreviewTarget } from './components/AttachmentPreviewModal';
+import type { SidebarWorkspaceMode } from './components/ChatSidebar';
+import type { InviteTargetType } from '../../types/invite';
+import { createClientMessageId, MAX_MESSAGE_TEXT_LENGTH } from '../../hooks/messageCache';
+import { useChatTheme } from './hooks/useChatTheme';
+import { useChatViewState } from './hooks/useChatViewState';
+import {
+  getSelectedChatStorageKey,
+  replaceSelectedChatUrl,
+  useSelectedChatPersistence,
+} from './hooks/useSelectedChatPersistence';
+import {
+  clearStoredConversationDrafts,
+  useConversationDrafts,
+} from './hooks/useConversationDrafts';
+import { getChatTitle, getOtherMember } from './utils/chatDisplay';
+import { buildSendDraftKey } from './sendDraftGuard';
+import { validateUsername } from '../../utils/usernameValidation';
+import {
+  isEncryptedConversation,
+  isEncryptedMessage,
+} from '../../utils/encryptedMessages';
+import './chat.css';
+
+const DETAIL_RAIL_MEDIA_QUERY = '(min-width: 1280px)';
+
+const isDesktopDetailRailViewport = () => (
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia(DETAIL_RAIL_MEDIA_QUERY).matches
+);
+
+const getInitialWorkspaceMode = (): SidebarWorkspaceMode => {
+  if (typeof window === 'undefined') {
+    return 'conversations';
+  }
+
+  return new URLSearchParams(window.location.search).get('workspace') === 'spaces'
+    ? 'spaces'
+    : 'conversations';
+};
+
+const getInitialSpaceId = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return new URLSearchParams(window.location.search).get('spaceId');
+};
+
+const replaceWorkspaceUrlState = (mode: SidebarWorkspaceMode, spaceId: string | null) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+
+  if (mode === 'spaces') {
+    url.searchParams.set('workspace', 'spaces');
+    if (spaceId) {
+      url.searchParams.set('spaceId', spaceId);
+    } else {
+      url.searchParams.delete('spaceId');
+    }
+  } else {
+    url.searchParams.delete('workspace');
+    url.searchParams.delete('spaceId');
+  }
+
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const useDebounce = (callback: () => void, delay: number) => {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedCallback = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callback();
+    }, delay);
+  }, [callback, delay]);
+
+  const cancel = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  return { debouncedCallback, cancel };
+};
+
+const INVALID_USERNAME_COPY = 'Enter a valid username.';
+const GENERIC_NEW_CHAT_ERROR_COPY = 'We could not start that chat. Check the username and try again.';
+const GENERIC_GROUP_CHAT_ERROR_COPY = 'We could not create that group. Check the usernames and try again.';
+const GENERIC_SPACE_ERROR_COPY = 'We could not create that space. Check the usernames and try again.';
+const GENERIC_JOIN_SPACE_ERROR_COPY = 'We could not join that space. Check the join code and try again.';
+const GENERIC_CHANNEL_ERROR_COPY = 'We could not create that channel. Check the name and try again.';
+const REPLY_TEXT_PREVIEW_LIMIT = 160;
+const DEFAULT_MESSAGE_SEARCH_FILTERS: MessageSearchFilters = {
+  senderId: null,
+  type: 'all',
+  from: null,
+  to: null,
+};
+const ENCRYPTED_ATTACHMENT_UNAVAILABLE_COPY = 'Encrypted conversations do not support attachment upload yet.';
+
+type InviteLinksTarget = {
+  targetType: InviteTargetType;
+  targetId: string;
+  targetName: string;
+  canManage: boolean;
+  disabledReason: string | null;
+};
+
+const normalizeReplyPreview = (value: string) => {
+  const preview = value.replace(/\s+/g, ' ').trim();
+  return preview.length > REPLY_TEXT_PREVIEW_LIMIT
+    ? preview.slice(0, REPLY_TEXT_PREVIEW_LIMIT)
+    : preview;
+};
+
+const getReplyAttachmentCount = (message: Message) => (
+  message.attachments?.filter((attachment) => attachment.status !== 'deleted').length ?? 0
+);
+
+const buildOptimisticReplyTo = (message: Message): MessageReplyTo => {
+  const encrypted = isEncryptedMessage(message);
+  const deleted = Boolean(message.deletedForEveryone);
+
+  return {
+    messageId: message._id,
+    sender: message.sender,
+    messageType: message.messageType ?? 'text',
+    textPreview: deleted || encrypted ? '' : normalizeReplyPreview(message.text),
+    attachmentCount: getReplyAttachmentCount(message),
+    isDeleted: deleted,
+    isEncrypted: encrypted,
+    createdAt: message.createdAt,
+  };
+};
+
+const getConversationDisabledReason = (controls?: ConversationControls) => {
+  if (!controls || controls.canSendMessage) {
+    return null;
+  }
+
+  if (controls.messagingDisabledReason === 'blocked_by_me') {
+    return 'You blocked this user. Unblock them to send new activity.';
+  }
+
+  if (controls.messagingDisabledReason === 'blocked_me') {
+    return 'This user is not available for new conversation activity.';
+  }
+
+  return 'Conversation activity is disabled.';
+};
+
+const getRequestErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    const message = error.response?.data?.message;
+    return typeof message === 'string' && message.trim() ? message : fallback;
+  }
+
+  return fallback;
+};
+
+const ChatPage = () => {
+  const { user, isAuthenticated } = useAuthStore();
+  const onlineUsers = usePresenceStore((state) => state.onlineUsers);
+  const clearPresenceState = usePresenceStore((state) => state.clearPresenceState);
+  const authLogout = useAuthStore((state) => state.logout);
+  const queryClient = useQueryClient();
+  const logoutMutation = useLogout();
+  const { showToast } = useToast();
+  const {
+    selectedChatId,
+    setSelectedChatId,
+    messageInput,
+    setMessageInput,
+    isNewChatOpen,
+    setIsNewChatOpen,
+    newChatUsername,
+    setNewChatUsername,
+    createChatError,
+    setCreateChatError,
+    isSidebarOpen,
+    setIsSidebarOpen,
+    isTyping,
+    setIsTyping,
+    searchQuery,
+    setSearchQuery,
+    isSettingsOpen,
+    setIsSettingsOpen,
+    contextMenu,
+    setContextMenu,
+    showReactionPicker,
+    setShowReactionPicker,
+    editingMessageId,
+    setEditingMessageId,
+    editText,
+    setEditText,
+    showEmojiPicker,
+    setShowEmojiPicker,
+    replyingTo,
+    setReplyingTo,
+    messageSearch,
+    setMessageSearch,
+    showMessageSearch,
+    setShowMessageSearch,
+    showScrollButton,
+    setShowScrollButton,
+  } = useChatViewState();
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const newChatButtonRef = useRef<HTMLButtonElement>(null);
+  const messageSearchInputRef = useRef<HTMLInputElement>(null);
+  const messageSearchButtonRef = useRef<HTMLButtonElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const messageActionTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const callHandlersRef = useRef<ReturnType<typeof useCallController>['socketHandlers'] | null>(null);
+  const messageHighlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inFlightDraftKeysRef = useRef(new Set<string>());
+  const shouldAutoScrollRef = useRef(true);
+  const previousLastMessageKeyRef = useRef<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [jumpingMessageId, setJumpingMessageId] = useState<string | null>(null);
+  const [messageSearchFilters, setMessageSearchFilters] = useState<MessageSearchFilters>(DEFAULT_MESSAGE_SEARCH_FILTERS);
+  const [composerResetToken, setComposerResetToken] = useState(0);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
+  const [isDetailRailOpen, setIsDetailRailOpen] = useState(() => isDesktopDetailRailViewport());
+  const [isVoiceMessagesModalOpen, setIsVoiceMessagesModalOpen] = useState(false);
+  const [isConversationMoreOpen, setIsConversationMoreOpen] = useState(false);
+  const [isInviteLinksOpen, setIsInviteLinksOpen] = useState(false);
+  const [isSavedMessagesOpen, setIsSavedMessagesOpen] = useState(false);
+  const [pendingSavedJump, setPendingSavedJump] = useState<{ chatId: string; messageId: string } | null>(null);
+  const [isBrowserOnline, setIsBrowserOnline] = useState(() => (
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  ));
+  const [conversationFilter, setConversationFilter] = useState<ConversationFocusFilter>('all');
+  const [attachmentPreview, setAttachmentPreview] = useState<AttachmentPreviewTarget | null>(null);
+  const [activeComposerUploadId, setActiveComposerUploadId] = useState<string | null>(null);
+  const [sidebarWorkspaceMode, setSidebarWorkspaceMode] = useState<SidebarWorkspaceMode>(() => getInitialWorkspaceMode());
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(() => getInitialSpaceId());
+  const [createSpaceError, setCreateSpaceError] = useState<string | null>(null);
+  const [createChannelError, setCreateChannelError] = useState<string | null>(null);
+  const [joinSpaceError, setJoinSpaceError] = useState<string | null>(null);
+  const [createChatNotice, setCreateChatNotice] = useState<string | null>(null);
+  const [isStartConversationOpen, setIsStartConversationOpen] = useState(false);
+  const chatTheme = useChatTheme(user?._id);
+  const notificationPreferences = useNotificationPreferences(user?._id);
+
+  const { data: chats, isLoading: isChatsLoading, isError: chatsError, refetch: refetchChats } = useChats();
+  const {
+    data: contacts,
+    isLoading: isContactsLoading,
+    isError: isContactsError,
+    refetch: refetchContacts,
+  } = useContacts(isStartConversationOpen);
+  const {
+    data: contactRequests,
+    isLoading: isContactRequestsLoading,
+    isError: isContactRequestsError,
+    refetch: refetchContactRequests,
+  } = useContactRequests(isStartConversationOpen || isNewChatOpen);
+  const { data: spaces, isLoading: isSpacesLoading, isError: spacesError, refetch: refetchSpaces } = useSpaces();
+  const selectedSpace = useMemo(
+    () => spaces?.find((space) => space._id === selectedSpaceId) ?? null,
+    [selectedSpaceId, spaces]
+  );
+  const {
+    data: spaceChannels,
+    isLoading: isSpaceChannelsLoading,
+    isError: spaceChannelsError,
+    refetch: refetchSpaceChannels,
+  } = useSpaceChannels(selectedSpaceId);
+  const visibleSpaceChannels = useMemo(
+    () => spaceChannels ?? selectedSpace?.channels ?? [],
+    [selectedSpace?.channels, spaceChannels]
+  );
+  const {
+    messages,
+    isLoading: isMessagesLoading,
+    isError: messagesError,
+    refetch: refetchMessages,
+    upsertMessage,
+    removeMessage,
+    dismissFailedMessage,
+    updateMessageStatus,
+    updateMessagesStatus,
+    loadMoreMessages,
+    hasMore,
+    isLoadingMore,
+  } = useMessages(selectedChatId);
+  const sendMessage = useSendMessage();
+  const createChat = useCreateChat();
+  const acceptContactRequest = useAcceptContactRequest();
+  const declineContactRequest = useDeclineContactRequest();
+  const cancelContactRequest = useCancelContactRequest();
+  const createGroupChat = useCreateGroupChat();
+  const createSpace = useCreateSpace();
+  const createSpaceChannel = useCreateSpaceChannel();
+  const joinSpace = useJoinSpace();
+  const markMessagesAsReadMutation = useMarkMessagesAsRead();
+  const deleteMessageMutation = useDeleteMessage();
+  const editMessageMutation = useEditMessage();
+  const toggleReactionMutation = useToggleReaction();
+  const pinMessageMutation = usePinMessage();
+  const unpinMessageMutation = useUnpinMessage();
+  const saveMessageMutation = useSaveMessage();
+  const unsaveMessageMutation = useUnsaveMessage();
+  const updateChatOrganizationMutation = useUpdateChatOrganization();
+  const blockChatPeerMutation = useBlockChatPeer();
+  const unblockChatPeerMutation = useUnblockChatPeer();
+  const submitAbuseReportMutation = useSubmitAbuseReport();
+
+  const accessibleSpaceChannels = useMemo(() => {
+    const channelsById = new Map<string, SpaceChannel>();
+
+    spaces?.forEach((space) => {
+      space.channels?.forEach((channel) => {
+        channelsById.set(channel._id, channel);
+      });
+    });
+    spaceChannels?.forEach((channel) => {
+      channelsById.set(channel._id, channel);
+    });
+
+    return Array.from(channelsById.values());
+  }, [spaceChannels, spaces]);
+  const selectableChats = useMemo<Chat[]>(
+    () => [...(chats ?? []), ...accessibleSpaceChannels],
+    [accessibleSpaceChannels, chats]
+  );
+  const chatIds = useMemo(
+    () => Array.from(new Set(selectableChats.map((chat) => chat._id))),
+    [selectableChats]
+  );
+  const { data: unreadCounts } = useUnreadCounts(chatIds);
+  const selectableChatsForPersistence = useMemo(
+    () => (sidebarWorkspaceMode === 'spaces' ? selectableChats : (chats ?? [])),
+    [chats, selectableChats, sidebarWorkspaceMode]
+  );
+
+  useSelectedChatPersistence({
+    userId: user?._id,
+    chats: selectableChatsForPersistence,
+    isChatsLoading: isChatsLoading || isSpacesLoading || Boolean(selectedSpaceId && isSpaceChannelsLoading),
+    selectedChatId,
+    setSelectedChatId,
+  });
+
+  useEffect(() => {
+    replaceWorkspaceUrlState(sidebarWorkspaceMode, selectedSpaceId);
+  }, [selectedSpaceId, sidebarWorkspaceMode]);
+
+  const { draftsByChatId } = useConversationDrafts({
+    userId: user?._id,
+    selectedChatId,
+    messageInput,
+    setMessageInput,
+    accessibleChatIds: chatIds,
+  });
+
+  const markMessagesAsReadRef = useRef(markMessagesAsReadMutation.mutate);
+  markMessagesAsReadRef.current = markMessagesAsReadMutation.mutate;
+
+  const selectedChat = useMemo(
+    () => selectableChats.find((chat) => chat._id === selectedChatId) ?? null,
+    [selectableChats, selectedChatId]
+  );
+
+  useEffect(() => {
+    if (sidebarWorkspaceMode !== 'spaces') {
+      return;
+    }
+
+    if (!spaces?.length) {
+      if (selectedSpaceId) {
+        setSelectedSpaceId(null);
+      }
+      return;
+    }
+
+    if (!selectedSpaceId || !spaces.some((space) => space._id === selectedSpaceId)) {
+      setSelectedSpaceId(spaces[0]._id);
+    }
+  }, [selectedSpaceId, sidebarWorkspaceMode, spaces]);
+
+  useEffect(() => {
+    const selectedChatSpaceId = selectedChat?.spaceId ?? selectedChat?.space;
+
+    if (!selectedChat?.isSpaceChannel || !selectedChatSpaceId || selectedChatSpaceId === selectedSpaceId) {
+      return;
+    }
+
+    setSelectedSpaceId(selectedChatSpaceId);
+    setSidebarWorkspaceMode('spaces');
+  }, [selectedChat, selectedSpaceId]);
+
+  useEffect(() => {
+    if (
+      sidebarWorkspaceMode !== 'spaces' ||
+      !selectedSpaceId ||
+      visibleSpaceChannels.length === 0
+    ) {
+      return;
+    }
+
+    if (visibleSpaceChannels.some((channel) => channel._id === selectedChatId)) {
+      return;
+    }
+
+    const defaultChannel = visibleSpaceChannels.find((channel) => channel._id === selectedSpace?.defaultChannelId) ?? visibleSpaceChannels[0];
+    setSelectedChatId(defaultChannel._id);
+  }, [
+    selectedChatId,
+    selectedSpace?.defaultChannelId,
+    selectedSpaceId,
+    setSelectedChatId,
+    sidebarWorkspaceMode,
+    visibleSpaceChannels,
+  ]);
+
+  const isSelectedChatFavorite = selectedChat?.organizationState?.favorite === true;
+  const isSelectedChatMuted = selectedChat?.organizationState?.muted ?? Boolean(
+    selectedChatId && notificationPreferences.isChatMuted(selectedChatId)
+  );
+  const isSelectedChatArchived = selectedChat?.organizationState?.archived === true;
+  const isSelectedChatPinned = selectedChat?.organizationState?.pinned === true;
+  const conversationControls = selectedChat?.conversationControls;
+  const isSelectedChatEncrypted = isEncryptedConversation(selectedChat);
+  const inviteLinksTarget = useMemo<InviteLinksTarget | null>(() => {
+    if (!selectedChat) {
+      return null;
+    }
+
+    if (selectedChat.isSpaceChannel) {
+      const targetId = selectedChat.spaceId ?? selectedChat.space ?? selectedSpace?._id;
+      if (!targetId) {
+        return null;
+      }
+
+      const canManage = Boolean(selectedSpace?.canManage);
+      return {
+        targetType: 'space',
+        targetId,
+        targetName: selectedSpace?.name ?? selectedChat.chatName ?? selectedChat.channelName ?? 'Space',
+        canManage,
+        disabledReason: canManage
+          ? null
+          : selectedSpace
+            ? 'Only a space owner or admin can manage invite links.'
+            : 'Space permissions are still loading.',
+      };
+    }
+
+    if (!selectedChat.isGroupChat) {
+      return null;
+    }
+
+    const isGroupAdmin = selectedChat.groupAdmin?._id === user?._id;
+    const canManage = !isSelectedChatEncrypted && isGroupAdmin;
+    const disabledReason = isSelectedChatEncrypted
+      ? 'Invite links are unavailable for encrypted conversations.'
+      : isGroupAdmin
+        ? null
+        : 'Only the group admin can manage invite links.';
+
+    return {
+      targetType: 'group',
+      targetId: selectedChat._id,
+      targetName: getChatTitle(selectedChat, user?._id),
+      canManage,
+      disabledReason,
+    };
+  }, [isSelectedChatEncrypted, selectedChat, selectedSpace, user?._id]);
+  const activeConversationDisabledReason = getConversationDisabledReason(conversationControls);
+  const isConversationControlPending = blockChatPeerMutation.isPending || unblockChatPeerMutation.isPending;
+  const isConversationOrganizationPending = updateChatOrganizationMutation.isPending;
+  const otherMember = selectedChat ? getOtherMember(selectedChat, user?._id) : null;
+  const otherMemberStatus = otherMember ? onlineUsers.get(otherMember._id) ?? null : null;
+  const allMessages = useMemo(() => messages ?? [], [messages]);
+  const messageSearchQuery = showMessageSearch ? messageSearch : '';
+  const activeMessageSearchFilters = showMessageSearch ? messageSearchFilters : DEFAULT_MESSAGE_SEARCH_FILTERS;
+  const messageSearchResult = useMessageSearch(
+    isSelectedChatEncrypted ? null : selectedChatId,
+    messageSearchQuery,
+    activeMessageSearchFilters
+  );
+  const messageContextMutation = useMessageContext();
+  const sharedFilesQuery = useSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'file');
+  const sharedMediaQuery = useSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'media');
+  const sharedVoiceQuery = usePaginatedSharedAssets(isSelectedChatEncrypted ? null : selectedChatId, 'voice', 50);
+  const pinnedMessagesQuery = usePinnedMessages(selectedChatId);
+  const {
+    data: sharedVoiceData,
+    isLoading: isSharedVoiceLoading,
+    isError: isSharedVoiceError,
+    hasNextPage: hasMoreVoiceAssets,
+    isFetchingNextPage: isFetchingMoreVoiceAssets,
+    fetchNextPage: fetchNextVoiceAssetsPage,
+  } = sharedVoiceQuery;
+  const sharedVoiceAssets = useMemo(() => (
+    sharedVoiceData?.pages.flatMap((page) => page.assets) ?? []
+  ), [sharedVoiceData]);
+  const loadedMessageIds = useMemo(() => new Set(allMessages.map((message) => message._id)), [allMessages]);
+  const activeComposerUploadState = activeComposerUploadId
+    ? sendMessage.uploadStates[activeComposerUploadId]
+    : undefined;
+
+  const clearHighlightedMessage = useCallback(() => {
+    if (messageHighlightTimeoutRef.current) {
+      clearTimeout(messageHighlightTimeoutRef.current);
+      messageHighlightTimeoutRef.current = null;
+    }
+    setHighlightedMessageId(null);
+  }, []);
+
+  const buildOptimisticAttachments = useCallback((
+    payload: ComposerSendPayload,
+    clientMessageId: string
+  ): AttachmentSummary[] => payload.attachments.map((attachment, index) => {
+    const optimisticAttachmentId = `optimistic-${clientMessageId}-${index}`;
+
+    return {
+      _id: optimisticAttachmentId,
+      attachmentId: optimisticAttachmentId,
+      displayName: attachment.displayName,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+      kind: attachment.kind,
+      durationSeconds: attachment.durationSeconds ?? null,
+      status: 'active',
+      localPreviewUrl: attachment.localPreviewUrl,
+      createdAt: new Date().toISOString(),
+    };
+  }), []);
+
+  const buildRetryAttachmentDrafts = useCallback((message: Message): ComposerAttachmentDraft[] | undefined => {
+    if (message.localDrafts?.length) {
+      return message.localDrafts;
+    }
+
+    if (!message.localFiles?.length) {
+      return undefined;
+    }
+
+    return message.localFiles.map((file, index) => {
+      const attachment = message.attachments?.[index];
+      const kind = attachment?.kind ?? (file.type.startsWith('image/') ? 'media' : 'file');
+
+      return {
+        id: `retry-${message.clientMessageId ?? message._id}-${index}`,
+        file,
+        displayName: attachment?.displayName ?? file.name,
+        mimeType: attachment?.mimeType ?? file.type ?? 'application/octet-stream',
+        size: attachment?.size ?? file.size,
+        kind,
+        durationSeconds: attachment?.durationSeconds ?? null,
+        localPreviewUrl: attachment?.localPreviewUrl,
+      };
+    });
+  }, []);
+
+  const revokeMessageLocalPreviewUrls = useCallback((message: Message) => {
+    message.attachments?.forEach((attachment) => {
+      if (attachment.localPreviewUrl) {
+        URL.revokeObjectURL(attachment.localPreviewUrl);
+      }
+    });
+  }, []);
+
+  const handleMessageStatusUpdate = useCallback(
+    (event: MessageStatusUpdateEvent) => {
+      updateMessageStatus(event.messageId, event.status, event.deliveredAt, event.readAt);
+    },
+    [updateMessageStatus]
+  );
+
+  const handleBatchRead = useCallback(
+    (event: BatchReadEvent) => {
+      updateMessagesStatus(event.messages);
+    },
+    [updateMessagesStatus]
+  );
+
+  const handleMessageDeleted = useCallback(
+    (event: MessageDeletedEvent) => {
+      if (event.message) {
+        upsertMessage(event.message);
+        return;
+      }
+
+      if (event.deleteForEveryone) {
+        removeMessage(event.messageId);
+      }
+    },
+    [removeMessage, upsertMessage]
+  );
+
+  const handleMessageEdited = useCallback(
+    (event: MessageEditedEvent) => {
+      if (event.message) {
+        upsertMessage(event.message);
+        return;
+      }
+
+      const existingMessage = allMessages.find((message) => message._id === event.messageId);
+      if (existingMessage) {
+        upsertMessage({
+          ...existingMessage,
+          text: event.text,
+          isEdited: event.isEdited,
+          editedAt: event.editedAt,
+        });
+      }
+    },
+    [allMessages, upsertMessage]
+  );
+
+  const {
+    isSocketConnected,
+    socketError,
+    socketStatus,
+    callConfig,
+    emitTypingStart,
+    emitTypingStop,
+    emitCallStart,
+    emitCallAccept,
+    emitCallReject,
+    emitCallEnd,
+    emitCallSync,
+    emitCallOffer,
+    emitCallAnswer,
+    emitCallIceCandidate,
+  } = useChatSocket({
+    chatId: selectedChatId,
+    enabled: isAuthenticated,
+    notificationPreferences: notificationPreferences.preferences,
+    onBackgroundMessageAlert: (copy) => {
+      showToast(copy.title, 'info');
+    },
+    onMessageStatusUpdate: handleMessageStatusUpdate,
+    onBatchRead: handleBatchRead,
+    onMessageDeleted: handleMessageDeleted,
+    onMessageEdited: handleMessageEdited,
+    onMessageReaction: (event: MessageReactionEvent) => {
+      if (event.message) {
+        upsertMessage(event.message);
+        return;
+      }
+
+      const message = allMessages.find((item) => item._id === event.messageId);
+      if (message) {
+        upsertMessage({ ...message, reactions: event.reactions });
+      }
+    },
+    onCallIncoming: (event) => callHandlersRef.current?.handleIncomingCall(event),
+    onCallSync: (event) => callHandlersRef.current?.handleCallSync(event),
+    onCallOffer: (event) => callHandlersRef.current?.handleCallOffer(event),
+    onCallAnswer: (event) => callHandlersRef.current?.handleCallAnswer(event),
+    onCallIceCandidate: (event) => callHandlersRef.current?.handleCallIceCandidate(event),
+    onCallError: (event) => {
+      showToast(event.message ?? 'Call action failed.', 'error');
+    },
+  });
+
+  const presenceQuery = useOnlinePresence({
+    enabled: isAuthenticated && !isSocketConnected,
+    syncToStore: !isSocketConnected,
+  });
+  const refetchPresence = presenceQuery.refetch;
+  const isPresenceChecking = Boolean(otherMember && presenceQuery.isFetching && !onlineUsers.has(otherMember._id));
+
+  const callSocketActions = useMemo(() => ({
+    emitCallStart,
+    emitCallAccept,
+    emitCallReject,
+    emitCallEnd,
+    emitCallSync,
+    emitCallOffer,
+    emitCallAnswer,
+    emitCallIceCandidate,
+  }), [
+    emitCallAccept,
+    emitCallAnswer,
+    emitCallEnd,
+    emitCallIceCandidate,
+    emitCallOffer,
+    emitCallReject,
+    emitCallStart,
+    emitCallSync,
+  ]);
+
+  const {
+    state: callState,
+    audioAvailability,
+    videoAvailability,
+    startCall,
+    acceptCall,
+    rejectCall,
+    endCall,
+    toggleMute,
+    toggleCamera,
+    socketHandlers,
+  } = useCallController({
+    selectedChat,
+    currentUserId: user?._id,
+    otherMember,
+    otherMemberStatus,
+    onlineUsers,
+    isPresenceChecking,
+    conversationControls,
+    isAuthenticated,
+    isSocketConnected,
+    callConfig,
+    socketActions: callSocketActions,
+  });
+  callHandlersRef.current = socketHandlers;
+
+  const activeCallChatId = callState.session?.chatId ?? selectedChatId;
+  const isActiveCallMuted = activeCallChatId
+    ? notificationPreferences.isChatMuted(activeCallChatId)
+    : false;
+  const shouldPlayCallTone = notificationPreferences.soundEnabled && (
+    callState.status === 'incoming'
+      ? !isActiveCallMuted
+      : callState.status === 'outgoing' || callState.status === 'ringing'
+  );
+
+  const handleStartAudioCall = useCallback(() => {
+    void startCall('audio');
+  }, [startCall]);
+
+  const handleStartVideoCall = useCallback(() => {
+    void startCall('video');
+  }, [startCall]);
+
+  const handleAcceptCall = useCallback(() => {
+    void acceptCall();
+  }, [acceptCall]);
+
+  const handleRejectCall = useCallback(() => {
+    void rejectCall();
+  }, [rejectCall]);
+
+  const handleEndCall = useCallback(() => {
+    void endCall();
+  }, [endCall]);
+
+  const { debouncedCallback: debouncedTypingStop, cancel: cancelTypingStop } = useDebounce(() => {
+    setIsTyping(false);
+    emitTypingStop();
+  }, 2000);
+
+  const clearPrivateChatState = useCallback((userIdToClear?: string | null) => {
+    const storageUserId = userIdToClear ?? user?._id ?? null;
+
+    if (storageUserId) {
+      window.localStorage.removeItem(getSelectedChatStorageKey(storageUserId));
+      clearStoredConversationDrafts(storageUserId);
+    }
+
+    queryClient.clear();
+    setSelectedChatId(null);
+    setMessageInput('');
+    setSearchQuery('');
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    setShowMessageSearch(false);
+    setIsTyping(false);
+    setIsSidebarOpen(false);
+    setIsNewChatOpen(false);
+    setSidebarWorkspaceMode('conversations');
+    setSelectedSpaceId(null);
+    setIsDetailDrawerOpen(false);
+    setIsDetailRailOpen(false);
+    setIsVoiceMessagesModalOpen(false);
+    setIsInviteLinksOpen(false);
+    setIsSavedMessagesOpen(false);
+    setPendingSavedJump(null);
+    setAttachmentPreview(null);
+    setReplyingTo(null);
+    setNewChatUsername('');
+    setCreateChatError(null);
+    setCreateChatNotice(null);
+    setCreateSpaceError(null);
+    setCreateChannelError(null);
+    clearPresenceState();
+    replaceSelectedChatUrl(null);
+  }, [
+    clearPresenceState,
+    queryClient,
+    setCreateChatError,
+    setIsNewChatOpen,
+    setIsSidebarOpen,
+    setIsTyping,
+    setMessageInput,
+    setMessageSearch,
+    setMessageSearchFilters,
+    setNewChatUsername,
+    setReplyingTo,
+    setSearchQuery,
+    setSelectedChatId,
+    setShowMessageSearch,
+    user?._id,
+  ]);
+
+  const handleSessionEnded = useCallback((userIdToClear?: string | null) => {
+    clearPrivateChatState(userIdToClear);
+    authLogout();
+    setIsSettingsOpen(false);
+  }, [authLogout, clearPrivateChatState, setIsSettingsOpen]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      const expiredUserId = useAuthStore.getState().user?._id ?? user?._id ?? null;
+      handleSessionEnded(expiredUserId);
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    };
+  }, [handleSessionEnded, user?._id]);
+
+  useSessionBroadcast((event) => {
+    const activeUserId = useAuthStore.getState().user?._id ?? user?._id ?? null;
+    handleSessionEnded(activeUserId);
+
+    if (event.type === 'logout') {
+      showToast('Signed out in another tab.', 'info');
+    } else {
+      showToast('Session expired in another tab. Sign in again to continue.', 'info');
+    }
+  });
+
+  useEffect(() => {
+    clearHighlightedMessage();
+    setAttachmentPreview(null);
+    setIsVoiceMessagesModalOpen(false);
+    setIsDetailDrawerOpen(false);
+    setIsDetailRailOpen(isDesktopDetailRailViewport());
+    setIsConversationMoreOpen(false);
+    setIsInviteLinksOpen(false);
+    setIsSavedMessagesOpen(false);
+    setReplyingTo(null);
+  }, [clearHighlightedMessage, selectedChatId, setReplyingTo]);
+
+  useEffect(() => {
+    return () => {
+      if (messageHighlightTimeoutRef.current) {
+        clearTimeout(messageHighlightTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    if (activeConversationDisabledReason) {
+      return;
+    }
+
+    setMessageInput(event.target.value);
+
+    if (!isTyping && event.target.value.trim()) {
+      setIsTyping(true);
+      emitTypingStart();
+    }
+
+    if (event.target.value.trim()) {
+      debouncedTypingStop();
+    } else {
+      cancelTypingStop();
+      if (isTyping) {
+        setIsTyping(false);
+        emitTypingStop();
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedChatId || !user?._id || !allMessages.length) return;
+
+    const unreadMessages = allMessages.filter(
+      (message) => message.sender !== user._id && message.status !== 'read'
+    );
+
+    if (unreadMessages.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visibleMessageIds: string[] = [];
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = entry.target.getAttribute('data-message-id');
+            if (messageId && !messageId.startsWith('optimistic-')) {
+              visibleMessageIds.push(messageId);
+            }
+          }
+        });
+
+        if (visibleMessageIds.length > 0) {
+          const unreadVisibleIds = visibleMessageIds.filter((id) =>
+            unreadMessages.some((message) => message._id === id)
+          );
+
+          if (unreadVisibleIds.length > 0) {
+            markMessagesAsReadRef.current({
+              chatId: selectedChatId,
+              messageIds: unreadVisibleIds,
+            });
+          }
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    const container = messagesContainerRef.current;
+    if (container) {
+      unreadMessages.forEach((message) => {
+        const element = container.querySelector(`[data-message-id="${message._id}"]`);
+        if (element) {
+          observer.observe(element);
+        }
+      });
+    }
+
+    return () => observer.disconnect();
+  }, [allMessages, selectedChatId, user?._id]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsBrowserOnline(true);
+      void refetchPresence();
+    };
+    const handleOffline = () => setIsBrowserOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [refetchPresence]);
+
+  useEffect(() => {
+    const lastMessage = allMessages[allMessages.length - 1];
+    if (!lastMessage) return;
+
+    const lastMessageKey = `${lastMessage._id}:${lastMessage.updatedAt}`;
+    if (previousLastMessageKeyRef.current === lastMessageKey) {
+      return;
+    }
+
+    if (shouldAutoScrollRef.current || lastMessage.sender === user?._id) {
+      const shouldAnimate = Boolean(previousLastMessageKeyRef.current);
+      const scrollLatestIntoView = () => {
+        const container = messagesContainerRef.current;
+
+        if (container) {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: shouldAnimate ? 'smooth' : 'auto',
+          });
+          return;
+        }
+
+        messagesEndRef.current?.scrollIntoView({
+          behavior: shouldAnimate ? 'smooth' : 'auto',
+          block: 'end',
+        });
+      };
+
+      window.requestAnimationFrame(() => {
+        scrollLatestIntoView();
+        window.requestAnimationFrame(scrollLatestIntoView);
+      });
+    }
+
+    previousLastMessageKeyRef.current = lastMessageKey;
+  }, [allMessages, user?._id]);
+
+  useEffect(() => {
+    if (!createChatError) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCreateChatError(null);
+    }, 4000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [createChatError, setCreateChatError]);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+    setShowReactionPicker(false);
+    window.requestAnimationFrame(() => {
+      messageActionTriggerRef.current?.focus();
+    });
+  }, [setContextMenu, setShowReactionPicker]);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
+        closeContextMenu();
+      }
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [closeContextMenu]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [setShowEmojiPicker]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (editingMessageId) {
+          setEditingMessageId(null);
+          setEditText('');
+        } else if (contextMenu) {
+          closeContextMenu();
+        } else if (isConversationMoreOpen) {
+          setIsConversationMoreOpen(false);
+          window.requestAnimationFrame(() => {
+            moreButtonRef.current?.focus();
+          });
+        } else if (showEmojiPicker) {
+          setShowEmojiPicker(false);
+        } else if (showMessageSearch) {
+          setShowMessageSearch(false);
+          setMessageSearch('');
+          setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+          window.requestAnimationFrame(() => {
+            messageSearchButtonRef.current?.focus();
+          });
+        } else if (replyingTo) {
+          setReplyingTo(null);
+        } else if (isSidebarOpen) {
+          setIsSidebarOpen(false);
+        }
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key === 'f' && selectedChatId) {
+        event.preventDefault();
+        setShowMessageSearch(true);
+        window.requestAnimationFrame(() => {
+          messageSearchInputRef.current?.focus();
+        });
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [
+    contextMenu,
+    closeContextMenu,
+    editingMessageId,
+    isSidebarOpen,
+    isConversationMoreOpen,
+    replyingTo,
+    selectedChatId,
+    setEditText,
+    setEditingMessageId,
+    setIsSidebarOpen,
+    setMessageSearch,
+    setReplyingTo,
+    setShowEmojiPicker,
+    setShowMessageSearch,
+    showEmojiPicker,
+    showMessageSearch,
+  ]);
+
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
+    shouldAutoScrollRef.current = isNearBottom;
+    setShowScrollButton(!isNearBottom);
+  }, [setShowScrollButton]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [handleScroll]);
+
+  const handleLogout = async () => {
+    const currentUserId = user?._id ?? null;
+
+    try {
+      await logoutMutation.mutateAsync();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      clearPrivateChatState(currentUserId);
+    }
+  };
+
+  const handleSendMessage = (payload?: ComposerSendPayload) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      return;
+    }
+
+    const sourceText = payload?.text ?? messageInput;
+    const normalizedMessageInput = sourceText.trim();
+    const attachmentDrafts = payload?.attachments ?? [];
+    const selectedEncryptionMode: EncryptionMode = selectedChat?.encryptionMode ?? 'standard';
+
+    if (
+      !selectedChatId ||
+      (!normalizedMessageInput && attachmentDrafts.length === 0) ||
+      normalizedMessageInput.length > MAX_MESSAGE_TEXT_LENGTH
+    ) {
+      return;
+    }
+
+    if (selectedEncryptionMode === 'e2ee_v1' && attachmentDrafts.length > 0) {
+      showToast(ENCRYPTED_ATTACHMENT_UNAVAILABLE_COPY, 'error');
+      return;
+    }
+
+    const draftKey = buildSendDraftKey(selectedChatId, normalizedMessageInput, attachmentDrafts);
+    if (inFlightDraftKeysRef.current.has(draftKey)) {
+      return;
+    }
+
+    inFlightDraftKeysRef.current.add(draftKey);
+
+    cancelTypingStop();
+    if (isTyping) {
+      setIsTyping(false);
+      emitTypingStop();
+    }
+
+    const clientMessageId = createClientMessageId();
+    const optimisticAttachments = payload ? buildOptimisticAttachments(payload, clientMessageId) : [];
+    const optimisticReplyTo = replyingTo && selectedEncryptionMode === 'standard'
+      ? buildOptimisticReplyTo(replyingTo)
+      : null;
+    const mentionUserIds = selectedEncryptionMode === 'standard' ? payload?.mentionUserIds ?? [] : [];
+    const optimisticMentions = selectedEncryptionMode === 'standard' ? payload?.mentions ?? [] : [];
+
+    if (attachmentDrafts.length > 0) {
+      setActiveComposerUploadId(clientMessageId);
+    }
+
+    sendMessage.mutate(
+      {
+        chatId: selectedChatId,
+        text: sourceText,
+        encryptionMode: selectedEncryptionMode,
+        clientMessageId,
+        replyToMessageId: optimisticReplyTo?.messageId ?? undefined,
+        optimisticReplyTo,
+        mentionUserIds,
+        optimisticMentions,
+        attachments: attachmentDrafts,
+        optimisticAttachments,
+      },
+      {
+        onSuccess: () => {
+          setMessageInput('');
+          setReplyingTo(null);
+          setComposerResetToken((currentToken) => currentToken + 1);
+        },
+        onSettled: () => {
+          inFlightDraftKeysRef.current.delete(draftKey);
+          setActiveComposerUploadId((currentUploadId) => (
+            currentUploadId === clientMessageId ? null : currentUploadId
+          ));
+        },
+      }
+    );
+  };
+
+  const handleMessageContextMenu = (event: ReactMouseEvent, messageId: string, isOwn: boolean) => {
+    event.preventDefault();
+    const menuWidth = 200;
+    const menuHeight = 300;
+
+    let x = event.clientX;
+    let y = event.clientY;
+
+    if (isOwn) {
+      x = Math.max(10, event.clientX - menuWidth);
+    } else if (event.clientX + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 10;
+    }
+
+    if (event.clientY + menuHeight > window.innerHeight) {
+      y = Math.max(10, window.innerHeight - menuHeight - 10);
+    }
+
+    setShowReactionPicker(false);
+    setContextMenu({ x, y, messageId, isOwn });
+  };
+
+  const handleOpenMessageActions = (event: ReactMouseEvent<HTMLButtonElement>, message: Message, isOwn: boolean) => {
+    event.preventDefault();
+    event.stopPropagation();
+    messageActionTriggerRef.current = event.currentTarget;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const menuWidth = 220;
+    const menuHeight = 300;
+    const x = Math.min(Math.max(10, rect.right - menuWidth), window.innerWidth - menuWidth - 10);
+    const y = Math.min(rect.bottom + 6, window.innerHeight - menuHeight - 10);
+
+    setShowReactionPicker(false);
+    setContextMenu({ x, y, messageId: message._id, isOwn });
+  };
+
+  const handleReply = (message: Message) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
+    if (isEncryptedConversation(selectedChat) || isEncryptedMessage(message)) {
+      showToast('Replies are unavailable in encrypted conversations in this release.', 'error');
+      closeContextMenu();
+      return;
+    }
+
+    setReplyingTo(message);
+    closeContextMenu();
+  };
+
+  const handleDeleteMessage = (deleteForEveryone: boolean) => {
+    if (!contextMenu || !selectedChatId) return;
+    if (deleteForEveryone && activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
+    const messageId = contextMenu.messageId;
+
+    removeMessage(messageId);
+    closeContextMenu();
+
+    deleteMessageMutation.mutate(
+      { messageId, deleteForEveryone, chatId: selectedChatId },
+      {
+        onError: (error) => {
+          refetchMessages();
+          const message = axios.isAxiosError(error)
+            ? error.response?.data?.message ?? 'Could not delete message'
+            : 'Could not delete message';
+          showToast(message, 'error');
+        },
+      }
+    );
+  };
+
+  const handleStartEdit = (messageId: string, currentText: string) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
+    const message = allMessages.find((item) => item._id === messageId);
+    if (message && isEncryptedMessage(message)) {
+      showToast('Encrypted messages cannot be edited in this release.', 'error');
+      closeContextMenu();
+      return;
+    }
+
+    setEditingMessageId(messageId);
+    setEditText(currentText);
+    closeContextMenu();
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingMessageId || !editText.trim()) return;
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      setEditingMessageId(null);
+      setEditText('');
+      return;
+    }
+
+    editMessageMutation.mutate(
+      { messageId: editingMessageId, text: editText.trim() },
+      {
+        onSuccess: (updatedMessage) => {
+          upsertMessage(updatedMessage);
+          setEditingMessageId(null);
+          setEditText('');
+        },
+      }
+    );
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText('');
+  };
+
+  const scrollToBottom = () => {
+    const container = messagesContainerRef.current;
+
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth',
+      });
+      return;
+    }
+
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  };
+
+  const handleReaction = (messageId: string, emoji: string) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
+    const message = allMessages.find((item) => item._id === messageId);
+    if (message) {
+      const existingReaction = message.reactions?.find((reaction) => reaction.user === user?._id && reaction.emoji === emoji);
+      const updatedReactions = existingReaction
+        ? (message.reactions || []).filter((reaction) => !(reaction.user === user?._id && reaction.emoji === emoji))
+        : [...(message.reactions || []), { user: user?._id || '', emoji }];
+
+      upsertMessage({ ...message, reactions: updatedReactions });
+    }
+
+    toggleReactionMutation.mutate(
+      { messageId, emoji },
+      {
+        onError: () => {
+          refetchMessages();
+          showToast('Failed to update reaction', 'error');
+        },
+      }
+    );
+  };
+
+  const handleReportMessage = useCallback((message: Message) => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (message.sender === user?._id) {
+      showToast('You cannot report your own message.', 'error');
+      closeContextMenu();
+      return;
+    }
+
+    submitAbuseReportMutation.mutate(
+      {
+        targetType: 'message',
+        reason: 'other',
+        chatId: selectedChatId,
+        messageId: message._id,
+        reportedUserId: message.sender,
+        details: 'Reported from message actions.',
+      },
+      {
+        onSuccess: () => {
+          closeContextMenu();
+          showToast('Report sent for moderation review.', 'success');
+        },
+        onError: (error: unknown) => {
+          closeContextMenu();
+          showToast(getRequestErrorMessage(error, 'Could not send this report.'), 'error');
+        },
+      }
+    );
+  }, [closeContextMenu, selectedChatId, showToast, submitAbuseReportMutation, user?._id]);
+
+  const handleExportChat = () => {
+    if (!selectedChat || !allMessages.length) return;
+
+    const chatTitle = getChatTitle(selectedChat, user?._id);
+    const exportData = allMessages.map((message) => ({
+      sender: message.sender === user?._id ? 'You' : chatTitle,
+      text: isEncryptedMessage(message)
+        ? message.decryptedText ?? '[Encrypted message unavailable on this device]'
+        : message.text,
+      time: new Date(message.createdAt).toLocaleString(),
+    }));
+
+    const text = exportData.map((message) => `[${message.time}] ${message.sender}: ${message.text}`).join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${chatTitle}-chat-export.txt`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleToggleNewChat = () => {
+    setIsNewChatOpen((prev) => {
+      const nextState = !prev;
+      if (!nextState) {
+        setNewChatUsername('');
+      }
+      setCreateChatError(null);
+      setCreateChatNotice(null);
+      return nextState;
+    });
+  };
+
+  const handleCreateChatSubmit = (
+    event: FormEvent<HTMLFormElement>,
+    options: { encryptionMode: EncryptionMode } = { encryptionMode: 'standard' }
+  ) => {
+    event.preventDefault();
+    const usernameValidation = validateUsername(newChatUsername);
+
+    if (!usernameValidation.ok) {
+      setCreateChatError(INVALID_USERNAME_COPY);
+      return;
+    }
+
+    setCreateChatError(null);
+    setCreateChatNotice(null);
+
+    createChat.mutate(
+      {
+        targetUsername: usernameValidation.value,
+        ...(options.encryptionMode === 'e2ee_v1' ? { encryptionMode: options.encryptionMode } : {}),
+      },
+      {
+        onSuccess: (result) => {
+          if (result.kind === 'contactRequest') {
+            setCreateChatNotice('Request sent. The chat will open here after they accept.');
+            return;
+          }
+
+          setSelectedChatId(result.chat._id);
+          setIsNewChatOpen(false);
+          setNewChatUsername('');
+          setCreateChatError(null);
+          setCreateChatNotice(null);
+        },
+        onError: (error: unknown) => {
+          if (axios.isAxiosError(error)) {
+            const message = error.response?.data?.message;
+            setCreateChatError(
+              error.response?.status === 400 && typeof message === 'string' && /username/i.test(message)
+                ? INVALID_USERNAME_COPY
+                : GENERIC_NEW_CHAT_ERROR_COPY
+            );
+          } else {
+            setCreateChatError(GENERIC_NEW_CHAT_ERROR_COPY);
+          }
+        },
+      }
+    );
+  };
+
+  const handleSelectContact = (username: string) => {
+    createChat.mutate(
+      { targetUsername: username },
+      {
+        onSuccess: (result) => {
+          if (result.kind === 'contactRequest') {
+            showToast('Request sent. The conversation will appear after they accept.', 'success');
+            return;
+          }
+
+          setIsStartConversationOpen(false);
+          setSidebarWorkspaceMode('conversations');
+          setSelectedChatId(result.chat._id);
+          setIsSidebarOpen(false);
+        },
+        onError: (error) => {
+          showToast(getRequestErrorMessage(error, GENERIC_NEW_CHAT_ERROR_COPY), 'error');
+        },
+      }
+    );
+  };
+
+  const handleAcceptContactRequest = (requestId: string) => {
+    acceptContactRequest.mutate(requestId, {
+      onSuccess: ({ chat }) => {
+        setIsStartConversationOpen(false);
+        setSidebarWorkspaceMode('conversations');
+        setSelectedChatId(chat._id);
+        setIsSidebarOpen(false);
+        showToast('Request accepted. Chat is ready.', 'success');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not accept that request.'), 'error');
+      },
+    });
+  };
+
+  const handleDeclineContactRequest = (requestId: string) => {
+    declineContactRequest.mutate(requestId, {
+      onSuccess: () => {
+        showToast('Request declined.', 'info');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not decline that request.'), 'error');
+      },
+    });
+  };
+
+  const handleCancelContactRequest = (requestId: string) => {
+    cancelContactRequest.mutate(requestId, {
+      onSuccess: () => {
+        showToast('Request canceled.', 'info');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not cancel that request.'), 'error');
+      },
+    });
+  };
+
+  const handleStartNewChatFromContacts = () => {
+    setIsStartConversationOpen(false);
+    // Ensure the sidebar (which hosts NewChatDialog) is on-screen; on mobile it is
+    // translated off-canvas when closed, which would position the dialog off-screen.
+    setIsSidebarOpen(true);
+    if (!isNewChatOpen) {
+      handleToggleNewChat();
+    }
+  };
+
+  const handleCreateGroupSubmit = (payload: CreateGroupChatPayload) => {
+    setCreateChatError(null);
+
+    createGroupChat.mutate(payload, {
+      onSuccess: (chat) => {
+        setSelectedChatId(chat._id);
+        setIsNewChatOpen(false);
+        setNewChatUsername('');
+        setCreateChatError(null);
+      },
+      onError: (error) => {
+        setCreateChatError(getRequestErrorMessage(error, GENERIC_GROUP_CHAT_ERROR_COPY));
+      },
+    });
+  };
+
+  const handleCreateSpaceSubmit = (payload: CreateSpacePayload) => {
+    setCreateSpaceError(null);
+
+    createSpace.mutate(payload, {
+      onSuccess: ({ space, channel }) => {
+        setSidebarWorkspaceMode('spaces');
+        setSelectedSpaceId(space._id);
+        const defaultChannel = channel
+          ?? space.channels?.find((candidate) => (
+            candidate._id === space.defaultChannelId ||
+            candidate._id === space.defaultChannel
+          ))
+          ?? space.channels?.[0];
+
+        if (defaultChannel) {
+          setSelectedChatId(defaultChannel._id);
+        }
+        setCreateSpaceError(null);
+        showToast('Space created.', 'success');
+      },
+      onError: (error) => {
+        setCreateSpaceError(getRequestErrorMessage(error, GENERIC_SPACE_ERROR_COPY));
+      },
+    });
+  };
+
+  const handleJoinSpaceSubmit = (payload: JoinSpacePayload) => {
+    setJoinSpaceError(null);
+
+    joinSpace.mutate(payload, {
+      onSuccess: (space) => {
+        setSidebarWorkspaceMode('spaces');
+        setSelectedSpaceId(space._id);
+        const defaultChannel = space.channels?.find((candidate) => (
+          candidate._id === space.defaultChannelId ||
+          candidate._id === space.defaultChannel
+        )) ?? space.channels?.[0];
+
+        if (defaultChannel) {
+          setSelectedChatId(defaultChannel._id);
+        }
+        setJoinSpaceError(null);
+        showToast('Joined space.', 'success');
+      },
+      onError: (error) => {
+        setJoinSpaceError(getRequestErrorMessage(error, GENERIC_JOIN_SPACE_ERROR_COPY));
+      },
+    });
+  };
+
+  const handleCreateSpaceChannelSubmit = (payload: CreateSpaceChannelPayload) => {
+    if (!selectedSpaceId) {
+      setCreateChannelError('Select a space before creating a channel.');
+      return;
+    }
+
+    setCreateChannelError(null);
+
+    createSpaceChannel.mutate(
+      { spaceId: selectedSpaceId, payload },
+      {
+        onSuccess: (channel) => {
+          setSidebarWorkspaceMode('spaces');
+          setSelectedChatId(channel._id);
+          setCreateChannelError(null);
+          showToast('Channel created.', 'success');
+        },
+        onError: (error) => {
+          setCreateChannelError(getRequestErrorMessage(error, GENERIC_CHANNEL_ERROR_COPY));
+        },
+      }
+    );
+  };
+
+  const [enterToSend] = useLocalStorage('chatify_enter_to_send', true);
+
+  const handleComposerKeyDown = (event: Parameters<KeyboardEventHandler<HTMLTextAreaElement>>[0], payload: ComposerSendPayload) => {
+    if (event.key === 'Enter' && !event.shiftKey && enterToSend) {
+      event.preventDefault();
+      handleSendMessage(payload);
+    }
+  };
+
+  const handleSelectChat = (chatId: string) => {
+    setSidebarWorkspaceMode('conversations');
+    setSelectedSpaceId(null);
+    setSelectedChatId(chatId);
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    setShowMessageSearch(false);
+    setIsSidebarOpen(false);
+  };
+
+  const handleWorkspaceModeChange = (mode: SidebarWorkspaceMode) => {
+    setSidebarWorkspaceMode(mode);
+
+    if (mode !== 'conversations') {
+      return;
+    }
+
+    setSelectedSpaceId(null);
+    setCreateChannelError(null);
+    setJoinSpaceError(null);
+
+    if (!selectedChat?.isSpaceChannel) {
+      return;
+    }
+
+    const nextChatId = chats?.[0]?._id ?? null;
+    setSelectedChatId(nextChatId);
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    setShowMessageSearch(false);
+    setIsDetailDrawerOpen(false);
+    setIsDetailRailOpen(false);
+    replaceSelectedChatUrl(nextChatId);
+  };
+
+  const handleSelectSpace = (spaceId: string) => {
+    setSidebarWorkspaceMode('spaces');
+    setSelectedSpaceId(spaceId);
+    const space = spaces?.find((candidate) => candidate._id === spaceId);
+    const channels = space?.channels ?? [];
+    const defaultChannel = channels.find((channel) => channel._id === space?.defaultChannelId) ?? channels[0];
+
+    if (defaultChannel) {
+      setSelectedChatId(defaultChannel._id);
+      setMessageSearch('');
+      setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+      setShowMessageSearch(false);
+    }
+  };
+
+  const handleSelectChannel = (channelId: string) => {
+    setSidebarWorkspaceMode('spaces');
+    setSelectedChatId(channelId);
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    setShowMessageSearch(false);
+    setIsSidebarOpen(false);
+  };
+
+  const handleLoadMoreMessages = async () => {
+    const container = messagesContainerRef.current;
+    const previousScrollHeight = container?.scrollHeight ?? 0;
+    await loadMoreMessages();
+    window.requestAnimationFrame(() => {
+      if (!container) return;
+      container.scrollTop += container.scrollHeight - previousScrollHeight;
+    });
+  };
+
+  const handleToggleMessageSearch = () => {
+    const nextState = !showMessageSearch;
+
+    if (!nextState) {
+      setMessageSearch('');
+      setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    }
+
+    setShowMessageSearch(nextState);
+    window.requestAnimationFrame(() => {
+      if (nextState) {
+        messageSearchInputRef.current?.focus();
+      } else {
+        messageSearchButtonRef.current?.focus();
+      }
+    });
+  };
+
+  const handleClearMessageSearch = () => {
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    window.requestAnimationFrame(() => {
+      messageSearchInputRef.current?.focus();
+    });
+  };
+
+  const handleMessageSearchFiltersChange = useCallback((patch: Partial<MessageSearchFilters>) => {
+    setMessageSearchFilters((currentFilters) => ({
+      ...currentFilters,
+      ...patch,
+    }));
+  }, []);
+
+  const handleJumpToMessage = useCallback(async (messageId: string) => {
+    if (!loadedMessageIds.has(messageId)) {
+      if (!selectedChatId) {
+        return;
+      }
+
+      setJumpingMessageId(messageId);
+
+      try {
+        await messageContextMutation.mutateAsync({
+          chatId: selectedChatId,
+          messageId,
+          limit: 25,
+        });
+      } catch {
+        showToast('We could not load that message. It may no longer be visible.', 'error');
+        return;
+      } finally {
+        setJumpingMessageId((currentMessageId) => currentMessageId === messageId ? null : currentMessageId);
+      }
+    }
+
+    setShowMessageSearch(false);
+    setMessageSearch('');
+    setMessageSearchFilters(DEFAULT_MESSAGE_SEARCH_FILTERS);
+    clearHighlightedMessage();
+    setHighlightedMessageId(messageId);
+    messageHighlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedMessageId((currentMessageId) => currentMessageId === messageId ? null : currentMessageId);
+      messageHighlightTimeoutRef.current = null;
+    }, 1200);
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${messageId}"]`);
+        messageElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  }, [
+    clearHighlightedMessage,
+    loadedMessageIds,
+    messageContextMutation,
+    selectedChatId,
+    setMessageSearch,
+    setShowMessageSearch,
+    showToast,
+  ]);
+
+  useEffect(() => {
+    if (!pendingSavedJump || selectedChatId !== pendingSavedJump.chatId || isMessagesLoading) {
+      return;
+    }
+
+    const targetMessageId = pendingSavedJump.messageId;
+    setPendingSavedJump(null);
+    void handleJumpToMessage(targetMessageId);
+  }, [handleJumpToMessage, isMessagesLoading, pendingSavedJump, selectedChatId]);
+
+  const handleJumpToSavedMessage = useCallback((savedMessage: SavedMessage) => {
+    setIsSavedMessagesOpen(false);
+    setIsDetailDrawerOpen(false);
+    setIsDetailRailOpen(isDesktopDetailRailViewport());
+    setIsSidebarOpen(false);
+
+    if (savedMessage.chat.isSpaceChannel) {
+      setSidebarWorkspaceMode('spaces');
+      setSelectedSpaceId(savedMessage.chat.spaceId ?? savedMessage.chat.space ?? null);
+    } else {
+      setSidebarWorkspaceMode('conversations');
+      setSelectedSpaceId(null);
+    }
+
+    setSelectedChatId(savedMessage.chatId);
+    setPendingSavedJump({
+      chatId: savedMessage.chatId,
+      messageId: savedMessage.messageId,
+    });
+  }, [setIsSidebarOpen, setSelectedChatId]);
+
+  const handleSelectMessageSearchResult = (message: Message) => {
+    void handleJumpToMessage(message._id);
+  };
+
+  const handleAppendEmoji = (emoji: string) => {
+    setMessageInput((prev) => prev + emoji);
+  };
+
+  const handleOpenAttachmentPreview = useCallback((attachment: AttachmentPreviewTarget) => {
+    if (attachment.status !== 'active') {
+      showToast('Attachment is unavailable.', 'error');
+      return;
+    }
+
+    setAttachmentPreview(attachment);
+  }, [showToast]);
+
+  const handleOpenVoiceMessages = useCallback(() => {
+    setIsVoiceMessagesModalOpen(true);
+  }, []);
+
+  const handleLoadOlderVoiceMessages = useCallback(() => {
+    if (hasMoreVoiceAssets && !isFetchingMoreVoiceAssets) {
+      void fetchNextVoiceAssetsPage();
+    }
+  }, [fetchNextVoiceAssetsPage, hasMoreVoiceAssets, isFetchingMoreVoiceAssets]);
+
+  const handleJumpToVoiceMessage = useCallback((messageId: string) => {
+    setIsVoiceMessagesModalOpen(false);
+    setIsDetailDrawerOpen(false);
+    handleJumpToMessage(messageId);
+  }, [handleJumpToMessage]);
+
+  const updateSelectedChatOrganization = useCallback((
+    patch: ConversationOrganizationPatch,
+    successCopy: string,
+    errorCopy: string
+  ) => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    updateChatOrganizationMutation.mutate(
+      { chatId: selectedChatId, patch },
+      {
+        onSuccess: () => {
+          showToast(successCopy, 'success');
+        },
+        onError: (error) => {
+          showToast(getRequestErrorMessage(error, errorCopy), 'error');
+        },
+      }
+    );
+  }, [selectedChatId, showToast, updateChatOrganizationMutation]);
+
+  const handleToggleFavorite = useCallback(() => {
+    updateSelectedChatOrganization(
+      { favorite: !isSelectedChatFavorite },
+      isSelectedChatFavorite ? 'Conversation unstarred.' : 'Conversation starred.',
+      'Could not update starred conversation.'
+    );
+  }, [isSelectedChatFavorite, updateSelectedChatOrganization]);
+
+  const handleTogglePinned = useCallback(() => {
+    updateSelectedChatOrganization(
+      { pinned: !isSelectedChatPinned },
+      isSelectedChatPinned ? 'Conversation unpinned.' : 'Conversation pinned.',
+      'Could not update pinned conversation.'
+    );
+  }, [isSelectedChatPinned, updateSelectedChatOrganization]);
+
+  const handleToggleArchived = useCallback(() => {
+    updateSelectedChatOrganization(
+      { archived: !isSelectedChatArchived },
+      isSelectedChatArchived ? 'Conversation unarchived.' : 'Conversation archived.',
+      'Could not update archived conversation.'
+    );
+  }, [isSelectedChatArchived, updateSelectedChatOrganization]);
+
+  const handleToggleSelectedChatMute = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (isSelectedChatMuted) {
+      notificationPreferences.unmuteChat(selectedChatId);
+      updateSelectedChatOrganization(
+        { muted: false },
+        'Conversation unmuted. Alerts are on for this chat.',
+        'Could not save conversation mute.'
+      );
+      return;
+    }
+
+    notificationPreferences.muteChat(selectedChatId);
+    updateSelectedChatOrganization(
+      { muted: true },
+      'Conversation muted. Alerts are off for this chat.',
+      'Could not save conversation mute.'
+    );
+  }, [isSelectedChatMuted, notificationPreferences, selectedChatId, updateSelectedChatOrganization]);
+
+  const handleCopyMessage = (message: Message) => {
+    const textToCopy = message.decryptedText ?? message.text;
+
+    if (isEncryptedMessage(message) && !textToCopy) {
+      showToast('This device needs the conversation secret before copying this encrypted message.', 'error');
+      closeContextMenu();
+      return;
+    }
+
+    navigator.clipboard.writeText(textToCopy);
+    closeContextMenu();
+  };
+
+  const handleRetryFailedMessage = (message: Message) => {
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      return;
+    }
+
+    if (!message.clientMessageId) {
+      return;
+    }
+
+    const retryAttachments = buildRetryAttachmentDrafts(message);
+
+    if ((message.attachments?.length ?? 0) > 0 && !retryAttachments?.length) {
+      showToast('Reattach files or re-record voice to retry this message.', 'error');
+      return;
+    }
+
+    if (retryAttachments?.length) {
+      setActiveComposerUploadId(message.clientMessageId);
+    }
+
+    sendMessage.mutate(
+      {
+        chatId: message.chatId,
+        text: message.decryptedText ?? message.text,
+        encryptionMode: message.encryptionMode ?? selectedChat?.encryptionMode ?? 'standard',
+        clientMessageId: message.clientMessageId,
+        replyToMessageId: message.replyTo?.messageId ?? undefined,
+        optimisticReplyTo: message.replyTo ?? null,
+        mentionUserIds: message.mentions?.map((mention) => mention.userId) ?? [],
+        optimisticMentions: message.mentions ?? [],
+        attachments: retryAttachments,
+        optimisticAttachments: message.attachments,
+      },
+      {
+        onSettled: () => {
+          setActiveComposerUploadId((currentUploadId) => (
+            currentUploadId === message.clientMessageId ? null : currentUploadId
+          ));
+        },
+      }
+    );
+  };
+
+  const handleDismissFailedMessage = (message: Message) => {
+    if (!message.clientMessageId) {
+      return;
+    }
+
+    revokeMessageLocalPreviewUrls(message);
+    dismissFailedMessage(message.clientMessageId);
+  };
+
+  const handleTogglePinMessage = (message: Message) => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      closeContextMenu();
+      return;
+    }
+
+    const mutation = message.pinned ? unpinMessageMutation : pinMessageMutation;
+
+    mutation.mutate(
+      { messageId: message._id, chatId: selectedChatId },
+      {
+        onError: () => {
+          showToast('Could not update pinned message.', 'error');
+        },
+      }
+    );
+    closeContextMenu();
+  };
+
+  const handleToggleSaveMessage = (message: Message) => {
+    const targetChatId = message.chatId || selectedChatId;
+
+    if (!targetChatId) {
+      return;
+    }
+
+    const mutation = message.savedByRequester ? unsaveMessageMutation : saveMessageMutation;
+
+    mutation.mutate(
+      { messageId: message._id, chatId: targetChatId },
+      {
+        onSuccess: () => {
+          showToast(message.savedByRequester ? 'Message unsaved.' : 'Message saved.', 'success');
+        },
+        onError: () => {
+          showToast('Could not update saved message.', 'error');
+        },
+      }
+    );
+    closeContextMenu();
+  };
+
+  const focusMoreButton = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      moreButtonRef.current?.focus();
+    });
+  }, []);
+
+  const closeDetailDrawer = useCallback(() => {
+    setIsDetailDrawerOpen(false);
+    focusMoreButton();
+  }, [focusMoreButton]);
+
+  const closeDetailRail = useCallback(() => {
+    setIsDetailRailOpen(false);
+    focusMoreButton();
+  }, [focusMoreButton]);
+
+  const handleOpenDetails = useCallback(() => {
+    const isDesktopViewport = isDesktopDetailRailViewport();
+    setIsConversationMoreOpen(false);
+
+    if (isDesktopViewport) {
+      setIsDetailDrawerOpen(false);
+      setIsDetailRailOpen(true);
+      return;
+    }
+
+    setIsDetailDrawerOpen(true);
+  }, []);
+
+  const handleToggleDetails = useCallback(() => {
+    const isDesktopViewport = isDesktopDetailRailViewport();
+    setIsConversationMoreOpen(false);
+
+    if (isDesktopViewport) {
+      setIsDetailDrawerOpen(false);
+      setIsDetailRailOpen((currentValue) => !currentValue);
+      return;
+    }
+
+    setIsDetailRailOpen(false);
+    setIsDetailDrawerOpen((currentValue) => !currentValue);
+  }, []);
+
+  const handleToggleConversationMoreMenu = useCallback(() => {
+    setIsConversationMoreOpen((currentValue) => !currentValue);
+  }, []);
+
+  const handleOpenMoreMenuFromDetails = useCallback(() => {
+    setIsDetailDrawerOpen(false);
+    setIsConversationMoreOpen((currentValue) => !currentValue);
+  }, []);
+
+  const handleOpenInviteLinks = useCallback(() => {
+    if (!inviteLinksTarget?.canManage) {
+      showToast(inviteLinksTarget?.disabledReason ?? 'Invite links are unavailable for this conversation.', 'error');
+      return;
+    }
+
+    setIsConversationMoreOpen(false);
+    setIsInviteLinksOpen(true);
+  }, [inviteLinksTarget, showToast]);
+
+  const handleBlockPeer = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (!conversationControls?.canBlockUser) {
+      showToast('Blocking is not available for this conversation.', 'error');
+      return;
+    }
+
+    blockChatPeerMutation.mutate(selectedChatId, {
+      onSuccess: () => {
+        setIsConversationMoreOpen(false);
+        showToast('User blocked. New activity is disabled for this conversation.', 'success');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not block this user.'), 'error');
+      },
+    });
+  }, [blockChatPeerMutation, conversationControls?.canBlockUser, selectedChatId, showToast]);
+
+  const handleUnblockPeer = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (!conversationControls?.canUnblockUser) {
+      showToast('Unblock is not available for this conversation.', 'error');
+      return;
+    }
+
+    unblockChatPeerMutation.mutate(selectedChatId, {
+      onSuccess: () => {
+        setIsConversationMoreOpen(false);
+        showToast('User unblocked. Messaging controls are available again.', 'success');
+      },
+      onError: (error) => {
+        showToast(getRequestErrorMessage(error, 'Could not unblock this user.'), 'error');
+      },
+    });
+  }, [conversationControls?.canUnblockUser, selectedChatId, showToast, unblockChatPeerMutation]);
+
+  const handleReportConversation = useCallback(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    const isDirectChat = conversationControls?.isDirectChat === true && Boolean(conversationControls.peerId);
+
+    submitAbuseReportMutation.mutate(
+      {
+        targetType: isDirectChat ? 'user' : 'conversation',
+        reason: 'other',
+        chatId: selectedChatId,
+        reportedUserId: isDirectChat ? conversationControls?.peerId ?? undefined : undefined,
+        details: isDirectChat
+          ? 'Reported from conversation actions.'
+          : 'Reported from group conversation actions.',
+      },
+      {
+        onSuccess: () => {
+          setIsConversationMoreOpen(false);
+          showToast('Report sent for moderation review.', 'success');
+        },
+        onError: (error: unknown) => {
+          showToast(getRequestErrorMessage(error, 'Could not send this report.'), 'error');
+        },
+      }
+    );
+  }, [conversationControls, selectedChatId, showToast, submitAbuseReportMutation]);
+
+  const handleUnpinMessage = (messageId: string) => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (activeConversationDisabledReason) {
+      showToast(activeConversationDisabledReason, 'error');
+      return;
+    }
+
+    unpinMessageMutation.mutate(
+      { messageId, chatId: selectedChatId },
+      {
+        onError: () => {
+          showToast('Could not unpin that message.', 'error');
+        },
+      }
+    );
+  };
+
+  const isOffline = !isBrowserOnline;
+  const isSessionExpired = !isAuthenticated && !isChatsLoading;
+  const isSocketAuthFailed = socketStatus === 'auth_failed';
+  const isReconnecting = Boolean(
+    selectedChatId &&
+    isAuthenticated &&
+    !isOffline &&
+    !isSocketAuthFailed &&
+    (socketError || !isSocketConnected)
+  );
+
+  const isInitialChatListLoading = isAuthenticated && isChatsLoading && !chats;
+
+  if ((!isAuthenticated && isChatsLoading) || isInitialChatListLoading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <main
+      className="chat-theme-root"
+      data-testid="chat-root"
+      data-chat-theme={chatTheme.theme}
+    >
+      <h1 className="sr-only">Chatify messenger</h1>
+      <ChatShell
+        isSidebarOpen={isSidebarOpen}
+        onCloseSidebar={() => setIsSidebarOpen(false)}
+        isRightRailOpen={Boolean(selectedChat && isDetailRailOpen)}
+        sidebar={(
+          <ChatSidebar
+            user={user}
+            chats={chats}
+            selectedChatId={selectedChatId}
+            isOpen={isSidebarOpen}
+            isLoading={isChatsLoading}
+            isError={chatsError}
+            searchQuery={searchQuery}
+            activeFilter={conversationFilter}
+            isNewChatOpen={isNewChatOpen}
+            newChatUsername={newChatUsername}
+            createChatError={createChatError}
+            createChatNotice={createChatNotice}
+            isCreatingChat={createChat.isPending}
+            isCreatingGroupChat={createGroupChat.isPending}
+            draftsByChatId={draftsByChatId}
+            unreadCounts={unreadCounts}
+            mutedChatIds={notificationPreferences.mutedChatIds}
+            onlineUsers={onlineUsers}
+            newChatButtonRef={newChatButtonRef}
+            onSearchChange={setSearchQuery}
+            onFilterChange={setConversationFilter}
+            onSelectChat={handleSelectChat}
+            onCloseSidebar={() => setIsSidebarOpen(false)}
+            onOpenSavedMessages={() => setIsSavedMessagesOpen(true)}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onLogout={handleLogout}
+            onToggleNewChat={handleToggleNewChat}
+            onNewChatUsernameChange={(value) => {
+              setNewChatUsername(value);
+              setCreateChatNotice(null);
+            }}
+            onCreateChatSubmit={handleCreateChatSubmit}
+            onCreateGroupSubmit={handleCreateGroupSubmit}
+            onClearCreateChatError={() => {
+              setCreateChatError(null);
+              setCreateChatNotice(null);
+            }}
+            onRefetchChats={() => refetchChats()}
+            workspaceMode={sidebarWorkspaceMode}
+            onWorkspaceModeChange={handleWorkspaceModeChange}
+            spacesPanel={(
+              <SpacesSidebar
+                spaces={spaces}
+                channels={visibleSpaceChannels}
+                selectedSpaceId={selectedSpaceId}
+                selectedChannelId={selectedChatId}
+                isSpacesLoading={isSpacesLoading}
+                isSpacesError={spacesError}
+                isChannelsLoading={isSpaceChannelsLoading && visibleSpaceChannels.length === 0}
+                isChannelsError={spaceChannelsError && visibleSpaceChannels.length === 0}
+                isCreatingSpace={createSpace.isPending}
+                isCreatingChannel={createSpaceChannel.isPending}
+                isJoiningSpace={joinSpace.isPending}
+                createSpaceError={createSpaceError}
+                createChannelError={createChannelError}
+                joinSpaceError={joinSpaceError}
+                unreadCounts={unreadCounts}
+                onSelectSpace={handleSelectSpace}
+                onSelectChannel={handleSelectChannel}
+                onCreateSpace={handleCreateSpaceSubmit}
+                onCreateChannel={handleCreateSpaceChannelSubmit}
+                onJoinSpace={handleJoinSpaceSubmit}
+                onExitSpaces={() => handleWorkspaceModeChange('conversations')}
+                onClearCreateSpaceError={() => setCreateSpaceError(null)}
+                onClearCreateChannelError={() => setCreateChannelError(null)}
+                onClearJoinSpaceError={() => setJoinSpaceError(null)}
+                onRefetchSpaces={() => refetchSpaces()}
+                onRefetchChannels={() => refetchSpaceChannels()}
+              />
+            )}
+          />
+        )}
+        conversation={(
+          <ConversationPane
+          selectedChat={selectedChat}
+          selectedChatId={selectedChatId}
+          currentUserId={user?._id}
+          otherMember={otherMember}
+          otherMemberStatus={otherMemberStatus}
+          isPresenceChecking={isPresenceChecking}
+          messages={allMessages}
+          isMessagesLoading={isMessagesLoading}
+          messagesError={messagesError}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          showScrollButton={showScrollButton}
+          showMessageSearch={showMessageSearch}
+          showConversationMoreMenu={isConversationMoreOpen}
+          showConversationDetails={isDetailRailOpen || isDetailDrawerOpen}
+          conversationControls={conversationControls}
+          callDisabledReason={audioAvailability.reason}
+          videoCallDisabledReason={videoAvailability.reason}
+          messageSearch={messageSearch}
+          messageSearchFilters={messageSearchFilters}
+          messageSearchInputRef={messageSearchInputRef}
+          messageSearchButtonRef={messageSearchButtonRef}
+          moreButtonRef={moreButtonRef}
+          messageSearchResults={messageSearchResult.messages}
+          messageSearchNormalizedQuery={messageSearchResult.normalizedQuery}
+          isMessageSearchLoading={messageSearchResult.isSearching}
+          isMessageSearchError={messageSearchResult.isError}
+          isMessageSearchBelowMinimum={messageSearchResult.isBelowMinimum}
+          jumpingMessageId={jumpingMessageId}
+          loadedMessageIds={loadedMessageIds}
+          highlightedMessageId={highlightedMessageId}
+          editingMessageId={editingMessageId}
+          editText={editText}
+          isSavingEdit={editMessageMutation.isPending}
+          messageInput={messageInput}
+          replyingTo={replyingTo}
+          showEmojiPicker={showEmojiPicker}
+          isSending={sendMessage.isPending}
+          isSendError={sendMessage.isError}
+          sendDisabledReason={activeConversationDisabledReason}
+          composerUploadState={activeComposerUploadState}
+          isConversationControlPending={isConversationControlPending}
+          composerResetToken={composerResetToken}
+          isOffline={isOffline}
+          isSessionExpired={isSessionExpired}
+          isReconnecting={isReconnecting}
+          hasConversations={Boolean(chats && chats.length > 0)}
+          messagesContainerRef={messagesContainerRef}
+          messagesEndRef={messagesEndRef}
+          emojiPickerRef={emojiPickerRef}
+          onOpenSidebar={() => setIsSidebarOpen(true)}
+          onOpenContacts={() => setIsStartConversationOpen(true)}
+          onStartAudioCall={handleStartAudioCall}
+          onStartVideoCall={handleStartVideoCall}
+          onToggleConversationMoreMenu={handleToggleConversationMoreMenu}
+          onToggleConversationDetails={handleToggleDetails}
+          onToggleMessageSearch={handleToggleMessageSearch}
+          onMessageSearchChange={setMessageSearch}
+          onMessageSearchFiltersChange={handleMessageSearchFiltersChange}
+          onClearMessageSearch={handleClearMessageSearch}
+          onSelectMessageSearchResult={handleSelectMessageSearchResult}
+          onExportChat={handleExportChat}
+          onLoadMore={handleLoadMoreMessages}
+          onRetryLoad={() => refetchMessages()}
+          onScrollToBottom={scrollToBottom}
+          onMessageContextMenu={handleMessageContextMenu}
+          onOpenMessageActions={handleOpenMessageActions}
+          onOpenAttachmentPreview={handleOpenAttachmentPreview}
+          onJumpToMessage={handleJumpToMessage}
+          onReaction={handleReaction}
+          onStartEdit={handleStartEdit}
+          onRetryFailed={handleRetryFailedMessage}
+          onDismissFailed={handleDismissFailedMessage}
+          onEditTextChange={setEditText}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
+          onComposerChange={handleInputChange}
+          onComposerValueChange={setMessageInput}
+          onComposerKeyDown={handleComposerKeyDown}
+          onSendMessage={handleSendMessage}
+          onToggleEmojiPicker={() => setShowEmojiPicker((prev) => !prev)}
+          onAppendEmoji={handleAppendEmoji}
+          onCancelComposerUpload={() => sendMessage.cancelUpload(activeComposerUploadId)}
+          onUnblockUser={handleUnblockPeer}
+          onCancelReply={() => setReplyingTo(null)}
+        />
+      )}
+      rightRail={selectedChat ? (
+        <ChatContextRail
+          isOpen={isDetailRailOpen}
+          selectedChat={selectedChat}
+          currentUserId={user?._id}
+          otherMember={otherMember}
+          otherMemberStatus={otherMemberStatus}
+          isPresenceChecking={isPresenceChecking}
+          pinnedMessages={pinnedMessagesQuery.data ?? []}
+          sharedFiles={sharedFilesQuery.data ?? []}
+          sharedMedia={sharedMediaQuery.data ?? []}
+          sharedVoice={sharedVoiceAssets}
+          isPinnedLoading={pinnedMessagesQuery.isLoading}
+          isSharedFilesLoading={sharedFilesQuery.isLoading}
+          isSharedMediaLoading={sharedMediaQuery.isLoading}
+          isSharedVoiceLoading={isSharedVoiceLoading}
+          isPinnedError={pinnedMessagesQuery.isError}
+          isSharedFilesError={sharedFilesQuery.isError}
+          isSharedMediaError={sharedMediaQuery.isError}
+          isSharedVoiceError={isSharedVoiceError}
+          isAuthenticated={isAuthenticated}
+          isSocketConnected={isSocketConnected}
+          isReconnecting={isReconnecting}
+          isOffline={isOffline}
+          conversationControls={conversationControls}
+          isFavorite={isSelectedChatFavorite}
+          callDisabledReason={audioAvailability.reason}
+          videoCallDisabledReason={videoAvailability.reason}
+          onToggleFavorite={handleToggleFavorite}
+          onClose={closeDetailRail}
+          onStartAudioCall={handleStartAudioCall}
+          onStartVideoCall={handleStartVideoCall}
+          onSearchMessages={handleToggleMessageSearch}
+          onOpenMoreMenu={handleOpenMoreMenuFromDetails}
+          onOpenAttachmentPreview={handleOpenAttachmentPreview}
+          onOpenVoiceMessages={handleOpenVoiceMessages}
+          onJumpToMessage={handleJumpToMessage}
+          onUnpinMessage={handleUnpinMessage}
+        />
+      ) : null}
+      overlays={(
+        <>
+          {selectedChat && (
+            <ConversationDetailDrawer
+              isOpen={isDetailDrawerOpen}
+              selectedChat={selectedChat}
+              currentUserId={user?._id}
+              otherMember={otherMember}
+              otherMemberStatus={otherMemberStatus}
+              isPresenceChecking={isPresenceChecking}
+              pinnedMessages={pinnedMessagesQuery.data ?? []}
+              sharedFiles={sharedFilesQuery.data ?? []}
+              sharedMedia={sharedMediaQuery.data ?? []}
+              sharedVoice={sharedVoiceAssets}
+              isPinnedLoading={pinnedMessagesQuery.isLoading}
+              isSharedFilesLoading={sharedFilesQuery.isLoading}
+              isSharedMediaLoading={sharedMediaQuery.isLoading}
+              isSharedVoiceLoading={isSharedVoiceLoading}
+              isPinnedError={pinnedMessagesQuery.isError}
+              isSharedFilesError={sharedFilesQuery.isError}
+              isSharedMediaError={sharedMediaQuery.isError}
+              isSharedVoiceError={isSharedVoiceError}
+              isAuthenticated={isAuthenticated}
+              isSocketConnected={isSocketConnected}
+              isReconnecting={isReconnecting}
+              isOffline={isOffline}
+              conversationControls={conversationControls}
+              isFavorite={isSelectedChatFavorite}
+              callDisabledReason={audioAvailability.reason}
+              videoCallDisabledReason={videoAvailability.reason}
+              onToggleFavorite={handleToggleFavorite}
+              onClose={closeDetailDrawer}
+              onStartAudioCall={handleStartAudioCall}
+              onStartVideoCall={handleStartVideoCall}
+              onSearchMessages={() => {
+                setIsDetailDrawerOpen(false);
+                handleToggleMessageSearch();
+              }}
+              onOpenMoreMenu={handleOpenMoreMenuFromDetails}
+              onOpenAttachmentPreview={handleOpenAttachmentPreview}
+              onOpenVoiceMessages={handleOpenVoiceMessages}
+              onJumpToMessage={(messageId) => {
+                setIsDetailDrawerOpen(false);
+                handleJumpToMessage(messageId);
+              }}
+              onUnpinMessage={handleUnpinMessage}
+            />
+          )}
+          {selectedChat && (
+            <ConversationMoreMenu
+              isOpen={isConversationMoreOpen}
+              anchorRef={moreButtonRef}
+              conversationControls={conversationControls}
+              canExport={allMessages.length > 0}
+              isMuted={isSelectedChatMuted}
+              isArchived={isSelectedChatArchived}
+              isPinned={isSelectedChatPinned}
+              isFavorite={isSelectedChatFavorite}
+              isActionPending={isConversationControlPending || isConversationOrganizationPending}
+              showInviteLinks={Boolean(inviteLinksTarget)}
+              canManageInviteLinks={inviteLinksTarget?.canManage ?? false}
+              inviteLinksDisabledReason={inviteLinksTarget?.disabledReason}
+              callDisabledReason={audioAvailability.reason}
+              videoCallDisabledReason={videoAvailability.reason}
+              onOpenDetails={handleOpenDetails}
+              onStartAudioCall={handleStartAudioCall}
+              onStartVideoCall={handleStartVideoCall}
+              onSearchMessages={handleToggleMessageSearch}
+              onOpenInviteLinks={handleOpenInviteLinks}
+              onExportChat={handleExportChat}
+              onToggleMute={handleToggleSelectedChatMute}
+              onToggleArchive={handleToggleArchived}
+              onTogglePin={handleTogglePinned}
+              onToggleFavorite={handleToggleFavorite}
+              onBlockUser={handleBlockPeer}
+              onUnblockUser={handleUnblockPeer}
+              onReportConversation={handleReportConversation}
+              onClose={() => setIsConversationMoreOpen(false)}
+            />
+          )}
+          {inviteLinksTarget && (
+            <InviteLinksDialog
+              isOpen={isInviteLinksOpen}
+              targetType={inviteLinksTarget.targetType}
+              targetId={inviteLinksTarget.targetId}
+              targetName={inviteLinksTarget.targetName}
+              canManage={inviteLinksTarget.canManage}
+              disabledReason={inviteLinksTarget.disabledReason}
+              onClose={() => setIsInviteLinksOpen(false)}
+            />
+          )}
+          <SavedMessagesDialog
+            isOpen={isSavedMessagesOpen}
+            currentUserId={user?._id}
+            onClose={() => setIsSavedMessagesOpen(false)}
+            onJumpToMessage={handleJumpToSavedMessage}
+          />
+          <MessageActionMenu
+            contextMenu={contextMenu}
+            messages={allMessages}
+            showReactionPicker={showReactionPicker}
+            activeActionsDisabled={Boolean(activeConversationDisabledReason)}
+            activeActionsDisabledReason={activeConversationDisabledReason}
+            contextMenuRef={contextMenuRef}
+            onReaction={handleReaction}
+            onToggleReactionPicker={() => setShowReactionPicker((prev) => !prev)}
+            onReply={handleReply}
+            onStartEdit={handleStartEdit}
+            onDelete={handleDeleteMessage}
+            onCopy={handleCopyMessage}
+            onTogglePin={handleTogglePinMessage}
+            onToggleSave={handleToggleSaveMessage}
+            onReportMessage={handleReportMessage}
+            onClose={closeContextMenu}
+          />
+          <StartConversationDialog
+            isOpen={isStartConversationOpen}
+            contacts={contacts}
+            contactRequests={contactRequests}
+            isLoading={isContactsLoading}
+            isError={isContactsError}
+            isLoadingContactRequests={isContactRequestsLoading}
+            isContactRequestsError={isContactRequestsError}
+            isCreatingChat={createChat.isPending}
+            isUpdatingContactRequest={
+              acceptContactRequest.isPending ||
+              declineContactRequest.isPending ||
+              cancelContactRequest.isPending
+            }
+            onlineUsers={onlineUsers}
+            onSelectContact={handleSelectContact}
+            onAcceptContactRequest={handleAcceptContactRequest}
+            onDeclineContactRequest={handleDeclineContactRequest}
+            onCancelContactRequest={handleCancelContactRequest}
+            onStartNewChat={handleStartNewChatFromContacts}
+            onRetry={() => refetchContacts()}
+            onRetryContactRequests={() => refetchContactRequests()}
+            onClose={() => setIsStartConversationOpen(false)}
+          />
+          <SettingsModal
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            chatTheme={chatTheme.theme}
+            chatThemePreference={chatTheme.preference}
+            isChatThemeForced={chatTheme.isForced}
+            onChatThemePreferenceChange={chatTheme.setPreference}
+          />
+          <CallOverlay
+            callState={callState}
+            shouldPlayCallTone={shouldPlayCallTone}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+            onEnd={handleEndCall}
+            onToggleMute={toggleMute}
+            onToggleCamera={toggleCamera}
+          />
+          <AttachmentPreviewModal
+            attachment={attachmentPreview}
+            onClose={() => setAttachmentPreview(null)}
+          />
+          <VoiceMessagesModal
+            isOpen={isVoiceMessagesModalOpen}
+            assets={sharedVoiceAssets}
+            isLoading={isSharedVoiceLoading}
+            isError={isSharedVoiceError}
+            hasMore={Boolean(hasMoreVoiceAssets)}
+            isFetchingMore={isFetchingMoreVoiceAssets}
+            onLoadMore={handleLoadOlderVoiceMessages}
+            onClose={() => setIsVoiceMessagesModalOpen(false)}
+            onJumpToMessage={handleJumpToVoiceMessage}
+          />
+        </>
+      )}
+    />
+    </main>
+  );
+};
+
+export default ChatPage;

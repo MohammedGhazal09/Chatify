@@ -1,0 +1,22 @@
+{
+  "name": "live-chat",
+  "version": "1.0.0",
+  "description": "Live Chat app using MERN stack",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run quality",
+    "quality": "npm run quality:backend && npm run quality:frontend",
+    "quality:backend": "npm --prefix Backend/Chatify test -- --run",
+    "quality:frontend": "npm run quality:frontend:test && npm run quality:frontend:lint && npm run quality:frontend:build",
+    "quality:frontend:test": "npm --prefix Frontend/Chatify test -- --run",
+    "quality:frontend:lint": "npm --prefix Frontend/Chatify run lint",
+    "quality:frontend:build": "npm --prefix Frontend/Chatify run build",
+    "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
+    "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
+    "evidence:production": "node scripts/production-evidence-check.mjs",
+    "evidence:release-candidate": "node scripts/production-evidence-check.mjs --phase=50",
+    "ops:check": "node scripts/ops-check.mjs"
+  },
+  "author": "Mohammed Ghazal",
+  "license": "ISC"
+}

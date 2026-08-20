@@ -1,0 +1,221 @@
+import { describe, expect, it } from 'vitest';
+import Chats from '../../Models/chatModel.mjs';
+import Message from '../../Models/messageModel.mjs';
+import { createDirectChat } from '../fixtures/chats.mjs';
+import { signupWithAgent } from '../helpers/authAgent.mjs';
+
+const setupMessageScenario = async () => {
+  await Message.init();
+
+  const memberOne = await signupWithAgent({ firstName: 'Member', lastName: 'One' });
+  const memberTwo = await signupWithAgent({ firstName: 'Member', lastName: 'Two' });
+  const chat = await createDirectChat([memberOne.user, memberTwo.user]);
+
+  return { memberOne, memberTwo, chat };
+};
+
+describe('message HTTP idempotency', () => {
+  it('rejects message creation without clientMessageId and creates no document', async () => {
+    const { memberOne, chat } = await setupMessageScenario();
+
+    const response = await memberOne.agent
+      .post('/api/message/new-message')
+      .send({
+        chatId: chat._id.toString(),
+        text: 'Missing client identity',
+      })
+      .expect(400);
+
+    expect(response.body.message).toMatch(/clientMessageId is required/i);
+    await expect(Message.countDocuments({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+    })).resolves.toBe(0);
+  });
+
+  it('returns one persisted canonical message for duplicate clientMessageId retries', async () => {
+    const { memberOne, chat } = await setupMessageScenario();
+    const payload = {
+      chatId: chat._id.toString(),
+      text: ' Retried once ',
+      clientMessageId: 'client-message-1',
+    };
+
+    const firstResponse = await memberOne.agent
+      .post('/api/message/new-message')
+      .send(payload)
+      .expect(201);
+    const secondResponse = await memberOne.agent
+      .post('/api/message/new-message')
+      .send(payload)
+      .expect(200);
+
+    const messages = await Message.find({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      clientMessageId: payload.clientMessageId,
+    });
+
+    expect(messages).toHaveLength(1);
+    expect(secondResponse.body.data.idempotent).toBe(true);
+    expect(secondResponse.body.data.message._id).toBe(firstResponse.body.data.message._id);
+    expect(firstResponse.body.data.message).toMatchObject({
+      clientMessageId: payload.clientMessageId,
+      chatId: chat._id.toString(),
+      sender: memberOne.user._id.toString(),
+      text: 'Retried once',
+      status: 'sent',
+      readBy: [],
+      reactions: [],
+      deletedFor: [],
+      deletedForEveryone: false,
+    });
+    expect(firstResponse.body.data.message).toHaveProperty('createdAt');
+    expect(firstResponse.body.data.message).toHaveProperty('updatedAt');
+  });
+
+  it('converges concurrent duplicate clientMessageId creates to one canonical message', async () => {
+    const { memberOne, chat } = await setupMessageScenario();
+    const payload = {
+      chatId: chat._id.toString(),
+      text: 'Concurrent retry',
+      clientMessageId: 'client-message-concurrent',
+    };
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      memberOne.agent.post('/api/message/new-message').send(payload),
+      memberOne.agent.post('/api/message/new-message').send(payload),
+    ]);
+    const responses = [firstResponse, secondResponse];
+    const messageIds = responses.map((response) => response.body.data?.message?._id);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 201]);
+    expect(new Set(messageIds).size).toBe(1);
+    await expect(Message.countDocuments({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      clientMessageId: payload.clientMessageId,
+    })).resolves.toBe(1);
+  });
+
+  it('repairs latest-message side effects when an existing idempotent message is retried', async () => {
+    const { memberOne, chat } = await setupMessageScenario();
+    const existingMessage = await Message.create({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      clientMessageId: 'client-message-side-effect-repair',
+      text: 'Repair stale latest message',
+      status: 'sent',
+    });
+    await Chats.findByIdAndUpdate(chat._id, { $unset: { latestMessage: '' } });
+
+    const response = await memberOne.agent
+      .post('/api/message/new-message')
+      .send({
+        chatId: chat._id.toString(),
+        text: 'Repair stale latest message',
+        clientMessageId: 'client-message-side-effect-repair',
+      })
+      .expect(200);
+    const repairedChat = await Chats.findById(chat._id);
+
+    expect(response.body.data.idempotent).toBe(true);
+    expect(response.body.data.message._id).toBe(existingMessage._id.toString());
+    expect(repairedChat.latestMessage.toString()).toBe(existingMessage._id.toString());
+  });
+
+  it('does not move latestMessage backward when an older idempotent message is retried', async () => {
+    const { memberOne, chat } = await setupMessageScenario();
+    const olderMessage = await Message.create({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      clientMessageId: 'client-message-older-retry',
+      text: 'Older retried message',
+      status: 'sent',
+    });
+    const newerMessage = await Message.create({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      clientMessageId: 'client-message-newer-latest',
+      text: 'Newer latest message',
+      status: 'sent',
+    });
+
+    await Message.updateOne(
+      { _id: olderMessage._id },
+      {
+        $set: {
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      }
+    );
+    await Message.updateOne(
+      { _id: newerMessage._id },
+      {
+        $set: {
+          createdAt: new Date('2026-01-02T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+        },
+      }
+    );
+    await Chats.findByIdAndUpdate(chat._id, { $set: { latestMessage: newerMessage._id } });
+
+    const response = await memberOne.agent
+      .post('/api/message/new-message')
+      .send({
+        chatId: chat._id.toString(),
+        text: 'Older retried message',
+        clientMessageId: 'client-message-older-retry',
+      })
+      .expect(200);
+    const repairedChat = await Chats.findById(chat._id);
+
+    expect(response.body.data.idempotent).toBe(true);
+    expect(response.body.data.message._id).toBe(olderMessage._id.toString());
+    expect(repairedChat.latestMessage.toString()).toBe(newerMessage._id.toString());
+  });
+
+  it('rejects clientMessageId reuse with different normalized text', async () => {
+    const { memberOne, chat } = await setupMessageScenario();
+    const basePayload = {
+      chatId: chat._id.toString(),
+      text: 'Original text',
+      clientMessageId: 'client-message-conflict',
+    };
+
+    await memberOne.agent
+      .post('/api/message/new-message')
+      .send(basePayload)
+      .expect(201);
+    const conflictResponse = await memberOne.agent
+      .post('/api/message/new-message')
+      .send({ ...basePayload, text: 'Changed text' })
+      .expect(409);
+
+    expect(conflictResponse.body.message).toMatch(/different message text/i);
+    await expect(Message.countDocuments({
+      chatId: chat._id,
+      sender: memberOne.user._id,
+      clientMessageId: basePayload.clientMessageId,
+    })).resolves.toBe(1);
+  });
+
+  it('derives sender from the authenticated user instead of request payload', async () => {
+    const { memberOne, memberTwo, chat } = await setupMessageScenario();
+
+    const response = await memberOne.agent
+      .post('/api/message/new-message')
+      .send({
+        chatId: chat._id.toString(),
+        sender: memberTwo.user._id.toString(),
+        text: 'Cannot spoof sender',
+        clientMessageId: 'client-message-spoof',
+      })
+      .expect(201);
+    const storedMessage = await Message.findById(response.body.data.message._id);
+
+    expect(response.body.data.message.sender).toBe(memberOne.user._id.toString());
+    expect(storedMessage.sender.toString()).toBe(memberOne.user._id.toString());
+  });
+});

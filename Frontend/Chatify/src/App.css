@@ -1,0 +1,32 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background-color: #050806;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  min-height: 100dvh;
+  background-color: #050806;
+}
+
+/* Chrome, Safari and Opera */
+      .scrollbar-none::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* IE and Edge */
+      .scrollbar-noner {
+        -ms-overflow-style: none;
+      }
+
+      /* Firefox */
+      .scrollbar-none {
+        scrollbar-width: none;
+      }

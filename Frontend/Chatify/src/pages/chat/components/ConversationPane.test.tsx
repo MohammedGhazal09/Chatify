@@ -1,0 +1,385 @@
+import { createRef } from 'react';
+import type { ComponentProps } from 'react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
+import type { ConversationControls } from '../../../types/chat';
+import { makeChat, makeMessage, makeSpaceChannel } from '../../../test/chatFixtures';
+import ConversationPane from './ConversationPane';
+
+type ConversationPaneProps = ComponentProps<typeof ConversationPane>;
+
+const makeConversationPaneProps = (overrides: Partial<ConversationPaneProps> = {}): ConversationPaneProps => ({
+  selectedChat: null,
+  selectedChatId: null,
+  currentUserId: 'user-1',
+  otherMember: null,
+  otherMemberStatus: null,
+  messages: [],
+  isMessagesLoading: false,
+  messagesError: false,
+  hasMore: false,
+  isLoadingMore: false,
+  highlightedMessageId: null,
+  showScrollButton: false,
+  showMessageSearch: false,
+  showConversationMoreMenu: false,
+  showConversationDetails: false,
+  conversationControls: undefined,
+  messageSearch: '',
+  messageSearchFilters: { senderId: null, type: 'all', from: null, to: null },
+  messageSearchInputRef: createRef<HTMLInputElement>(),
+  messageSearchButtonRef: createRef<HTMLButtonElement>(),
+  moreButtonRef: createRef<HTMLButtonElement>(),
+  messageSearchResults: [],
+  messageSearchNormalizedQuery: '',
+  isMessageSearchLoading: false,
+  isMessageSearchError: false,
+  isMessageSearchBelowMinimum: false,
+  jumpingMessageId: null,
+  loadedMessageIds: new Set(),
+  editingMessageId: null,
+  editText: '',
+  isSavingEdit: false,
+  messageInput: '',
+  replyingTo: null,
+  showEmojiPicker: false,
+  isSending: false,
+  isSendError: false,
+  sendDisabledReason: null,
+  isConversationControlPending: false,
+  composerResetToken: 0,
+  isOffline: false,
+  isSessionExpired: false,
+  isReconnecting: false,
+  messagesContainerRef: createRef<HTMLDivElement>(),
+  messagesEndRef: createRef<HTMLDivElement>(),
+  emojiPickerRef: createRef<HTMLDivElement>(),
+  onOpenSidebar: vi.fn(),
+  onStartAudioCall: vi.fn(),
+  onStartVideoCall: vi.fn(),
+  onToggleConversationMoreMenu: vi.fn(),
+  onToggleConversationDetails: vi.fn(),
+  onToggleMessageSearch: vi.fn(),
+  onMessageSearchChange: vi.fn(),
+  onMessageSearchFiltersChange: vi.fn(),
+  onClearMessageSearch: vi.fn(),
+  onSelectMessageSearchResult: vi.fn(),
+  onExportChat: vi.fn(),
+  onLoadMore: vi.fn(),
+  onRetryLoad: vi.fn(),
+  onScrollToBottom: vi.fn(),
+  onMessageContextMenu: vi.fn(),
+  onOpenMessageActions: vi.fn(),
+  onOpenAttachmentPreview: vi.fn(),
+  onJumpToMessage: vi.fn(),
+  onReaction: vi.fn(),
+  onStartEdit: vi.fn(),
+  onRetryFailed: vi.fn(),
+  onDismissFailed: vi.fn(),
+  onEditTextChange: vi.fn(),
+  onSaveEdit: vi.fn(),
+  onCancelEdit: vi.fn(),
+  onComposerChange: vi.fn(),
+  onComposerKeyDown: vi.fn(),
+  onSendMessage: vi.fn(),
+  onToggleEmojiPicker: vi.fn(),
+  onAppendEmoji: vi.fn(),
+  onUnblockUser: vi.fn(),
+  onCancelReply: vi.fn(),
+  ...overrides,
+});
+
+const renderConversationPane = (overrides: Partial<ConversationPaneProps> = {}) => {
+  const props = makeConversationPaneProps(overrides);
+
+  render(<ConversationPane {...props} />);
+  return props;
+};
+
+describe('ConversationPane', () => {
+  it('prompts to start a new conversation when there are no contacts or messages', async () => {
+    const user = userEvent.setup();
+    const onOpenContacts = vi.fn();
+
+    renderConversationPane({ hasConversations: false, onOpenContacts });
+
+    expect(screen.getByRole('heading', { name: 'No conversations yet' })).toBeInTheDocument();
+    expect(screen.getByText('You have no contacts or messages yet. Start a new conversation to get going.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Start a new conversation' }));
+
+    expect(onOpenContacts).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the contacts picker and exposes a sidebar recovery action when conversations exist', async () => {
+    const user = userEvent.setup();
+    const onOpenContacts = vi.fn();
+    const onOpenSidebar = vi.fn();
+
+    renderConversationPane({ hasConversations: true, onOpenContacts, onOpenSidebar });
+
+    expect(screen.getByRole('heading', { name: 'Select a conversation' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open conversation' }));
+    expect(onOpenContacts).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Open conversations' }));
+    expect(onOpenSidebar).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the session-expired blocked state with a sign-in action', () => {
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      isSessionExpired: true,
+    });
+
+    expect(screen.getByRole('heading', { name: 'Your session expired' })).toBeInTheDocument();
+    expect(screen.getByText('Your private chat is hidden. Sign in again to continue.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+  });
+
+  it('hides private messages and composer content when the session is expired', () => {
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      isSessionExpired: true,
+      messages: [makeMessage({ text: 'Private message content' })],
+      messageInput: 'private draft',
+    });
+
+    expect(screen.getByRole('heading', { name: 'Your session expired' })).toBeInTheDocument();
+    expect(screen.queryByText('Private message content')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Write a private message' })).not.toBeInTheDocument();
+  });
+
+  it('labels the conversation search input', () => {
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'state',
+    });
+
+    expect(screen.getByRole('textbox', { name: 'Search this conversation' })).toHaveValue('state');
+  });
+
+  it('routes space channels through the existing timeline and composer', () => {
+    const channel = makeSpaceChannel({
+      _id: 'channel-general',
+      channelName: 'general',
+      channelDescription: 'Default channel',
+    });
+
+    renderConversationPane({
+      selectedChat: channel,
+      selectedChatId: channel._id,
+      messages: [makeMessage({ chatId: channel._id, text: 'Channel message' })],
+    });
+
+    expect(screen.getByRole('heading', { name: 'general' })).toBeInTheDocument();
+    expect(screen.getByText('Channel - 2 members')).toBeInTheDocument();
+    expect(screen.getByText('Channel message')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Write a private message' })).toBeInTheDocument();
+  });
+
+  it('explains encrypted search and composer limits without calling server search UI', () => {
+    window.localStorage.clear();
+
+    renderConversationPane({
+      selectedChat: makeChat({ encryptionMode: 'e2ee_v1' }),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'secret',
+    });
+
+    expect(screen.queryByRole('textbox', { name: 'Search this conversation' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Server-side search is unavailable for encrypted conversations/)).toBeInTheDocument();
+    expect(screen.getAllByText('Encrypted conversation').length).toBeGreaterThan(0);
+    expect(screen.getByRole('textbox', { name: 'Write an encrypted message' })).toBeDisabled();
+    expect(screen.getByText('This device needs the conversation secret to send encrypted messages.')).toBeInTheDocument();
+  });
+
+  it('renders advanced search filters and forwards filter changes', async () => {
+    const user = userEvent.setup();
+    const onMessageSearchFiltersChange = vi.fn();
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearchFilters: { senderId: null, type: 'all', from: null, to: null },
+      onMessageSearchFiltersChange,
+    });
+
+    await user.selectOptions(screen.getByLabelText('Search sender filter'), 'user-2');
+    await user.click(screen.getByRole('button', { name: 'Voice' }));
+    await user.type(screen.getByLabelText('Search from date'), '2026-06-01');
+    await user.type(screen.getByLabelText('Search to date'), '2026-06-20');
+
+    expect(onMessageSearchFiltersChange).toHaveBeenCalledWith({ senderId: 'user-2' });
+    expect(onMessageSearchFiltersChange).toHaveBeenCalledWith({ type: 'voice' });
+    expect(onMessageSearchFiltersChange).toHaveBeenCalledWith({ from: '2026-06-01' });
+    expect(onMessageSearchFiltersChange).toHaveBeenCalledWith({ to: '2026-06-20' });
+  });
+
+  it('announces offline and reconnecting state without hiding the timeline', () => {
+    const { rerender } = render(
+      <ConversationPane
+        {...makeConversationPaneProps()}
+        selectedChat={makeChat()}
+        selectedChatId="chat-1"
+        messages={[makeMessage({ text: 'Visible history' })]}
+        isOffline
+      />
+    );
+
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('You are offline. New messages will wait until the connection returns.');
+    expect(screen.getByText('Visible history')).toBeInTheDocument();
+
+    rerender(
+      <ConversationPane
+        {...makeConversationPaneProps()}
+        selectedChat={makeChat()}
+        selectedChatId="chat-1"
+        messages={[makeMessage({ text: 'Visible history' })]}
+        isReconnecting
+      />
+    );
+
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('Reconnecting. The timeline will refresh when the connection returns.');
+  });
+
+  it('closes the active conversation search from the input row', async () => {
+    const user = userEvent.setup();
+    const onToggleMessageSearch = vi.fn();
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'state',
+      onToggleMessageSearch,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Close message search' }));
+
+    expect(onToggleMessageSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles conversation details from the top-right header action', async () => {
+    const user = userEvent.setup();
+    const onToggleConversationDetails = vi.fn();
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      onToggleConversationDetails,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Open conversation details' }));
+
+    expect(onToggleConversationDetails).toHaveBeenCalledTimes(1);
+  });
+
+  it('pins blocked-by-me status above the conversation and removes the old composer-only copy', async () => {
+    const user = userEvent.setup();
+    const onUnblockUser = vi.fn();
+    const chat = makeChat();
+    const blockedControls: ConversationControls = {
+      isDirectChat: true,
+      peerId: 'user-2',
+      canSendMessage: false,
+      canBlockUser: false,
+      canUnblockUser: true,
+      blockedByMe: true,
+      blockedMe: false,
+      messagingDisabledReason: 'blocked_by_me',
+    };
+
+    renderConversationPane({
+      selectedChat: chat,
+      selectedChatId: chat._id,
+      otherMember: chat.members[1] ?? null,
+      conversationControls: blockedControls,
+      sendDisabledReason: 'You blocked this user. Unblock them to send new activity.',
+      onUnblockUser,
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('You blocked Grace Hopper');
+    expect(screen.getByRole('alert')).toHaveTextContent('New messages, calls, reactions, pins, and edits stay paused until you unblock them.');
+    expect(screen.getByRole('textbox', { name: 'Write a private message' })).toBeDisabled();
+    expect(screen.queryByText('You blocked this user. Unblock them to send new activity.')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Unblock user' }));
+    expect(onUnblockUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders below-minimum search guidance outside the durable message list', () => {
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      messages: [makeMessage({ text: 'Durable history stays visible only outside result mode' })],
+      showMessageSearch: true,
+      messageSearch: 'a',
+      isMessageSearchBelowMinimum: true,
+    });
+
+    expect(screen.getByText('Type at least 2 characters to search this conversation.')).toBeInTheDocument();
+    expect(screen.queryByText('Durable history stays visible only outside result mode')).not.toBeInTheDocument();
+  });
+
+  it('renders server-backed message search results and clear action', async () => {
+    const user = userEvent.setup();
+    const onClearMessageSearch = vi.fn();
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'launch',
+      messageSearchNormalizedQuery: 'launch',
+      messageSearchResults: [
+        makeMessage({ _id: 'message-loaded', sender: 'user-2', text: 'Launch result already loaded' }),
+        makeMessage({ _id: 'message-older', sender: 'user-2', text: 'Older launch result' }),
+      ],
+      loadedMessageIds: new Set(['message-loaded']),
+      onClearMessageSearch,
+    });
+
+    expect(screen.getByText('2 results')).toBeInTheDocument();
+    expect(screen.getAllByText('Grace Hopper').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('button', { name: /Jump to message from Grace Hopper .*Launch result already loaded/ })).toBeInTheDocument();
+    expect(screen.getAllByText((_content, element) => element?.textContent === 'Older launch result').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(onClearMessageSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it('selects loaded and unloaded search results as keyboard-operable actions', async () => {
+    const user = userEvent.setup();
+    const onSelectMessageSearchResult = vi.fn();
+    const loadedMessage = makeMessage({ _id: 'message-loaded', sender: 'user-2', text: 'Loaded search result' });
+
+    renderConversationPane({
+      selectedChat: makeChat(),
+      selectedChatId: 'chat-1',
+      showMessageSearch: true,
+      messageSearch: 'loaded',
+      messageSearchNormalizedQuery: 'loaded',
+      messageSearchResults: [
+        loadedMessage,
+        makeMessage({ _id: 'message-older', text: 'Older unloaded result' }),
+      ],
+      loadedMessageIds: new Set(['message-loaded']),
+      onSelectMessageSearchResult,
+    });
+
+    await user.click(screen.getByRole('button', { name: /Jump to message from Grace Hopper .*Loaded search result/ }));
+    await user.click(screen.getByRole('button', { name: /Jump to message from You .*Older unloaded result/ }));
+
+    expect(onSelectMessageSearchResult).toHaveBeenCalledWith(loadedMessage);
+    expect(onSelectMessageSearchResult).toHaveBeenCalledWith(expect.objectContaining({ _id: 'message-older' }));
+  });
+});
