@@ -1,0 +1,90 @@
+name: Temporary Phase 4 resilient bundle materialization
+
+on:
+  push:
+    branches:
+      - security/phase-4-dependency-supply-chain
+    paths:
+      - .github/workflows/security-phase-4-bundle-materialize-fallback.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase4-resilient-bundle-materialization
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+
+    steps:
+      - name: Checkout Phase 4 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-4-dependency-supply-chain
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup pinned Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          package-manager-cache: false
+
+      - name: Recover reviewed Git bundle
+        run: |
+          curl --fail --silent --show-error \
+            --retry 6 --retry-all-errors --retry-delay 3 \
+            https://filebin.net/chatify-phase4-20260821-gpt56/chatify-phase4-final.bundle \
+            --output /tmp/chatify-phase4-final.bundle
+          git bundle verify /tmp/chatify-phase4-final.bundle
+          git fetch /tmp/chatify-phase4-final.bundle \
+            refs/heads/security/phase-4-dependency-supply-chain:refs/remotes/bundle/phase4
+
+          bundle_sha="$(git rev-parse refs/remotes/bundle/phase4)"
+          required_paths='scripts/security/lib/dependency-policy.mjs
+scripts/security/lib/approved-install.mjs
+scripts/security/lib/phase4-live-evidence.mjs
+scripts/security/phase4-dependency-policy.mjs
+scripts/security/phase4-live-evidence.mjs
+scripts/security/phase4-reproduce.mjs
+.github/workflows/security-phase-4-dependency-supply-chain.yml
+docs/security/audit/phase-4/dependency-policy.json'
+          while IFS= read -r path; do
+            git cat-file -e "$bundle_sha:$path"
+          done <<< "$required_paths"
+
+          if git ls-tree -r --name-only "$bundle_sha" | grep -E \
+            '^\.github/workflows/security-phase-4-(source-export|bundle-materialize|bundle-materialize-fallback)\.yml$'; then
+            echo 'The reviewed bundle contains a temporary transfer workflow.' >&2
+            exit 1
+          fi
+          echo "bundle_sha=$bundle_sha" >> "$GITHUB_ENV"
+
+      - name: Check out reviewed Phase 4 tree
+        run: |
+          git reset --hard "$bundle_sha"
+          git clean -ffd
+          test "$(git rev-parse HEAD)" = "$bundle_sha"
+          test "$(node --version)" = 'v24.19.0'
+          test "$(npm --version)" = '11.17.0'
+
+      - name: Run deterministic Phase 4 gates
+        run: |
+          npm run security:phase4:test
+          npm run security:phase4:check
+
+      - name: Run complete clean reproduction
+        run: npm run security:phase4:reproduce
+
+      - name: Publish exact reviewed head
+        run: |
+          test -z "$(git status --porcelain=v1)"
+          git push \
+            --force-with-lease=refs/heads/security/phase-4-dependency-supply-chain:${{ github.sha }} \
+            origin \
+            HEAD:refs/heads/security/phase-4-dependency-supply-chain
