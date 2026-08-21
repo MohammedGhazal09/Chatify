@@ -5,8 +5,8 @@ This document is generated deterministically from tracked repository files. Run 
 ## Method and boundaries
 
 - Source selection: `git-index`.
-- Tracked files inventoried: **1563**.
-- Tracked bytes inventoried: **17423122**.
+- Tracked files inventoried: **1564**.
+- Tracked bytes inventoried: **17427860**.
 - Generated inventory files are excluded from their own input set.
 - Secret-like example values are redacted; live environment values are never read.
 - Runtime execution evidence is stored in the `GitHub Actions artifact: phase-1-reproduction-evidence` artifact rather than committed.
@@ -72,7 +72,7 @@ This document is generated deterministically from tracked repository files. Run 
 | Category | Tracked files |
 | --- | --- |
 | backend | 181 |
-| cli-and-operations | 30 |
+| cli-and-operations | 31 |
 | configuration | 4 |
 | controllers | 12 |
 | deployment | 1 |
@@ -86,8 +86,8 @@ This document is generated deterministically from tracked repository files. Run 
 | package-manifests | 3 |
 | routes | 10 |
 | services | 5 |
-| tests | 194 |
-| text-source-or-config | 1367 |
+| tests | 195 |
+| text-source-or-config | 1368 |
 | utilities | 32 |
 | workflows | 5 |
 

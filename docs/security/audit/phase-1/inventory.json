@@ -436,8 +436,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1563,
-    "totalTrackedBytes": 17423122,
+    "trackedFileCount": 1564,
+    "totalTrackedBytes": 17427860,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -627,6 +627,7 @@
         "scripts/production-evidence-check.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-history-ref-selection.test.mjs",
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
         "scripts/security/__tests__/phase3-template-expression.test.mjs",
@@ -2279,6 +2280,7 @@
         "Frontend/Chatify/src/utils/validationSchemas.test.ts",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-history-ref-selection.test.mjs",
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
         "scripts/security/__tests__/phase3-template-expression.test.mjs",
@@ -3627,6 +3629,7 @@
         "scripts/production-evidence-check.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-history-ref-selection.test.mjs",
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
         "scripts/security/__tests__/phase3-template-expression.test.mjs",
@@ -15012,8 +15015,8 @@
       },
       {
         "path": "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
-        "bytes": 4757,
-        "sha256": "db0eeae42ec5ee90cb268015b5ff48e4e18a900b3bdfef4baa5c90f04196cb1e",
+        "bytes": 5158,
+        "sha256": "606b3f8c89cde92225a9868d2bec8dbf26acd9b784a85db3494554ebb031d6e6",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15084,8 +15087,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/README.md",
-        "bytes": 6424,
-        "sha256": "b9f348a6a9e206120d23488b374ea2273a413e2b33080bcdca2d29b5df3f984f",
+        "bytes": 6745,
+        "sha256": "93fbc3da5f1f5624bd83993a7b9a4646370b822c0799d052766a84607063cb8e",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15102,8 +15105,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
-        "bytes": 6760,
-        "sha256": "599867de9f327fdc5b173215809a8861845ff63a848b19f7029b25c08f8791d4",
+        "bytes": 6774,
+        "sha256": "7d93882df0de0c8054c664af9ffa9f8bee05ccd5d136ff998ce136c0f01857dd",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15112,7 +15115,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
         "bytes": 1740,
-        "sha256": "f1801afd9e462ea56b10a0c450cc0ab9e607544b35e73da6659ee096d7f18e27",
+        "sha256": "f289c7252e97ad9af2495159f3d62c952657cf1e0ed022e3167840b9166e5455",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17611,6 +17614,16 @@
         ]
       },
       {
+        "path": "scripts/security/__tests__/phase3-history-ref-selection.test.mjs",
+        "bytes": 3405,
+        "sha256": "6cfb3d7ae274851c4c76b90728b101ce5d09c8d64178525086cd0e8d45a47c3f",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "bytes": 1613,
         "sha256": "77c77e85ad35a692ab3cafa231e21dd910a0252961faa3e607919785b52b3cda",
@@ -17744,8 +17757,8 @@
       },
       {
         "path": "scripts/security/lib/secret-scan.mjs",
-        "bytes": 22247,
-        "sha256": "c0048bea3fc22c2c28564a36368ffbc167c96a9fe0f60792e828e936a065a015",
+        "bytes": 22844,
+        "sha256": "b26ffc63255faccfb32120446d02da17fb354cef469b62ec00878122d43ce4a1",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
