@@ -100,3 +100,41 @@ test('validation errors identify variable names without disclosing configured va
   assert.equal(message.includes(env.SECRET_JWT_KEY), false)
   assert.equal(message.includes('database-password'), false)
 })
+
+test('rejects placeholder and undersized configured provider credentials', () => {
+  const oauth = productionEnv()
+  oauth.GOOGLE_CLIENT_ID = 'your-google-client-id'
+  oauth.GOOGLE_CLIENT_SECRET = 'your-google-client-secret'
+  assert.throws(
+    () => validateSecretConfiguration(oauth),
+    /GOOGLE_CLIENT_ID.*placeholder|GOOGLE_CLIENT_SECRET.*placeholder|placeholder.*GOOGLE/i
+  )
+
+  const push = productionEnv()
+  push.VAPID_PUBLIC_KEY = 'your-vapid-public-key'
+  push.VAPID_PRIVATE_KEY = 'your-vapid-private-key'
+  push.VAPID_SUBJECT = 'mailto:alerts@chatify.invalid'
+  assert.throws(
+    () => validateSecretConfiguration(push),
+    /VAPID_PUBLIC_KEY.*placeholder|VAPID_PRIVATE_KEY.*placeholder|placeholder.*VAPID/i
+  )
+
+  const email = productionEnv()
+  email.NOTIFICATION_WORKER_ENABLED = '1'
+  email.CHATIFY_NOTIFICATION_DRY_RUN = '0'
+  email.BREVO_API_KEY = 'your-brevo-api-key'
+  email.EMAIL_USER_SENDER = 'alerts@chatify.invalid'
+  assert.throws(
+    () => validateSecretConfiguration(email),
+    /BREVO_API_KEY.*placeholder|placeholder.*BREVO_API_KEY/i
+  )
+
+  const turn = productionEnv()
+  turn.CALL_TURN_URLS = 'turns:relay.chatify.invalid:5349'
+  turn.CALL_TURN_USERNAME = 'turn-user'
+  turn.CALL_TURN_CREDENTIAL = 'short'
+  assert.throws(
+    () => validateSecretConfiguration(turn),
+    /CALL_TURN_CREDENTIAL.*at least 12/i
+  )
+})
