@@ -94,9 +94,21 @@ jobs:
           )
           tests = replace_once(
               tests,
+              "durationToMs(ACCESS_TOKEN_EXPIRES_IN)\njsonwebtoken.sign",
+              "durationToMs(ACCESS_TOKEN_EXPIRES_IN)\nconst ACCESS_TOKEN_MAX_AGE_MS = durationToMs(ACCESS_TOKEN_EXPIRES_IN)\ngetCookieOptions(ACCESS_TOKEN_MAX_AGE_MS)\njsonwebtoken.sign",
+              'healthy access-cookie duration fixture',
+          )
+          tests = replace_once(
+              tests,
               "findOneAndUpdate({ refreshTokenHash, revokedAt: null })\nrevokeSessionById({ sessionId, userId })",
               "findOneAndUpdate({ refreshTokenHash, revokedAt: null, familyId })\nreplacedByTokenHash = nextRefreshTokenHash\nthrow new CustomError('Refresh token already used', 401)\nrevokeSessionById({ sessionId, userId })",
               'healthy refresh lifecycle fixture',
+          )
+          tests = replace_once(
+              tests,
+              "if (existingEmailUser) throw new Error('confirmation')",
+              "if (existingEmailUser) throw new Error('OAuth account linking requires existing user confirmation')",
+              'healthy explicit OAuth linking fixture',
           )
           tests = replace_once(
               tests,
@@ -106,9 +118,21 @@ jobs:
           )
           tests = replace_once(
               tests,
+              "revokeSessionById({ sessionId: verified.sessionId, userId: verified.userId })\nnormalizeEmail(req.body.email)",
+              "revokeSessionById({ sessionId: verified.sessionId, userId: verified.userId })\nrevokeRefreshSession(refreshToken)\nclearSessionCookies(res)\nnormalizeEmail(req.body.email)",
+              'healthy independent logout fixture',
+          )
+          tests = replace_once(
+              tests,
               "router.post('/2fa/challenge', mfaLimiter, requireValidCsrfToken, verifyTwoFactorLogin)\n`,",
               "router.post('/2fa/challenge', mfaLimiter, requireValidCsrfToken, verifyTwoFactorLogin)\nrouter.post('/verify-reset-code', passwordResetLimiter, requireValidCsrfToken, verifyResetCode)\nrouter.post('/refresh-token', refreshTokenLimiter, requireValidCsrfToken, refreshToken)\n`,\n  'Backend/Chatify/app.mjs': `app.use('/api/auth', csrfProtection, authRouter)\n`,",
               'healthy route and mounted CSRF fixture',
+          )
+          tests = replace_once(
+              tests,
+              ".filter((code) => code.startsWith('access-') || code.startsWith('session-'))",
+              ".filter((code) => code.startsWith('access-') || code === 'sessionless-access-accepted')",
+              'sessionless violation assertion',
           )
           tests = replace_once(
               tests,
