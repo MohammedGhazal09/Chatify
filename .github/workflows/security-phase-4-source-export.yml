@@ -1,6 +1,9 @@
 name: Temporary Phase 4 source export
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/security-phase-4-source-export.yml
   push:
     branches:
       - security/phase-4-dependency-supply-chain
