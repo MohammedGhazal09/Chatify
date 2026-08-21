@@ -119,7 +119,12 @@ jobs:
           node --check scripts/security/lib/secret-scan.mjs
           npm run security:phase3:test
           node --test Backend/Chatify/test/security/secret-configuration.test.mjs
+
+          set +e
           npm run security:phase3:generate
+          generate_status=$?
+          set -e
+
           git add \
             docs/security/audit/phase-3/secret-scan.json \
             docs/security/audit/phase-3/secret-scan.md
@@ -127,9 +132,15 @@ jobs:
           npm run security:phase1:check
           npm run security:phase2:generate
           npm run security:phase2:check
+
+          set +e
           npm run security:phase3:check
+          check_status=$?
+          set -e
 
           git restore --staged -- .github/workflows/security-phase-3-materialize.yml
+          echo "generate_status=$generate_status" >> "$GITHUB_OUTPUT"
+          echo "check_status=$check_status" >> "$GITHUB_OUTPUT"
 
       - name: Commit calibrated detectors and sanitized evidence
         run: |
@@ -145,3 +156,9 @@ jobs:
           git fetch origin security/phase-3-secret-exposure
           git rebase origin/security/phase-3-secret-exposure
           git push origin HEAD:security/phase-3-secret-exposure
+
+      - name: Enforce calibrated Phase 3 gate
+        if: steps.phase3.outputs.generate_status != '0' || steps.phase3.outputs.check_status != '0'
+        run: |
+          echo 'Calibrated evidence was committed, but the Phase 3 gate remains red. Review the sanitized report.' >&2
+          exit 1
