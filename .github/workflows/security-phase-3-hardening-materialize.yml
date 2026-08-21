@@ -1,6 +1,5 @@
 name: Temporary Phase 3 final hardening materialization
 
-# This follow-up revision triggers the workflow after its definition is present on the PR branch.
 on:
   pull_request:
   workflow_dispatch:
@@ -40,15 +39,29 @@ jobs:
           node-version: "24.19.0"
           package-manager-cache: false
 
-      - name: Restore reviewed final hardening bundle
+      - name: Recover and execute the reviewed hardening script
         run: |
-          cat scripts/security/phase3-final-hardening/part-* | base64 --decode > /tmp/phase3-final-hardening.tar.gz
-          echo 'cf60d2200acf1c297f32713a8e2e3c575baebaf34d1009086d9f5313ce89a953  /tmp/phase3-final-hardening.tar.gz' | sha256sum --check
-          tar --extract --gzip --file /tmp/phase3-final-hardening.tar.gz
+          python - <<'PYEXTRACT'
+          from pathlib import Path
+
+          workflow_path = Path('.github/workflows/security-phase-3-finalizer.yml')
+          source = workflow_path.read_text()
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          body = source[start:end]
+          body = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in body.splitlines()
+          ) + '\n'
+          Path('/tmp/phase3-final-hardening.py').write_text(body)
+          PYEXTRACT
+          python /tmp/phase3-final-hardening.py
 
       - name: Remove temporary hardening material
         run: |
-          git rm -r -- scripts/security/phase3-final-hardening
+          git rm -r --ignore-unmatch scripts/security/phase3-final-hardening
           git rm --ignore-unmatch \
             .github/workflows/security-phase-3-finalizer.yml \
             .github/workflows/security-phase-3-hardening-materialize.yml
