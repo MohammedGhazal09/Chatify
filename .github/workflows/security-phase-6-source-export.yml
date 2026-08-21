@@ -1,0 +1,36 @@
+name: Security Phase 6 Source Export
+
+on:
+  push:
+    branches:
+      - security/phase-6-authorization-access-control
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Package tracked source
+        run: |
+          git archive --format=tar.gz --output=chatify-phase6-source.tar.gz HEAD
+          git rev-parse HEAD > chatify-phase6-source.sha
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chatify-phase6-source
+          path: |
+            chatify-phase6-source.tar.gz
+            chatify-phase6-source.sha
+          if-no-files-found: error
+          retention-days: 1
