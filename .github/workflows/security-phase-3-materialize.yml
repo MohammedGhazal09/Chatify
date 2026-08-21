@@ -1,0 +1,155 @@
+name: Temporary Phase 3 review hardening
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase3-review-hardening
+  cancel-in-progress: true
+
+jobs:
+  harden:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Phase 3 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-3-secret-exposure
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch all available repository refs
+        run: |
+          git fetch --force --prune origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*' \
+            '+refs/pull/*/head:refs/remotes/pull/*/head'
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          package-manager-cache: false
+
+      - name: Apply reviewed provider-secret validation and regression
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              target = Path(path)
+              text = target.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise RuntimeError(f'Expected patch marker missing from {path}: {old[:100]!r}')
+              target.write_text(text.replace(old, new, 1))
+
+          source = 'Backend/Chatify/Utils/secretConfiguration.mjs'
+          replace_once(
+              source,
+              "const validatePair = (env, left, right, issues) => {\n  const hasLeft = configured(env, left)\n  const hasRight = configured(env, right)\n  if (hasLeft && !hasRight) issues.push(`${right} is required when ${left} is configured`)\n  if (hasRight && !hasLeft) issues.push(`${left} is required when ${right} is configured`)\n  return hasLeft && hasRight\n}\n",
+              "const validatePair = (env, left, right, issues) => {\n  const hasLeft = configured(env, left)\n  const hasRight = configured(env, right)\n  if (hasLeft && !hasRight) issues.push(`${right} is required when ${left} is configured`)\n  if (hasRight && !hasLeft) issues.push(`${left} is required when ${right} is configured`)\n  return hasLeft && hasRight\n}\n\nconst validateConfiguredValue = ({ env, name, issues, minimumLength = 1 }) => {\n  if (!configured(env, name)) return false\n  const value = env[name].trim()\n  if (PLACEHOLDER_PATTERN.test(value)) {\n    issues.push(`${name} contains a placeholder value`)\n    return false\n  }\n  if (value.length < minimumLength) {\n    issues.push(`${name} must be at least ${minimumLength} characters`)\n    return false\n  }\n  return true\n}\n",
+          )
+          replace_once(
+              source,
+              "  const oauth = {}\n  for (const [clientId, clientSecret] of OAUTH_PAIRS) {\n    oauth[clientId.replace('_CLIENT_ID', '').toLowerCase()] = validatePair(env, clientId, clientSecret, issues)\n    if (configured(env, clientSecret)) validatedSecrets.push(clientSecret)\n  }\n\n  const webPushConfigured = validatePair(env, 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', issues)\n  if (webPushConfigured) {\n    if (isProduction && !configured(env, 'VAPID_SUBJECT')) issues.push('VAPID_SUBJECT is required when web push is configured')\n    validatedSecrets.push('VAPID_PRIVATE_KEY')\n  }\n",
+              "  const oauth = {}\n  for (const [clientId, clientSecret] of OAUTH_PAIRS) {\n    const pairConfigured = validatePair(env, clientId, clientSecret, issues)\n    if (pairConfigured) {\n      const idValid = validateConfiguredValue({ env, name: clientId, issues, minimumLength: 3 })\n      const secretValid = validateConfiguredValue({ env, name: clientSecret, issues, minimumLength: 16 })\n      oauth[clientId.replace('_CLIENT_ID', '').toLowerCase()] = idValid && secretValid\n    } else {\n      oauth[clientId.replace('_CLIENT_ID', '').toLowerCase()] = false\n    }\n    if (configured(env, clientSecret)) validatedSecrets.push(clientSecret)\n  }\n\n  const webPushPairConfigured = validatePair(env, 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', issues)\n  const webPushConfigured = webPushPairConfigured\n    && validateConfiguredValue({ env, name: 'VAPID_PUBLIC_KEY', issues, minimumLength: 32 })\n    && validateConfiguredValue({ env, name: 'VAPID_PRIVATE_KEY', issues, minimumLength: 32 })\n  if (webPushPairConfigured) {\n    if (isProduction && !configured(env, 'VAPID_SUBJECT')) issues.push('VAPID_SUBJECT is required when web push is configured')\n    validatedSecrets.push('VAPID_PRIVATE_KEY')\n  }\n",
+          )
+          replace_once(
+              source,
+              "  if (emailRequired) {\n    if (!configured(env, 'BREVO_API_KEY')) issues.push('BREVO_API_KEY is required for production notification delivery')\n    if (!configured(env, 'EMAIL_USER_SENDER')) issues.push('EMAIL_USER_SENDER is required for production notification delivery')\n  }\n  if (configured(env, 'BREVO_API_KEY')) validatedSecrets.push('BREVO_API_KEY')\n\n  const hasTurnUrl = configured(env, 'CALL_TURN_URLS')\n",
+              "  if (emailRequired) {\n    if (!configured(env, 'BREVO_API_KEY')) issues.push('BREVO_API_KEY is required for production notification delivery')\n    if (!configured(env, 'EMAIL_USER_SENDER')) issues.push('EMAIL_USER_SENDER is required for production notification delivery')\n  }\n  if (configured(env, 'BREVO_API_KEY')) {\n    validateConfiguredValue({ env, name: 'BREVO_API_KEY', issues, minimumLength: 20 })\n    validatedSecrets.push('BREVO_API_KEY')\n  }\n\n  const hasTurnUrl = configured(env, 'CALL_TURN_URLS')\n",
+          )
+          replace_once(
+              source,
+              "  if (hasTurnUrl && !hasTurnUsername) issues.push('CALL_TURN_USERNAME is required when CALL_TURN_URLS is configured')\n  if (hasTurnUrl && !hasTurnCredential) issues.push('CALL_TURN_CREDENTIAL is required when CALL_TURN_URLS is configured')\n  if (!hasTurnUrl && (hasTurnUsername || hasTurnCredential)) issues.push('CALL_TURN_URLS is required when TURN credentials are configured')\n  if (hasTurnCredential) validatedSecrets.push('CALL_TURN_CREDENTIAL')\n",
+              "  if (hasTurnUrl && !hasTurnUsername) issues.push('CALL_TURN_USERNAME is required when CALL_TURN_URLS is configured')\n  if (hasTurnUrl && !hasTurnCredential) issues.push('CALL_TURN_CREDENTIAL is required when CALL_TURN_URLS is configured')\n  if (!hasTurnUrl && (hasTurnUsername || hasTurnCredential)) issues.push('CALL_TURN_URLS is required when TURN credentials are configured')\n  if (hasTurnUrl) validateConfiguredValue({ env, name: 'CALL_TURN_URLS', issues, minimumLength: 8 })\n  if (hasTurnUsername) validateConfiguredValue({ env, name: 'CALL_TURN_USERNAME', issues, minimumLength: 3 })\n  if (hasTurnCredential) {\n    validateConfiguredValue({ env, name: 'CALL_TURN_CREDENTIAL', issues, minimumLength: 12 })\n    validatedSecrets.push('CALL_TURN_CREDENTIAL')\n  }\n",
+          )
+
+          test_path = Path('Backend/Chatify/test/security/secret-configuration.test.mjs')
+          test_text = test_path.read_text()
+          regression = """
+
+test('rejects placeholder and undersized configured provider credentials', () => {
+  const oauth = productionEnv()
+  oauth.GOOGLE_CLIENT_ID = 'your-google-client-id'
+  oauth.GOOGLE_CLIENT_SECRET = 'your-google-client-secret'
+  assert.throws(
+    () => validateSecretConfiguration(oauth),
+    /GOOGLE_CLIENT_ID.*placeholder|GOOGLE_CLIENT_SECRET.*placeholder|placeholder.*GOOGLE/i
+  )
+
+  const push = productionEnv()
+  push.VAPID_PUBLIC_KEY = 'your-vapid-public-key'
+  push.VAPID_PRIVATE_KEY = 'your-vapid-private-key'
+  push.VAPID_SUBJECT = 'mailto:alerts@chatify.invalid'
+  assert.throws(
+    () => validateSecretConfiguration(push),
+    /VAPID_PUBLIC_KEY.*placeholder|VAPID_PRIVATE_KEY.*placeholder|placeholder.*VAPID/i
+  )
+
+  const email = productionEnv()
+  email.NOTIFICATION_WORKER_ENABLED = '1'
+  email.CHATIFY_NOTIFICATION_DRY_RUN = '0'
+  email.BREVO_API_KEY = 'your-brevo-api-key'
+  email.EMAIL_USER_SENDER = 'alerts@chatify.invalid'
+  assert.throws(
+    () => validateSecretConfiguration(email),
+    /BREVO_API_KEY.*placeholder|placeholder.*BREVO_API_KEY/i
+  )
+
+  const turn = productionEnv()
+  turn.CALL_TURN_URLS = 'turns:relay.chatify.invalid:5349'
+  turn.CALL_TURN_USERNAME = 'turn-user'
+  turn.CALL_TURN_CREDENTIAL = 'short'
+  assert.throws(
+    () => validateSecretConfiguration(turn),
+    /CALL_TURN_CREDENTIAL.*at least 12/i
+  )
+})
+"""
+          if "test('rejects placeholder and undersized configured provider credentials'" not in test_text:
+              test_path.write_text(test_text.rstrip() + regression + '\n')
+          PY
+
+      - name: Verify review fix and regenerate deterministic evidence
+        run: |
+          git rm --cached -- .github/workflows/security-phase-3-materialize.yml
+
+          node --check Backend/Chatify/Utils/secretConfiguration.mjs
+          node --test Backend/Chatify/test/security/secret-configuration.test.mjs
+          npm run security:phase3:test
+          npm run security:phase3:generate
+          git add \
+            docs/security/audit/phase-3/secret-scan.json \
+            docs/security/audit/phase-3/secret-scan.md
+          npm run security:phase1:generate
+          npm run security:phase1:check
+          npm run security:phase2:generate
+          npm run security:phase2:check
+          npm run security:phase3:check
+
+          git restore --staged -- .github/workflows/security-phase-3-materialize.yml
+
+      - name: Commit review hardening and evidence
+        run: |
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Expected review-hardening changes were not produced.' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(security): validate configured provider credentials'
+          git fetch origin security/phase-3-secret-exposure
+          git rebase origin/security/phase-3-secret-exposure
+          git push origin HEAD:security/phase-3-secret-exposure
