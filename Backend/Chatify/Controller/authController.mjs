@@ -2,17 +2,18 @@ import User from '../Models/userModel.mjs';
 import Session from '../Models/sessionModel.mjs';
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import {CustomError} from '../Utils/customError.mjs';
-import jsonwebtoken from 'jsonwebtoken'
-import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto';
 import {
   clearSessionCookies,
   issueSessionCookies,
   readRefreshTokenFromRequest,
   revokeRefreshSession,
   revokeRefreshSessionsForUser,
+  revokeSessionById,
   rotateSessionCookies,
 } from '../Utils/tokenCookieGenerator.mjs'
 import { readAccessTokenFromRequest, verifyAccessToken } from '../Utils/authToken.mjs';
+import { assertPasswordPolicy, normalizeEmail } from '../Utils/authIdentity.mjs';
 import passport from 'passport';
 import PasswordReset from '../Models/passwordResetModel.mjs';
 import OAuthHandoff from '../Models/oauthHandoffModel.mjs';
@@ -38,14 +39,13 @@ const FRONTEND_URL = isProd
   ? process.env.FRONTEND_ORIGIN || 'https://chatify-ten-rho.vercel.app'
   : 'http://localhost:5173';
 const OAUTH_STATE_COOKIE = 'chatify_oauth_state';
-const OAUTH_HANDOFF_PURPOSE = 'oauth_handoff';
-const OAUTH_HANDOFF_TOKEN_TYPE = 'oauth_handoff';
-const OAUTH_HANDOFF_EXPIRES_IN = '60s';
+const OAUTH_HANDOFF_COOKIE = 'chatify_oauth_handoff';
 const OAUTH_HANDOFF_TTL_MS = 60 * 1000;
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 const LOGIN_FAILURE_MESSAGE = 'Email or password is incorrect';
 
-const hashOAuthState = (state) => createHash('sha256').update(state).digest('base64url');
+const hashOAuthState = (state) => createHash('sha256').update(String(state)).digest('base64url');
+const hashOAuthHandoffToken = (token) => createHash('sha256').update(String(token)).digest('base64url');
 
 const getOAuthStateCookieOptions = () => ({
   httpOnly: true,
@@ -55,51 +55,33 @@ const getOAuthStateCookieOptions = () => ({
   path: '/api/auth',
 });
 
-const getClearOAuthStateCookieOptions = () => ({
+const getOAuthHandoffCookieOptions = () => ({
   httpOnly: true,
   secure: isProd,
   sameSite: 'lax',
-  path: '/api/auth',
+  maxAge: OAUTH_HANDOFF_TTL_MS,
+  path: '/api/auth/oauth/finalize',
 });
 
-const clearOAuthStateCookie = (res) => {
-  res.clearCookie(OAUTH_STATE_COOKIE, getClearOAuthStateCookieOptions());
+const clearOAuthCookies = (res) => {
+  res.clearCookie(OAUTH_STATE_COOKIE, { ...getOAuthStateCookieOptions(), maxAge: undefined });
+  res.clearCookie(OAUTH_HANDOFF_COOKIE, { ...getOAuthHandoffCookieOptions(), maxAge: undefined });
 };
 
 const buildFrontendUrl = (pathname, params = {}) => {
   const url = new URL(pathname, FRONTEND_URL);
-
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      url.searchParams.set(key, value);
-    }
+    if (value !== undefined && value !== null) url.searchParams.set(key, value);
   });
-
   return url.toString();
 };
 
-const buildOAuthFinalizeUrl = (handoffToken) => {
-  const url = new URL('/api/auth/oauth/finalize', resolveOAuthFinalizeBaseURL());
-  url.searchParams.set('token', handoffToken);
-  return url.toString();
-};
-
+const buildOAuthFinalizeUrl = () => new URL('/api/auth/oauth/finalize', resolveOAuthFinalizeBaseURL()).toString();
 const generateOAuthState = () => randomBytes(32).toString('base64url');
-
-const generateOAuthHandoffToken = ({ user, jti, stateHash }) => jsonwebtoken.sign(
-  {
-    userId: user._id,
-    type: OAUTH_HANDOFF_TOKEN_TYPE,
-    purpose: OAUTH_HANDOFF_PURPOSE,
-    jti,
-    stateHash,
-  },
-  process.env.SECRET_JWT_KEY,
-  { expiresIn: OAUTH_HANDOFF_EXPIRES_IN }
-);
+const generateOAuthHandoffToken = () => randomBytes(32).toString('base64url');
 
 const redirectOAuthFailure = (res) => {
-  clearOAuthStateCookie(res);
+  clearOAuthCookies(res);
   return res.redirect(buildFrontendUrl('/login', { error: 'auth_failed' }));
 };
 
@@ -109,6 +91,9 @@ export const signup =asyncErrHandler( async (req, res, next) => {
   if (!firstName || !lastName || !email || !password || !username) {
     return next(new CustomError('Please provide all the required fields', 400));
   }
+
+  email = normalizeEmail(email);
+  assertPasswordPolicy(password);
 
   const usernameValidation = validateUsername(username);
   if (!usernameValidation.ok) {
@@ -154,7 +139,8 @@ export const signup =asyncErrHandler( async (req, res, next) => {
 )
 
 export const login = asyncErrHandler(async (req, res, next) => {
-  const { email, password, rememberMe } = req.body;
+  const { password, rememberMe } = req.body;
+  const email = normalizeEmail(req.body.email);
   if (!email || !password) {
     return next(new CustomError('Please provide email and password', 400));
   }
@@ -172,7 +158,7 @@ export const login = asyncErrHandler(async (req, res, next) => {
   }
 
   if (isTwoFactorEnabled(user)) {
-    const challenge = await createTwoFactorLoginChallenge({ user, rememberMe });
+    const challenge = await createTwoFactorLoginChallenge({ user, rememberMe, req });
 
     return res.status(200).json({
       status: 'mfa_required',
@@ -193,15 +179,35 @@ export const login = asyncErrHandler(async (req, res, next) => {
   })
 })
 
-export const logout = asyncErrHandler(async (req, res, next) => {
-  await revokeRefreshSession(readRefreshTokenFromRequest(req));
+export const logout = asyncErrHandler(async (req, res) => {
+  let accessSessionRevoked = false;
+  let refreshSessionRevoked = false;
+  let userId = null;
+
+  const accessToken = readAccessTokenFromRequest(req);
+  if (accessToken) {
+    try {
+      const verified = verifyAccessToken(accessToken);
+      userId = verified.userId;
+      accessSessionRevoked = await revokeSessionById({
+        sessionId: verified.sessionId,
+        userId: verified.userId,
+      });
+    } catch {
+      accessSessionRevoked = false;
+    }
+  }
+
+  refreshSessionRevoked = await revokeRefreshSession(readRefreshTokenFromRequest(req));
   clearSessionCookies(res);
-  
-  res.status(200).json({
-    status: 'success',
-    message: 'Logged out successfully'
+  logger.info('auth.logout_completed', {
+    userId,
+    accessSessionRevoked,
+    refreshSessionRevoked,
   });
-})
+
+  return res.status(200).json({ status: 'success', message: 'Logged out successfully' });
+});
 
 export const refreshToken = asyncErrHandler(async (req, res, next) => {
   await rotateSessionCookies({
@@ -335,100 +341,61 @@ export const revokeAllSessions = asyncErrHandler(async (req, res) => {
 });
 
 // Helper function for OAuth callbacks
-const createOAuthCallback = (provider) => {
-  return (req, res, next) => {
-    passport.authenticate(provider, { session: false }, async (err, user) => {
-      
-      if (err) {
-        return res.redirect(buildFrontendUrl('/login', { error: 'oauth_failed' }));
-      }
+const createOAuthCallback = (provider) => (req, res, next) => {
+  const state = typeof req.query.state === 'string' ? req.query.state : '';
+  const stateCookie = req.cookies?.[OAUTH_STATE_COOKIE];
 
-      if (!user) {
-        return res.redirect(buildFrontendUrl('/login', { error: 'oauth_no_user' }));
-      }
+  if (typeof stateCookie !== 'string' || !state || !safeHashEqual(hashOAuthState(state), hashOAuthState(stateCookie))) {
+    return redirectOAuthFailure(res);
+  }
 
-      try {
-        const state = typeof req.query.state === 'string' ? req.query.state : '';
+  return passport.authenticate(provider, { session: false }, async (err, user) => {
+    if (err || !user) return redirectOAuthFailure(res);
 
-        if (!state) {
-          return res.redirect(buildFrontendUrl('/login', { error: 'auth_failed' }));
-        }
-
-        const stateHash = hashOAuthState(state);
-        const jti = randomUUID();
-
-        await OAuthHandoff.create({
-          jti,
-          userId: user._id,
-          stateHash,
-          expiresAt: new Date(Date.now() + OAUTH_HANDOFF_TTL_MS),
-        });
-
-        const handoffToken = generateOAuthHandoffToken({ user, jti, stateHash });
-
-        return res.redirect(buildOAuthFinalizeUrl(handoffToken));
-      } catch {
-        return res.redirect(buildFrontendUrl('/login', { error: 'auth_failed' }));
-      }
-    })(req, res, next);
-  };
+    try {
+      const handoffToken = generateOAuthHandoffToken();
+      await OAuthHandoff.create({
+        tokenHash: hashOAuthHandoffToken(handoffToken),
+        userId: user._id,
+        provider,
+        stateHash: hashOAuthState(state),
+        expiresAt: new Date(Date.now() + OAUTH_HANDOFF_TTL_MS),
+      });
+      res.cookie(OAUTH_HANDOFF_COOKIE, handoffToken, getOAuthHandoffCookieOptions());
+      return res.redirect(buildOAuthFinalizeUrl());
+    } catch {
+      return redirectOAuthFailure(res);
+    }
+  })(req, res, next);
 };
 
 export const finalizeOAuth = asyncErrHandler(async (req, res) => {
-  const { token } = req.query;
-  const stateCookie = req.cookies[OAUTH_STATE_COOKIE];
+  const stateCookie = req.cookies?.[OAUTH_STATE_COOKIE];
+  const handoffToken = req.cookies?.[OAUTH_HANDOFF_COOKIE];
 
-  if (typeof token !== 'string' || !token) {
+  if (typeof stateCookie !== 'string' || !stateCookie || typeof handoffToken !== 'string' || !handoffToken) {
     return redirectOAuthFailure(res);
   }
 
-  if (typeof stateCookie !== 'string' || !stateCookie) {
-    return redirectOAuthFailure(res);
-  }
+  const now = new Date();
+  const handoff = await OAuthHandoff.findOneAndUpdate(
+    {
+      tokenHash: hashOAuthHandoffToken(handoffToken),
+      stateHash: hashOAuthState(stateCookie),
+      consumedAt: null,
+      expiresAt: { $gt: now },
+    },
+    { $set: { consumedAt: now } },
+    { new: true },
+  );
 
-  try {
-    const decoded = jsonwebtoken.verify(token, process.env.SECRET_JWT_KEY);
+  if (!handoff) return redirectOAuthFailure(res);
+  const user = await User.findById(handoff.userId);
+  if (!user) return redirectOAuthFailure(res);
 
-    if (
-      decoded?.type !== OAUTH_HANDOFF_TOKEN_TYPE ||
-      decoded?.purpose !== OAUTH_HANDOFF_PURPOSE ||
-      !decoded.userId ||
-      typeof decoded.jti !== 'string' ||
-      typeof decoded.stateHash !== 'string' ||
-      decoded.stateHash !== hashOAuthState(stateCookie)
-    ) {
-      return redirectOAuthFailure(res);
-    }
-
-    const handoff = await OAuthHandoff.findOneAndUpdate(
-      {
-        jti: decoded.jti,
-        userId: decoded.userId,
-        stateHash: decoded.stateHash,
-        consumedAt: null,
-        expiresAt: { $gt: new Date() },
-      },
-      { $set: { consumedAt: new Date() } },
-      { new: true }
-    );
-
-    if (!handoff) {
-      return redirectOAuthFailure(res);
-    }
-
-    const user = await User.findById(decoded.userId);
-
-    if (!user) {
-      return redirectOAuthFailure(res);
-    }
-
-    await issueSessionCookies({ user, res, rememberMe: false, req });
-    clearOAuthStateCookie(res);
-
-    return res.redirect(buildFrontendUrl('/', { auth: 'success' }));
-  } catch {
-    return redirectOAuthFailure(res);
-  }
+  await issueSessionCookies({ user, res, rememberMe: false, req });
+  clearOAuthCookies(res);
+  return res.redirect(buildFrontendUrl('/', { auth: 'success' }));
 });
 
 // OAuth authentication initiators
@@ -521,7 +488,7 @@ const findValidPasswordReset = async ({ email, code }) => {
 };
 
 export const forgotPassword = asyncErrHandler(async (req, res, next) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
   if (!email) {
     return next(new CustomError('Please provide your email', 400));
   }
@@ -564,7 +531,8 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
   })
 
   export const verifyResetCode = asyncErrHandler(async (req, res, next) => {
-    const { email, code} = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { code } = req.body;
     if (!email || !code) {
       return next(new CustomError('Please provide email and reset code', 400));
     }
@@ -581,13 +549,24 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
   })
 
   export const resetPassword = asyncErrHandler(async (req, res, next) => {
-    const { email, code, newPassword } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { code, newPassword } = req.body;
     if (!email || !code || !newPassword) {
       return next(new CustomError('Please provide email, reset code and new password', 400));
     }
     
-    const resetToken = await findValidPasswordReset({ email, code });
-    
+    assertPasswordPolicy(newPassword);
+    const matchedResetToken = await findValidPasswordReset({ email, code });
+    if (!matchedResetToken) {
+      return next(new CustomError('Invalid or expired reset code', 400));
+    }
+
+    const resetToken = await PasswordReset.findOneAndDelete({
+      _id: matchedResetToken._id,
+      email,
+      tokenHash: matchedResetToken.tokenHash,
+      expiresAt: { $gt: new Date() },
+    });
     if (!resetToken) {
       return next(new CustomError('Invalid or expired reset code', 400));
     }
@@ -600,7 +579,6 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
     user.password = newPassword;
     await user.save();
     await revokeRefreshSessionsForUser(user._id);
-    await PasswordReset.deleteOne({ _id: resetToken._id});
     clearSessionCookies(res);
 
     return res.status(200).json({

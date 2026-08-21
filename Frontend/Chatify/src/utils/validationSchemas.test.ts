@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  loginSchema,
   signupSchema,
   usernameSchema,
   usernameSetupSchema,
@@ -29,12 +30,39 @@ describe('username validation schemas', () => {
     }
   });
 
+  it('canonicalizes authentication email and enforces the Phase 5 password policy', () => {
+    expect(loginSchema.parse({
+      email: '  Phase5.Identity@Example.TEST  ',
+      password: 'correct horse battery staple',
+    }).email).toBe('phase5.identity@example.test');
+
+    const valid = signupSchema.safeParse({
+      firstName: 'Phase',
+      lastName: 'Five',
+      username: 'phase.five',
+      email: 'Phase5@Example.TEST',
+      password: '  correct horse battery staple  ',
+    });
+    expect(valid.success).toBe(true);
+    if (valid.success) expect(valid.data.password).toBe('  correct horse battery staple  ');
+
+    for (const password of ['Short123!', '            ', 'valid passphrase\n']) {
+      expect(signupSchema.safeParse({
+        firstName: 'Phase',
+        lastName: 'Five',
+        username: 'phase.five',
+        email: 'phase5@example.test',
+        password,
+      }).success).toBe(false);
+    }
+  });
+
   it('requires username for signup', () => {
     const result = signupSchema.safeParse({
       firstName: 'Ahmed',
       lastName: 'Musa',
       email: 'ahmed@example.com',
-      password: 'password123',
+      password: 'password1234',
     });
 
     expect(result.success).toBe(false);
