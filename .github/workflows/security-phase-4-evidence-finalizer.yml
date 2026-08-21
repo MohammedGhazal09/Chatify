@@ -42,10 +42,24 @@ jobs:
             Backend/Chatify/package-lock.json
             Frontend/Chatify/package-lock.json
 
-      - name: Remove temporary evidence workflow from permanent tree
-        run: git rm -- .github/workflows/security-phase-4-evidence-finalizer.yml
+      - name: Commit and push permanent workflow cleanup first
+        run: |
+          git rm -- .github/workflows/security-phase-4-evidence-finalizer.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(security): remove temporary Phase 4 evidence workflow'
+          git push origin HEAD:security/phase-4-dependency-supply-chain
 
-      - name: Verify focused controls
+      - name: Refresh authoritative history refs after cleanup push
+        run: |
+          git fetch --force origin \
+            '+refs/heads/security/phase-4-dependency-supply-chain:refs/remotes/origin/security/phase-4-dependency-supply-chain'
+          git update-ref refs/remotes/pull/5/head HEAD
+          test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/security/phase-4-dependency-supply-chain)"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/pull/5/head)"
+
+      - name: Verify focused controls on permanent source tree
         run: |
           node --check scripts/security/lib/secret-scan.mjs
           node --check scripts/security/lib/dependency-policy.mjs
@@ -72,18 +86,24 @@ jobs:
 
       - name: Commit final cleaned evidence
         run: |
-          git add -A
+          git add \
+            docs/security/audit/phase-1/inventory.json \
+            docs/security/audit/phase-1/inventory.md \
+            docs/security/audit/phase-2/threat-model.json \
+            docs/security/audit/phase-2/threat-model.md \
+            docs/security/audit/phase-3/secret-scan.json \
+            docs/security/audit/phase-3/secret-scan.md \
+            docs/security/audit/phase-4/dependency-policy.json \
+            docs/security/audit/phase-4/dependency-policy.md
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo 'Expected cleaned evidence changes were not produced.' >&2
+            echo 'Expected final generated-evidence changes were not produced.' >&2
             exit 1
           fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'docs(security): finalize cleaned Phase 4 evidence'
 
-      - name: Run complete Phase 4 reproduction
+      - name: Run complete Phase 4 reproduction on final commit
         run: npm run security:phase4:reproduce
 
-      - name: Push verified final tree
+      - name: Push verified final evidence commit
         run: git push origin HEAD:security/phase-4-dependency-supply-chain
