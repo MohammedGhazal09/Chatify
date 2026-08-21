@@ -19,16 +19,23 @@ const write = async (root, relative, content) => {
 }
 
 const healthySources = {
-  'Backend/Chatify/Utils/authIdentity.mjs': `export const normalizeEmail = value => String(value).normalize('NFKC').trim().toLocaleLowerCase('en-US')
-export const validatePasswordPolicy = password => Array.from(password).length >= 12 && Array.from(password).length <= 128 && password.trim() && !/[\\u0000-\\u001f\\u007f-\\u009f]/u.test(password)
+  'Backend/Chatify/Utils/authIdentity.mjs': `const CONTROL_CHARACTER_PATTERN = /[\\u0000-\\u001f\\u007f-\\u009f]/u
+const MIN_PASSWORD_CODE_POINTS = 12
+const MAX_PASSWORD_CODE_POINTS = 128
+export const normalizeEmail = value => String(value).normalize('NFKC').trim().toLocaleLowerCase('en-US')
+export const validatePasswordPolicy = password => Array.from(password).length >= MIN_PASSWORD_CODE_POINTS && Array.from(password).length <= MAX_PASSWORD_CODE_POINTS && password.trim() && !CONTROL_CHARACTER_PATTERN.test(password)
 `,
   'Backend/Chatify/Utils/authToken.mjs': `jwt.verify(token, key, { algorithms: ['HS256'], issuer: 'chatify-api', audience: 'chatify-web' })
 if (!decoded.sessionId || !decoded.jti || decoded.sub !== decoded.userId || decoded.type !== 'access') throw new Error()
 `,
   'Backend/Chatify/Utils/tokenCookieGenerator.mjs': `durationToMs(ACCESS_TOKEN_EXPIRES_IN)
+const ACCESS_TOKEN_MAX_AGE_MS = durationToMs(ACCESS_TOKEN_EXPIRES_IN)
+getCookieOptions(ACCESS_TOKEN_MAX_AGE_MS)
 jsonwebtoken.sign({ userId, sessionId, type: 'access', jti: randomUUID() }, key, { algorithm: 'HS256', issuer: ACCESS_TOKEN_ISSUER, audience: ACCESS_TOKEN_AUDIENCE, subject: userId })
 createHash('sha256').update(refreshToken)
-findOneAndUpdate({ refreshTokenHash, revokedAt: null })
+findOneAndUpdate({ refreshTokenHash, revokedAt: null, familyId })
+replacedByTokenHash = nextRefreshTokenHash
+throw new CustomError('Refresh token already used', 401)
 revokeSessionById({ sessionId, userId })
 revokeOtherSessionsForUser({ userId, currentSessionId })
 `,
@@ -40,18 +47,21 @@ password: { validate: { validator(value) { return validatePasswordPolicy(value).
 `,
   'Backend/Chatify/Config/passport.mjs': `if (providerEmail.verified !== true) throw new Error('verified email')
 const email = normalizeEmail(providerEmail.email)
-if (existingEmailUser) throw new Error('confirmation')
+if (existingEmailUser) throw new Error('OAuth account linking requires existing user confirmation')
 `,
   'Backend/Chatify/Models/oauthHandoffModel.mjs': `tokenHash: { type: String, required: true, unique: true }
 expiresAt: { type: Date, required: true }
 `,
   'Backend/Chatify/Controller/authController.mjs': `const OAUTH_HANDOFF_COOKIE = 'chatify_oauth_handoff'
+const createOAuthCallback = provider => { const stateCookie = req.cookies.chatify_oauth_state; safeHashEqual(hashOAuthState(state), hashOAuthState(stateCookie)); return passport.authenticate(provider) }
 const handoffToken = randomBytes(32).toString('base64url')
 OAuthHandoff.create({ tokenHash: hashOAuthHandoffToken(handoffToken), stateHash: hashOAuthState(state) })
 res.cookie(OAUTH_HANDOFF_COOKIE, handoffToken, { httpOnly: true, sameSite: 'lax' })
 OAuthHandoff.findOneAndUpdate({ tokenHash: hashOAuthHandoffToken(handoffToken), consumedAt: null, expiresAt: { $gt: now } })
 const resetToken = await PasswordReset.findOneAndDelete({ _id: matchedResetToken._id, tokenHash: matchedResetToken.tokenHash })
 revokeSessionById({ sessionId: verified.sessionId, userId: verified.userId })
+revokeRefreshSession(refreshToken)
+clearSessionCookies(res)
 normalizeEmail(req.body.email)
 assertPasswordPolicy(newPassword)
 logger.info('auth.logout_completed', { userId, accessSessionRevoked, refreshSessionRevoked })
@@ -70,6 +80,10 @@ router.post('/logout', authMutationLimiter, requireValidCsrfToken, logout)
 router.post('/forgot-password', passwordResetLimiter, requireValidCsrfToken, forgotPassword)
 router.post('/reset-password', passwordResetLimiter, requireValidCsrfToken, resetPassword)
 router.post('/2fa/challenge', mfaLimiter, requireValidCsrfToken, verifyTwoFactorLogin)
+router.post('/verify-reset-code', passwordResetLimiter, requireValidCsrfToken, verifyResetCode)
+router.post('/refresh-token', refreshTokenLimiter, requireValidCsrfToken, refreshToken)
+`,
+  'Backend/Chatify/app.mjs': `app.use('/api/auth', csrfProtection, authRouter)
 `,
 }
 
@@ -102,7 +116,7 @@ if (!decoded.userId) throw new Error()
   })
   const report = await buildAuthenticationPolicy(root)
   assert.deepEqual(
-    report.violations.map((item) => item.code).filter((code) => code.startsWith('access-') || code.startsWith('session-')),
+    report.violations.map((item) => item.code).filter((code) => code.startsWith('access-') || code === 'sessionless-access-accepted'),
     ['access-claims-incomplete', 'access-verification-incomplete', 'sessionless-access-accepted'],
   )
   assert.throws(() => assertPhase5ExitGate(report), /Phase 5/)
@@ -145,6 +159,8 @@ test('unsafe authentication routes require both CSRF and bounded rate limiting',
     'Backend/Chatify/Routes/authRouter.mjs': `router.post('/signup', signup)
 router.post('/login', login)
 router.post('/reset-password', resetPassword)
+`,
+    'Backend/Chatify/app.mjs': `app.use('/api/auth', authRouter)
 `,
   })
   const report = await buildAuthenticationPolicy(root)

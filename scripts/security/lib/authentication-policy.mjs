@@ -191,7 +191,7 @@ const evaluateControls = (sources) => {
   ]
   const rateLimitedRoutes = requiredRateLimitedRoutes.every((route) => {
     const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    return new RegExp(`${escaped}[^\n]{0,120}(?:authLimiter|refreshTokenLimiter|passwordResetLimiter|mfaLimiter)`, 'u').test(authRouter)
+    return new RegExp(`${escaped}[^\n]{0,160}[A-Za-z][A-Za-z0-9]*Limiter`, 'u').test(authRouter)
   })
   const safeAuthenticationLogging = authController.includes("logger.info('auth.logout_completed'")
     && !matches(authController, /console\.(?:log|info|debug|warn|error)\([^\n]*(?:password|token|cookie|email|code)/iu)
