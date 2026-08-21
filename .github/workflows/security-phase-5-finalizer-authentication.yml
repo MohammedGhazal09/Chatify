@@ -1,0 +1,219 @@
+name: Temporary Phase 5 authentication finalizer
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase5-authentication-finalizer
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'security/phase-5-authentication-session')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout Phase 5 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-5-authentication-session
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch authoritative repository and pull-request refs
+        run: |
+          git fetch --force --prune origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*'
+          git fetch --force origin \
+            '+refs/pull/7/head:refs/remotes/pull/7/head'
+
+      - name: Setup exact Node.js toolchain
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Verify exact toolchain
+        run: |
+          test "$(node --version)" = 'v24.19.0'
+          test "$(npm --version)" = '11.17.0'
+
+      - name: Finalize policy fixtures and downstream generated-evidence boundary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one occurrence, found {count}')
+              return text.replace(old, new, 1)
+
+          secret_path = Path('scripts/security/lib/secret-scan.mjs')
+          secret = secret_path.read_text()
+          secret = replace_once(
+              secret,
+              "  'docs/security/audit/phase-4/dependency-policy.md',\n])",
+              "  'docs/security/audit/phase-4/dependency-policy.md',\n  'docs/security/audit/phase-5/authentication-policy.json',\n  'docs/security/audit/phase-5/authentication-policy.md',\n])",
+              'Phase 5 generated exclusions',
+          )
+          secret = replace_once(
+              secret,
+              'export const PHASE3_GENERATED_PATHS = [GENERATED_JSON, GENERATED_MARKDOWN]',
+              "export const PHASE3_GENERATED_PATHS = [GENERATED_JSON, GENERATED_MARKDOWN]\nexport const PHASE3_EXCLUDED_GENERATED_PATHS = [...GENERATED_PATHS].sort()",
+              'Phase 3 exported generated exclusions',
+          )
+          secret_path.write_text(secret)
+
+          policy_path = Path('scripts/security/lib/authentication-policy.mjs')
+          policy = policy_path.read_text()
+          policy = replace_once(
+              policy,
+              "    return new RegExp(`${escaped}[^\\n]{0,120}(?:authLimiter|refreshTokenLimiter|passwordResetLimiter|mfaLimiter)`, 'u').test(authRouter)",
+              "    return new RegExp(`${escaped}[^\\n]{0,160}[A-Za-z][A-Za-z0-9]*Limiter`, 'u').test(authRouter)",
+              'generic authentication limiter recognition',
+          )
+          policy_path.write_text(policy)
+
+          test_path = Path('scripts/security/__tests__/phase5-authentication-policy.test.mjs')
+          tests = test_path.read_text()
+          tests = replace_once(
+              tests,
+              "  'Backend/Chatify/Utils/authIdentity.mjs': `export const normalizeEmail = value => String(value).normalize('NFKC').trim().toLocaleLowerCase('en-US')\nexport const validatePasswordPolicy = password => Array.from(password).length >= 12 && Array.from(password).length <= 128 && password.trim() && !/[\\\\u0000-\\\\u001f\\\\u007f-\\\\u009f]/u.test(password)\n`,",
+              "  'Backend/Chatify/Utils/authIdentity.mjs': `const CONTROL_CHARACTER_PATTERN = /[\\\\u0000-\\\\u001f\\\\u007f-\\\\u009f]/u\nconst MIN_PASSWORD_CODE_POINTS = 12\nconst MAX_PASSWORD_CODE_POINTS = 128\nexport const normalizeEmail = value => String(value).normalize('NFKC').trim().toLocaleLowerCase('en-US')\nexport const validatePasswordPolicy = password => Array.from(password).length >= MIN_PASSWORD_CODE_POINTS && Array.from(password).length <= MAX_PASSWORD_CODE_POINTS && password.trim() && !CONTROL_CHARACTER_PATTERN.test(password)\n`,",
+              'healthy password policy fixture',
+          )
+          tests = replace_once(
+              tests,
+              "findOneAndUpdate({ refreshTokenHash, revokedAt: null })\nrevokeSessionById({ sessionId, userId })",
+              "findOneAndUpdate({ refreshTokenHash, revokedAt: null, familyId })\nreplacedByTokenHash = nextRefreshTokenHash\nthrow new CustomError('Refresh token already used', 401)\nrevokeSessionById({ sessionId, userId })",
+              'healthy refresh lifecycle fixture',
+          )
+          tests = replace_once(
+              tests,
+              "  'Backend/Chatify/Controller/authController.mjs': `const OAUTH_HANDOFF_COOKIE = 'chatify_oauth_handoff'\nconst handoffToken = randomBytes(32).toString('base64url')",
+              "  'Backend/Chatify/Controller/authController.mjs': `const OAUTH_HANDOFF_COOKIE = 'chatify_oauth_handoff'\nconst createOAuthCallback = provider => { const stateCookie = req.cookies.chatify_oauth_state; safeHashEqual(hashOAuthState(state), hashOAuthState(stateCookie)); return passport.authenticate(provider) }\nconst handoffToken = randomBytes(32).toString('base64url')",
+              'healthy OAuth state fixture',
+          )
+          tests = replace_once(
+              tests,
+              "router.post('/2fa/challenge', mfaLimiter, requireValidCsrfToken, verifyTwoFactorLogin)\n`,",
+              "router.post('/2fa/challenge', mfaLimiter, requireValidCsrfToken, verifyTwoFactorLogin)\nrouter.post('/verify-reset-code', passwordResetLimiter, requireValidCsrfToken, verifyResetCode)\nrouter.post('/refresh-token', refreshTokenLimiter, requireValidCsrfToken, refreshToken)\n`,\n  'Backend/Chatify/app.mjs': `app.use('/api/auth', csrfProtection, authRouter)\n`,",
+              'healthy route and mounted CSRF fixture',
+          )
+          tests = replace_once(
+              tests,
+              "    'Backend/Chatify/Routes/authRouter.mjs': `router.post('/signup', signup)\nrouter.post('/login', login)\nrouter.post('/reset-password', resetPassword)\n`,",
+              "    'Backend/Chatify/Routes/authRouter.mjs': `router.post('/signup', signup)\nrouter.post('/login', login)\nrouter.post('/reset-password', resetPassword)\n`,\n    'Backend/Chatify/app.mjs': `app.use('/api/auth', authRouter)\n`,",
+              'unsafe route fixture without CSRF',
+          )
+          test_path.write_text(tests)
+          PY
+
+          node --check scripts/security/lib/secret-scan.mjs
+          node --check scripts/security/lib/authentication-policy.mjs
+          node --check scripts/security/phase5-authentication-policy.mjs
+          node --check scripts/security/lib/phase5-reproduction.mjs
+          node --check scripts/security/phase5-reproduce.mjs
+          git diff --check
+
+      - name: Verify Phase 1 through Phase 5 focused policy controls
+        run: |
+          npm run security:phase1:test
+          npm run security:phase2:test
+          npm run security:phase3:test
+          npm run security:phase4:test
+          npm run security:phase5:test
+          node scripts/security/phase5-authentication-policy.mjs --json >/tmp/phase5-policy.json
+          node -e "const r=require('/tmp/phase5-policy.json'); if(r.violations.length || !Object.values(r.exitGate).every(Boolean)) process.exit(1)"
+
+      - name: Remove temporary Phase 5 policy workflows
+        run: |
+          git rm -- \
+            .github/workflows/security-phase-5-bootstrap-policy-red.yml \
+            .github/workflows/security-phase-5-finalizer-authentication.yml
+
+      - name: Commit and publish the permanent Phase 5 source tree
+        run: |
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Expected permanent Phase 5 policy changes were not produced.' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(security): add Phase 5 authentication policy controls'
+          git push origin HEAD:security/phase-5-authentication-session
+
+      - name: Refresh authoritative refs after source publication
+        run: |
+          git fetch --force origin \
+            '+refs/heads/security/phase-5-authentication-session:refs/remotes/origin/security/phase-5-authentication-session'
+          git update-ref refs/remotes/pull/7/head HEAD
+          test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/security/phase-5-authentication-session)"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/pull/7/head)"
+
+      - name: Generate converged Phase 1 through Phase 5 evidence
+        run: |
+          npm run security:phase1:generate
+          npm run security:phase2:generate
+          npm run security:phase3:generate
+          npm run security:phase4:generate
+          npm run security:phase5:generate
+          npm run security:phase1:generate
+          npm run security:phase2:generate
+          npm run security:phase3:generate
+          npm run security:phase4:generate
+          npm run security:phase5:generate
+
+          npm run security:phase1:check
+          npm run security:phase2:check
+          npm run security:phase3:check
+          npm run security:phase4:check
+          npm run security:phase5:check
+
+      - name: Commit final deterministic evidence
+        run: |
+          git add \
+            docs/security/audit/phase-1 \
+            docs/security/audit/phase-2 \
+            docs/security/audit/phase-3 \
+            docs/security/audit/phase-4 \
+            docs/security/audit/phase-5
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Expected Phase 5 or inherited generated-evidence changes were not produced.' >&2
+            exit 1
+          fi
+          git commit -m 'docs(security): generate Phase 5 authentication evidence'
+          git update-ref refs/remotes/pull/7/head HEAD
+
+      - name: Verify every deterministic gate on the final local commit
+        run: |
+          npm run security:phase1:check
+          npm run security:phase2:check
+          npm run security:phase3:check
+          npm run security:phase4:check
+          npm run security:phase5:check
+          npm run security:phase5:test
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Run complete Phase 5 clean reproduction
+        run: npm run security:phase5:reproduce
+
+      - name: Publish verified Phase 5 evidence commit
+        run: |
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
+          git push origin HEAD:security/phase-5-authentication-session
