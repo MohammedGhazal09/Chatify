@@ -46,6 +46,20 @@ const validatePair = (env, left, right, issues) => {
   return hasLeft && hasRight
 }
 
+const validateConfiguredValue = ({ env, name, issues, minimumLength = 1 }) => {
+  if (!configured(env, name)) return false
+  const value = env[name].trim()
+  if (PLACEHOLDER_PATTERN.test(value)) {
+    issues.push(`${name} contains a placeholder value`)
+    return false
+  }
+  if (value.length < minimumLength) {
+    issues.push(`${name} must be at least ${minimumLength} characters`)
+    return false
+  }
+  return true
+}
+
 const isThirtyTwoByteKey = (value) => {
   const input = String(value ?? '').trim()
   if (/^[a-f0-9]{64}$/i.test(input)) return true
@@ -146,12 +160,22 @@ export const validateSecretConfiguration = (env = process.env) => {
 
   const oauth = {}
   for (const [clientId, clientSecret] of OAUTH_PAIRS) {
-    oauth[clientId.replace('_CLIENT_ID', '').toLowerCase()] = validatePair(env, clientId, clientSecret, issues)
+    const pairConfigured = validatePair(env, clientId, clientSecret, issues)
+    if (pairConfigured) {
+      const idValid = validateConfiguredValue({ env, name: clientId, issues, minimumLength: 3 })
+      const secretValid = validateConfiguredValue({ env, name: clientSecret, issues, minimumLength: 16 })
+      oauth[clientId.replace('_CLIENT_ID', '').toLowerCase()] = idValid && secretValid
+    } else {
+      oauth[clientId.replace('_CLIENT_ID', '').toLowerCase()] = false
+    }
     if (configured(env, clientSecret)) validatedSecrets.push(clientSecret)
   }
 
-  const webPushConfigured = validatePair(env, 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', issues)
-  if (webPushConfigured) {
+  const webPushPairConfigured = validatePair(env, 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', issues)
+  const webPushConfigured = webPushPairConfigured
+    && validateConfiguredValue({ env, name: 'VAPID_PUBLIC_KEY', issues, minimumLength: 32 })
+    && validateConfiguredValue({ env, name: 'VAPID_PRIVATE_KEY', issues, minimumLength: 32 })
+  if (webPushPairConfigured) {
     if (isProduction && !configured(env, 'VAPID_SUBJECT')) issues.push('VAPID_SUBJECT is required when web push is configured')
     validatedSecrets.push('VAPID_PRIVATE_KEY')
   }
@@ -163,7 +187,10 @@ export const validateSecretConfiguration = (env = process.env) => {
     if (!configured(env, 'BREVO_API_KEY')) issues.push('BREVO_API_KEY is required for production notification delivery')
     if (!configured(env, 'EMAIL_USER_SENDER')) issues.push('EMAIL_USER_SENDER is required for production notification delivery')
   }
-  if (configured(env, 'BREVO_API_KEY')) validatedSecrets.push('BREVO_API_KEY')
+  if (configured(env, 'BREVO_API_KEY')) {
+    validateConfiguredValue({ env, name: 'BREVO_API_KEY', issues, minimumLength: 20 })
+    validatedSecrets.push('BREVO_API_KEY')
+  }
 
   const hasTurnUrl = configured(env, 'CALL_TURN_URLS')
   const hasTurnUsername = configured(env, 'CALL_TURN_USERNAME')
@@ -171,7 +198,12 @@ export const validateSecretConfiguration = (env = process.env) => {
   if (hasTurnUrl && !hasTurnUsername) issues.push('CALL_TURN_USERNAME is required when CALL_TURN_URLS is configured')
   if (hasTurnUrl && !hasTurnCredential) issues.push('CALL_TURN_CREDENTIAL is required when CALL_TURN_URLS is configured')
   if (!hasTurnUrl && (hasTurnUsername || hasTurnCredential)) issues.push('CALL_TURN_URLS is required when TURN credentials are configured')
-  if (hasTurnCredential) validatedSecrets.push('CALL_TURN_CREDENTIAL')
+  if (hasTurnUrl) validateConfiguredValue({ env, name: 'CALL_TURN_URLS', issues, minimumLength: 8 })
+  if (hasTurnUsername) validateConfiguredValue({ env, name: 'CALL_TURN_USERNAME', issues, minimumLength: 3 })
+  if (hasTurnCredential) {
+    validateConfiguredValue({ env, name: 'CALL_TURN_CREDENTIAL', issues, minimumLength: 12 })
+    validatedSecrets.push('CALL_TURN_CREDENTIAL')
+  }
 
   for (const name of validatedSecrets) {
     if (valueLength(env, name) === 0) issues.push(`${name} is empty`)
