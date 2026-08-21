@@ -9,7 +9,7 @@ Phase 3 makes current-tree and complete-history secret scanning a repeatable, fa
 | Detector catalog and redaction | `scripts/security/lib/secret-detectors.mjs` | Recognize provider credentials, private keys, authenticated URIs, JWTs, bearer values, and high-entropy secret assignments without retaining values. |
 | Repository scanner | `scripts/security/lib/secret-scan.mjs` | Scan the current worktree and all reachable Git blobs, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence. |
 | Regression suite | `scripts/security/__tests__/phase3-secret-scan.test.mjs` | Prove redaction, deleted-history discovery, allowlist validation, self-stability, and exit-gate behavior. |
-| Startup validation | `Backend/Chatify/Utils/secretConfiguration.mjs` | Fail before application modules load when required secrets are missing, weak, reused, or inconsistently configured. |
+| Startup validation | `Backend/Chatify/Utils/secretConfiguration.mjs` | Fail before application modules load when required secrets are missing, weak, reused, low-entropy, or inconsistently configured. |
 | Machine-readable result | `secret-scan.json` | Sanitized findings, counts, digests, loading review, and exit gates. |
 | Reviewer result | `secret-scan.md` | Human-readable sanitized summary. |
 | Allowlist | `secret-scan-allowlist.json` | Time-bounded exact candidate suppressions with accountable ownership and rationale. |
@@ -33,7 +33,7 @@ The scanner covers every tracked file, untracked nonignored file, and sensitive 
 
 ## Phase 3.2 — Complete Git history
 
-The workflow fetches all branch, tag, and pull-request refs available to GitHub Actions. The scanner enumerates every reachable Git object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.
+The workflow fetches every repository branch and tag. On a pull request, it additionally fetches only that pull request's head ref; the checked-out merge commit is already reachable as `HEAD`. Unrelated open pull requests are deliberately excluded so untrusted fork content cannot become an input to every repository security gate. The scanner enumerates every reachable Git object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.
 
 Generated Phase 3 JSON and Markdown are excluded from history inputs. Therefore committing the evidence does not recursively change the evidence.
 
@@ -58,8 +58,8 @@ The scanner and backend validation jointly enforce:
 - no literal fallback for secret-valued environment variables;
 - no direct environment dumps or obvious credential logging;
 - startup validation before dynamic application imports;
-- distinct JWT, CSRF, and password-reset keys;
-- a dedicated production 2FA encryption key;
+- distinct JWT, CSRF, and password-reset keys with at least 128 bits of estimated entropy outside tests;
+- a dedicated production 2FA encryption key that decodes to 32 bytes and provides at least 128 bits of estimated entropy;
 - complete OAuth, web-push, email, and TURN credential groups;
 - rejection of placeholder and undersized configured provider credentials;
 - production HTTPS frontend origin and nonlocal MongoDB target;
@@ -77,9 +77,9 @@ Phase 3 passes only when:
 - no unsuppressed candidate remains;
 - no frontend secret reference, weak secret fallback, environment dump, or credential-log candidate remains;
 - fail-closed startup validation is installed before runtime imports;
-- cryptographic-purpose keys are distinct;
+- cryptographic-purpose keys are distinct and weak low-entropy key material is rejected;
 - the credential-exposure response procedure exists.
 
 ## Limitations
 
-Static scanning cannot establish whether a candidate is active, determine every proprietary credential format, inspect provider consoles, rotate credentials, or purge external caches. GitHub Actions can scan refs it is authorized to fetch, but separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require operator review. Binary and oversized files require a separate content-aware process when their provenance is suspicious.
+Static scanning cannot establish whether a candidate is active, determine every proprietary credential format, inspect provider consoles, rotate credentials, or purge external caches. GitHub Actions scans repository branches, tags, the current pull-request ref, and the checked-out merge commit. Unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review. Binary and oversized files require a separate content-aware process when their provenance is suspicious.
