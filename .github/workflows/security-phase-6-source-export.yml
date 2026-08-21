@@ -13,7 +13,7 @@ permissions:
 jobs:
   export:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -46,13 +46,24 @@ jobs:
           npm --prefix Backend/Chatify ci --strict-allow-scripts
           npm --prefix Frontend/Chatify ci --strict-allow-scripts
 
-      - name: Package tracked source, history, and dependencies
+      - name: Cache the test MongoDB binary
+        run: |
+          cd Backend/Chatify
+          node --input-type=module <<'NODE'
+          import { MongoMemoryServer } from 'mongodb-memory-server'
+          const server = await MongoMemoryServer.create()
+          await server.stop()
+          NODE
+
+      - name: Package tracked source, history, dependencies, and test database
         run: |
           git archive --format=tar.gz --output=chatify-phase6-source.tar.gz HEAD
           git bundle create chatify-phase6-history.bundle --all
           tar -czf chatify-phase6-node-modules.tar.gz \
             Backend/Chatify/node_modules \
             Frontend/Chatify/node_modules
+          tar -czf chatify-phase6-mongodb-binaries.tar.gz \
+            -C "$HOME/.cache" mongodb-binaries
           git rev-parse HEAD > chatify-phase6-source.sha
 
       - name: Upload source archive
@@ -63,6 +74,7 @@ jobs:
             chatify-phase6-source.tar.gz
             chatify-phase6-history.bundle
             chatify-phase6-node-modules.tar.gz
+            chatify-phase6-mongodb-binaries.tar.gz
             chatify-phase6-source.sha
           if-no-files-found: error
           retention-days: 1
