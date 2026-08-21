@@ -92,7 +92,7 @@ jobs:
 
       - name: Remove temporary TDD and runtime bootstrap files
         run: |
-          git rm -- \
+          git rm -f -- \
             .github/workflows/security-phase-5-bootstrap-red.yml \
             .github/workflows/security-phase-5-bootstrap-runtime.yml \
             scripts/security/temporary-phase5-runtime.mjs
