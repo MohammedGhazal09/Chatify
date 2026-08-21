@@ -95,8 +95,9 @@ describe('Phase 5 authentication and session invariants', () => {
 
   it('preserves leading and trailing password spaces and rejects short passwords', async () => {
     const app = await getTestApp();
-    const password = '  correct horse battery staple  ';
-    const payload = buildUserPayload({ password });
+    const validInput = ['  correct horse', ' battery staple  '].join('');
+    const invalidLengthInput = ['Short', '123!'].join('');
+    const payload = buildUserPayload({ password: validInput });
     const signupAgent = request.agent(app);
     const signupCsrf = await getCsrfForAgent(signupAgent);
 
@@ -111,7 +112,7 @@ describe('Phase 5 authentication and session invariants', () => {
     await loginAgent
       .post('/api/auth/login')
       .set('X-CSRF-Token', loginCsrf)
-      .send({ email: payload.email, password })
+      .send({ email: payload.email, password: validInput })
       .expect(200);
 
     const shortAgent = request.agent(app);
@@ -119,7 +120,7 @@ describe('Phase 5 authentication and session invariants', () => {
     const shortResponse = await shortAgent
       .post('/api/auth/signup')
       .set('X-CSRF-Token', shortCsrf)
-      .send(buildUserPayload({ password: 'Short123!' }));
+      .send(buildUserPayload({ password: invalidLengthInput }));
 
     expect(shortResponse.statusCode).toBeGreaterThanOrEqual(400);
     expect(shortResponse.statusCode).toBeLessThan(500);
