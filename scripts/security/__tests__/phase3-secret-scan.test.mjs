@@ -8,6 +8,7 @@ import test from 'node:test'
 import {
   calculateShannonEntropy,
   isPlaceholderValue,
+  isSecretMaterialName,
   scanTextForSecrets,
   validateSecretAllowlist,
 } from '../lib/secret-detectors.mjs'
@@ -87,6 +88,54 @@ test('detectors ignore placeholders and return only redacted candidate metadata'
   assert.equal(JSON.stringify(findings).includes(token), false)
   assert.equal(isPlaceholderValue('replace-with-a-long-random-jwt-secret'), true)
   assert.ok(calculateShannonEntropy(token) > 1)
+})
+
+test('detectors reject descriptive placeholders and synthetic fixtures without hiding realistic generic secrets', () => {
+  assert.equal(isPlaceholderValue('[real smoke account A password]'), true)
+  assert.equal(isPlaceholderValue('[deployed frontend URL]'), true)
+  assert.equal(isSecretMaterialName('SECRET_JWT_KEY'), true)
+  assert.equal(isSecretMaterialName('ACCESS_TOKEN_EXPIRES_IN'), false)
+  assert.equal(isSecretMaterialName('AUTH_EXPIRED_EVENT'), false)
+  assert.equal(isSecretMaterialName('CONVERSATION_SECRET_PREFIX'), false)
+
+  const syntheticCases = [
+    {
+      filePath: '.planning/phases/10/USER-SETUP.md',
+      text: "$env:CHATIFY_SMOKE_USER_A_PASSWORD='[real smoke account A password]'",
+    },
+    {
+      filePath: 'Backend/Chatify/test/moderation/report.test.mjs',
+      text: "const text = 'Bearer abcdefghijklmnopqrstuvwxyz1234567890'",
+    },
+    {
+      filePath: 'Backend/Chatify/test/notification/push.test.mjs',
+      text: "const subscription = { auth: 'auth-secret-material' }",
+    },
+    {
+      filePath: 'Frontend/Chatify/e2e/encrypted.spec.ts',
+      text: "const LOCAL_SECRET_KEY = 'chatify:e2ee:v1:conversation-secret:phase52-chat'",
+    },
+    {
+      filePath: 'Frontend/Chatify/src/api/axios.ts',
+      text: "const AUTH_EXPIRED_EVENT = 'chatify:auth-expired'",
+    },
+    {
+      filePath: 'Frontend/Chatify/src/utils/encryptedMessages.ts',
+      text: "const CONVERSATION_SECRET_PREFIX = 'chatify:e2ee:v1:conversation-secret:'",
+    },
+  ]
+
+  for (const fixture of syntheticCases) {
+    assert.deepEqual(scanTextForSecrets({ ...fixture, scope: 'current-tree' }), [])
+  }
+
+  const realistic = scanTextForSecrets({
+    text: "const SERVICE_API_TOKEN = 'rV8pL2qN7wX4mK9cD6sJ3hF5zB1uY0aT'",
+    filePath: 'Backend/Chatify/test/provider.test.mjs',
+    scope: 'current-tree',
+  })
+  assert.equal(realistic.length, 1)
+  assert.equal(realistic[0].detectorId, 'generic-secret-assignment')
 })
 
 test('current-tree scan detects credential classes without retaining raw values', async () => {
@@ -182,7 +231,10 @@ test('secret-loading review rejects frontend secrets, weak fallbacks, and missin
   await mkdir(path.join(root, 'Frontend/Chatify/src'), { recursive: true })
   await writeFile(path.join(root, 'Backend/Chatify/server.mjs'), "import './app.mjs'\n")
   await writeFile(path.join(root, 'Frontend/Chatify/src/config.ts'), 'export const key = import.meta.env.VITE_SERVER_SIGNING_SECRET\n')
-  await writeFile(path.join(root, 'Backend/Chatify/config.mjs'), "const secret = process.env.SECRET_JWT_KEY || 'development-secret'\n")
+  await writeFile(path.join(root, 'Backend/Chatify/config.mjs'), [
+    "const secret = process.env.SECRET_JWT_KEY || 'development-secret'",
+    "const accessTokenLifetime = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m'",
+  ].join('\n'))
   commitAll(root, 'unsafe loading fixture')
 
   const report = await buildSecretScan(root, {
@@ -207,7 +259,10 @@ test('generated write and check detect stale sanitized evidence', async () => {
   assert.equal(await checkGeneratedSecretScan(root, report), true)
   await writeFile(path.join(root, 'docs/security/audit/phase-3/secret-scan.md'), 'stale\n')
   assert.equal(await checkGeneratedSecretScan(root, report), false)
-  assert.match(renderSecretScanMarkdown(report), /Phase 3 Secret and Credential Exposure/)
+  const markdown = renderSecretScanMarkdown(report)
+  assert.match(markdown, /Phase 3 Secret and Credential Exposure/)
+  assert.equal(markdown.endsWith('\n'), false)
+  assert.equal((await readFile(path.join(root, 'docs/security/audit/phase-3/secret-scan.md'), 'utf8')).endsWith('\n\n'), false)
 })
 
 test('Phase 3 exit gate blocks unsuppressed findings and missing response controls', async () => {

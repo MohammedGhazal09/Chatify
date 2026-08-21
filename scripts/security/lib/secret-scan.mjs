@@ -514,7 +514,6 @@ export const renderSecretScanMarkdown = (report) => {
     markdownTable(['Requirement', 'Passed'], Object.entries(report.exitGate).map(([key, value]) => [key, value])),
     '',
     'Candidates require provider-side ownership verification and rotation. The scanner does not replay credentials or make provider API calls.',
-    '',
   ]
   return lines.join('\n')
 }

@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto'
 
-export const SECRET_NAME_PATTERN = /(?:^|[_-])(?:api[_-]?key|secret|token|password|passwd|pwd|private[_-]?key|client[_-]?secret|credential|auth)(?:$|[_-])/i
+export const SECRET_NAME_PATTERN = /(?:^|[_-])(?:api[_-]?key|secret|token|password|passwd|pwd|private[_-]?key|client[_-]?secret|credential|signing[_-]?key|encryption[_-]?key)(?:$|[_-])/i
+const NON_SECRET_METADATA_NAME_PATTERN = /(?:^|[_-])(?:event|prefix|suffix|label|name|path|url|uri|expires?|expiry|ttl|timeout|duration|window|mode|type|id|count|enabled)(?:$|[_-])/i
+const TEST_OR_DOC_PATH_PATTERN = /(?:^|\/)(?:test|tests|__tests__|e2e|docs|\.planning|\.agents)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/i
+const SYNTHETIC_FIXTURE_VALUE_PATTERN = /(?:^|[-_:./])(?:example|sample|dummy|fake|fixture|mock|placeholder|material|marker|phase\d+)(?:[-_:./]|$)/i
 const PLACEHOLDER_PATTERNS = [
   /^$/,
   /^(?:null|undefined|none)$/i,
   /^<[^>]+>$/,
-  /^\[[^\]]*redacted[^\]]*\]$/i,
+  /^\[[^\]]*(?:real|smoke|deployed|your|example|sample|placeholder|redacted|replace|account|password|email|url)[^\]]*\]$/i,
   /(?:^|[-_])(?:your|example|sample|dummy|fake|placeholder|replace[-_]?with|change[-_]?me|redacted)(?:[-_]|$)/i,
   /^test(?:[-_]|$)/i,
 ]
@@ -129,7 +132,10 @@ export const calculateShannonEntropy = (value) => {
   return entropy
 }
 
-export const isSecretMaterialName = (name) => SECRET_NAME_PATTERN.test(String(name ?? ''))
+export const isSecretMaterialName = (name) => {
+  const normalized = String(name ?? '')
+  return SECRET_NAME_PATTERN.test(normalized) && !NON_SECRET_METADATA_NAME_PATTERN.test(normalized)
+}
 
 export const isPlaceholderValue = (value) => {
   const normalized = normalize(value).replace(/^['"`]|['"`]$/g, '')
@@ -193,6 +199,20 @@ const isJsonWebToken = (value) => {
   }
 }
 
+const isSyntheticFixtureValue = ({ value, filePath }) => {
+  if (!TEST_OR_DOC_PATH_PATTERN.test(filePath)) return false
+  const normalized = normalize(value)
+  return (
+    SYNTHETIC_FIXTURE_VALUE_PATTERN.test(normalized)
+    || /abcdefghijklmnopqrstuvwxyz/i.test(normalized)
+    || /^A{20,}={0,2}$/.test(normalized)
+  )
+}
+
+const shouldIgnoreMediumConfidenceFixture = ({ detector, value, filePath }) => (
+  detector.confidence !== 'high' && isSyntheticFixtureValue({ value, filePath })
+)
+
 const specificMatches = ({ text, filePath, scope }) => {
   const accepted = []
   const spans = []
@@ -202,7 +222,12 @@ const specificMatches = ({ text, filePath, scope }) => {
     while ((match = detector.pattern.exec(text)) !== null) {
       const value = match[detector.captureGroup ?? 0]
       const valueIndex = detector.captureGroup ? match[0].indexOf(value) : 0
-      if (!value || isPlaceholderValue(value) || (detector.validate && !detector.validate(value))) continue
+      if (
+        !value
+        || isPlaceholderValue(value)
+        || shouldIgnoreMediumConfidenceFixture({ detector, value, filePath })
+        || (detector.validate && !detector.validate(value))
+      ) continue
       const span = { start: match.index + valueIndex, end: match.index + valueIndex + value.length }
       if (spans.some((existing) => overlaps(existing, span))) continue
       spans.push(span)
@@ -222,7 +247,12 @@ const genericMatchesForPattern = ({ text, filePath, scope, occupied, pattern, va
     const value = match[valueGroup]
     const valueIndex = match[0].lastIndexOf(value)
     const span = { start: match.index + valueIndex, end: match.index + valueIndex + value.length }
-    if (!SECRET_NAME_PATTERN.test(name) || isPlaceholderValue(value) || occupied.some((item) => overlaps(item, span))) continue
+    if (
+      !isSecretMaterialName(name)
+      || isPlaceholderValue(value)
+      || isSyntheticFixtureValue({ value, filePath })
+      || occupied.some((item) => overlaps(item, span))
+    ) continue
     if (calculateShannonEntropy(value) < 3 || value.length < 20) continue
     const detector = {
       id: 'generic-secret-assignment',
