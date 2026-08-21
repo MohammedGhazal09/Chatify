@@ -25,6 +25,24 @@ export class SecretConfigurationError extends Error {
 const configured = (env, name) => typeof env[name] === 'string' && env[name].trim().length > 0
 const valueLength = (env, name) => configured(env, name) ? env[name].trim().length : 0
 
+const calculateEntropyBits = (value) => {
+  const input = typeof value === 'string' ? [...value] : [...value].map((byte) => String(byte))
+  if (input.length === 0) return 0
+  const counts = new Map()
+  for (const item of input) counts.set(item, (counts.get(item) ?? 0) + 1)
+  let bitsPerSymbol = 0
+  for (const count of counts.values()) {
+    const probability = count / input.length
+    bitsPerSymbol -= probability * Math.log2(probability)
+  }
+  return bitsPerSymbol * input.length
+}
+
+const hasAdequateEntropy = (value, minimumBits = 128) => (
+  new Set(typeof value === 'string' ? [...value] : value).size >= 8
+  && calculateEntropyBits(value) >= minimumBits
+)
+
 const validateSecret = ({ env, name, issues, minimumLength, allowTestPrefix }) => {
   if (!configured(env, name)) {
     issues.push(`${name} is required`)
@@ -35,7 +53,11 @@ const validateSecret = ({ env, name, issues, minimumLength, allowTestPrefix }) =
     issues.push(`${name} contains a placeholder value`)
     return
   }
-  if (value.length < minimumLength) issues.push(`${name} must be at least ${minimumLength} characters`)
+  if (value.length < minimumLength) {
+    issues.push(`${name} must be at least ${minimumLength} characters`)
+  } else if (!allowTestPrefix && !hasAdequateEntropy(value)) {
+    issues.push(`${name} must provide at least 128 bits of estimated entropy`)
+  }
 }
 
 const validatePair = (env, left, right, issues) => {
@@ -60,14 +82,28 @@ const validateConfiguredValue = ({ env, name, issues, minimumLength = 1 }) => {
   return true
 }
 
-const isThirtyTwoByteKey = (value) => {
+const decodeThirtyTwoByteKey = (value) => {
   const input = String(value ?? '').trim()
-  if (/^[a-f0-9]{64}$/i.test(input)) return true
+  if (/^[a-f0-9]{64}$/i.test(input)) return Buffer.from(input, 'hex')
   try {
-    return Buffer.from(input, 'base64').length === 32
+    const decoded = Buffer.from(input, 'base64')
+    return decoded.length === 32 ? decoded : null
   } catch {
+    return null
+  }
+}
+
+const validateTwoFactorKey = (env, issues) => {
+  const decoded = decodeThirtyTwoByteKey(env.TWO_FACTOR_ENCRYPTION_KEY)
+  if (!decoded) {
+    issues.push('TWO_FACTOR_ENCRYPTION_KEY must decode to exactly 32 bytes')
     return false
   }
+  if (!hasAdequateEntropy(decoded)) {
+    issues.push('TWO_FACTOR_ENCRYPTION_KEY must provide at least 128 bits of estimated entropy')
+    return false
+  }
+  return true
 }
 
 const validateDatabase = (env, issues) => {
@@ -143,17 +179,13 @@ export const validateSecretConfiguration = (env = process.env) => {
   if (isProduction) {
     if (!configured(env, 'TWO_FACTOR_ENCRYPTION_KEY')) {
       issues.push('TWO_FACTOR_ENCRYPTION_KEY is required in production')
-    } else if (!isThirtyTwoByteKey(env.TWO_FACTOR_ENCRYPTION_KEY)) {
-      issues.push('TWO_FACTOR_ENCRYPTION_KEY must decode to exactly 32 bytes')
-    } else {
+    } else if (validateTwoFactorKey(env, issues)) {
       validatedSecrets.push('TWO_FACTOR_ENCRYPTION_KEY')
     }
     validateDatabase(env, issues)
     validateFrontendOrigin(env, issues)
   } else if (configured(env, 'TWO_FACTOR_ENCRYPTION_KEY')) {
-    if (!isThirtyTwoByteKey(env.TWO_FACTOR_ENCRYPTION_KEY)) {
-      issues.push('TWO_FACTOR_ENCRYPTION_KEY must decode to exactly 32 bytes')
-    } else {
+    if (validateTwoFactorKey(env, issues)) {
       validatedSecrets.push('TWO_FACTOR_ENCRYPTION_KEY')
     }
   }
