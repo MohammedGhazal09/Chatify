@@ -73,6 +73,7 @@ describe('Phase 6 authorization and access-control invariants', () => {
 
     const response = await administrator.agent
       .post(`/api/space/${space._id}/members`)
+      .set('X-CSRF-Token', administrator.csrfToken)
       .send({
         username: target.user.username,
         role: SPACE_ROLES.ADMIN,
@@ -99,6 +100,7 @@ describe('Phase 6 authorization and access-control invariants', () => {
 
     const denied = await administrator.agent
       .delete(`/api/space/${space._id}/members/${peerAdministrator.user._id}`)
+      .set('X-CSRF-Token', administrator.csrfToken)
       .expect(403);
 
     expect(denied.body.message).toMatch(/owner.*administrator|owner.*admin/i);
@@ -114,6 +116,7 @@ describe('Phase 6 authorization and access-control invariants', () => {
 
     await owner.agent
       .delete(`/api/space/${space._id}/members/${peerAdministrator.user._id}`)
+      .set('X-CSRF-Token', owner.csrfToken)
       .expect(200);
 
     expect(await Spaces.exists({
@@ -137,6 +140,7 @@ describe('Phase 6 authorization and access-control invariants', () => {
 
     await owner.agent
       .delete(`/api/space/${space._id}/members/${installer.user._id}`)
+      .set('X-CSRF-Token', owner.csrfToken)
       .expect(200);
 
     const deniedRuntime = await request(app)
