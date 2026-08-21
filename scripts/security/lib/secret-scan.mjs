@@ -27,6 +27,8 @@ const GENERATED_PATHS = new Set([
   GENERATED_MARKDOWN,
   'docs/security/audit/phase-4/dependency-policy.json',
   'docs/security/audit/phase-4/dependency-policy.md',
+  'docs/security/audit/phase-5/authentication-policy.json',
+  'docs/security/audit/phase-5/authentication-policy.md',
 ])
 const EPHEMERAL_WORKFLOW_PATH = /^\.github\/workflows\/security-phase-\d+-(?:verify-ready|materialize|bootstrap|fix-bootstrap|finalizer)[^/]*\.ya?ml$/i
 const isExcludedGeneratedPath = (filePath) => GENERATED_PATHS.has(filePath) || EPHEMERAL_WORKFLOW_PATH.test(filePath)
@@ -556,3 +558,4 @@ export const assertPhase3ExitGate = (report) => {
 }
 
 export const PHASE3_GENERATED_PATHS = [GENERATED_JSON, GENERATED_MARKDOWN]
+export const PHASE3_EXCLUDED_GENERATED_PATHS = [...GENERATED_PATHS].sort()

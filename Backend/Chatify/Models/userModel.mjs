@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 import validator from 'validator'
 import { verify, hash } from 'argon2'
 import {CustomError} from '../Utils/customError.mjs'
+import { normalizeEmail, validatePasswordPolicy } from '../Utils/authIdentity.mjs'
 import {
   IDENTITY_MARK_ACCENT_IDS,
   IDENTITY_MARK_PALETTE_IDS,
@@ -300,7 +301,8 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        trim: true,
+        lowercase: true,
+        set: normalizeEmail,
         validate: [validator.isEmail, 'Please provide a valid email address'],
     },
     username: {
@@ -321,9 +323,12 @@ const userSchema = new mongoose.Schema({
         required: function() {
           return this.authProvider === 'local';
         },
-        minlength: [8, 'Password must be at least 8 characters long'],
-        trim: true,
-        maxlength: [100, 'Password must be at most 100 characters long'],
+        validate: {
+          validator(value) {
+            return !value || validatePasswordPolicy(value).ok;
+          },
+          message: 'Password must be 12-128 characters and contain no control characters',
+        },
         select: false,
     },
     profilePic: {

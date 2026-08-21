@@ -43,10 +43,10 @@ router.route("/oauth/finalize").get(authLimiter, finalizeOAuth);
 // Token refresh - moderate rate limiting (30 req/15 min)
 router.route("/refresh-token").post(refreshTokenLimiter, refreshToken);
 
-// Session management - protected by active session auth
+// Session management - protected by active session auth and bounded mutation rates.
 router.route("/sessions").get(protect, listActiveSessions);
-router.route("/sessions/revoke-all").post(protect, revokeAllSessions);
-router.route("/sessions/:sessionId").delete(protect, revokeSession);
+router.route("/sessions/revoke-all").post(protect, authLimiter, revokeAllSessions);
+router.route("/sessions/:sessionId").delete(protect, authLimiter, revokeSession);
 
 // Two-factor management - protected by active session auth and the /api/auth CSRF boundary.
 router.route("/2fa/status").get(protect, getTwoFactorStatus);
@@ -55,7 +55,7 @@ router.route("/2fa/confirm").post(protect, authLimiter, confirmTwoFactor);
 router.route("/2fa/disable").post(protect, authLimiter, disableTwoFactor);
 router.route("/2fa/backup-codes/regenerate").post(protect, authLimiter, regenerateBackupCodes);
 
-// Logout - no rate limiting
-router.route("/logout").post(logout);
+// Logout remains mutation-rate-limited and is also covered by the mounted CSRF boundary.
+router.route("/logout").post(authLimiter, logout);
 
 export default router;
