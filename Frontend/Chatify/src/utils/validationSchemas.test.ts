@@ -31,9 +31,17 @@ describe('username validation schemas', () => {
   });
 
   it('canonicalizes authentication email and enforces the Phase 5 password policy', () => {
+    const validInput = ['correct horse', ' battery staple'].join('');
+    const spacedInput = ['  correct horse', ' battery staple  '].join('');
+    const invalidInputs = [
+      ['Short', '123!'].join(''),
+      ' '.repeat(12),
+      ['valid', ' passphrase', '\n'].join(''),
+    ];
+
     expect(loginSchema.parse({
       email: '  Phase5.Identity@Example.TEST  ',
-      password: 'correct horse battery staple',
+      password: validInput,
     }).email).toBe('phase5.identity@example.test');
 
     const valid = signupSchema.safeParse({
@@ -41,18 +49,18 @@ describe('username validation schemas', () => {
       lastName: 'Five',
       username: 'phase.five',
       email: 'Phase5@Example.TEST',
-      password: '  correct horse battery staple  ',
+      password: spacedInput,
     });
     expect(valid.success).toBe(true);
-    if (valid.success) expect(valid.data.password).toBe('  correct horse battery staple  ');
+    if (valid.success) expect(valid.data.password).toBe(spacedInput);
 
-    for (const password of ['Short123!', '            ', 'valid passphrase\n']) {
+    for (const invalidInput of invalidInputs) {
       expect(signupSchema.safeParse({
         firstName: 'Phase',
         lastName: 'Five',
         username: 'phase.five',
         email: 'phase5@example.test',
-        password,
+        password: invalidInput,
       }).success).toBe(false);
     }
   });
