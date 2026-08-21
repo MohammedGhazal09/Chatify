@@ -49,6 +49,101 @@ jobs:
           echo 'c598325af08bf190d52b9f1858e2a5852254cf7a000a763371009d5c9568bd7a  /tmp/phase4-vitest-fix.tar.gz' | sha256sum --check
           tar --extract --gzip --file /tmp/phase4-vitest-fix.tar.gz
 
+      - name: Apply reviewed bundled lockfile regression and implementation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              target = Path(path)
+              text = target.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise RuntimeError(f'Expected patch marker missing from {path}: {old[:100]!r}')
+              target.write_text(text.replace(old, new, 1))
+
+          policy = 'scripts/security/lib/dependency-policy.mjs'
+          replace_once(
+              policy,
+              "const classifyDependencySource = (entry) => {\n  const version",
+              "const classifyDependencySource = (entry) => {\n  if (entry?.inBundle === true || entry?.bundled === true) return 'bundled'\n  const version",
+          )
+          replace_once(
+              policy,
+              "      integrityPresent: INTEGRITY_PATTERN.test(entry?.integrity ?? ''),\n",
+              "      integrityPresent: sourceType === 'bundled' ? null : INTEGRITY_PATTERN.test(entry?.integrity ?? ''),\n      integrityInherited: sourceType === 'bundled',\n",
+          )
+          replace_once(
+              policy,
+              "    if (entry?.link !== true) {\n",
+              "    if (entry?.link !== true && sourceType !== 'bundled') {\n",
+          )
+
+          test_path = Path('scripts/security/__tests__/phase4-dependency-policy.test.mjs')
+          test_text = test_path.read_text()
+          regression = """test('bundled lockfile packages inherit source and integrity from their parent artifact', async () => {
+            const root = await createFixture()
+            const lockPath = path.join(root, 'Backend/Chatify/package-lock.json')
+            const parsed = JSON.parse(await readFile(lockPath, 'utf8'))
+            parsed.packages['node_modules/axios/node_modules/bundled-helper'] = {
+              version: '1.2.3',
+              inBundle: true,
+            }
+            await writeJson(lockPath, parsed)
+
+            const report = await buildDependencyPolicy(root, { now: NOW })
+            const bundled = report.projects[0].packages.find((item) => item.package === 'bundled-helper')
+
+            assert.equal(bundled.sourceType, 'bundled')
+            assert.equal(bundled.integrityInherited, true)
+            assert.equal(report.projects[0].lockfile.integrityCoverage.complete, true)
+            assert.equal(report.violations.some((item) => item.package === 'bundled-helper'), false)
+            assert.doesNotThrow(() => assertPhase4ExitGate(report))
+          })
+
+          """
+          marker = "test('unsafe sources, missing integrity, mutable actions, and missing update coverage fail closed', async () => {"
+          if "bundled lockfile packages inherit source and integrity" not in test_text:
+              if marker not in test_text:
+                  raise RuntimeError('Phase 4 bundled regression insertion marker is missing')
+              test_path.write_text(test_text.replace(marker, regression + marker, 1))
+
+          documentation_changes = {
+              'docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md': [
+                  (
+                      '5. Require every registry lockfile entry to use an exact version, HTTPS registry resolution, and an integrity value. Reject Git, local file, link, mutable-tag, and remote-tarball dependency sources unless a separately reviewed policy explicitly permits them.',
+                      '5. Require every independently fetched registry lockfile entry to use an exact version, HTTPS registry resolution, and an integrity value. A lock entry explicitly marked `inBundle`/`bundled` may omit its own source and integrity because npm extracts it from the integrity-verified parent artifact. Reject Git, local file, link, mutable-tag, and remote-tarball dependency sources unless a separately reviewed policy explicitly permits them.',
+                  ),
+                  (
+                      '- every package-lock registry artifact has an exact version, trusted HTTPS source, and integrity metadata;',
+                      '- every independently fetched package-lock registry artifact has an exact version, trusted HTTPS source, and integrity metadata; explicitly bundled children inherit source and integrity from their verified parent artifact;',
+                  ),
+              ],
+              'docs/security/audit/phase-4/README.md': [
+                  (
+                      '- registry artifacts without Subresource Integrity metadata;',
+                      '- independently fetched registry artifacts without Subresource Integrity metadata; explicitly bundled children inherit source and integrity from their verified parent artifact;',
+                  ),
+              ],
+              'docs/security/audit/phase-4/dependency-update-procedure.md': [
+                  (
+                      '- every registry package retains an integrity value;',
+                      '- every independently fetched registry package retains an integrity value; explicitly bundled children remain attributable to their integrity-verified parent artifact;',
+                  ),
+              ],
+              'docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md': [
+                  (
+                      "Accept registry artifacts only when `resolved` is HTTPS npm-registry content (or npm's registry-relative representation), `integrity` is SRI, and `version` is exact. Record and reject Git, local, link, HTTP, mutable tag, and remote-tarball sources.",
+                      "Accept independently fetched registry artifacts only when `resolved` is HTTPS npm-registry content (or npm's registry-relative representation), `integrity` is SRI, and `version` is exact. Treat only entries explicitly marked `inBundle`/`bundled` as inheriting source and integrity from their verified parent artifact. Record and reject Git, local, link, HTTP, mutable tag, and remote-tarball sources.",
+                  ),
+              ],
+          }
+          for file_path, replacements in documentation_changes.items():
+              for old, new in replacements:
+                  replace_once(file_path, old, new)
+          PY
+
       - name: Remove temporary and inherited bootstrap material
         run: |
           git rm -r -- \
