@@ -12183,6 +12183,7 @@
       ".github/workflows/security-phase-1-inventory.yml",
       ".github/workflows/security-phase-2-threat-model.yml",
       ".github/workflows/security-phase-3-secret-exposure.yml",
+      ".github/workflows/security-phase-4-bundle-publish.yml",
       ".github/workflows/security-phase-4-supply-chain.yml"
     ],
     "remoteActions": [
@@ -12339,6 +12340,22 @@
         "type": "github"
       },
       {
+        "workflowPath": ".github/workflows/security-phase-4-bundle-publish.yml",
+        "line": 26,
+        "action": "actions/checkout",
+        "ref": "11d5960a326750d5838078e36cf38b85af677262",
+        "pinned": true,
+        "type": "github"
+      },
+      {
+        "workflowPath": ".github/workflows/security-phase-4-bundle-publish.yml",
+        "line": 32,
+        "action": "actions/setup-node",
+        "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
+        "pinned": true,
+        "type": "github"
+      },
+      {
         "workflowPath": ".github/workflows/security-phase-4-supply-chain.yml",
         "line": 25,
         "action": "actions/checkout",
@@ -12366,18 +12383,22 @@
   },
   "dependabot": {
     "path": ".github/dependabot.yml",
+    "version": "2",
     "entries": [
       {
         "ecosystem": "github-actions",
-        "directory": "/"
+        "directory": "/",
+        "scheduleInterval": "weekly"
       },
       {
         "ecosystem": "npm",
-        "directory": "/Backend/Chatify"
+        "directory": "/Backend/Chatify",
+        "scheduleInterval": "weekly"
       },
       {
         "ecosystem": "npm",
-        "directory": "/Frontend/Chatify"
+        "directory": "/Frontend/Chatify",
+        "scheduleInterval": "weekly"
       }
     ],
     "required": [

@@ -26,6 +26,7 @@ const DEFAULT_PROJECTS = [
 
 const PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i
 const EXACT_VERSION_PATTERN = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
+const DIRECT_SELECTOR_PATTERN = /^(?:\^|~)?v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 const ADVISORY_ID_PATTERN = /^(?:GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|CVE-\d{4}-\d{4,})$/i
 const INTEGRITY_PATTERN = /^sha(?:256|384|512)-[A-Za-z0-9+/=]+$/
 const FULL_SHA_PATTERN = /^[a-f0-9]{40}$/i
@@ -225,8 +226,9 @@ const selectorSource = (selector) => {
   if (/^(?:file:|link:)/i.test(value)) return 'local'
   if (/^http:\/\//i.test(value)) return 'insecure-http'
   if (/^https:\/\//i.test(value)) return 'remote'
-  if (/^(?:latest|next|beta|canary|\*)$/i.test(value)) return 'mutable-tag'
-  return 'semver'
+  if (DIRECT_SELECTOR_PATTERN.test(value)) return 'semver'
+  if (value === '*' || /^[A-Za-z][A-Za-z0-9._-]*$/.test(value)) return 'mutable-tag'
+  return 'unsupported'
 }
 
 const readProject = async (root, project, installPolicy) => {
@@ -471,6 +473,90 @@ const listFilesRecursively = async (root, relative = '') => {
   return output
 }
 
+const readQuotedYamlScalar = (source, start) => {
+  const quote = source[start]
+  let value = ''
+  for (let index = start + 1; index < source.length; index += 1) {
+    const character = source[index]
+    if (quote === '"' && character === '\\' && index + 1 < source.length) {
+      value += source[index + 1]
+      index += 1
+      continue
+    }
+    if (character === quote) {
+      if (quote === "'" && source[index + 1] === "'") {
+        value += "'"
+        index += 1
+        continue
+      }
+      return { value, end: index + 1 }
+    }
+    value += character
+  }
+  return { value, end: source.length }
+}
+
+const extractWorkflowUses = (line) => {
+  const references = []
+  let index = 0
+  while (index < line.length) {
+    const character = line[index]
+    if (character === '#') break
+
+    const keyStart = index
+    let keyEnd = index
+    if (character === '"' || character === "'") {
+      const parsed = readQuotedYamlScalar(line, index)
+      if (parsed.value !== 'uses') {
+        index = parsed.end
+        continue
+      }
+      keyEnd = parsed.end
+    } else if (line.slice(index, index + 4) === 'uses') {
+      const before = line[index - 1] ?? ''
+      const after = line[index + 4] ?? ''
+      if (/[A-Za-z0-9_-]/.test(before) || /[A-Za-z0-9_-]/.test(after)) {
+        index += 4
+        continue
+      }
+      keyEnd = index + 4
+    } else {
+      index += 1
+      continue
+    }
+
+    let prefix = keyStart - 1
+    while (prefix >= 0 && /\s/.test(line[prefix])) prefix -= 1
+    if (prefix >= 0 && !['-', '{', ','].includes(line[prefix])) {
+      index = keyEnd
+      continue
+    }
+
+    let cursor = keyEnd
+    while (cursor < line.length && /\s/.test(line[cursor])) cursor += 1
+    if (line[cursor] !== ':') {
+      index = keyEnd
+      continue
+    }
+    cursor += 1
+    while (cursor < line.length && /\s/.test(line[cursor])) cursor += 1
+
+    let value = ''
+    let end = cursor
+    if (line[cursor] === '"' || line[cursor] === "'") {
+      const parsed = readQuotedYamlScalar(line, cursor)
+      value = parsed.value
+      end = parsed.end
+    } else {
+      while (end < line.length && !/[\s,}#]/.test(line[end])) end += 1
+      value = line.slice(cursor, end)
+    }
+    if (value) references.push(value)
+    index = Math.max(end, keyEnd)
+  }
+  return references
+}
+
 const scanWorkflows = async (root) => {
   const workflowFiles = (await listFilesRecursively(root, WORKFLOWS_PATH))
     .filter((file) => /\.ya?ml$/i.test(file))
@@ -480,37 +566,44 @@ const scanWorkflows = async (root) => {
 
   for (const workflowPath of workflowFiles) {
     const text = await readFile(path.join(root, workflowPath), 'utf8')
-    const regex = /^\s*-?\s*uses:\s*["']?([^\s"'#]+)["']?/gm
-    let match
-    while ((match = regex.exec(text)) !== null) {
-      const reference = match[1]
-      const line = text.slice(0, match.index).split('\n').length
-      if (reference.startsWith('./')) continue
-      if (reference.startsWith('docker://')) {
-        const pinned = /@sha256:[a-f0-9]{64}$/i.test(reference)
-        remoteActions.push({ workflowPath, line, action: reference, ref: null, pinned, type: 'docker' })
+    for (const [lineIndex, lineText] of text.split('\n').entries()) {
+      for (const reference of extractWorkflowUses(lineText)) {
+        const line = lineIndex + 1
+        if (reference.startsWith('./')) continue
+        if (reference.startsWith('docker://')) {
+          const pinned = /@sha256:[a-f0-9]{64}$/i.test(reference)
+          remoteActions.push({ workflowPath, line, action: reference, ref: null, pinned, type: 'docker' })
+          if (!pinned) {
+            violations.push(violation('workflow-action-mutable-ref', `Docker action ${reference} is not pinned by digest.`, {
+              path: workflowPath,
+            }))
+          }
+          continue
+        }
+        const parsed = REMOTE_ACTION_PATTERN.exec(reference)
+        const action = parsed?.[1] ?? reference
+        const actionRef = parsed?.[2] ?? ''
+        const pinned = FULL_SHA_PATTERN.test(actionRef)
+        remoteActions.push({ workflowPath, line, action, ref: actionRef, pinned, type: 'github' })
         if (!pinned) {
-          violations.push(violation('workflow-action-mutable-ref', `Docker action ${reference} is not pinned by digest.`, {
+          violations.push(violation('workflow-action-mutable-ref', `Remote action ${reference} is not pinned to a full commit SHA.`, {
             path: workflowPath,
           }))
         }
-        continue
-      }
-      const parsed = REMOTE_ACTION_PATTERN.exec(reference)
-      const action = parsed?.[1] ?? reference
-      const actionRef = parsed?.[2] ?? ''
-      const pinned = FULL_SHA_PATTERN.test(actionRef)
-      remoteActions.push({ workflowPath, line, action, ref: actionRef, pinned, type: 'github' })
-      if (!pinned) {
-        violations.push(violation('workflow-action-mutable-ref', `Remote action ${reference} is not pinned to a full commit SHA.`, {
-          path: workflowPath,
-        }))
       }
     }
   }
 
   remoteActions.sort((left, right) => `${left.workflowPath}:${left.line}:${left.action}`.localeCompare(`${right.workflowPath}:${right.line}:${right.action}`))
   return { workflowFiles, remoteActions, violations }
+}
+
+const parseYamlScalar = (raw) => {
+  const value = String(raw ?? '').trim()
+  if (value.startsWith('"') || value.startsWith("'")) {
+    return readQuotedYamlScalar(value, 0).value
+  }
+  return value.replace(/\s+#.*$/, '').trim()
 }
 
 const parseDependabot = async (root) => {
@@ -523,6 +616,7 @@ const parseDependabot = async (root) => {
   if (!await exists(absolute)) {
     return {
       path: DEPENDABOT_PATH,
+      version: null,
       entries: [],
       required,
       missing: required,
@@ -531,34 +625,85 @@ const parseDependabot = async (root) => {
     }
   }
 
-  const text = await readFile(absolute, 'utf8')
+  const lines = (await readFile(absolute, 'utf8')).split('\n')
   const entries = []
+  let version = null
+  let inUpdates = false
   let current = null
-  for (const line of text.split('\n')) {
-    const ecosystemMatch = /^\s*-\s*package-ecosystem:\s*["']?([^"'#]+?)["']?\s*$/.exec(line)
-    if (ecosystemMatch) {
-      if (current) entries.push(current)
-      current = { ecosystem: ecosystemMatch[1].trim(), directory: null }
+  let inSchedule = false
+  const commitCurrent = () => {
+    if (current) entries.push(current)
+    current = null
+    inSchedule = false
+  }
+
+  for (const line of lines) {
+    if (!line.trim() || line.trimStart().startsWith('#')) continue
+    const indent = line.match(/^ */)?.[0].length ?? 0
+    const trimmed = line.trim()
+
+    if (indent === 0) {
+      commitCurrent()
+      const versionMatch = /^version\s*:\s*(.+)$/.exec(trimmed)
+      if (versionMatch) version = parseYamlScalar(versionMatch[1])
+      inUpdates = /^updates\s*:\s*$/.test(trimmed)
+      continue
+    }
+    if (!inUpdates) continue
+
+    if (indent === 2) {
+      commitCurrent()
+      const ecosystemMatch = /^-\s*package-ecosystem\s*:\s*(.+)$/.exec(trimmed)
+      if (ecosystemMatch) {
+        current = {
+          ecosystem: parseYamlScalar(ecosystemMatch[1]),
+          directory: null,
+          scheduleInterval: null,
+        }
+      }
       continue
     }
     if (!current) continue
-    const directoryMatch = /^\s*directory:\s*["']?([^"'#]+?)["']?\s*$/.exec(line)
-    if (directoryMatch) current.directory = directoryMatch[1].trim()
+
+    if (indent === 4) {
+      inSchedule = /^schedule\s*:\s*$/.test(trimmed)
+      const directoryMatch = /^directory\s*:\s*(.+)$/.exec(trimmed)
+      if (directoryMatch) current.directory = parseYamlScalar(directoryMatch[1])
+      continue
+    }
+    if (indent === 6 && inSchedule) {
+      const intervalMatch = /^interval\s*:\s*(.+)$/.exec(trimmed)
+      if (intervalMatch) current.scheduleInterval = parseYamlScalar(intervalMatch[1])
+    }
   }
-  if (current) entries.push(current)
+  commitCurrent()
+
   entries.sort((left, right) => `${left.ecosystem}:${left.directory}`.localeCompare(`${right.ecosystem}:${right.directory}`))
+  const validIntervals = new Set(['daily', 'weekly', 'monthly'])
   const missing = required.filter((item) => !entries.some((entry) => (
-    entry.ecosystem === item.ecosystem && entry.directory === item.directory
+    entry.ecosystem === item.ecosystem
+    && entry.directory === item.directory
+    && validIntervals.has(entry.scheduleInterval)
   )))
+  const violations = []
+  if (version !== '2') {
+    violations.push(violation('dependabot-version-invalid', 'Dependabot configuration must use version 2.', {
+      path: DEPENDABOT_PATH,
+    }))
+  }
+  if (missing.length > 0) {
+    violations.push(violation('dependabot-coverage-missing', `Dependabot is missing scheduled coverage for ${missing.map((item) => `${item.ecosystem}:${item.directory}`).join(', ')}.`, {
+      path: DEPENDABOT_PATH,
+    }))
+  }
   return {
     path: DEPENDABOT_PATH,
+    version,
     entries,
     required,
     missing,
-    complete: missing.length === 0,
-    violations: missing.length === 0 ? [] : [violation('dependabot-coverage-missing', `Dependabot is missing ${missing.map((item) => `${item.ecosystem}:${item.directory}`).join(', ')}.`, {
-      path: DEPENDABOT_PATH,
-    })],
+    complete: version === '2' && missing.length === 0,
+    violations,
   }
 }
 
@@ -627,6 +772,7 @@ export const buildDependencyPolicy = async (root, {
     },
     dependabot: {
       path: dependabot.path,
+      version: dependabot.version,
       entries: dependabot.entries,
       required: dependabot.required,
       missing: dependabot.missing,

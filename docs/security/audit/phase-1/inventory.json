@@ -436,8 +436,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1564,
-    "totalTrackedBytes": 17427860,
+    "trackedFileCount": 1565,
+    "totalTrackedBytes": 17438036,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -2327,6 +2327,7 @@
         ".github/workflows/security-phase-1-inventory.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
         ".github/workflows/security-phase-3-secret-exposure.yml",
+        ".github/workflows/security-phase-4-bundle-publish.yml",
         ".github/workflows/security-phase-4-supply-chain.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
@@ -3697,6 +3698,7 @@
         ".github/workflows/security-phase-1-inventory.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
         ".github/workflows/security-phase-3-secret-exposure.yml",
+        ".github/workflows/security-phase-4-bundle-publish.yml",
         ".github/workflows/security-phase-4-supply-chain.yml"
       ]
     },
@@ -4205,6 +4207,15 @@
         "path": ".github/workflows/security-phase-3-secret-exposure.yml",
         "bytes": 2242,
         "sha256": "80e3639cf1ede192530f6f28a50769b4cecb937b53df34c338af817a2cd4e8d4",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
+        "path": ".github/workflows/security-phase-4-bundle-publish.yml",
+        "bytes": 2861,
+        "sha256": "1fe6f24a3fada8fc21dfc873e20bb24036dc2b4c37638b97ca2cef1a78154943",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -15106,7 +15117,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
         "bytes": 6774,
-        "sha256": "7d93882df0de0c8054c664af9ffa9f8bee05ccd5d136ff998ce136c0f01857dd",
+        "sha256": "c2cdf018b09ba1e45bb3724e89afee1af289527798c4c360ac5f76e4e15570e6",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15115,7 +15126,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
         "bytes": 1740,
-        "sha256": "f289c7252e97ad9af2495159f3d62c952657cf1e0ed022e3167840b9166e5455",
+        "sha256": "1415b063cc9c4e03360481f63054d520e75023a1693b94fb74f0c5e23dc2d93f",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15132,8 +15143,8 @@
       },
       {
         "path": "docs/security/audit/phase-4/dependency-policy.json",
-        "bytes": 389048,
-        "sha256": "afbfedb74a614f9a0f139399e6ee1c9de2674242df1d2d3c2dfcda78f411e25f",
+        "bytes": 389775,
+        "sha256": "d725af182c7da7de468e07cb439013f516aca0905f4fe3978ddb8367d1630d47",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15141,8 +15152,8 @@
       },
       {
         "path": "docs/security/audit/phase-4/dependency-policy.md",
-        "bytes": 4874,
-        "sha256": "b6fec82840edf6e80c9aeeb3dbc01cb4aaa886a06a0368f2b7b821c9cb92aa97",
+        "bytes": 5140,
+        "sha256": "d01cf853881330209352a9b8bdda535bcc46e3897577d496bd4823896afe22d0",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17655,8 +17666,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
-        "bytes": 15370,
-        "sha256": "5b1e2fdcb42e10a3ccd60b6bc90b9f9914a23639d88db72658d3d590a78bb37f",
+        "bytes": 17572,
+        "sha256": "319fee12a0353511009da763bc0a65e91deb3f98ea4b165949cc9bd44d58be40",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17685,8 +17696,8 @@
       },
       {
         "path": "scripts/security/lib/dependency-policy.mjs",
-        "bytes": 34725,
-        "sha256": "d151d8c3bbbc40d9ad3b5f173ab30f76ca55b79f94a8d3dd14fda4aace13752b",
+        "bytes": 38845,
+        "sha256": "9f1a4cadd81fb5928c9523d2ff8d1b447336e6472001afc77d9cf503c0c7ce63",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
