@@ -7,7 +7,7 @@ Phase 3 makes current-tree and complete-history secret scanning a repeatable, fa
 | Evidence or control | Location | Purpose |
 | --- | --- | --- |
 | Detector catalog and redaction | `scripts/security/lib/secret-detectors.mjs` | Recognize provider credentials, private keys, authenticated URIs, JWTs, bearer values, and high-entropy secret assignments without retaining values. |
-| Repository scanner | `scripts/security/lib/secret-scan.mjs` | Scan the current worktree and all reachable Git blobs, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence. |
+| Repository scanner | `scripts/security/lib/secret-scan.mjs` | Scan the current worktree and every eligible blob in the audited `HEAD` ancestor history, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence. |
 | Regression suite | `scripts/security/__tests__/phase3-secret-scan.test.mjs` | Prove redaction, deleted-history discovery, allowlist validation, self-stability, and exit-gate behavior. |
 | Startup validation | `Backend/Chatify/Utils/secretConfiguration.mjs` | Fail before application modules load when required secrets are missing, weak, reused, low-entropy, or inconsistently configured. |
 | Machine-readable result | `secret-scan.json` | Sanitized findings, counts, digests, loading review, and exit gates. |
@@ -29,13 +29,13 @@ npm run security:phase3:reproduce
 
 ## Phase 3.1 — Current repository tree
 
-The scanner covers every tracked file, untracked nonignored file, and sensitive local file such as `.env`, `.npmrc`, key containers, and private-key formats. Generated Phase 1–3 JSON/Markdown evidence and temporary audit-materialization workflows are excluded from scan inputs to prevent recursive evidence loops. Permanent application, CI, documentation, and committed artifact files remain in scope. Binary and oversized files are counted but not decoded as text. Committed artifacts and test output remain in scope.
+The scanner covers every tracked file, untracked nonignored file, and sensitive local file such as `.env`, `.npmrc`, key containers, and private-key formats. Generated Phase 1–4 JSON/Markdown evidence and temporary audit-materialization workflows are excluded from scan inputs to prevent recursive evidence loops. Permanent application, CI, documentation, and committed artifact files remain in scope. Binary and oversized files are counted but not decoded as text. Committed artifacts and test output remain in scope.
 
 ## Phase 3.2 — Complete Git history
 
-The workflow fetches every repository branch and tag. On a pull request, it additionally fetches only that pull request's head ref; the checked-out merge commit is already reachable as `HEAD`. Unrelated open pull requests are deliberately excluded so untrusted fork content cannot become an input to every repository security gate. The scanner enumerates every reachable Git object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.
+The workflow fetches repository branches and tags so required ancestor objects are locally available. On a pull request, it additionally fetches only that pull request's head ref; the checked-out merge commit is the audited `HEAD`. The scanner deliberately walks only `HEAD` and its ancestors. Unrelated branch tips and unrelated open pull requests cannot perturb the committed digest or block the audited revision. Within that ancestor graph, the scanner enumerates every object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.
 
-Generated Phase 3 JSON and Markdown are excluded from history inputs. Therefore committing the evidence does not recursively change the evidence.
+Generated Phase 1–4 JSON and Markdown outputs are excluded from history inputs. Therefore committing inherited audit evidence does not recursively change the Phase 3 result.
 
 ## Phase 3.3 — Safe candidate validation
 
@@ -82,4 +82,4 @@ Phase 3 passes only when:
 
 ## Limitations
 
-Static scanning cannot establish whether a candidate is active, determine every proprietary credential format, inspect provider consoles, rotate credentials, or purge external caches. GitHub Actions scans repository branches, tags, the current pull-request ref, and the checked-out merge commit. Unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review. Binary and oversized files require a separate content-aware process when their provenance is suspicious.
+Static scanning cannot establish whether a candidate is active, determine every proprietary credential format, inspect provider consoles, rotate credentials, or purge external caches. GitHub Actions audits the checked-out branch or pull-request merge revision and every ancestor reachable from that `HEAD`. Unrelated branch-only history, unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review. Binary and oversized files require a separate content-aware process when their provenance is suspicious.
