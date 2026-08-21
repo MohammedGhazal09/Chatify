@@ -1,6 +1,7 @@
 name: Security Phase 6 Source Export
 
 on:
+  pull_request:
   push:
     branches:
       - security/phase-6-authorization-access-control
