@@ -11,14 +11,14 @@ Implement durable current-tree and complete-history credential scanning, sanitiz
 
 1. Use Node.js built-ins only so the committed scanner adds no runtime dependency or install script.
 2. Never store discovered values, source lines, command output, or hashes of values. Candidate IDs derive from detector and location metadata.
-3. Scan tracked files, untracked nonignored files, sensitive ignored local files, and all reachable historical Git blobs.
+3. Scan tracked files, untracked nonignored files, sensitive ignored local files, and historical blobs reachable from repository branches, tags, origin branches, and the current pull-request head.
 4. Exclude generated Phase 3 JSON and Markdown from their own current/history inputs to prevent recursive drift.
 5. Use an exact candidate-ID allowlist with owner, specific rationale, and mandatory future expiry. No path, detector, or regex wildcards are accepted.
 6. Treat findings as candidates until an authorized owner validates them through provider inventory and audit logs; never replay a credential.
 7. Validate secrets before importing the Express app, database, Socket.IO, or workers.
 8. Require distinct JWT, CSRF, password-reset, and production 2FA encryption purposes, and reject low-entropy core or 2FA key material instead of trusting length alone.
 9. Preserve all dependency advisory failures for Phase 4; Phase 3 does not suppress unrelated CI security gates.
-10. Scan repository branches and tags plus only the current pull request's head and merge commit, so unrelated or fork-controlled PR content cannot block every security gate.
+10. Scan repository branches and tags plus only the current pull request's head. Exclude synthetic pull-request merge refs so evidence is identical on the branch and GitHub's merge-test checkout; the merge result remains covered by application and integration testing.
 
 ## Work items
 
@@ -28,7 +28,7 @@ Implement provider-aware and generic detectors, placeholder suppression, entropy
 
 ### 2. Current-tree and history scanner
 
-Inventory tracked, untracked, and sensitive local files. Scan all reachable Git blobs in batches, enrich historical candidates with commit metadata, count skipped binary/oversized files, and produce deterministic digests.
+Inventory tracked, untracked, and sensitive local files. Scan blobs reachable from explicit branch, tag, origin-branch, and current pull-request-head refs in batches, exclude synthetic merge refs, enrich historical candidates with commit metadata, count skipped binary/oversized files, and produce deterministic digests.
 
 ### 3. Secret-loading review and startup validation
 
@@ -64,7 +64,7 @@ npm run security:phase3:reproduce
 
 ## Exit criteria
 
-- Current tree and every reachable eligible history blob are scanned.
+- Current tree and every eligible blob reachable from repository branches, tags, origin branches, and the current pull-request head are scanned.
 - Generated evidence contains no discovered value or value hash.
 - Deleted historical credentials are discoverable with sanitized commit metadata.
 - Allowlist exceptions are exact, accountable, and expiring.
@@ -72,4 +72,4 @@ npm run security:phase3:reproduce
 - Secret configuration fails before runtime imports when unsafe.
 - JWT, CSRF, reset, and 2FA purposes are not silently collapsed into one key, and low-entropy key material is rejected.
 - Credential response steps are committed and tested by the Phase 3 gate.
-- CI uses full repository branch/tag history, the current pull-request ref and merge commit, read-only repository permissions, pinned action revisions, and sanitized artifacts.
+- CI uses full repository branch/tag history and the current pull-request head, excludes synthetic merge refs from deterministic evidence, and retains read-only repository permissions, pinned action revisions, and sanitized artifacts.

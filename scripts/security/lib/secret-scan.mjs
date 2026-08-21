@@ -147,8 +147,25 @@ const scanCurrentTree = async (root, allowlist) => {
   }
 }
 
-const parseObjectList = (root) => {
-  const lines = runGit(root, ['rev-list', '--objects', '--all']).split('\n').filter(Boolean)
+const historyRefNames = (root) => {
+  const refs = runGit(root, [
+    'for-each-ref',
+    '--format=%(refname)',
+    'refs/heads',
+    'refs/remotes/origin',
+    'refs/tags',
+    'refs/remotes/pull',
+  ])
+    .split('\n')
+    .filter(Boolean)
+    .filter((refName) => refName !== 'refs/remotes/origin/HEAD' && !refName.endsWith('/merge'))
+  const uniqueRefs = sortStrings(new Set(refs))
+  if (uniqueRefs.length === 0) throw new Error('No repository history refs are available for the Phase 3 scan')
+  return uniqueRefs
+}
+
+const parseObjectList = (root, refs) => {
+  const lines = runGit(root, ['rev-list', '--objects', ...refs]).split('\n').filter(Boolean)
   const bySha = new Map()
   for (const line of lines) {
     const separator = line.indexOf(' ')
@@ -208,9 +225,9 @@ const commitDetails = (root, commitSha) => {
   }
 }
 
-const blobHistory = (root, blobSha, filePath) => {
+const blobHistory = (root, blobSha, filePath, refs) => {
   try {
-    const commits = runGit(root, ['log', '--all', '--format=%H', `--find-object=${blobSha}`, '--', filePath])
+    const commits = runGit(root, ['log', '--format=%H', `--find-object=${blobSha}`, ...refs, '--', filePath])
       .split('\n')
       .filter(Boolean)
     return commits.map((commit) => commitDetails(root, commit)).filter(Boolean)
@@ -220,7 +237,8 @@ const blobHistory = (root, blobSha, filePath) => {
 }
 
 const scanHistory = async (root, allowlist) => {
-  const objects = parseObjectList(root)
+  const refs = historyRefNames(root)
+  const objects = parseObjectList(root, refs)
   const metadata = batchCheckObjects(root, [...objects.keys()])
   const eligible = []
   const skipped = { binary: 0, tooLarge: 0 }
@@ -264,7 +282,7 @@ const scanHistory = async (root, allowlist) => {
           _commits: new Map(),
         }
         record.occurrenceCount += 1
-        for (const detail of blobHistory(root, objectSha, filePath)) record._commits.set(detail.sha, detail)
+        for (const detail of blobHistory(root, objectSha, filePath, refs)) record._commits.set(detail.sha, detail)
         aggregate.set(finding.candidateId, record)
       }
     }
@@ -280,7 +298,7 @@ const scanHistory = async (root, allowlist) => {
   }
   const normalized = stableSortFindings(applyAllowlist(findings, allowlist))
   return {
-    source: 'all-reachable-git-blobs',
+    source: 'repository-branches-tags-and-pr-heads',
     scannedBlobCount,
     scannedPathCount,
     scannedBytes,

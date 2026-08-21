@@ -7,7 +7,7 @@ Phase 3 makes current-tree and complete-history secret scanning a repeatable, fa
 | Evidence or control | Location | Purpose |
 | --- | --- | --- |
 | Detector catalog and redaction | `scripts/security/lib/secret-detectors.mjs` | Recognize provider credentials, private keys, authenticated URIs, JWTs, bearer values, and high-entropy secret assignments without retaining values. |
-| Repository scanner | `scripts/security/lib/secret-scan.mjs` | Scan the current worktree and all reachable Git blobs, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence. |
+| Repository scanner | `scripts/security/lib/secret-scan.mjs` | Scan the current worktree plus repository branch, tag, and pull-request-head Git blobs, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence. |
 | Regression suite | `scripts/security/__tests__/phase3-secret-scan.test.mjs` | Prove redaction, deleted-history discovery, allowlist validation, self-stability, and exit-gate behavior. |
 | Startup validation | `Backend/Chatify/Utils/secretConfiguration.mjs` | Fail before application modules load when required secrets are missing, weak, reused, low-entropy, or inconsistently configured. |
 | Machine-readable result | `secret-scan.json` | Sanitized findings, counts, digests, loading review, and exit gates. |
@@ -33,7 +33,7 @@ The scanner covers every tracked file, untracked nonignored file, and sensitive 
 
 ## Phase 3.2 — Complete Git history
 
-The workflow fetches every repository branch and tag. On a pull request, it additionally fetches only that pull request's head ref; the checked-out merge commit is already reachable as `HEAD`. Unrelated open pull requests are deliberately excluded so untrusted fork content cannot become an input to every repository security gate. The scanner enumerates every reachable Git object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.
+The workflow fetches every repository branch and tag. On a pull request, it additionally fetches only that pull request's head ref. The scanner explicitly enumerates branch, tag, origin-branch, and pull-request-head refs while excluding synthetic `refs/remotes/pull/<n>/merge` refs. This keeps committed evidence stable between branch and GitHub merge-test checkouts without excluding either side of the proposed change: the base is covered by repository refs and the proposed code by the pull-request head. Unrelated open pull requests are also excluded so untrusted fork content cannot become an input to every repository security gate. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.
 
 Generated Phase 3 JSON and Markdown are excluded from history inputs. Therefore committing the evidence does not recursively change the evidence.
 
@@ -82,4 +82,4 @@ Phase 3 passes only when:
 
 ## Limitations
 
-Static scanning cannot establish whether a candidate is active, determine every proprietary credential format, inspect provider consoles, rotate credentials, or purge external caches. GitHub Actions scans repository branches, tags, the current pull-request ref, and the checked-out merge commit. Unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review. Binary and oversized files require a separate content-aware process when their provenance is suspicious.
+Static scanning cannot establish whether a candidate is active, determine every proprietary credential format, inspect provider consoles, rotate credentials, or purge external caches. GitHub Actions scans repository branches, tags, origin branches, and the current pull-request head; synthetic pull-request merge refs are excluded from deterministic history evidence and remain covered by the separate application and integration test workflows. Unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review. Binary and oversized files require a separate content-aware process when their provenance is suspicious.
