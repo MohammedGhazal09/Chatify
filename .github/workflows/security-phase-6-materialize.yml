@@ -1,0 +1,90 @@
+name: Security Phase 6 Materialize
+
+on:
+  push:
+    branches:
+      - security/phase-6-authorization-access-control
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase-6-materialize-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize:
+    if: github.repository == 'MohammedGhazal09/Chatify'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout publication branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-6-authorization-access-control
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: true
+
+      - name: Setup exact Node.js toolchain
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Verify exact toolchain
+        run: |
+          test "$(node --version)" = 'v24.19.0'
+          test "$(npm --version)" = '11.17.0'
+
+      - name: Install controlled dependencies
+        run: |
+          npm --prefix Backend/Chatify ci --strict-allow-scripts
+          npm --prefix Frontend/Chatify ci --strict-allow-scripts
+
+      - name: Import reviewed Phase 6 commits
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch .security-transfer/phase6-commits.bundle HEAD:refs/remotes/phase6/final
+          test "$(git rev-parse refs/remotes/phase6/final)" = 'faf772e98eeb925456d2e4702d76f33ed0ddd89f'
+          git merge-base --is-ancestor e927785ab14ba1d8c6067b9bb3c589980c8b97e7 refs/remotes/phase6/final
+          git merge --no-ff --no-edit refs/remotes/phase6/final
+
+      - name: Remove publication bootstrap and converge deterministic evidence
+        run: |
+          git rm -- .github/workflows/security-phase-6-materialize.yml .security-transfer/phase6-commits.bundle
+
+          for pass in 1 2; do
+            npm run security:phase1:generate
+            npm run security:phase2:generate
+            npm run security:phase3:generate
+            npm run security:phase4:generate
+            npm run security:phase5:generate
+            npm run security:phase6:generate
+          done
+
+          npm run security:phase1:check
+          npm run security:phase2:check
+          npm run security:phase3:check
+          npm run security:phase4:check
+          npm run security:phase5:check
+          npm run security:phase6:check
+
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs(security): finalize published Phase 6 evidence'
+
+      - name: Reproduce Phase 6 on the exact final tree
+        run: |
+          npm run security:phase6:reproduce
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+
+      - name: Publish finalized Phase 6 branch
+        run: git push origin HEAD:security/phase-6-authorization-access-control
