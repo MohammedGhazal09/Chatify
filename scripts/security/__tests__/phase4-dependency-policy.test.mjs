@@ -198,6 +198,91 @@ test('bundled status cannot bypass source and integrity without a verified paren
   assert.throws(() => assertPhase4ExitGate(report), /dependencySourcesTrusted/)
 })
 
+test('obsolete SHA-1 lockfile integrity is rejected', async () => {
+  const root = await createFixture()
+  const lockPath = path.join(root, 'Backend/Chatify/package-lock.json')
+  const parsed = JSON.parse(await readFile(lockPath, 'utf8'))
+  parsed.packages['node_modules/axios'].integrity = 'sha1-QUJDRA=='
+  await writeJson(lockPath, parsed)
+
+  const report = await buildDependencyPolicy(root, { now: NOW })
+  assert.equal(report.violations.some((item) => (
+    item.code === 'dependency-integrity-missing'
+    && item.package === 'axios'
+  )), true)
+  assert.throws(() => assertPhase4ExitGate(report), /dependencyIntegrityComplete/)
+})
+
+test('arbitrary npm distribution tags are rejected as mutable selectors', async () => {
+  const root = await createFixture()
+  const manifestPath = path.join(root, 'Backend/Chatify/package.json')
+  const lockPath = path.join(root, 'Backend/Chatify/package-lock.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  const parsedLock = JSON.parse(await readFile(lockPath, 'utf8'))
+  manifest.dependencies.axios = 'stable'
+  parsedLock.packages[''].dependencies.axios = 'stable'
+  await writeJson(manifestPath, manifest)
+  await writeJson(lockPath, parsedLock)
+
+  const report = await buildDependencyPolicy(root, { now: NOW })
+  assert.equal(report.violations.some((item) => (
+    item.code === 'manifest-selector-mutable-tag'
+    && item.package === 'axios'
+  )), true)
+  assert.throws(() => assertPhase4ExitGate(report), /dependencySourcesTrusted/)
+})
+
+test('inline flow-style mutable action references are detected', async () => {
+  const root = await createFixture()
+  await writeFile(
+    path.join(root, '.github/workflows/ci.yml'),
+    'steps:\n  - { name: Checkout, "uses" : actions/checkout@v4 }\n',
+  )
+
+  const report = await buildDependencyPolicy(root, { now: NOW })
+  assert.equal(report.violations.some((item) => (
+    item.code === 'workflow-action-mutable-ref'
+    && item.path === '.github/workflows/ci.yml'
+  )), true)
+  assert.throws(() => assertPhase4ExitGate(report), /remoteActionsPinned/)
+})
+
+test('full commit pinning does not trust an unapproved action owner', async () => {
+  const root = await createFixture()
+  await writeFile(
+    path.join(root, '.github/workflows/ci.yml'),
+    'steps:\n  - uses: untrusted-owner/build-action@0123456789abcdef0123456789abcdef01234567\n',
+  )
+
+  const report = await buildDependencyPolicy(root, { now: NOW })
+  assert.equal(report.violations.some((item) => (
+    item.code === 'workflow-action-untrusted'
+    && item.path === '.github/workflows/ci.yml'
+  )), true)
+  assert.throws(() => assertPhase4ExitGate(report), /remoteActionsTrusted/)
+})
+
+test('Dependabot decoys and entries without schedules do not satisfy coverage', async () => {
+  const root = await createFixture()
+  await writeFile(path.join(root, '.github/dependabot.yml'), `version: 2
+documentation: |
+  - package-ecosystem: npm
+    directory: /Backend/Chatify
+  - package-ecosystem: npm
+    directory: /Frontend/Chatify
+  - package-ecosystem: github-actions
+    directory: /
+updates:
+  - package-ecosystem: npm
+    directory: /Backend/Chatify
+`)
+
+  const report = await buildDependencyPolicy(root, { now: NOW })
+  assert.equal(report.dependabot.complete, false)
+  assert.equal(report.violations.some((item) => item.code === 'dependabot-coverage-missing'), true)
+  assert.throws(() => assertPhase4ExitGate(report), /dependabotCoverageComplete/)
+})
+
 test('unsafe sources, missing integrity, mutable actions, and missing update coverage fail closed', async () => {
   const root = await createFixture({ unsafe: true, includeDependabot: false })
   const report = await buildDependencyPolicy(root, { now: NOW })

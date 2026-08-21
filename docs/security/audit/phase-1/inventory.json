@@ -437,7 +437,7 @@
   },
   "components": {
     "trackedFileCount": 1563,
-    "totalTrackedBytes": 17422159,
+    "totalTrackedBytes": 17432865,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -15048,8 +15048,8 @@
       },
       {
         "path": "docs/security/audit/phase-2/threat-model.json",
-        "bytes": 92029,
-        "sha256": "400a2f3f9baf035d508e99251b0e27004bc45357f1204a309aba41a94c95d2e2",
+        "bytes": 92083,
+        "sha256": "57679c452507e08e993d7bc557005f2bc6b2f0f447b441b330936ea50a512d35",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15103,7 +15103,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
         "bytes": 6760,
-        "sha256": "e28a0d17f9e4def2c8123c75bfda85d8a837a42853e832efc0934ec1124109bf",
+        "sha256": "ea6e19fb2c7d4169e94a09e96d0b2d036fea9077c3e2b77fc74ae90f8b57592d",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15112,7 +15112,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
         "bytes": 1740,
-        "sha256": "ea5cd6029d6cbe47538553c51db0513cfa8cd09aaefd556a4b3638540caa32db",
+        "sha256": "fc1fa2676c68a9cfbc9d6c996019e22c21aec939a05342563f46d97fd3fb8280",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15129,8 +15129,8 @@
       },
       {
         "path": "docs/security/audit/phase-4/dependency-policy.json",
-        "bytes": 389048,
-        "sha256": "afbfedb74a614f9a0f139399e6ee1c9de2674242df1d2d3c2dfcda78f411e25f",
+        "bytes": 389841,
+        "sha256": "3b7da0a7e3b46ca51b66c81915d7cec80835c87b93089cef01ed8d4f9f6e943f",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15138,8 +15138,8 @@
       },
       {
         "path": "docs/security/audit/phase-4/dependency-policy.md",
-        "bytes": 4874,
-        "sha256": "b6fec82840edf6e80c9aeeb3dbc01cb4aaa886a06a0368f2b7b821c9cb92aa97",
+        "bytes": 5120,
+        "sha256": "721271444cbf2874318057e8dee118b0eaf64adc319d421c48ba859473013e8e",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17642,8 +17642,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
-        "bytes": 14731,
-        "sha256": "4281a0f77208e7b066c9e37511463367564322e448feb230fe034a6cc5c1a34f",
+        "bytes": 18166,
+        "sha256": "11ef3f5bd23d3d0809c5af669c95e9d826cca610e3efc89fb12560a0d7d311bc",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17652,8 +17652,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
-        "bytes": 7682,
-        "sha256": "91bd2e8fd7bf12c4f8892a950ec905f271d74923ce92891d4c17f1393e747dc6",
+        "bytes": 7887,
+        "sha256": "cd1f37a54923afb69717649106165f29cb3105c370e7c705683defeaf7a85c08",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17672,8 +17672,8 @@
       },
       {
         "path": "scripts/security/lib/dependency-policy.mjs",
-        "bytes": 34727,
-        "sha256": "189b2fdf9e6964f2db0a3adba0d98795fef9714c469ebe8317bf82ae3e158c05",
+        "bytes": 40579,
+        "sha256": "fcb2f7d9cccfb415cdec65b3667d1e51ed4d71bb28c76636c06344af86372f3b",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17690,8 +17690,8 @@
       },
       {
         "path": "scripts/security/lib/live-supply-chain.mjs",
-        "bytes": 8562,
-        "sha256": "18d375dbfcb7fa1f8781731206abb8ab5bf43a43d9feae817f2a8c21f59d7a40",
+        "bytes": 8683,
+        "sha256": "fa1b2a4a050fd0a07306c5c94d71806b0136bbab3a537f6a6604fbba38c35478",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -20775,6 +20775,16 @@
       }
     ],
     "backgroundJobs": [
+      {
+        "kind": "cron-or-scheduler",
+        "source": "scripts/security/lib/dependency-policy.mjs",
+        "line": 714
+      },
+      {
+        "kind": "cron-or-scheduler",
+        "source": "scripts/security/lib/dependency-policy.mjs",
+        "line": 717
+      },
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",

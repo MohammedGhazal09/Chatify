@@ -6,7 +6,7 @@ This document is generated deterministically from tracked repository files. Run 
 
 - Source selection: `git-index`.
 - Tracked files inventoried: **1563**.
-- Tracked bytes inventoried: **17422159**.
+- Tracked bytes inventoried: **17432865**.
 - Generated inventory files are excluded from their own input set.
 - Secret-like example values are redacted; live environment values are never read.
 - Runtime execution evidence is stored in the `GitHub Actions artifact: phase-1-reproduction-evidence` artifact rather than committed.
@@ -312,6 +312,8 @@ Dynamic constants are retained as `<dynamic:EXPRESSION>` and must be resolved du
 
 | Job kind | Source |
 | --- | --- |
+| cron-or-scheduler | scripts/security/lib/dependency-policy.mjs:714 |
+| cron-or-scheduler | scripts/security/lib/dependency-policy.mjs:717 |
 | cron-or-scheduler | scripts/security/lib/inventory.mjs:737 |
 | cron-or-scheduler | scripts/security/lib/inventory.mjs:737 |
 | cron-or-scheduler | scripts/security/lib/inventory.mjs:737 |

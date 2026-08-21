@@ -23,38 +23,38 @@ This file is generated deterministically from package manifests, lockfiles, work
 
 ## Remote GitHub Actions
 
-| Workflow | Line | Action | Reference | Pinned |
-| --- | --- | --- | --- | --- |
-| .github/workflows/security-and-test-foundation.yml | 122 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true |
-| .github/workflows/security-and-test-foundation.yml | 139 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true |
-| .github/workflows/security-and-test-foundation.yml | 142 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true |
-| .github/workflows/security-and-test-foundation.yml | 159 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true |
-| .github/workflows/security-and-test-foundation.yml | 29 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true |
-| .github/workflows/security-and-test-foundation.yml | 32 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true |
-| .github/workflows/security-and-test-foundation.yml | 58 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true |
-| .github/workflows/security-and-test-foundation.yml | 61 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true |
-| .github/workflows/security-and-test-foundation.yml | 89 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true |
-| .github/workflows/security-and-test-foundation.yml | 92 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true |
-| .github/workflows/security-phase-1-inventory.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true |
-| .github/workflows/security-phase-1-inventory.yml | 30 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true |
-| .github/workflows/security-phase-1-inventory.yml | 51 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true |
-| .github/workflows/security-phase-2-threat-model.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true |
-| .github/workflows/security-phase-2-threat-model.yml | 30 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true |
-| .github/workflows/security-phase-2-threat-model.yml | 53 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true |
-| .github/workflows/security-phase-3-secret-exposure.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true |
-| .github/workflows/security-phase-3-secret-exposure.yml | 42 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true |
-| .github/workflows/security-phase-3-secret-exposure.yml | 60 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true |
-| .github/workflows/security-phase-4-supply-chain.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true |
-| .github/workflows/security-phase-4-supply-chain.yml | 45 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true |
-| .github/workflows/security-phase-4-supply-chain.yml | 58 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true |
+| Workflow | Line | Action | Reference | Pinned | Trusted |
+| --- | --- | --- | --- | --- | --- |
+| .github/workflows/security-and-test-foundation.yml | 122 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 139 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 142 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 159 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 29 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 32 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 58 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 61 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 89 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-and-test-foundation.yml | 92 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-phase-1-inventory.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-phase-1-inventory.yml | 30 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-phase-1-inventory.yml | 51 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
+| .github/workflows/security-phase-2-threat-model.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-phase-2-threat-model.yml | 30 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-phase-2-threat-model.yml | 53 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
+| .github/workflows/security-phase-3-secret-exposure.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-phase-3-secret-exposure.yml | 42 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-phase-3-secret-exposure.yml | 60 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
+| .github/workflows/security-phase-4-supply-chain.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-phase-4-supply-chain.yml | 45 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-phase-4-supply-chain.yml | 58 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
 
 ## Dependabot coverage
 
-| Ecosystem | Directory |
-| --- | --- |
-| github-actions | / |
-| npm | /Backend/Chatify |
-| npm | /Frontend/Chatify |
+| Ecosystem | Directory | Schedule |
+| --- | --- | --- |
+| github-actions | / | weekly |
+| npm | /Backend/Chatify | weekly |
+| npm | /Frontend/Chatify | weekly |
 
 ## Active dependency exceptions
 
@@ -76,5 +76,6 @@ No structural dependency or supply-chain violations detected.
 | installScriptsReviewed | true |
 | noDeprecatedDirectDependencies | true |
 | remoteActionsPinned | true |
+| remoteActionsTrusted | true |
 | dependabotCoverageComplete | true |
 | exceptionPolicyValid | true |

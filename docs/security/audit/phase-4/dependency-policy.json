@@ -12192,6 +12192,7 @@
         "action": "actions/upload-artifact",
         "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12200,6 +12201,7 @@
         "action": "actions/checkout",
         "ref": "11d5960a326750d5838078e36cf38b85af677262",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12208,6 +12210,7 @@
         "action": "actions/setup-node",
         "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12216,6 +12219,7 @@
         "action": "actions/upload-artifact",
         "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12224,6 +12228,7 @@
         "action": "actions/checkout",
         "ref": "11d5960a326750d5838078e36cf38b85af677262",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12232,6 +12237,7 @@
         "action": "actions/setup-node",
         "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12240,6 +12246,7 @@
         "action": "actions/checkout",
         "ref": "11d5960a326750d5838078e36cf38b85af677262",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12248,6 +12255,7 @@
         "action": "actions/setup-node",
         "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12256,6 +12264,7 @@
         "action": "actions/checkout",
         "ref": "11d5960a326750d5838078e36cf38b85af677262",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12264,6 +12273,7 @@
         "action": "actions/setup-node",
         "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12272,6 +12282,7 @@
         "action": "actions/checkout",
         "ref": "11d5960a326750d5838078e36cf38b85af677262",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12280,6 +12291,7 @@
         "action": "actions/setup-node",
         "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12288,6 +12300,7 @@
         "action": "actions/upload-artifact",
         "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12296,6 +12309,7 @@
         "action": "actions/checkout",
         "ref": "11d5960a326750d5838078e36cf38b85af677262",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12304,6 +12318,7 @@
         "action": "actions/setup-node",
         "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12312,6 +12327,7 @@
         "action": "actions/upload-artifact",
         "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12320,6 +12336,7 @@
         "action": "actions/checkout",
         "ref": "11d5960a326750d5838078e36cf38b85af677262",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12328,6 +12345,7 @@
         "action": "actions/setup-node",
         "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12336,6 +12354,7 @@
         "action": "actions/upload-artifact",
         "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12344,6 +12363,7 @@
         "action": "actions/checkout",
         "ref": "11d5960a326750d5838078e36cf38b85af677262",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12352,6 +12372,7 @@
         "action": "actions/setup-node",
         "ref": "249970729cb0ef3589644e2896645e5dc5ba9c38",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       },
       {
@@ -12360,24 +12381,32 @@
         "action": "actions/upload-artifact",
         "ref": "ea165f8d65b6e75b540449e92b4886f43607fa02",
         "pinned": true,
+        "trusted": true,
         "type": "github"
       }
     ]
   },
   "dependabot": {
     "path": ".github/dependabot.yml",
+    "version": "2",
     "entries": [
       {
         "ecosystem": "github-actions",
-        "directory": "/"
+        "directory": "/",
+        "scheduleInterval": "weekly",
+        "cronjob": null
       },
       {
         "ecosystem": "npm",
-        "directory": "/Backend/Chatify"
+        "directory": "/Backend/Chatify",
+        "scheduleInterval": "weekly",
+        "cronjob": null
       },
       {
         "ecosystem": "npm",
-        "directory": "/Frontend/Chatify"
+        "directory": "/Frontend/Chatify",
+        "scheduleInterval": "weekly",
+        "cronjob": null
       }
     ],
     "required": [
@@ -12407,6 +12436,7 @@
     "installScriptsReviewed": true,
     "noDeprecatedDirectDependencies": true,
     "remoteActionsPinned": true,
+    "remoteActionsTrusted": true,
     "dependabotCoverageComplete": true,
     "exceptionPolicyValid": true
   }

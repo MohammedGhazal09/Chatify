@@ -2893,6 +2893,7 @@
         }
       ],
       "ignoredDevelopmentOnly": [
+        "scripts/security/lib/dependency-policy.mjs",
         "scripts/security/lib/inventory.mjs"
       ]
     },

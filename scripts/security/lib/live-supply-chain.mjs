@@ -18,20 +18,24 @@ const parseJson = (text) => {
   }
 }
 
-const sanitizeString = (value) => {
-  const text = String(value)
-  if (!/^https?:\/\//i.test(text)) return text
+const URL_IN_TEXT_PATTERN = /https?:\/\/[^\s"'<>]+/gi
+
+const sanitizeUrl = (value) => {
   try {
-    const url = new URL(text)
+    const url = new URL(value)
     url.username = ''
     url.password = ''
     url.search = ''
     url.hash = ''
     return url.toString()
   } catch {
-    return text.replace(/:\/\/[^/@\s]+@/g, '://[redacted]@')
+    return String(value)
+      .replace(/(https?:\/\/)[^/@\s]+@/i, '$1[redacted]@')
+      .replace(/[?#].*$/, '')
   }
 }
+
+const sanitizeString = (value) => String(value).replace(URL_IN_TEXT_PATTERN, sanitizeUrl)
 
 const shouldRedactField = (key) => {
   const normalized = String(key ?? '')
