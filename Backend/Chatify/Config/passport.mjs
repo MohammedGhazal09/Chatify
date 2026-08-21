@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as GitHubStrategy } from 'passport-github2';
-import {Strategy as DiscordStrategy} from 'passport-discord'
+import DiscordStrategy from './discordOAuthStrategy.mjs'
 import User from '../Models/userModel.mjs';
 import { resolveOAuthCallbackBaseURL } from '../Utils/oauthConfig.mjs';
 import { logger } from '../Utils/observabilityLogger.mjs';

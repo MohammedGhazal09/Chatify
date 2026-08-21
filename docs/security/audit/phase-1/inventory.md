@@ -5,8 +5,8 @@ This document is generated deterministically from tracked repository files. Run 
 ## Method and boundaries
 
 - Source selection: `git-index`.
-- Tracked files inventoried: **1542**.
-- Tracked bytes inventoried: **16899566**.
+- Tracked files inventoried: **1544**.
+- Tracked bytes inventoried: **16930624**.
 - Generated inventory files are excluded from their own input set.
 - Secret-like example values are redacted; live environment values are never read.
 - Runtime execution evidence is stored in the `GitHub Actions artifact: phase-1-reproduction-evidence` artifact rather than committed.
@@ -17,7 +17,7 @@ This document is generated deterministically from tracked repository files. Run 
 | --- | --- | --- | --- | --- |
 | Backend/Chatify | backend | 1.0.0 | Backend/Chatify/package-lock.json | start, test, test:watch |
 | Frontend/Chatify | chatify | 0.0.0 | Frontend/Chatify/package-lock.json | build, dev, lint, preview, test, test:e2e:prod, test:ui |
-| . | live-chat | 1.0.0 | none | bootstrap:backend, bootstrap:frontend, bootstrap:full, doctor, evidence:production, evidence:release-candidate, ops:check, quality, quality:backend, quality:frontend, quality:frontend:build, quality:frontend:lint, quality:frontend:test, security:phase1:check, security:phase1:generate, security:phase1:reproduce, security:phase1:test, security:phase2:check, security:phase2:generate, security:phase2:reproduce, security:phase2:test, security:phase3:check, security:phase3:generate, security:phase3:reproduce, security:phase3:test, smoke:local, smoke:prod, test |
+| . | live-chat | 1.0.0 | none | bootstrap:backend, bootstrap:frontend, bootstrap:full, doctor, evidence:production, evidence:release-candidate, ops:check, quality, quality:backend, quality:frontend, quality:frontend:build, quality:frontend:lint, quality:frontend:test, security:phase1:check, security:phase1:generate, security:phase1:reproduce, security:phase1:test, security:phase2:check, security:phase2:generate, security:phase2:reproduce, security:phase2:test, security:phase3:check, security:phase3:generate, security:phase3:reproduce, security:phase3:test, security:phase4:check, security:phase4:generate, security:phase4:reproduce, security:phase4:test, smoke:local, smoke:prod, test |
 
 ### Clean install commands
 
@@ -52,6 +52,10 @@ This document is generated deterministically from tracked repository files. Run 
 | . | security:phase3:generate | npm run security:phase3:generate | node scripts/security/phase3-secret-scan.mjs --write |
 | . | security:phase3:reproduce | npm run security:phase3:reproduce | node scripts/security/phase3-reproduce.mjs |
 | . | security:phase3:test | npm run security:phase3:test | node --test scripts/security/__tests__/phase3-*.test.mjs |
+| . | security:phase4:check | npm run security:phase4:check | node scripts/security/phase4-dependency-policy.mjs --check |
+| . | security:phase4:generate | npm run security:phase4:generate | node scripts/security/phase4-dependency-policy.mjs --write |
+| . | security:phase4:reproduce | npm run security:phase4:reproduce | node scripts/security/phase4-reproduce.mjs |
+| . | security:phase4:test | npm run security:phase4:test | node --test scripts/security/__tests__/phase4-*.test.mjs |
 | . | smoke:local | npm run smoke:local | npm --prefix Frontend/Chatify run test:ui -- |
 | . | smoke:prod | npm run smoke:prod | npm --prefix Frontend/Chatify run test:e2e:prod -- |
 | . | test | npm run test | npm run quality |
@@ -72,7 +76,7 @@ This document is generated deterministically from tracked repository files. Run 
 | configuration | 3 |
 | controllers | 12 |
 | deployment | 1 |
-| documentation-and-runbooks | 1024 |
+| documentation-and-runbooks | 1026 |
 | frontend | 252 |
 | generated-or-development-only | 57 |
 | lockfiles | 2 |
@@ -83,7 +87,7 @@ This document is generated deterministically from tracked repository files. Run 
 | routes | 10 |
 | services | 5 |
 | tests | 190 |
-| text-source-or-config | 1346 |
+| text-source-or-config | 1348 |
 | utilities | 32 |
 | workflows | 4 |
 
@@ -364,11 +368,11 @@ The JSON inventory additionally records field definitions, unique/TTL candidates
 | Provider | Environment variables | Static hosts | Control signals | User-controlled destination candidate | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | cloudinary |  |  | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | scripts/security/lib/inventory.mjs:1010 |
-| discord-oauth | DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET | http://localhost:5173, https://cdn.discordapp.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:20, Backend/Chatify/Config/passport.mjs:4, Backend/Chatify/package.json:29, Backend/Chatify/test/setup/env.mjs:12, Backend/Chatify/Utils/secretConfiguration.mjs:10, scripts/security/lib/inventory.mjs:1102 |
+| discord-oauth | DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET | http://localhost:5173, https://cdn.discordapp.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:20, Backend/Chatify/Config/passport.mjs:180, Backend/Chatify/test/setup/env.mjs:12, Backend/Chatify/Utils/secretConfiguration.mjs:10, scripts/security/lib/inventory.mjs:1102 |
 | email | EMAIL_USER_SENDER |  |  | no |  |
 | generic-http |  | http://localhost:3000, https://api.brevo.com, https://chatify-ckmn.onrender.com, https://chatify-ten-rho.vercel.app | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | yes | Backend/Chatify/package.json:15, Backend/Chatify/Services/emailService.mjs:1, Frontend/Chatify/e2e/pages/phase15CallAcceptance.ts:291, Frontend/Chatify/e2e/pages/productionSmoke.ts:246, Frontend/Chatify/package.json:20, Frontend/Chatify/src/api/authApi.ts:1, Frontend/Chatify/src/api/axios.test.ts:1, Frontend/Chatify/src/api/axios.ts:1, Frontend/Chatify/src/api/chatApi.ts:1, Frontend/Chatify/src/api/deliveryHealthApi.test.ts:7, Frontend/Chatify/src/api/deliveryHealthApi.ts:1, Frontend/Chatify/src/api/integrationDiagnosticsApi.test.ts:7, Frontend/Chatify/src/api/integrationDiagnosticsApi.ts:1, Frontend/Chatify/src/api/inviteApi.ts:1, Frontend/Chatify/src/api/messageApi.test.ts:14, Frontend/Chatify/src/api/messageApi.ts:1, Frontend/Chatify/src/api/moderationApi.test.ts:9, Frontend/Chatify/src/api/moderationApi.ts:1, Frontend/Chatify/src/api/privacyOperationsApi.test.ts:7, Frontend/Chatify/src/api/privacyOperationsApi.ts:1, Frontend/Chatify/src/api/spaceApi.test.ts:9, Frontend/Chatify/src/api/spaceApi.ts:1, Frontend/Chatify/src/api/userApi.ts:1, Frontend/Chatify/src/api/userPrivacyApi.test.ts:8, Frontend/Chatify/src/hooks/useAuthQuery.test.tsx:2, Frontend/Chatify/src/hooks/useChatQueries.test.tsx:4, Frontend/Chatify/src/hooks/useChatSocket.test.tsx:176, Frontend/Chatify/src/hooks/useChatSocket.ts:5, Frontend/Chatify/src/pages/admin/AdminModeration.tsx:3, Frontend/Chatify/src/pages/chat/chat.tsx:3, Frontend/Chatify/src/pages/forgotPassword/forgotPassword.tsx:5, Frontend/Chatify/src/pages/login/login.tsx:9, Frontend/Chatify/src/pages/setupUsername/SetupUsername.tsx:2, Frontend/Chatify/src/pages/signup/signup.tsx:12, scripts/security/lib/inventory.mjs:1139 |
-| github-oauth | GITHUB_ACTOR, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REF_NAME, GITHUB_RUN_ATTEMPT, GITHUB_RUN_ID, GITHUB_SHA | http://chatify.example.com, http://localhost:5173, https://cdn.discordapp.com, https://chatify.example.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://localhost:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:18, Backend/Chatify/Config/passport.mjs:3, Backend/Chatify/package.json:30, Backend/Chatify/test/security/secret-configuration.test.mjs:99, Backend/Chatify/test/setup/env.mjs:10, Backend/Chatify/Utils/secretConfiguration.mjs:9, scripts/security/lib/inventory.mjs:1101 |
-| google-oauth | GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET | http://chatify.example.com, http://localhost:5173, https://cdn.discordapp.com, https://chatify.example.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://localhost:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:16, Backend/Chatify/Config/passport.mjs:2, Backend/Chatify/package.json:31, Backend/Chatify/test/security/secret-configuration.test.mjs:66, Backend/Chatify/test/setup/env.mjs:8, Backend/Chatify/Utils/secretConfiguration.mjs:8, scripts/security/lib/inventory.mjs:1100 |
+| github-oauth | GITHUB_ACTOR, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REF_NAME, GITHUB_RUN_ATTEMPT, GITHUB_RUN_ID, GITHUB_SHA | http://chatify.example.com, http://localhost:5173, https://cdn.discordapp.com, https://chatify.example.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://localhost:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:18, Backend/Chatify/Config/passport.mjs:3, Backend/Chatify/package.json:29, Backend/Chatify/test/security/secret-configuration.test.mjs:99, Backend/Chatify/test/setup/env.mjs:10, Backend/Chatify/Utils/secretConfiguration.mjs:9, scripts/security/lib/inventory.mjs:1101 |
+| google-oauth | GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET | http://chatify.example.com, http://localhost:5173, https://cdn.discordapp.com, https://chatify.example.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://localhost:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:16, Backend/Chatify/Config/passport.mjs:2, Backend/Chatify/package.json:30, Backend/Chatify/test/security/secret-configuration.test.mjs:66, Backend/Chatify/test/setup/env.mjs:8, Backend/Chatify/Utils/secretConfiguration.mjs:8, scripts/security/lib/inventory.mjs:1100 |
 | mongodb | MONGODB_URL | http://chatify.example.com, http://localhost:5173, https://chatify.example.com, https://chatify.example.test, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://example.invalid, mongodb://localhost:27017 |  | no | Backend/Chatify/.env.example:5, Backend/Chatify/Config/DBConfig.mjs:4, Backend/Chatify/Services/attachmentStorageService.mjs:18, Backend/Chatify/Services/profileImageStorageService.mjs:18, Backend/Chatify/test/observability/health-readiness.test.mjs:42, Backend/Chatify/test/security/secret-configuration.test.mjs:16, Backend/Chatify/test/setup/mongo.mjs:8, Backend/Chatify/Utils/operationalReadiness.mjs:14, Backend/Chatify/Utils/secretConfiguration.mjs:110, scripts/ops-check.mjs:24 |
 | stun-turn | CALL_STUN_URLS, CALL_TURN_CREDENTIAL, CALL_TURN_URLS, CALL_TURN_USERNAME | http://chatify.example.com, http://localhost:3000, http://localhost:5173, https://chatify.example.com, https://chatify.example.test, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://example.invalid, mongodb://localhost:27017 | retry-control, timeout | no | Backend/Chatify/.env.example:37, Backend/Chatify/Config/socket.mjs:420, Backend/Chatify/test/observability/health-readiness.test.mjs:96, Backend/Chatify/test/security/secret-configuration.test.mjs:79, Backend/Chatify/Utils/callIceConfig.mjs:1, Backend/Chatify/Utils/callSocketContract.mjs:11, Frontend/Chatify/src/hooks/useChatSocket.test.tsx:1362 |
 | web-push | VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT, VITE_VAPID_PUBLIC_KEY | http://chatify.example.com, http://localhost:5173, https://chatify.example.com, https://your-frontend.example.com, mongodb://127.0.0.1:27017, mongodb://localhost:27017 | response-size-limit, retry-control, timeout, tls-validation-disabled-signal | no | Backend/Chatify/.env.example:28, Backend/Chatify/package.json:34, Backend/Chatify/Services/notificationService.mjs:1, Backend/Chatify/test/security/secret-configuration.test.mjs:64, Backend/Chatify/Utils/secretConfiguration.mjs:206, scripts/security/lib/inventory.mjs:1012, scripts/security/lib/phase2-policy.mjs:42 |

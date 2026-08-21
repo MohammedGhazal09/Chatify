@@ -95,7 +95,7 @@ Compare root dependency/devDependency selectors exactly, classify lock packages 
 
 - [ ] **Step 3: Implement source and integrity classification**
 
-Accept registry artifacts only when `resolved` is HTTPS npm-registry content (or npm's registry-relative representation), `integrity` is SRI, and `version` is exact. Record and reject Git, local, link, HTTP, mutable tag, and remote-tarball sources.
+Accept independently fetched registry artifacts only when `resolved` is HTTPS npm-registry content (or npm's registry-relative representation), `integrity` is SRI, and `version` is exact. Treat only entries explicitly marked `inBundle`/`bundled` as inheriting source and integrity from their verified parent artifact. Record and reject Git, local, link, HTTP, mutable tag, and remote-tarball sources.
 
 - [ ] **Step 4: Implement lifecycle-script policy checks**
 
@@ -190,7 +190,7 @@ git commit -m "fix(auth): replace unmaintained Discord OAuth package"
 
 **Interfaces:**
 - Consumes: npm advisory remediation within declared semver ranges.
-- Produces: lockfiles for which both `npm audit --omit=dev --audit-level=high` commands exit zero and `npm install-scripts ls --json` reports no unreviewed scripts.
+- Produces: lockfiles for which both `npm audit --omit=dev --audit-level=high` commands exit zero and strict npm 11.17.0 clean installs plus the deterministic policy report no unreviewed scripts.
 
 - [ ] **Step 1: Capture pre-remediation audit JSON**
 
@@ -213,13 +213,12 @@ Approve version-pinned scripts required by native/build packages. Explicitly den
 Run:
 
 ```bash
-npm --prefix Backend/Chatify ci
-npm --prefix Backend/Chatify install-scripts ls --json
-npm --prefix Frontend/Chatify ci
-npm --prefix Frontend/Chatify install-scripts ls --json
+npm --prefix Backend/Chatify ci --strict-allow-scripts
+npm --prefix Frontend/Chatify ci --strict-allow-scripts
+npm run security:phase4:check
 ```
 
-Expected: installs succeed and no pending script is reported.
+Expected: strict installs succeed and the deterministic report contains no unreviewed install script.
 
 - [ ] **Step 6: Verify production audits**
 
@@ -268,7 +267,7 @@ Configure weekly npm updates for `/Backend/Chatify` and `/Frontend/Chatify`, and
 
 - [ ] **Step 3: Add the permanent Phase 4 workflow**
 
-Use `contents: read`, pinned actions, Node/npm versions from the repository, clean installs, pending-script checks, `npm audit signatures`, production audits, CycloneDX SBOM generation, Phase 4 reproduction, and always-uploaded evidence artifacts.
+Use `contents: read`, pinned actions, Node/npm versions from the repository, strict clean installs, deterministic install-script coverage, `npm audit signatures`, production audits, CycloneDX SBOM generation, Phase 4 reproduction, and always-uploaded evidence artifacts.
 
 - [ ] **Step 4: Remove Phase 3 bootstrap residue**
 
@@ -298,7 +297,7 @@ git commit -m "ci(security): enforce Phase 4 supply-chain gates"
 
 - [ ] **Step 1: Write failing command-plan test**
 
-Assert exact ordered commands for clean installs, pending scripts, signature verification, production audits, SBOM generation, inherited Phase 1–3 gates, Phase 4 tests/check, full quality, and operations.
+Assert exact ordered commands for strict clean installs, signature verification, production audits, SBOM generation, inherited Phase 1–3 gates, Phase 4 tests/check, full quality, and operations.
 
 - [ ] **Step 2: Verify RED**
 
