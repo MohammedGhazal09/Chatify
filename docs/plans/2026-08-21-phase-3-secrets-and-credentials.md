@@ -16,8 +16,9 @@ Implement durable current-tree and complete-history credential scanning, sanitiz
 5. Use an exact candidate-ID allowlist with owner, specific rationale, and mandatory future expiry. No path, detector, or regex wildcards are accepted.
 6. Treat findings as candidates until an authorized owner validates them through provider inventory and audit logs; never replay a credential.
 7. Validate secrets before importing the Express app, database, Socket.IO, or workers.
-8. Require distinct JWT, CSRF, password-reset, and production 2FA encryption purposes instead of silent key reuse.
+8. Require distinct JWT, CSRF, password-reset, and production 2FA encryption purposes, and reject low-entropy core or 2FA key material instead of trusting length alone.
 9. Preserve all dependency advisory failures for Phase 4; Phase 3 does not suppress unrelated CI security gates.
+10. Scan repository branches and tags plus only the current pull request's head and merge commit, so unrelated or fork-controlled PR content cannot block every security gate.
 
 ## Work items
 
@@ -31,7 +32,7 @@ Inventory tracked, untracked, and sensitive local files. Scan all reachable Git 
 
 ### 3. Secret-loading review and startup validation
 
-Review frontend exposure, weak literal fallbacks, environment dumps, and credential logging. Add `secretConfiguration.mjs`, call it before dynamic runtime imports, remove CSRF fallback to the JWT key, add a separate test CSRF key, and document the 2FA encryption key.
+Review frontend exposure, weak literal fallbacks, environment dumps, and credential logging. Add `secretConfiguration.mjs`, call it before dynamic runtime imports, remove CSRF fallback to the JWT key, add a separate test CSRF key, reject low-entropy core and 2FA key material, and document the 2FA encryption key.
 
 ### 4. Sanitized generation and drift controls
 
@@ -43,7 +44,7 @@ Commit an empty strict allowlist, the credential-exposure response procedure, ph
 
 ### 6. Reproduction and CI
 
-Add Phase 3 root commands, a full reproduction runner, and a read-only workflow that fetches all available branch/tag/pull-request refs, performs clean installs and inherited Phase 1/2 gates, executes Phase 3 tests and scan, runs the complete quality suite, and uploads only sanitized evidence.
+Add Phase 3 root commands, a full reproduction runner, and a read-only workflow that fetches repository branch/tag refs plus only the current pull-request ref, performs clean installs and inherited Phase 1/2 gates, executes Phase 3 tests and scan, runs the complete quality suite, and uploads only sanitized evidence.
 
 ## Verification sequence
 
@@ -69,6 +70,6 @@ npm run security:phase3:reproduce
 - Allowlist exceptions are exact, accountable, and expiring.
 - No unsuppressed candidate remains.
 - Secret configuration fails before runtime imports when unsafe.
-- JWT, CSRF, reset, and 2FA purposes are not silently collapsed into one key.
+- JWT, CSRF, reset, and 2FA purposes are not silently collapsed into one key, and low-entropy key material is rejected.
 - Credential response steps are committed and tested by the Phase 3 gate.
-- CI uses full history, read-only repository permissions, pinned action revisions, and sanitized artifacts.
+- CI uses full repository branch/tag history, the current pull-request ref and merge commit, read-only repository permissions, pinned action revisions, and sanitized artifacts.
