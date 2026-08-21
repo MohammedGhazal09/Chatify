@@ -40,7 +40,11 @@
     "security:phase4:test": "node --test scripts/security/__tests__/phase4-*.test.mjs",
     "security:phase4:generate": "node scripts/security/phase4-dependency-policy.mjs --write",
     "security:phase4:check": "node scripts/security/phase4-dependency-policy.mjs --check",
-    "security:phase4:reproduce": "node scripts/security/phase4-reproduce.mjs"
+    "security:phase4:reproduce": "node scripts/security/phase4-reproduce.mjs",
+    "security:phase5:test": "node --test scripts/security/__tests__/phase5-*.test.mjs",
+    "security:phase5:generate": "node scripts/security/phase5-authentication-policy.mjs --write",
+    "security:phase5:check": "node scripts/security/phase5-authentication-policy.mjs --check",
+    "security:phase5:reproduce": "node scripts/security/phase5-reproduce.mjs"
   },
   "author": "Mohammed Ghazal",
   "license": "ISC"
