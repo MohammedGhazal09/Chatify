@@ -1,5 +1,6 @@
 process.env.NODE_ENV = 'test';
 process.env.SECRET_JWT_KEY = 'test-secret-key';
+process.env.CSRF_SECRET = 'test-csrf-secret';
 process.env.EXPIRES_IN = '15m';
 process.env.PASSWORD_RESET_SECRET = 'test-password-reset-secret';
 process.env.FRONTEND_ORIGIN = 'http://localhost:5173';

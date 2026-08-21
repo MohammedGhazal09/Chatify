@@ -1,19 +1,24 @@
-import 'dotenv/config' 
-import app from './app.mjs'
-import DBConfig from './Config/DBConfig.mjs'
-import {createServer} from 'http'
-import { initSocket } from './Config/socket.mjs'
-import { startNotificationOutboxWorker } from './Services/notificationService.mjs'
-import { startPrivacyOperationsWorker } from './Services/privacyOperationsService.mjs'
+import 'dotenv/config'
+import { createServer } from 'node:http'
+import { validateSecretConfiguration } from './Utils/secretConfiguration.mjs'
 
-const PORT = process.env.PORT || process.env.PORT_NUMBER || 5000;
-  const httpServer = createServer(app)
-  const io = initSocket(httpServer)
+validateSecretConfiguration(process.env)
 
-  httpServer.listen(PORT, () => {
-    console.log(`Socket.io server running on port ${PORT}`);
-  })
-  startNotificationOutboxWorker()
-  startPrivacyOperationsWorker()
+const { default: app } = await import('./app.mjs')
+await import('./Config/DBConfig.mjs')
+const { initSocket } = await import('./Config/socket.mjs')
+const { startNotificationOutboxWorker } = await import('./Services/notificationService.mjs')
+const { startPrivacyOperationsWorker } = await import('./Services/privacyOperationsService.mjs')
 
-  export {io, httpServer as server}
+const PORT = process.env.PORT || process.env.PORT_NUMBER || 5000
+const httpServer = createServer(app)
+const io = initSocket(httpServer)
+
+httpServer.listen(PORT, () => {
+  console.log(`Socket.io server running on port ${PORT}`)
+})
+
+startNotificationOutboxWorker()
+startPrivacyOperationsWorker()
+
+export { io, httpServer as server }
