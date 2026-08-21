@@ -61,6 +61,7 @@ The scanner and backend validation jointly enforce:
 - distinct JWT, CSRF, and password-reset keys;
 - a dedicated production 2FA encryption key;
 - complete OAuth, web-push, email, and TURN credential groups;
+- rejection of placeholder and undersized configured provider credentials;
 - production HTTPS frontend origin and nonlocal MongoDB target;
 - errors that identify variable names without echoing values.
 
