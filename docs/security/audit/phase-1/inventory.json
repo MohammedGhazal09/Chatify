@@ -66,9 +66,9 @@
           "mongoose": "^8.16.4",
           "multer": "^2.1.1",
           "passport": "^0.7.0",
-          "passport-discord": "^0.1.4",
           "passport-github2": "^0.1.12",
           "passport-google-oauth20": "^2.0.0",
+          "passport-oauth2": "^1.8.0",
           "socket.io": "^4.8.1",
           "validator": "^13.15.15",
           "web-push": "^3.6.7",
@@ -83,7 +83,7 @@
         },
         "lockfile": {
           "path": "Backend/Chatify/package-lock.json",
-          "sha256": "51c850093470584b787d64f8cfbc96a4ed911c63d9060b1f5608d7b61c43197b"
+          "sha256": "b16b1b7c02b2fb1c4cf730ca4b655641db7167bf2436712fe1bccbe507686282"
         }
       },
       {
@@ -144,7 +144,7 @@
         },
         "lockfile": {
           "path": "Frontend/Chatify/package-lock.json",
-          "sha256": "67b589c321a6b4158c15e683ef37d267960bb9bbe3d252fbc3cc1e4915097817"
+          "sha256": "a70084f257ed1a88463ba7a7701bc5b8f2e6f6348c75a62c3159b0d1853e6d4d"
         }
       },
       {
@@ -184,6 +184,10 @@
           "security:phase3:generate": "node scripts/security/phase3-secret-scan.mjs --write",
           "security:phase3:reproduce": "node scripts/security/phase3-reproduce.mjs",
           "security:phase3:test": "node --test scripts/security/__tests__/phase3-*.test.mjs",
+          "security:phase4:check": "node scripts/security/phase4-dependency-policy.mjs --check",
+          "security:phase4:generate": "node scripts/security/phase4-dependency-policy.mjs --write",
+          "security:phase4:reproduce": "node scripts/security/phase4-reproduce.mjs",
+          "security:phase4:test": "node --test scripts/security/__tests__/phase4-*.test.mjs",
           "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
           "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
           "test": "npm run quality"
@@ -342,6 +346,30 @@
       },
       {
         "cwd": ".",
+        "script": "security:phase4:check",
+        "command": "npm run security:phase4:check",
+        "implementation": "node scripts/security/phase4-dependency-policy.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase4:generate",
+        "command": "npm run security:phase4:generate",
+        "implementation": "node scripts/security/phase4-dependency-policy.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase4:reproduce",
+        "command": "npm run security:phase4:reproduce",
+        "implementation": "node scripts/security/phase4-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase4:test",
+        "command": "npm run security:phase4:test",
+        "implementation": "node --test scripts/security/__tests__/phase4-*.test.mjs"
+      },
+      {
+        "cwd": ".",
         "script": "smoke:local",
         "command": "npm run smoke:local",
         "implementation": "npm --prefix Frontend/Chatify run test:ui --"
@@ -408,8 +436,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1542,
-    "totalTrackedBytes": 16899566,
+    "trackedFileCount": 1544,
+    "totalTrackedBytes": 16930624,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -1652,6 +1680,7 @@
         "docs/plans/2026-08-20-phase-1-repository-inventory.md",
         "docs/plans/2026-08-21-phase-2-threat-model.md",
         "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
+        "docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md",
         "docs/security/audit/phase-1/README.md",
         "docs/security/audit/phase-2/README.md",
         "docs/security/audit/phase-2/threat-model.json",
@@ -1661,7 +1690,8 @@
         "docs/security/audit/phase-3/README.md",
         "docs/security/audit/phase-3/secret-scan-allowlist.json",
         "docs/security/audit/phase-3/secret-scan.json",
-        "docs/security/audit/phase-3/secret-scan.md"
+        "docs/security/audit/phase-3/secret-scan.md",
+        "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md"
       ],
       "frontend": [
         "Frontend/Chatify/.env.example",
@@ -3299,6 +3329,7 @@
         "docs/plans/2026-08-20-phase-1-repository-inventory.md",
         "docs/plans/2026-08-21-phase-2-threat-model.md",
         "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
+        "docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md",
         "docs/security/audit/phase-1/README.md",
         "docs/security/audit/phase-2/README.md",
         "docs/security/audit/phase-2/threat-model.json",
@@ -3309,6 +3340,7 @@
         "docs/security/audit/phase-3/secret-scan-allowlist.json",
         "docs/security/audit/phase-3/secret-scan.json",
         "docs/security/audit/phase-3/secret-scan.md",
+        "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md",
         "Frontend/Chatify/e2e/admin-delivery-health.spec.ts",
         "Frontend/Chatify/e2e/admin-hub.spec.ts",
         "Frontend/Chatify/e2e/admin-integrations.spec.ts",
@@ -4091,8 +4123,8 @@
       },
       {
         "path": ".github/workflows/security-and-test-foundation.yml",
-        "bytes": 4850,
-        "sha256": "a45313dcbccb51f228b545e6af732b9cd4f4e240beb363ea35fcf72ba04aa510",
+        "bytes": 5233,
+        "sha256": "f035042b5ae7fe0d458c748dd08fd1079ad72c7df8b04191fe856940a04736da",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -13082,8 +13114,8 @@
       },
       {
         "path": "Backend/Chatify/Config/passport.mjs",
-        "bytes": 6630,
-        "sha256": "ab772b1767d6e6c9d01c38b93238ef6f4ee673bd6f002a8ecc79802ebe177e61",
+        "bytes": 6626,
+        "sha256": "b2769267d1b6809c877bbf835d861b7ab8228068ffed075b75dbcdebdab7dd26",
         "categories": [
           "backend",
           "configuration",
@@ -13522,8 +13554,8 @@
       },
       {
         "path": "Backend/Chatify/package-lock.json",
-        "bytes": 160339,
-        "sha256": "51c850093470584b787d64f8cfbc96a4ed911c63d9060b1f5608d7b61c43197b",
+        "bytes": 160830,
+        "sha256": "b16b1b7c02b2fb1c4cf730ca4b655641db7167bf2436712fe1bccbe507686282",
         "categories": [
           "backend",
           "lockfiles",
@@ -13532,8 +13564,8 @@
       },
       {
         "path": "Backend/Chatify/package.json",
-        "bytes": 1134,
-        "sha256": "d1cb62332c52fc7ccb19424732338adfcd265e101897ab9cd29336a866f4ffa3",
+        "bytes": 1243,
+        "sha256": "dd8be49d8e21d408466cc6e695cfb9a4dce850b5e8e5dfd943044d9b20e85de0",
         "categories": [
           "backend",
           "package-manifests",
@@ -14909,6 +14941,15 @@
         ]
       },
       {
+        "path": "docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md",
+        "bytes": 7978,
+        "sha256": "0d3a0abfe34ca63c18fd6527076e53e93de9aa9e5cce9b9fa2899270a9ceb391",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "docs/security/audit/phase-1/README.md",
         "bytes": 6998,
         "sha256": "efb3eaa01fd2d364aeaa675dac5a3652315479a433db8d7535e50f810140b681",
@@ -14929,7 +14970,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.json",
         "bytes": 92029,
-        "sha256": "31a1a0518972efc530f466d564328dbb3a2906650ff5478f95dc74ced923910e",
+        "sha256": "400a2f3f9baf035d508e99251b0e27004bc45357f1204a309aba41a94c95d2e2",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14938,7 +14979,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.md",
         "bytes": 38504,
-        "sha256": "d89377b4c31987961c3c97524021f426c8c1e92bb1ad1a928947d019969c1783",
+        "sha256": "3aa0937af05a39451cbdf83031edf139559e84f6f11dbdbba395535b62507f57",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14973,8 +15014,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan-allowlist.json",
-        "bytes": 352,
-        "sha256": "2566d0538b5b70593f145a24648909afee7ce5fd4c535cc57fb2a802a7766189",
+        "bytes": 1225,
+        "sha256": "5c3e8cf9e1050437ca67bc405a817ea2b304eb044e44ebb3351e894b8a9a90b4",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14983,7 +15024,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
         "bytes": 6760,
-        "sha256": "f543bebf8deea6e274f4da91028f7d58a4dd86c95a70f7fdccbce2f27fddd04e",
+        "sha256": "6e2a644cfb1ef7bd8fab3e626c9482204678fb942a43f57e454365ca616ac7e5",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14992,7 +15033,16 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
         "bytes": 1740,
-        "sha256": "502e2d9efe5722a9cca219f1233612a360fdf84c09aa0357d84a4d9bb2c4b5af",
+        "sha256": "802edc206e3e72bf7926303c318b10221239608cff8ef3b80b85a65e29f6d72a",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md",
+        "bytes": 19253,
+        "sha256": "38ba0a7f30d7fa5a451fb5a7e1f719cdd69e72654eec2ef546fd058789543753",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15324,8 +15374,8 @@
       },
       {
         "path": "Frontend/Chatify/package-lock.json",
-        "bytes": 207427,
-        "sha256": "67b589c321a6b4158c15e683ef37d267960bb9bbe3d252fbc3cc1e4915097817",
+        "bytes": 208936,
+        "sha256": "a70084f257ed1a88463ba7a7701bc5b8f2e6f6348c75a62c3159b0d1853e6d4d",
         "categories": [
           "frontend",
           "lockfiles",
@@ -15334,8 +15384,8 @@
       },
       {
         "path": "Frontend/Chatify/package.json",
-        "bytes": 1557,
-        "sha256": "3855b16aacd16df3b38ea522776bf2f1bcb2c4918f7bb698ad7e20acea359f20",
+        "bytes": 1671,
+        "sha256": "d0585bcafb28f80658b5294f7234576004dea4fe16204b60ac27681791490638",
         "categories": [
           "frontend",
           "package-manifests",
@@ -17374,8 +17424,8 @@
       },
       {
         "path": "package.json",
-        "bytes": 2451,
-        "sha256": "fe6098d0d133b098311dfb55dbebe741509dd4405b470249f3323fdaaa6a0758",
+        "bytes": 2803,
+        "sha256": "2c923351cb09351f2e43a3bddc6179f75948541da53dc418dc107448f3f71646",
         "categories": [
           "package-manifests",
           "text-source-or-config"
@@ -20739,6 +20789,26 @@
         "cwd": ".",
         "name": "security:phase3:test",
         "implementation": "node --test scripts/security/__tests__/phase3-*.test.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase4:check",
+        "implementation": "node scripts/security/phase4-dependency-policy.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase4:generate",
+        "implementation": "node scripts/security/phase4-dependency-policy.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase4:reproduce",
+        "implementation": "node scripts/security/phase4-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase4:test",
+        "implementation": "node --test scripts/security/__tests__/phase4-*.test.mjs"
       },
       {
         "cwd": ".",
@@ -24915,11 +24985,7 @@
         },
         {
           "source": "Backend/Chatify/Config/passport.mjs",
-          "line": 4
-        },
-        {
-          "source": "Backend/Chatify/package.json",
-          "line": 29
+          "line": 180
         },
         {
           "source": "Backend/Chatify/test/setup/env.mjs",
@@ -25149,7 +25215,7 @@
         },
         {
           "source": "Backend/Chatify/package.json",
-          "line": 30
+          "line": 29
         },
         {
           "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
@@ -25212,7 +25278,7 @@
         },
         {
           "source": "Backend/Chatify/package.json",
-          "line": 31
+          "line": 30
         },
         {
           "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
