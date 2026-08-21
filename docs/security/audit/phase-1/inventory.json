@@ -437,7 +437,7 @@
   },
   "components": {
     "trackedFileCount": 1563,
-    "totalTrackedBytes": 17422159,
+    "totalTrackedBytes": 17423122,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -15103,7 +15103,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
         "bytes": 6760,
-        "sha256": "e28a0d17f9e4def2c8123c75bfda85d8a837a42853e832efc0934ec1124109bf",
+        "sha256": "599867de9f327fdc5b173215809a8861845ff63a848b19f7029b25c08f8791d4",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15112,7 +15112,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
         "bytes": 1740,
-        "sha256": "ea5cd6029d6cbe47538553c51db0513cfa8cd09aaefd556a4b3638540caa32db",
+        "sha256": "f1801afd9e462ea56b10a0c450cc0ab9e607544b35e73da6659ee096d7f18e27",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17642,8 +17642,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
-        "bytes": 14731,
-        "sha256": "4281a0f77208e7b066c9e37511463367564322e448feb230fe034a6cc5c1a34f",
+        "bytes": 15370,
+        "sha256": "5b1e2fdcb42e10a3ccd60b6bc90b9f9914a23639d88db72658d3d590a78bb37f",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17652,8 +17652,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
-        "bytes": 7682,
-        "sha256": "91bd2e8fd7bf12c4f8892a950ec905f271d74923ce92891d4c17f1393e747dc6",
+        "bytes": 7887,
+        "sha256": "cd1f37a54923afb69717649106165f29cb3105c370e7c705683defeaf7a85c08",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17672,8 +17672,8 @@
       },
       {
         "path": "scripts/security/lib/dependency-policy.mjs",
-        "bytes": 34727,
-        "sha256": "189b2fdf9e6964f2db0a3adba0d98795fef9714c469ebe8317bf82ae3e158c05",
+        "bytes": 34725,
+        "sha256": "d151d8c3bbbc40d9ad3b5f173ab30f76ca55b79f94a8d3dd14fda4aace13752b",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17690,8 +17690,8 @@
       },
       {
         "path": "scripts/security/lib/live-supply-chain.mjs",
-        "bytes": 8562,
-        "sha256": "18d375dbfcb7fa1f8781731206abb8ab5bf43a43d9feae817f2a8c21f59d7a40",
+        "bytes": 8683,
+        "sha256": "fa1b2a4a050fd0a07306c5c94d71806b0136bbab3a537f6a6604fbba38c35478",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"

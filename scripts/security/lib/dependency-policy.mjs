@@ -27,7 +27,7 @@ const DEFAULT_PROJECTS = [
 const PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i
 const EXACT_VERSION_PATTERN = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 const ADVISORY_ID_PATTERN = /^(?:GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}|CVE-\d{4}-\d{4,})$/i
-const INTEGRITY_PATTERN = /^sha(?:1|256|384|512)-[A-Za-z0-9+/=]+$/
+const INTEGRITY_PATTERN = /^sha(?:256|384|512)-[A-Za-z0-9+/=]+$/
 const FULL_SHA_PATTERN = /^[a-f0-9]{40}$/i
 const REMOTE_ACTION_PATTERN = /^([^@\s]+)@([^@\s]+)$/
 const REGISTRY_PREFIX = 'https://registry.npmjs.org/'

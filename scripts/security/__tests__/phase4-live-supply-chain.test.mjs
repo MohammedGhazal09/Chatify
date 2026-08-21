@@ -81,10 +81,12 @@ test('install-script coverage requires version-pinned approvals or explicit name
 test('structured evidence strips URL credentials and secret-like fields recursively', () => {
   const sanitized = sanitizeStructuredEvidence({
     registry: 'https://user:password@registry.example.test/npm?token=abc#fragment',
+    message: ['request to https://user:', 'password@registry.example.test/npm?token=abc#fragment failed'].join(''),
     npmToken: 'top-secret',
     nested: [{ authorization: 'Bearer token-value', value: 'safe' }],
   })
   assert.equal(sanitized.registry, 'https://registry.example.test/npm')
+  assert.equal(sanitized.message, 'request to https://registry.example.test/npm failed')
   assert.equal(sanitized.npmToken, '[redacted]')
   assert.equal(sanitized.nested[0].authorization, '[redacted]')
   assert.equal(sanitized.nested[0].value, 'safe')

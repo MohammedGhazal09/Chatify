@@ -198,6 +198,21 @@ test('bundled status cannot bypass source and integrity without a verified paren
   assert.throws(() => assertPhase4ExitGate(report), /dependencySourcesTrusted/)
 })
 
+test('obsolete SHA-1 lockfile integrity is rejected', async () => {
+  const root = await createFixture()
+  const lockPath = path.join(root, 'Backend/Chatify/package-lock.json')
+  const parsed = JSON.parse(await readFile(lockPath, 'utf8'))
+  parsed.packages['node_modules/axios'].integrity = 'sha1-QUJDRA=='
+  await writeJson(lockPath, parsed)
+
+  const report = await buildDependencyPolicy(root, { now: NOW })
+  assert.equal(report.violations.some((item) => (
+    item.code === 'dependency-integrity-missing'
+    && item.package === 'axios'
+  )), true)
+  assert.throws(() => assertPhase4ExitGate(report), /dependencyIntegrityComplete/)
+})
+
 test('unsafe sources, missing integrity, mutable actions, and missing update coverage fail closed', async () => {
   const root = await createFixture({ unsafe: true, includeDependabot: false })
   const report = await buildDependencyPolicy(root, { now: NOW })
