@@ -250,6 +250,7 @@ const genericMatchesForPattern = ({ text, filePath, scope, occupied, pattern, va
     const span = { start: match.index + valueIndex, end: match.index + valueIndex + value.length }
     if (
       !isSecretMaterialName(name)
+      || value.includes('${')
       || isPlaceholderValue(value)
       || isSyntheticFixtureValue({ value, filePath })
       || (TEST_OR_DOC_PATH_PATTERN.test(filePath) && SYNTHETIC_FIXTURE_NAME_PATTERN.test(name))
@@ -272,7 +273,6 @@ const genericMatches = (options) => [
   ...genericMatchesForPattern({ ...options, pattern: GENERIC_QUOTED_ASSIGNMENT_PATTERN, valueGroup: 3 }),
   ...genericMatchesForPattern({ ...options, pattern: GENERIC_LINE_ASSIGNMENT_PATTERN, valueGroup: 2 }),
 ]
-
 
 export const scanTextForSecrets = ({ text, filePath, scope }) => {
   if (typeof text !== 'string' || !filePath || !scope) return []
