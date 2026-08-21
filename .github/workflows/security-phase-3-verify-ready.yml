@@ -1,0 +1,50 @@
+name: Temporary Phase 3 TDD red verification
+
+on:
+  push:
+    branches:
+      - security/phase-3-secret-exposure
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase3-tdd-red
+  cancel-in-progress: true
+
+jobs:
+  low-entropy-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: Backend/Chatify/package-lock.json
+      - name: Install backend dependencies
+        run: npm --prefix Backend/Chatify ci
+      - name: Run secret-configuration regression
+        run: npm --prefix Backend/Chatify test -- --run test/security/secret-configuration.test.mjs
+
+  current-pr-ref-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          package-manager-cache: false
+      - name: Run Phase 3 regression suite
+        run: npm run security:phase3:test
