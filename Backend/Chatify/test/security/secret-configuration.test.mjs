@@ -3,12 +3,16 @@ import { test } from 'vitest'
 
 import { validateSecretConfiguration } from '../../Utils/secretConfiguration.mjs'
 
+const strongSecret = (offset) => Buffer.from(
+  Array.from({ length: 32 }, (_, index) => (index * 17 + offset) % 256)
+).toString('base64')
+
 const productionEnv = () => ({
   NODE_ENV: 'production',
-  SECRET_JWT_KEY: `jwt-${'A1b2'.repeat(10)}`,
-  CSRF_SECRET: `csrf-${'C3d4'.repeat(10)}`,
-  PASSWORD_RESET_SECRET: `reset-${'E5f6'.repeat(10)}`,
-  TWO_FACTOR_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+  SECRET_JWT_KEY: `jwt-${strongSecret(11)}`,
+  CSRF_SECRET: `csrf-${strongSecret(29)}`,
+  PASSWORD_RESET_SECRET: `reset-${strongSecret(47)}`,
+  TWO_FACTOR_ENCRYPTION_KEY: strongSecret(71),
   MONGODB_URL: ['mongodb+srv://', 'chatify-user', ':', 'database-password', '@cluster.example.com/chatify'].join(''),
   FRONTEND_ORIGIN: 'https://chatify.example.com',
   NOTIFICATION_WORKER_ENABLED: '0',
@@ -136,5 +140,21 @@ test('rejects placeholder and undersized configured provider credentials', () =>
   assert.throws(
     () => validateSecretConfiguration(turn),
     /CALL_TURN_CREDENTIAL.*at least 12/i
+  )
+})
+
+test('rejects low-entropy cryptographic key material', () => {
+  const core = productionEnv()
+  core.SECRET_JWT_KEY = 'A'.repeat(64)
+  assert.throws(
+    () => validateSecretConfiguration(core),
+    /SECRET_JWT_KEY.*estimated entropy/i
+  )
+
+  const twoFactor = productionEnv()
+  twoFactor.TWO_FACTOR_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64')
+  assert.throws(
+    () => validateSecretConfiguration(twoFactor),
+    /TWO_FACTOR_ENCRYPTION_KEY.*estimated entropy/i
   )
 })
