@@ -1,4 +1,4 @@
-name: Temporary Phase 3 final security hardening
+name: Temporary Phase 3 deterministic finalization
 
 on:
   push:
@@ -14,10 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  harden:
+  finalize:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 60
 
     steps:
       - name: Checkout Phase 3 branch
@@ -27,203 +27,84 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Fetch repository history and current PR refs
+        run: |
+          git fetch --force --prune origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*'
+          git fetch --force origin \
+            '+refs/pull/4/head:refs/remotes/pull/4/head'
+
+          fetched_merge=0
+          for attempt in 1 2 3 4 5; do
+            if git fetch --force origin \
+              '+refs/pull/4/merge:refs/remotes/pull/4/merge'; then
+              fetched_merge=1
+              break
+            fi
+            sleep $((attempt * 2))
+          done
+          test "$fetched_merge" = "1"
+
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24.19.0"
-          package-manager-cache: false
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
 
-      - name: Apply reviewed entropy and pull-ref hardening
+      - name: Remove all temporary Phase 3 material
         run: |
-          python - <<'PY'
-          from pathlib import Path
+          git rm --ignore-unmatch \
+            .github/workflows/security-phase-3-finalizer.yml \
+            .github/workflows/security-phase-3-hardening-materialize.yml \
+            .github/workflows/security-phase-3-verify-ready.yml \
+            scripts/security/phase3-final-hardening/part-00.b64
 
-          def replace_once(path, old, new):
-              target = Path(path)
-              text = target.read_text()
-              if new in text:
-                  return
-              if old not in text:
-                  raise RuntimeError(f'Expected patch marker missing from {path}: {old[:100]!r}')
-              target.write_text(text.replace(old, new, 1))
-
-          source = 'Backend/Chatify/Utils/secretConfiguration.mjs'
-          replace_once(
-              source,
-              "const valueLength = (env, name) => configured(env, name) ? env[name].trim().length : 0\n",
-              "const valueLength = (env, name) => configured(env, name) ? env[name].trim().length : 0\n\nconst calculateEntropyBits = (value) => {\n  const input = typeof value === 'string' ? [...value] : [...value].map((byte) => String(byte))\n  if (input.length === 0) return 0\n  const counts = new Map()\n  for (const item of input) counts.set(item, (counts.get(item) ?? 0) + 1)\n  let bitsPerSymbol = 0\n  for (const count of counts.values()) {\n    const probability = count / input.length\n    bitsPerSymbol -= probability * Math.log2(probability)\n  }\n  return bitsPerSymbol * input.length\n}\n\nconst hasAdequateEntropy = (value, minimumBits = 128) => (\n  new Set(typeof value === 'string' ? [...value] : value).size >= 8\n  && calculateEntropyBits(value) >= minimumBits\n)\n",
-          )
-          replace_once(
-              source,
-              "  if (value.length < minimumLength) issues.push(`${name} must be at least ${minimumLength} characters`)\n",
-              "  if (value.length < minimumLength) {\n    issues.push(`${name} must be at least ${minimumLength} characters`)\n  } else if (!allowTestPrefix && !hasAdequateEntropy(value)) {\n    issues.push(`${name} must provide at least 128 bits of estimated entropy`)\n  }\n",
-          )
-          replace_once(
-              source,
-              "const isThirtyTwoByteKey = (value) => {\n  const input = String(value ?? '').trim()\n  if (/^[a-f0-9]{64}$/i.test(input)) return true\n  try {\n    return Buffer.from(input, 'base64').length === 32\n  } catch {\n    return false\n  }\n}\n",
-              "const decodeThirtyTwoByteKey = (value) => {\n  const input = String(value ?? '').trim()\n  if (/^[a-f0-9]{64}$/i.test(input)) return Buffer.from(input, 'hex')\n  try {\n    const decoded = Buffer.from(input, 'base64')\n    return decoded.length === 32 ? decoded : null\n  } catch {\n    return null\n  }\n}\n\nconst validateTwoFactorKey = (env, issues) => {\n  const decoded = decodeThirtyTwoByteKey(env.TWO_FACTOR_ENCRYPTION_KEY)\n  if (!decoded) {\n    issues.push('TWO_FACTOR_ENCRYPTION_KEY must decode to exactly 32 bytes')\n    return false\n  }\n  if (!hasAdequateEntropy(decoded)) {\n    issues.push('TWO_FACTOR_ENCRYPTION_KEY must provide at least 128 bits of estimated entropy')\n    return false\n  }\n  return true\n}\n",
-          )
-          replace_once(
-              source,
-              "    } else if (!isThirtyTwoByteKey(env.TWO_FACTOR_ENCRYPTION_KEY)) {\n      issues.push('TWO_FACTOR_ENCRYPTION_KEY must decode to exactly 32 bytes')\n    } else {\n      validatedSecrets.push('TWO_FACTOR_ENCRYPTION_KEY')\n    }\n",
-              "    } else if (validateTwoFactorKey(env, issues)) {\n      validatedSecrets.push('TWO_FACTOR_ENCRYPTION_KEY')\n    }\n",
-          )
-          replace_once(
-              source,
-              "    if (!isThirtyTwoByteKey(env.TWO_FACTOR_ENCRYPTION_KEY)) {\n      issues.push('TWO_FACTOR_ENCRYPTION_KEY must decode to exactly 32 bytes')\n    } else {\n      validatedSecrets.push('TWO_FACTOR_ENCRYPTION_KEY')\n    }\n",
-              "    if (validateTwoFactorKey(env, issues)) {\n      validatedSecrets.push('TWO_FACTOR_ENCRYPTION_KEY')\n    }\n",
-          )
-
-          test_path = 'Backend/Chatify/test/security/secret-configuration.test.mjs'
-          replace_once(
-              test_path,
-              "const productionEnv = () => ({\n",
-              "const strongSecret = (offset) => Buffer.from(\n  Array.from({ length: 32 }, (_, index) => (index * 17 + offset) % 256)\n).toString('base64')\n\nconst productionEnv = () => ({\n",
-          )
-          replace_once(
-              test_path,
-              "  SECRET_JWT_KEY: `jwt-${'A1b2'.repeat(10)}`,\n  CSRF_SECRET: `csrf-${'C3d4'.repeat(10)}`,\n  PASSWORD_RESET_SECRET: `reset-${'E5f6'.repeat(10)}`,\n  TWO_FACTOR_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),\n",
-              "  SECRET_JWT_KEY: `jwt-${strongSecret(11)}`,\n  CSRF_SECRET: `csrf-${strongSecret(29)}`,\n  PASSWORD_RESET_SECRET: `reset-${strongSecret(47)}`,\n  TWO_FACTOR_ENCRYPTION_KEY: strongSecret(71),\n",
-          )
-          test_file = Path(test_path)
-          test_text = test_file.read_text()
-          entropy_test = """
-
-test('rejects low-entropy cryptographic key material', () => {
-  const core = productionEnv()
-  core.SECRET_JWT_KEY = 'A'.repeat(64)
-  assert.throws(
-    () => validateSecretConfiguration(core),
-    /SECRET_JWT_KEY.*estimated entropy/i
-  )
-
-  const twoFactor = productionEnv()
-  twoFactor.TWO_FACTOR_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64')
-  assert.throws(
-    () => validateSecretConfiguration(twoFactor),
-    /TWO_FACTOR_ENCRYPTION_KEY.*estimated entropy/i
-  )
-})
-"""
-          if "test('rejects low-entropy cryptographic key material'" not in test_text:
-              test_file.write_text(test_text.rstrip() + entropy_test + '\n')
-
-          reproduction_test = 'scripts/security/__tests__/phase3-reproduction.test.mjs'
-          replace_once(
-              reproduction_test,
-              "import test from 'node:test'\n",
-              "import test from 'node:test'\nimport { readFile } from 'node:fs/promises'\nimport path from 'node:path'\nimport { fileURLToPath } from 'node:url'\n",
-          )
-          reproduction_file = Path(reproduction_test)
-          reproduction_text = reproduction_file.read_text()
-          workflow_test = r"""
-
-test('Phase 3 workflow fetches only the current pull-request refs instead of every open PR', async () => {
-  const currentFile = fileURLToPath(import.meta.url)
-  const root = path.resolve(path.dirname(currentFile), '../../..')
-  const workflow = await readFile(
-    path.join(root, '.github/workflows/security-phase-3-secret-exposure.yml'),
-    'utf8',
-  )
-
-  assert.doesNotMatch(workflow, /refs\/pull\/\*\/head/)
-  assert.match(workflow, /github\.event\.pull_request\.number/)
-  assert.match(workflow, /refs\/pull\/\$\{\{ github\.event\.pull_request\.number \}\}\/head/)
-})
-"""
-          if "fetches only the current pull-request refs" not in reproduction_text:
-              reproduction_file.write_text(reproduction_text.rstrip() + workflow_test + '\n')
-
-          workflow_path = Path('.github/workflows/security-phase-3-secret-exposure.yml')
-          workflow = workflow_path.read_text()
-          old_fetch = """      - name: Fetch all available repository refs
+      - name: Install clean dependency trees
         run: |
-          git fetch --force --prune origin \\
-            '+refs/heads/*:refs/remotes/origin/*' \\
-            '+refs/tags/*:refs/tags/*' \\
-            '+refs/pull/*/head:refs/remotes/pull/*/head'
-"""
-          event_name = '$' + '{{ github.event_name }}'
-          pr_number = '$' + '{{ github.event.pull_request.number }}'
-          new_fetch = f"""      - name: Fetch repository branches, tags, and current pull-request ref
-        run: |
-          git fetch --force --prune origin \\
-            '+refs/heads/*:refs/remotes/origin/*' \\
-            '+refs/tags/*:refs/tags/*'
-
-          if [ \"{event_name}\" = \"pull_request\" ]; then
-            git fetch --force origin \\
-              '+refs/pull/{pr_number}/head:refs/remotes/pull/{pr_number}/head'
-          fi
-"""
-          if new_fetch not in workflow:
-              if old_fetch not in workflow:
-                  raise RuntimeError('Expected Phase 3 ref-fetch block is missing')
-              workflow_path.write_text(workflow.replace(old_fetch, new_fetch, 1))
-
-          readme = Path('docs/security/audit/phase-3/README.md')
-          text = readme.read_text()
-          text = text.replace(
-              'The workflow fetches all branch, tag, and pull-request refs available to GitHub Actions. The scanner enumerates every reachable Git object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.',
-              "The workflow fetches every repository branch and tag. On a pull request, it additionally fetches only that pull request's head ref; the checked-out merge commit is already reachable as `HEAD`. Unrelated open pull requests are deliberately excluded so untrusted fork content cannot become an input to every repository security gate. The scanner enumerates every reachable Git object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.",
-          )
-          text = text.replace(
-              '- distinct JWT, CSRF, and password-reset keys;\n- a dedicated production 2FA encryption key;',
-              '- distinct JWT, CSRF, and password-reset keys with at least 128 bits of estimated entropy outside tests;\n- a dedicated production 2FA encryption key that decodes to 32 bytes and provides at least 128 bits of estimated entropy;',
-          )
-          text = text.replace(
-              '- cryptographic-purpose keys are distinct;',
-              '- cryptographic-purpose keys are distinct and weak low-entropy key material is rejected;',
-          )
-          text = text.replace(
-              'GitHub Actions can scan refs it is authorized to fetch, but separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require operator review.',
-              'GitHub Actions scans repository branches, tags, the current pull-request ref, and the checked-out merge commit. Unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review.',
-          )
-          readme.write_text(text)
-
-          plan = Path('docs/plans/2026-08-21-phase-3-secrets-and-credentials.md')
-          text = plan.read_text()
-          text = text.replace(
-              'Review frontend exposure, weak literal fallbacks, environment dumps, and credential logging. Add `secretConfiguration.mjs`, call it before dynamic runtime imports, remove CSRF fallback to the JWT key, add a separate test CSRF key, and document the 2FA encryption key.',
-              'Review frontend exposure, weak literal fallbacks, environment dumps, and credential logging. Add `secretConfiguration.mjs`, call it before dynamic runtime imports, remove CSRF fallback to the JWT key, add a separate test CSRF key, reject low-entropy core and 2FA key material, and document the 2FA encryption key.',
-          )
-          text = text.replace(
-              'Add Phase 3 root commands, a full reproduction runner, and a read-only workflow that fetches all available branch/tag/pull-request refs, performs clean installs and inherited Phase 1/2 gates, executes Phase 3 tests and scan, runs the complete quality suite, and uploads only sanitized evidence.',
-              'Add Phase 3 root commands, a full reproduction runner, and a read-only workflow that fetches repository branch/tag refs plus only the current pull-request ref, performs clean installs and inherited Phase 1/2 gates, executes Phase 3 tests and scan, runs the complete quality suite, and uploads only sanitized evidence.',
-          )
-          plan.write_text(text)
-          PY
-
-      - name: Verify hardening and generate permanent-tree evidence
-        run: |
-          git rm --cached -- .github/workflows/security-phase-3-finalizer.yml
-
           npm --prefix Backend/Chatify ci
-          npm --prefix Backend/Chatify test -- --run test/security/secret-configuration.test.mjs
-          npm run security:phase3:test
+          npm --prefix Frontend/Chatify ci
 
+      - name: Run Phase 1 through Phase 3 focused verification
+        run: |
+          node --check Backend/Chatify/Utils/secretConfiguration.mjs
+          node --check scripts/security/lib/secret-detectors.mjs
+          node --check scripts/security/lib/secret-scan.mjs
+          node --check scripts/security/phase3-secret-scan.mjs
+          node --check scripts/security/phase3-reproduce.mjs
+          npm run security:phase1:test
+          npm run security:phase2:test
+          npm run security:phase3:test
+          npm --prefix Backend/Chatify test -- --run test/security/secret-configuration.test.mjs
+          npm run doctor
+
+      - name: Regenerate deterministic Phase 1 through Phase 3 evidence
+        run: |
           npm run security:phase3:generate
           npm run security:phase1:generate
           npm run security:phase2:generate
           npm run security:phase1:generate
-
           npm run security:phase1:check
           npm run security:phase2:check
           npm run security:phase3:check
 
-          git restore --staged -- .github/workflows/security-phase-3-finalizer.yml
+      - name: Run complete repository quality and operations gates
+        run: |
+          npm run quality
+          npm run ops:check
 
-      - name: Commit final hardening and deterministic evidence
+      - name: Commit permanent Phase 3 tree
         run: |
           git add -A
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo 'Expected final Phase 3 hardening changes were not produced.' >&2
+            echo 'Expected final Phase 3 cleanup or evidence changes were not produced.' >&2
             exit 1
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'fix(security): harden Phase 3 key and ref validation'
-          git fetch origin security/phase-3-secret-exposure
-          git rebase origin/security/phase-3-secret-exposure
+          git commit -m 'security: finalize Phase 3 controls and evidence'
           git push origin HEAD:security/phase-3-secret-exposure
