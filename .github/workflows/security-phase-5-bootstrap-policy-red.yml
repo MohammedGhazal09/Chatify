@@ -1,0 +1,56 @@
+name: Temporary Phase 5 policy TDD red proof
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase5-policy-red-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove-red:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'security/phase-5-authentication-session'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Phase 5 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-5-authentication-session
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          package-manager-cache: false
+
+      - name: Prove Phase 5 policy suite is red
+        run: |
+          set +e
+          node --test scripts/security/__tests__/phase5-authentication-policy.test.mjs \
+            2>&1 | tee /tmp/phase5-policy-red.log
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo 'Phase 5 policy regressions unexpectedly passed before implementation.' >&2
+            exit 1
+          fi
+
+          grep -E 'authentication-policy|ERR_MODULE_NOT_FOUND|Cannot find module' /tmp/phase5-policy-red.log >/dev/null
+          echo 'Observed the required failing Phase 5 policy run before implementation.'
+
+      - name: Upload policy red proof
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase-5-policy-tdd-red-proof
+          path: /tmp/phase5-policy-red.log
+          if-no-files-found: error
+          retention-days: 14
