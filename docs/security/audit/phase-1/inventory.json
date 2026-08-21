@@ -437,7 +437,7 @@
   },
   "components": {
     "trackedFileCount": 1563,
-    "totalTrackedBytes": 17432865,
+    "totalTrackedBytes": 17435100,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -15012,8 +15012,8 @@
       },
       {
         "path": "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
-        "bytes": 4757,
-        "sha256": "db0eeae42ec5ee90cb268015b5ff48e4e18a900b3bdfef4baa5c90f04196cb1e",
+        "bytes": 4990,
+        "sha256": "64f1031bb6513e2a53428b1c85a450211d40b5b451ce7a19f1efa6e3f23aea44",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15084,8 +15084,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/README.md",
-        "bytes": 6424,
-        "sha256": "b9f348a6a9e206120d23488b374ea2273a413e2b33080bcdca2d29b5df3f984f",
+        "bytes": 6629,
+        "sha256": "06b335b4b401c9d7d0859847f045d1a52b4c19a909514c5c542f906aa78703bf",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15102,8 +15102,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
-        "bytes": 6760,
-        "sha256": "ea6e19fb2c7d4169e94a09e96d0b2d036fea9077c3e2b77fc74ae90f8b57592d",
+        "bytes": 6768,
+        "sha256": "a7ea87343a2d70c468b26fac66abae5e190a8e440a58ce4db6b071df2d3c45b2",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15112,7 +15112,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
         "bytes": 1740,
-        "sha256": "fc1fa2676c68a9cfbc9d6c996019e22c21aec939a05342563f46d97fd3fb8280",
+        "sha256": "6b9d612a503cfd1ee689840dc2102a4b1570d134b99d4bc345da5661f292b712",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17622,8 +17622,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase3-secret-scan.test.mjs",
-        "bytes": 11628,
-        "sha256": "154b7c601aa5a154448350b1c1dd4fbbc19ad41c9f9170a8aca9adcec101bcce",
+        "bytes": 13240,
+        "sha256": "54adfcaaab745555953c0466f24ebcf84ef2f33420394e6ee032857da737c2cd",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17744,8 +17744,8 @@
       },
       {
         "path": "scripts/security/lib/secret-scan.mjs",
-        "bytes": 22247,
-        "sha256": "c0048bea3fc22c2c28564a36368ffbc167c96a9fe0f60792e828e936a065a015",
+        "bytes": 22424,
+        "sha256": "2fb34edaef3cfd63926d6063352db0af3e742d4ef53a7364afc5f52646a7e82a",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"

@@ -6,7 +6,7 @@ This document is generated deterministically from tracked repository files. Run 
 
 - Source selection: `git-index`.
 - Tracked files inventoried: **1563**.
-- Tracked bytes inventoried: **17432865**.
+- Tracked bytes inventoried: **17435100**.
 - Generated inventory files are excluded from their own input set.
 - Secret-like example values are redacted; live environment values are never read.
 - Runtime execution evidence is stored in the `GitHub Actions artifact: phase-1-reproduction-evidence` artifact rather than committed.
