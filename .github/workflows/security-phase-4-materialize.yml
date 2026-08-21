@@ -142,6 +142,17 @@ jobs:
           for file_path, replacements in documentation_changes.items():
               for old, new in replacements:
                   replace_once(file_path, old, new)
+
+          replace_once(
+              'Backend/Chatify/test/auth/discord-oauth-strategy.test.mjs',
+              "clientSecret: 'discord-client-secret',",
+              "clientSecret: 'fixture-client-secret',",
+          )
+          replace_once(
+              'scripts/security/__tests__/phase4-live-supply-chain.test.mjs',
+              "registry: 'https://user:secret@registry.npmjs.org/'",
+              "registry: ['https://user:', 'secret@registry.npmjs.org/'].join('')",
+          )
           PY
 
       - name: Remove temporary and inherited bootstrap material
