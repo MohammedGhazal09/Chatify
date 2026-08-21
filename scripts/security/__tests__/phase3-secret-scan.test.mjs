@@ -168,6 +168,47 @@ test('current-tree scan detects credential classes without retaining raw values'
   assert.equal(serialized.includes('MIIEvQIBADANBgkqhkiG9w0BAQEFAASC'), false)
 })
 
+test('history evidence is scoped to audited HEAD and ignores unrelated branch mutations', async () => {
+  const root = await createRepository()
+  const first = await buildSecretScan(root, {
+    phase1Inventory: safePhase1Inventory(),
+    now: new Date('2026-08-21T00:00:00Z'),
+  })
+  const auditedBranch = git(root, ['branch', '--show-current'])
+
+  git(root, ['switch', '-q', '-c', 'unrelated-history'])
+  await writeFile(path.join(root, 'unrelated-branch-only.txt'), 'unrelated branch mutation\n')
+  commitAll(root, 'unrelated branch mutation')
+  git(root, ['switch', '-q', auditedBranch])
+
+  const second = await buildSecretScan(root, {
+    phase1Inventory: safePhase1Inventory(),
+    now: new Date('2026-08-21T00:00:00Z'),
+  })
+
+  assert.deepEqual(second.history, first.history)
+})
+
+test('downstream generated audit evidence does not recursively change Phase 3 history', async () => {
+  const root = await createRepository()
+  const first = await buildSecretScan(root, {
+    phase1Inventory: safePhase1Inventory(),
+    now: new Date('2026-08-21T00:00:00Z'),
+  })
+
+  await mkdir(path.join(root, 'docs/security/audit/phase-4'), { recursive: true })
+  await writeFile(path.join(root, 'docs/security/audit/phase-4/dependency-policy.json'), '{"phase":4}\n')
+  await writeFile(path.join(root, 'docs/security/audit/phase-4/dependency-policy.md'), '# Generated Phase 4 policy\n')
+  commitAll(root, 'commit downstream generated evidence')
+
+  const second = await buildSecretScan(root, {
+    phase1Inventory: safePhase1Inventory(),
+    now: new Date('2026-08-21T00:00:00Z'),
+  })
+
+  assert.deepEqual(second, first)
+})
+
 test('history scan detects a credential removed from the current tree', async () => {
   const root = await createRepository()
   const secret = brevoFixture()

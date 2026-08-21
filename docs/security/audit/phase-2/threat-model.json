@@ -3,7 +3,7 @@
   "repository": "MohammedGhazal09/Chatify",
   "version": "46dff3834a9f727840cfb02a2e8acaef43cf06f8",
   "inventory": {
-    "runtimeSurfaceSha256": "5656e9cbfb201a41ff1428f97990f08892322fd57ff91038d2eb90b5ddc9a32a",
+    "runtimeSurfaceSha256": "a8b1efab7e95b63360755203d941fd4b1a69b376ef447b3cf95a22de4d19f226",
     "schemaVersion": 1,
     "sourceSelection": "git-index",
     "surfaceCounts": {
@@ -2893,6 +2893,7 @@
         }
       ],
       "ignoredDevelopmentOnly": [
+        "scripts/security/lib/dependency-policy.mjs",
         "scripts/security/lib/inventory.mjs"
       ]
     },

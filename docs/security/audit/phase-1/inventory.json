@@ -66,9 +66,9 @@
           "mongoose": "^8.16.4",
           "multer": "^2.1.1",
           "passport": "^0.7.0",
-          "passport-discord": "^0.1.4",
           "passport-github2": "^0.1.12",
           "passport-google-oauth20": "^2.0.0",
+          "passport-oauth2": "^1.8.0",
           "socket.io": "^4.8.1",
           "validator": "^13.15.15",
           "web-push": "^3.6.7",
@@ -83,7 +83,7 @@
         },
         "lockfile": {
           "path": "Backend/Chatify/package-lock.json",
-          "sha256": "51c850093470584b787d64f8cfbc96a4ed911c63d9060b1f5608d7b61c43197b"
+          "sha256": "b16b1b7c02b2fb1c4cf730ca4b655641db7167bf2436712fe1bccbe507686282"
         }
       },
       {
@@ -144,7 +144,7 @@
         },
         "lockfile": {
           "path": "Frontend/Chatify/package-lock.json",
-          "sha256": "67b589c321a6b4158c15e683ef37d267960bb9bbe3d252fbc3cc1e4915097817"
+          "sha256": "a70084f257ed1a88463ba7a7701bc5b8f2e6f6348c75a62c3159b0d1853e6d4d"
         }
       },
       {
@@ -184,6 +184,10 @@
           "security:phase3:generate": "node scripts/security/phase3-secret-scan.mjs --write",
           "security:phase3:reproduce": "node scripts/security/phase3-reproduce.mjs",
           "security:phase3:test": "node --test scripts/security/__tests__/phase3-*.test.mjs",
+          "security:phase4:check": "node scripts/security/phase4-dependency-policy.mjs --check",
+          "security:phase4:generate": "node scripts/security/phase4-dependency-policy.mjs --write",
+          "security:phase4:reproduce": "node scripts/security/phase4-reproduce.mjs",
+          "security:phase4:test": "node --test scripts/security/__tests__/phase4-*.test.mjs",
           "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
           "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
           "test": "npm run quality"
@@ -342,6 +346,30 @@
       },
       {
         "cwd": ".",
+        "script": "security:phase4:check",
+        "command": "npm run security:phase4:check",
+        "implementation": "node scripts/security/phase4-dependency-policy.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase4:generate",
+        "command": "npm run security:phase4:generate",
+        "implementation": "node scripts/security/phase4-dependency-policy.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase4:reproduce",
+        "command": "npm run security:phase4:reproduce",
+        "implementation": "node scripts/security/phase4-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase4:test",
+        "command": "npm run security:phase4:test",
+        "implementation": "node --test scripts/security/__tests__/phase4-*.test.mjs"
+      },
+      {
+        "cwd": ".",
         "script": "smoke:local",
         "command": "npm run smoke:local",
         "implementation": "npm --prefix Frontend/Chatify run test:ui --"
@@ -408,8 +436,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1542,
-    "totalTrackedBytes": 16899566,
+    "trackedFileCount": 1563,
+    "totalTrackedBytes": 17435100,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -417,6 +445,7 @@
         "Backend/Chatify/app.mjs",
         "Backend/Chatify/bash.exe.stackdump",
         "Backend/Chatify/Config/DBConfig.mjs",
+        "Backend/Chatify/Config/discordOAuthStrategy.mjs",
         "Backend/Chatify/Config/passport.mjs",
         "Backend/Chatify/Config/socket.mjs",
         "Backend/Chatify/Controller/adminController.mjs",
@@ -482,6 +511,7 @@
         "Backend/Chatify/test/admin/delivery-health.test.mjs",
         "Backend/Chatify/test/admin/privacy-operations.test.mjs",
         "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
+        "Backend/Chatify/test/auth/discord-oauth-strategy.test.mjs",
         "Backend/Chatify/test/auth/email-template.test.mjs",
         "Backend/Chatify/test/auth/oauth-account-linking.test.mjs",
         "Backend/Chatify/test/auth/oauth-config.test.mjs",
@@ -600,10 +630,16 @@
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
         "scripts/security/__tests__/phase3-template-expression.test.mjs",
+        "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
+        "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
+        "scripts/security/__tests__/phase4-reproduction.test.mjs",
+        "scripts/security/lib/dependency-policy.mjs",
         "scripts/security/lib/inventory.mjs",
+        "scripts/security/lib/live-supply-chain.mjs",
         "scripts/security/lib/phase2-policy.mjs",
         "scripts/security/lib/phase2-reproduction.mjs",
         "scripts/security/lib/phase3-reproduction.mjs",
+        "scripts/security/lib/phase4-reproduction.mjs",
         "scripts/security/lib/secret-detectors.mjs",
         "scripts/security/lib/secret-scan.mjs",
         "scripts/security/lib/threat-model.mjs",
@@ -613,10 +649,14 @@
         "scripts/security/phase2-reproduce.mjs",
         "scripts/security/phase2-threat-model.mjs",
         "scripts/security/phase3-reproduce.mjs",
-        "scripts/security/phase3-secret-scan.mjs"
+        "scripts/security/phase3-secret-scan.mjs",
+        "scripts/security/phase4-dependency-policy.mjs",
+        "scripts/security/phase4-live-supply-chain.mjs",
+        "scripts/security/phase4-reproduce.mjs"
       ],
       "configuration": [
         "Backend/Chatify/Config/DBConfig.mjs",
+        "Backend/Chatify/Config/discordOAuthStrategy.mjs",
         "Backend/Chatify/Config/passport.mjs",
         "Backend/Chatify/Config/socket.mjs"
       ],
@@ -1652,6 +1692,7 @@
         "docs/plans/2026-08-20-phase-1-repository-inventory.md",
         "docs/plans/2026-08-21-phase-2-threat-model.md",
         "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
+        "docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md",
         "docs/security/audit/phase-1/README.md",
         "docs/security/audit/phase-2/README.md",
         "docs/security/audit/phase-2/threat-model.json",
@@ -1661,7 +1702,14 @@
         "docs/security/audit/phase-3/README.md",
         "docs/security/audit/phase-3/secret-scan-allowlist.json",
         "docs/security/audit/phase-3/secret-scan.json",
-        "docs/security/audit/phase-3/secret-scan.md"
+        "docs/security/audit/phase-3/secret-scan.md",
+        "docs/security/audit/phase-4/dependency-exceptions.json",
+        "docs/security/audit/phase-4/dependency-policy.json",
+        "docs/security/audit/phase-4/dependency-policy.md",
+        "docs/security/audit/phase-4/dependency-update-procedure.md",
+        "docs/security/audit/phase-4/install-script-policy.json",
+        "docs/security/audit/phase-4/README.md",
+        "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md"
       ],
       "frontend": [
         "Frontend/Chatify/.env.example",
@@ -2046,6 +2094,7 @@
         "Backend/Chatify/test/admin/delivery-health.test.mjs",
         "Backend/Chatify/test/admin/privacy-operations.test.mjs",
         "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
+        "Backend/Chatify/test/auth/discord-oauth-strategy.test.mjs",
         "Backend/Chatify/test/auth/email-template.test.mjs",
         "Backend/Chatify/test/auth/oauth-account-linking.test.mjs",
         "Backend/Chatify/test/auth/oauth-config.test.mjs",
@@ -2232,7 +2281,10 @@
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
-        "scripts/security/__tests__/phase3-template-expression.test.mjs"
+        "scripts/security/__tests__/phase3-template-expression.test.mjs",
+        "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
+        "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
+        "scripts/security/__tests__/phase4-reproduction.test.mjs"
       ],
       "text-source-or-config": [
         ".agents/skills/csrf-protection/references/double-submit-cookie-pattern.md",
@@ -2268,10 +2320,12 @@
         ".agents/skills/vitest/references/features-snapshots.md",
         ".agents/skills/vitest/SKILL.md",
         ".artifacts/oauth-login-qa-20260628-2347/report.json",
+        ".github/dependabot.yml",
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
         ".github/workflows/security-phase-3-secret-exposure.yml",
+        ".github/workflows/security-phase-4-supply-chain.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
         ".planning/codebase/CONVENTIONS.md",
@@ -3115,6 +3169,7 @@
         "Backend/Chatify/.vscode/launch.json",
         "Backend/Chatify/app.mjs",
         "Backend/Chatify/Config/DBConfig.mjs",
+        "Backend/Chatify/Config/discordOAuthStrategy.mjs",
         "Backend/Chatify/Config/passport.mjs",
         "Backend/Chatify/Config/socket.mjs",
         "Backend/Chatify/Controller/adminController.mjs",
@@ -3180,6 +3235,7 @@
         "Backend/Chatify/test/admin/delivery-health.test.mjs",
         "Backend/Chatify/test/admin/privacy-operations.test.mjs",
         "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
+        "Backend/Chatify/test/auth/discord-oauth-strategy.test.mjs",
         "Backend/Chatify/test/auth/email-template.test.mjs",
         "Backend/Chatify/test/auth/oauth-account-linking.test.mjs",
         "Backend/Chatify/test/auth/oauth-config.test.mjs",
@@ -3299,6 +3355,7 @@
         "docs/plans/2026-08-20-phase-1-repository-inventory.md",
         "docs/plans/2026-08-21-phase-2-threat-model.md",
         "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
+        "docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md",
         "docs/security/audit/phase-1/README.md",
         "docs/security/audit/phase-2/README.md",
         "docs/security/audit/phase-2/threat-model.json",
@@ -3309,6 +3366,13 @@
         "docs/security/audit/phase-3/secret-scan-allowlist.json",
         "docs/security/audit/phase-3/secret-scan.json",
         "docs/security/audit/phase-3/secret-scan.md",
+        "docs/security/audit/phase-4/dependency-exceptions.json",
+        "docs/security/audit/phase-4/dependency-policy.json",
+        "docs/security/audit/phase-4/dependency-policy.md",
+        "docs/security/audit/phase-4/dependency-update-procedure.md",
+        "docs/security/audit/phase-4/install-script-policy.json",
+        "docs/security/audit/phase-4/README.md",
+        "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md",
         "Frontend/Chatify/e2e/admin-delivery-health.spec.ts",
         "Frontend/Chatify/e2e/admin-hub.spec.ts",
         "Frontend/Chatify/e2e/admin-integrations.spec.ts",
@@ -3566,10 +3630,16 @@
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
         "scripts/security/__tests__/phase3-template-expression.test.mjs",
+        "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
+        "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
+        "scripts/security/__tests__/phase4-reproduction.test.mjs",
+        "scripts/security/lib/dependency-policy.mjs",
         "scripts/security/lib/inventory.mjs",
+        "scripts/security/lib/live-supply-chain.mjs",
         "scripts/security/lib/phase2-policy.mjs",
         "scripts/security/lib/phase2-reproduction.mjs",
         "scripts/security/lib/phase3-reproduction.mjs",
+        "scripts/security/lib/phase4-reproduction.mjs",
         "scripts/security/lib/secret-detectors.mjs",
         "scripts/security/lib/secret-scan.mjs",
         "scripts/security/lib/threat-model.mjs",
@@ -3580,6 +3650,9 @@
         "scripts/security/phase2-threat-model.mjs",
         "scripts/security/phase3-reproduce.mjs",
         "scripts/security/phase3-secret-scan.mjs",
+        "scripts/security/phase4-dependency-policy.mjs",
+        "scripts/security/phase4-live-supply-chain.mjs",
+        "scripts/security/phase4-reproduce.mjs",
         "skills-lock.json"
       ],
       "utilities": [
@@ -3620,7 +3693,8 @@
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
-        ".github/workflows/security-phase-3-secret-exposure.yml"
+        ".github/workflows/security-phase-3-secret-exposure.yml",
+        ".github/workflows/security-phase-4-supply-chain.yml"
       ]
     },
     "files": [
@@ -4090,9 +4164,17 @@
         ]
       },
       {
+        "path": ".github/dependabot.yml",
+        "bytes": 793,
+        "sha256": "b7a5db3efdf24f684b212da85c7ffa85397b3081447ba1b36f78ee0a670606d0",
+        "categories": [
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": ".github/workflows/security-and-test-foundation.yml",
-        "bytes": 4850,
-        "sha256": "a45313dcbccb51f228b545e6af732b9cd4f4e240beb363ea35fcf72ba04aa510",
+        "bytes": 5233,
+        "sha256": "f035042b5ae7fe0d458c748dd08fd1079ad72c7df8b04191fe856940a04736da",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -4120,6 +4202,15 @@
         "path": ".github/workflows/security-phase-3-secret-exposure.yml",
         "bytes": 2242,
         "sha256": "80e3639cf1ede192530f6f28a50769b4cecb937b53df34c338af817a2cd4e8d4",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
+        "path": ".github/workflows/security-phase-4-supply-chain.yml",
+        "bytes": 2233,
+        "sha256": "256a1ab27c293d22b77190e9013b5322bb9145645f26ac5d6d8e3993971a50b2",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -13081,9 +13172,19 @@
         ]
       },
       {
+        "path": "Backend/Chatify/Config/discordOAuthStrategy.mjs",
+        "bytes": 2151,
+        "sha256": "13852b7bc541624a844fab50ca75111be8e7ee2342ec4772416999beba6e07f5",
+        "categories": [
+          "backend",
+          "configuration",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "Backend/Chatify/Config/passport.mjs",
-        "bytes": 6630,
-        "sha256": "ab772b1767d6e6c9d01c38b93238ef6f4ee673bd6f002a8ecc79802ebe177e61",
+        "bytes": 6626,
+        "sha256": "b2769267d1b6809c877bbf835d861b7ab8228068ffed075b75dbcdebdab7dd26",
         "categories": [
           "backend",
           "configuration",
@@ -13522,8 +13623,8 @@
       },
       {
         "path": "Backend/Chatify/package-lock.json",
-        "bytes": 160339,
-        "sha256": "51c850093470584b787d64f8cfbc96a4ed911c63d9060b1f5608d7b61c43197b",
+        "bytes": 160830,
+        "sha256": "b16b1b7c02b2fb1c4cf730ca4b655641db7167bf2436712fe1bccbe507686282",
         "categories": [
           "backend",
           "lockfiles",
@@ -13532,8 +13633,8 @@
       },
       {
         "path": "Backend/Chatify/package.json",
-        "bytes": 1134,
-        "sha256": "d1cb62332c52fc7ccb19424732338adfcd265e101897ab9cd29336a866f4ffa3",
+        "bytes": 1243,
+        "sha256": "dd8be49d8e21d408466cc6e695cfb9a4dce850b5e8e5dfd943044d9b20e85de0",
         "categories": [
           "backend",
           "package-manifests",
@@ -13723,6 +13824,16 @@
         "path": "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
         "bytes": 11242,
         "sha256": "eb50ff98431e98d125f8cb6d1113bd8a964ccb761f8c6387bdd7b7da3a2b28d9",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/test/auth/discord-oauth-strategy.test.mjs",
+        "bytes": 4124,
+        "sha256": "5441a24156121b1ea270eedf3145a94ea99dfe0e55ae4d945ad4eedc2ae77e45",
         "categories": [
           "backend",
           "tests",
@@ -14901,8 +15012,17 @@
       },
       {
         "path": "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
-        "bytes": 4757,
-        "sha256": "db0eeae42ec5ee90cb268015b5ff48e4e18a900b3bdfef4baa5c90f04196cb1e",
+        "bytes": 4990,
+        "sha256": "64f1031bb6513e2a53428b1c85a450211d40b5b451ce7a19f1efa6e3f23aea44",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md",
+        "bytes": 8059,
+        "sha256": "9c212fdce4bca64286547f50a70cbe6d1b26ceddff73e6da8d63afcb6e0c9d08",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14928,8 +15048,8 @@
       },
       {
         "path": "docs/security/audit/phase-2/threat-model.json",
-        "bytes": 92029,
-        "sha256": "31a1a0518972efc530f466d564328dbb3a2906650ff5478f95dc74ced923910e",
+        "bytes": 92083,
+        "sha256": "57679c452507e08e993d7bc557005f2bc6b2f0f447b441b330936ea50a512d35",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14938,7 +15058,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.md",
         "bytes": 38504,
-        "sha256": "d89377b4c31987961c3c97524021f426c8c1e92bb1ad1a928947d019969c1783",
+        "sha256": "3aa0937af05a39451cbdf83031edf139559e84f6f11dbdbba395535b62507f57",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14964,8 +15084,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/README.md",
-        "bytes": 6424,
-        "sha256": "b9f348a6a9e206120d23488b374ea2273a413e2b33080bcdca2d29b5df3f984f",
+        "bytes": 6629,
+        "sha256": "06b335b4b401c9d7d0859847f045d1a52b4c19a909514c5c542f906aa78703bf",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14982,8 +15102,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
-        "bytes": 6760,
-        "sha256": "f543bebf8deea6e274f4da91028f7d58a4dd86c95a70f7fdccbce2f27fddd04e",
+        "bytes": 6768,
+        "sha256": "a7ea87343a2d70c468b26fac66abae5e190a8e440a58ce4db6b071df2d3c45b2",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14992,7 +15112,70 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
         "bytes": 1740,
-        "sha256": "502e2d9efe5722a9cca219f1233612a360fdf84c09aa0357d84a4d9bb2c4b5af",
+        "sha256": "6b9d612a503cfd1ee689840dc2102a4b1570d134b99d4bc345da5661f292b712",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-4/dependency-exceptions.json",
+        "bytes": 42,
+        "sha256": "7060c267c912e3156b87c646e3bc970eac1ac8bdd964cf0a794b83e6f1250614",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-4/dependency-policy.json",
+        "bytes": 389841,
+        "sha256": "3b7da0a7e3b46ca51b66c81915d7cec80835c87b93089cef01ed8d4f9f6e943f",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-4/dependency-policy.md",
+        "bytes": 5120,
+        "sha256": "721271444cbf2874318057e8dee118b0eaf64adc319d421c48ba859473013e8e",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-4/dependency-update-procedure.md",
+        "bytes": 3614,
+        "sha256": "f8dcfcfd61aea806f7be44e47105674162eabc07c14ae3dca2013521cd5dc24e",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-4/install-script-policy.json",
+        "bytes": 1630,
+        "sha256": "803032d1a30b405df30ac187993a4c26f97065715451184e17374237265073a8",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-4/README.md",
+        "bytes": 5611,
+        "sha256": "260a95566ac6bfa8111bd1ac6735eaa313eb92f3c4ba30e3f414aca9de79c526",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md",
+        "bytes": 19312,
+        "sha256": "255f6f09f0e649dfd72fd46e6b734cbe46580dce11554db6fa54595f0f5db88c",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15324,8 +15507,8 @@
       },
       {
         "path": "Frontend/Chatify/package-lock.json",
-        "bytes": 207427,
-        "sha256": "67b589c321a6b4158c15e683ef37d267960bb9bbe3d252fbc3cc1e4915097817",
+        "bytes": 208936,
+        "sha256": "a70084f257ed1a88463ba7a7701bc5b8f2e6f6348c75a62c3159b0d1853e6d4d",
         "categories": [
           "frontend",
           "lockfiles",
@@ -15334,8 +15517,8 @@
       },
       {
         "path": "Frontend/Chatify/package.json",
-        "bytes": 1557,
-        "sha256": "3855b16aacd16df3b38ea522776bf2f1bcb2c4918f7bb698ad7e20acea359f20",
+        "bytes": 1671,
+        "sha256": "d0585bcafb28f80658b5294f7234576004dea4fe16204b60ac27681791490638",
         "categories": [
           "frontend",
           "package-manifests",
@@ -17374,8 +17557,8 @@
       },
       {
         "path": "package.json",
-        "bytes": 2451,
-        "sha256": "fe6098d0d133b098311dfb55dbebe741509dd4405b470249f3323fdaaa6a0758",
+        "bytes": 2803,
+        "sha256": "2c923351cb09351f2e43a3bddc6179f75948541da53dc418dc107448f3f71646",
         "categories": [
           "package-manifests",
           "text-source-or-config"
@@ -17439,8 +17622,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase3-secret-scan.test.mjs",
-        "bytes": 11628,
-        "sha256": "154b7c601aa5a154448350b1c1dd4fbbc19ad41c9f9170a8aca9adcec101bcce",
+        "bytes": 13240,
+        "sha256": "54adfcaaab745555953c0466f24ebcf84ef2f33420394e6ee032857da737c2cd",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17458,9 +17641,57 @@
         ]
       },
       {
+        "path": "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
+        "bytes": 18166,
+        "sha256": "11ef3f5bd23d3d0809c5af669c95e9d826cca610e3efc89fb12560a0d7d311bc",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
+        "bytes": 7887,
+        "sha256": "cd1f37a54923afb69717649106165f29cb3105c370e7c705683defeaf7a85c08",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/__tests__/phase4-reproduction.test.mjs",
+        "bytes": 1430,
+        "sha256": "8a25e418b5b6dccbd7fb7c526bc0bf8b96c947781cb6928cbd91b6ad38e5c589",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/dependency-policy.mjs",
+        "bytes": 40579,
+        "sha256": "fcb2f7d9cccfb415cdec65b3667d1e51ed4d71bb28c76636c06344af86372f3b",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "scripts/security/lib/inventory.mjs",
         "bytes": 58529,
         "sha256": "0e5edab598d8ac5229c4f13ec330259b18353236381768eb6a20e9f22e02fc33",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/live-supply-chain.mjs",
+        "bytes": 8683,
+        "sha256": "fa1b2a4a050fd0a07306c5c94d71806b0136bbab3a537f6a6604fbba38c35478",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17494,6 +17725,15 @@
         ]
       },
       {
+        "path": "scripts/security/lib/phase4-reproduction.mjs",
+        "bytes": 1944,
+        "sha256": "03e21b8b161e7cc1350c2d0ed1fb1490fa0596caa7146a56784c64fb1b72c957",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "scripts/security/lib/secret-detectors.mjs",
         "bytes": 13019,
         "sha256": "95ac24958336108408068de72110db0fad18c5e6d62141f011fece68dcafde57",
@@ -17504,8 +17744,8 @@
       },
       {
         "path": "scripts/security/lib/secret-scan.mjs",
-        "bytes": 22247,
-        "sha256": "c0048bea3fc22c2c28564a36368ffbc167c96a9fe0f60792e828e936a065a015",
+        "bytes": 22424,
+        "sha256": "2fb34edaef3cfd63926d6063352db0af3e742d4ef53a7364afc5f52646a7e82a",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17578,6 +17818,33 @@
         "path": "scripts/security/phase3-secret-scan.mjs",
         "bytes": 1517,
         "sha256": "314aa73f57e724ee76b5f7b25b6f4ec79ec48574e95fb423d9f34f4a08b98f0a",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase4-dependency-policy.mjs",
+        "bytes": 1581,
+        "sha256": "2948db1dd93fba8ce00a32625347df0afdab3bf0e8867df4276589242eba1682",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase4-live-supply-chain.mjs",
+        "bytes": 1386,
+        "sha256": "5cc8a18e3b4e185c53f0b2485ccce139a4844258d51a5d080c0f2c59f766fd68",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase4-reproduce.mjs",
+        "bytes": 6105,
+        "sha256": "8e98119b34591127c12d278c97e7941cd6da914cb705d1da9c13261ba375de90",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -20510,6 +20777,16 @@
     "backgroundJobs": [
       {
         "kind": "cron-or-scheduler",
+        "source": "scripts/security/lib/dependency-policy.mjs",
+        "line": 714
+      },
+      {
+        "kind": "cron-or-scheduler",
+        "source": "scripts/security/lib/dependency-policy.mjs",
+        "line": 717
+      },
+      {
+        "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
         "line": 737
       },
@@ -20739,6 +21016,26 @@
         "cwd": ".",
         "name": "security:phase3:test",
         "implementation": "node --test scripts/security/__tests__/phase3-*.test.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase4:check",
+        "implementation": "node scripts/security/phase4-dependency-policy.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase4:generate",
+        "implementation": "node scripts/security/phase4-dependency-policy.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase4:reproduce",
+        "implementation": "node scripts/security/phase4-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase4:test",
+        "implementation": "node --test scripts/security/__tests__/phase4-*.test.mjs"
       },
       {
         "cwd": ".",
@@ -24915,11 +25212,7 @@
         },
         {
           "source": "Backend/Chatify/Config/passport.mjs",
-          "line": 4
-        },
-        {
-          "source": "Backend/Chatify/package.json",
-          "line": 29
+          "line": 180
         },
         {
           "source": "Backend/Chatify/test/setup/env.mjs",
@@ -25149,7 +25442,7 @@
         },
         {
           "source": "Backend/Chatify/package.json",
-          "line": 30
+          "line": 29
         },
         {
           "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
@@ -25212,7 +25505,7 @@
         },
         {
           "source": "Backend/Chatify/package.json",
-          "line": 31
+          "line": 30
         },
         {
           "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
@@ -26120,6 +26413,11 @@
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 62,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 82,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26192,6 +26490,11 @@
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 59,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 79,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26215,6 +26518,11 @@
           {
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 61,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 81,
             "kind": "process-env"
           }
         ],
@@ -26240,6 +26548,11 @@
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 60,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 80,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26263,6 +26576,11 @@
           {
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 58,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 78,
             "kind": "process-env"
           }
         ],
@@ -26380,6 +26698,11 @@
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 78,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 98,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26403,6 +26726,11 @@
           {
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 79,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 99,
             "kind": "process-env"
           }
         ],
@@ -26762,6 +27090,11 @@
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 75,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 95,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26785,6 +27118,11 @@
           {
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 77,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 97,
             "kind": "process-env"
           }
         ],
@@ -26810,6 +27148,11 @@
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 76,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 96,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26833,6 +27176,11 @@
           {
             "source": "scripts/security/phase3-reproduce.mjs",
             "line": 74,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 94,
             "kind": "process-env"
           }
         ],

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "project": "backend",
+      "package": "argon2",
+      "version": "0.43.1",
+      "decision": "allow",
+      "owner": "security-maintainers",
+      "reason": "Argon2 requires its reviewed native binding installation step for password hashing."
+    },
+    {
+      "project": "backend",
+      "package": "fsevents",
+      "decision": "deny",
+      "owner": "security-maintainers",
+      "reason": "Optional file-watcher acceleration must not execute an unreviewed native install script."
+    },
+    {
+      "project": "backend",
+      "package": "mongodb-memory-server",
+      "decision": "deny",
+      "owner": "security-maintainers",
+      "reason": "Eager MongoDB binary download is denied; tests fetch a pinned runtime binary only when explicitly executed."
+    },
+    {
+      "project": "frontend",
+      "package": "@tailwindcss/oxide",
+      "version": "4.1.11",
+      "decision": "allow",
+      "owner": "security-maintainers",
+      "reason": "The reviewed Tailwind native compiler binding is required by the production frontend build."
+    },
+    {
+      "project": "frontend",
+      "package": "esbuild",
+      "version": "0.27.7",
+      "decision": "allow",
+      "owner": "security-maintainers",
+      "reason": "The reviewed esbuild platform binary installation is required by Vite tests and production builds."
+    },
+    {
+      "project": "frontend",
+      "package": "fsevents",
+      "decision": "deny",
+      "owner": "security-maintainers",
+      "reason": "Optional file-watcher acceleration must not execute an unreviewed native install script."
+    }
+  ]
+}

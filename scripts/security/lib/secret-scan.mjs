@@ -17,6 +17,7 @@ const ALLOWLIST_PATH = 'docs/security/audit/phase-3/secret-scan-allowlist.json'
 const RESPONSE_PATH = 'docs/security/audit/phase-3/credential-exposure-response.md'
 const PHASE1_INVENTORY_PATH = 'docs/security/audit/phase-1/inventory.json'
 const MAX_TEXT_BYTES = 2 * 1024 * 1024
+const AUDITED_HISTORY_REF = 'HEAD'
 const GENERATED_PATHS = new Set([
   'docs/security/audit/phase-1/inventory.json',
   'docs/security/audit/phase-1/inventory.md',
@@ -24,6 +25,8 @@ const GENERATED_PATHS = new Set([
   'docs/security/audit/phase-2/threat-model.md',
   GENERATED_JSON,
   GENERATED_MARKDOWN,
+  'docs/security/audit/phase-4/dependency-policy.json',
+  'docs/security/audit/phase-4/dependency-policy.md',
 ])
 const EPHEMERAL_WORKFLOW_PATH = /^\.github\/workflows\/security-phase-\d+-(?:verify-ready|materialize|bootstrap|fix-bootstrap|finalizer)[^/]*\.ya?ml$/i
 const isExcludedGeneratedPath = (filePath) => GENERATED_PATHS.has(filePath) || EPHEMERAL_WORKFLOW_PATH.test(filePath)
@@ -148,7 +151,7 @@ const scanCurrentTree = async (root, allowlist) => {
 }
 
 const parseObjectList = (root) => {
-  const lines = runGit(root, ['rev-list', '--objects', '--all']).split('\n').filter(Boolean)
+  const lines = runGit(root, ['rev-list', '--objects', AUDITED_HISTORY_REF]).split('\n').filter(Boolean)
   const bySha = new Map()
   for (const line of lines) {
     const separator = line.indexOf(' ')
@@ -210,7 +213,7 @@ const commitDetails = (root, commitSha) => {
 
 const blobHistory = (root, blobSha, filePath) => {
   try {
-    const commits = runGit(root, ['log', '--all', '--format=%H', `--find-object=${blobSha}`, '--', filePath])
+    const commits = runGit(root, ['log', '--format=%H', `--find-object=${blobSha}`, AUDITED_HISTORY_REF, '--', filePath])
       .split('\n')
       .filter(Boolean)
     return commits.map((commit) => commitDetails(root, commit)).filter(Boolean)
@@ -280,7 +283,7 @@ const scanHistory = async (root, allowlist) => {
   }
   const normalized = stableSortFindings(applyAllowlist(findings, allowlist))
   return {
-    source: 'all-reachable-git-blobs',
+    source: 'audited-head-ancestor-git-blobs',
     scannedBlobCount,
     scannedPathCount,
     scannedBytes,
