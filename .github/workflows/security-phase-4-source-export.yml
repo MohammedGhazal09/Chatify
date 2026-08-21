@@ -1,0 +1,50 @@
+name: Temporary Phase 4 source export
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/security-phase-4-source-export.yml
+  push:
+    branches:
+      - security/phase-4-dependency-supply-chain
+    paths:
+      - .github/workflows/security-phase-4-source-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase4-source-export
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Phase 4 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-4-dependency-supply-chain
+          fetch-depth: 0
+
+      - name: Create source archive
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude='*/node_modules' \
+            --exclude=.artifacts/security \
+            --create --gzip \
+            --file /tmp/chatify-phase4-source.tar.gz \
+            .
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase-4-source-workspace
+          path: /tmp/chatify-phase4-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
