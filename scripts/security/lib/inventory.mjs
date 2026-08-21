@@ -8,7 +8,16 @@ const OUTPUT_DIRECTORY = 'docs/security/audit/phase-1'
 const GENERATED_PATHS = new Set([
   `${OUTPUT_DIRECTORY}/inventory.json`,
   `${OUTPUT_DIRECTORY}/inventory.md`,
+  'docs/security/audit/phase-2/threat-model.json',
+  'docs/security/audit/phase-2/threat-model.md',
+  'docs/security/audit/phase-3/secret-scan.json',
+  'docs/security/audit/phase-3/secret-scan.md',
+  'docs/security/audit/phase-4/dependency-policy.json',
+  'docs/security/audit/phase-4/dependency-policy.md',
+  'docs/security/audit/phase-5/authentication-policy.json',
+  'docs/security/audit/phase-5/authentication-policy.md',
 ])
+export const PHASE1_EXCLUDED_GENERATED_PATHS = [...GENERATED_PATHS].sort()
 const SOURCE_EXTENSIONS = new Set([
   '.cjs', '.css', '.html', '.js', '.jsx', '.json', '.md', '.mjs', '.ts', '.tsx', '.yaml', '.yml',
 ])
