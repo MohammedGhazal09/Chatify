@@ -39,6 +39,17 @@ jobs:
           test "$(node --version)" = 'v24.19.0'
           test "$(npm --version)" = '11.17.0'
 
+      - name: Normalize and preflight temporary generator
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/security/temporary-phase5-runtime.mjs')
+          text = path.read_text()
+          text = text.replace('\\\\`', '\\`').replace('\\\\${', '\\${')
+          path.write_text(text)
+          PY
+          node --check scripts/security/temporary-phase5-runtime.mjs
+
       - name: Apply Phase 5 runtime changes
         run: node scripts/security/temporary-phase5-runtime.mjs
 
