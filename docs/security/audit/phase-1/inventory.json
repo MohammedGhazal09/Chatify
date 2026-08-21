@@ -409,7 +409,7 @@
   },
   "components": {
     "trackedFileCount": 1541,
-    "totalTrackedBytes": 16895443,
+    "totalTrackedBytes": 16895444,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -14228,8 +14228,8 @@
       },
       {
         "path": "Backend/Chatify/test/security/secret-configuration.test.mjs",
-        "bytes": 5574,
-        "sha256": "b9f3998dab3c64f6e0a571906364353ac51168f9b71cfffb6d2c7773c1f1c5e3",
+        "bytes": 5575,
+        "sha256": "dbbd38ff015471e17e1ef927085446a81ce14306d02cf3749776e4b798111d3a",
         "categories": [
           "backend",
           "tests",
@@ -14926,7 +14926,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.json",
         "bytes": 92029,
-        "sha256": "0d4c0f961a2a398836f961bf784240956cabf6d8e30fee36c0d19e46bbf5fdd0",
+        "sha256": "c253b46e2d6729dc5b5c8250d956b2f9294df638080045fc26b2d4011b3d7be9",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14935,7 +14935,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.md",
         "bytes": 38504,
-        "sha256": "33729f4aab486fc7825197e38d741abed4bcf2ab0d3fd28b67ac1bdd980ee2eb",
+        "sha256": "a9e4cc92afd84d963016f6bb420125918ac2a355bab127544cf6d839b2d1d464",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14980,7 +14980,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
         "bytes": 6760,
-        "sha256": "1aafd888459d2a424af4871a5313747a78fb8072a4e25fa4600f17a44e444a8d",
+        "sha256": "1453e233369de835a1750ab6ae84b38e55d9503fd46a8ea6ca49ee834b0ca758",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14989,7 +14989,7 @@
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
         "bytes": 1740,
-        "sha256": "aeeeb6f045cb3cbc55f8004da9a0297b2cf153129cf54322eef0024695828fa8",
+        "sha256": "14d56af9b3648ea45069143354892926e18ff0e4577ae2108767c13bd9338046",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
