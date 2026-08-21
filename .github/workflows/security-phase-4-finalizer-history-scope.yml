@@ -1,0 +1,255 @@
+name: Temporary Phase 4 audited-history finalizer
+
+on:
+  push:
+    branches:
+      - security/phase-4-supply-chain-final
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase4-audited-history-finalizer
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout isolated Phase 4 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-4-supply-chain-final
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup pinned Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Add audited-history stability regressions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          test_path = Path('scripts/security/__tests__/phase3-secret-scan.test.mjs')
+          text = test_path.read_text()
+          regressions = r"""test('history evidence is scoped to audited HEAD and ignores unrelated branch mutations', async () => {
+            const root = await createRepository()
+            const first = await buildSecretScan(root, {
+              phase1Inventory: safePhase1Inventory(),
+              now: new Date('2026-08-21T00:00:00Z'),
+            })
+            const auditedBranch = git(root, ['branch', '--show-current'])
+
+            git(root, ['switch', '-q', '-c', 'unrelated-history'])
+            await writeFile(path.join(root, 'unrelated-branch-only.txt'), 'unrelated branch mutation\n')
+            commitAll(root, 'unrelated branch mutation')
+            git(root, ['switch', '-q', auditedBranch])
+
+            const second = await buildSecretScan(root, {
+              phase1Inventory: safePhase1Inventory(),
+              now: new Date('2026-08-21T00:00:00Z'),
+            })
+
+            assert.deepEqual(second.history, first.history)
+          })
+
+          test('downstream generated audit evidence does not recursively change Phase 3 history', async () => {
+            const root = await createRepository()
+            const first = await buildSecretScan(root, {
+              phase1Inventory: safePhase1Inventory(),
+              now: new Date('2026-08-21T00:00:00Z'),
+            })
+
+            await mkdir(path.join(root, 'docs/security/audit/phase-4'), { recursive: true })
+            await writeFile(path.join(root, 'docs/security/audit/phase-4/dependency-policy.json'), '{"phase":4}\n')
+            await writeFile(path.join(root, 'docs/security/audit/phase-4/dependency-policy.md'), '# Generated Phase 4 policy\n')
+            commitAll(root, 'commit downstream generated evidence')
+
+            const second = await buildSecretScan(root, {
+              phase1Inventory: safePhase1Inventory(),
+              now: new Date('2026-08-21T00:00:00Z'),
+            })
+
+            assert.deepEqual(second, first)
+          })
+
+          """
+          if 'history evidence is scoped to audited HEAD and ignores unrelated branch mutations' not in text:
+              marker = "test('history scan detects a credential removed from the current tree', async () => {"
+              if marker not in text:
+                  raise RuntimeError('Phase 3 history regression insertion marker is missing')
+              test_path.write_text(text.replace(marker, regressions + marker, 1))
+          PY
+
+          node --check scripts/security/__tests__/phase3-secret-scan.test.mjs
+
+      - name: Prove both history regressions fail before implementation
+        run: |
+          set +e
+          npm run security:phase3:test
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo 'The audited-history regressions unexpectedly passed before implementation.' >&2
+            exit 1
+          fi
+
+      - name: Scope history to audited HEAD and exclude Phase 4 generated evidence
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('scripts/security/lib/secret-scan.mjs')
+          text = source.read_text()
+
+          if "const AUDITED_HISTORY_REF = 'HEAD'" not in text:
+              marker = 'const MAX_TEXT_BYTES = 2 * 1024 * 1024\n'
+              if marker not in text:
+                  raise RuntimeError('Audited history constant marker is missing')
+              text = text.replace(marker, marker + "const AUDITED_HISTORY_REF = 'HEAD'\n", 1)
+
+          old_generated = """  GENERATED_JSON,
+            GENERATED_MARKDOWN,
+          ])
+          """
+          new_generated = """  GENERATED_JSON,
+            GENERATED_MARKDOWN,
+            'docs/security/audit/phase-4/dependency-policy.json',
+            'docs/security/audit/phase-4/dependency-policy.md',
+          ])
+          """
+          if "docs/security/audit/phase-4/dependency-policy.json" not in text:
+              if old_generated not in text:
+                  raise RuntimeError('Generated evidence exclusion marker is missing')
+              text = text.replace(old_generated, new_generated, 1)
+
+          replacements = {
+            "runGit(root, ['rev-list', '--objects', '--all'])": "runGit(root, ['rev-list', '--objects', AUDITED_HISTORY_REF])",
+            "runGit(root, ['log', '--all', '--format=%H', `--find-object=${blobSha}`, '--', filePath])": "runGit(root, ['log', '--format=%H', `--find-object=${blobSha}`, AUDITED_HISTORY_REF, '--', filePath])",
+            "source: 'all-reachable-git-blobs'": "source: 'audited-head-ancestor-git-blobs'",
+          }
+          for old, new in replacements.items():
+              if new in text:
+                  continue
+              if old not in text:
+                  raise RuntimeError(f'Expected history-scope marker is missing: {old}')
+              text = text.replace(old, new, 1)
+
+          source.write_text(text)
+
+          readme = Path('docs/security/audit/phase-3/README.md')
+          text = readme.read_text()
+          text = text.replace(
+              'Scan the current worktree and all reachable Git blobs, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence.',
+              "Scan the current worktree and every eligible blob in the audited `HEAD` ancestor history, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence.",
+          )
+          text = text.replace(
+              'Generated Phase 1–3 JSON/Markdown evidence and temporary audit-materialization workflows are excluded from scan inputs to prevent recursive evidence loops.',
+              'Generated Phase 1–4 JSON/Markdown evidence and temporary audit-materialization workflows are excluded from scan inputs to prevent recursive evidence loops.',
+          )
+          old_history = "The workflow fetches every repository branch and tag. On a pull request, it additionally fetches only that pull request's head ref; the checked-out merge commit is already reachable as `HEAD`. Unrelated open pull requests are deliberately excluded so untrusted fork content cannot become an input to every repository security gate. The scanner enumerates every reachable Git object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value."
+          new_history = "The workflow fetches repository branches and tags so required ancestor objects are locally available. On a pull request, it additionally fetches only that pull request's head ref; the checked-out merge commit is the audited `HEAD`. The scanner deliberately walks only `HEAD` and its ancestors. Unrelated branch tips and unrelated open pull requests cannot perturb the committed digest or block the audited revision. Within that ancestor graph, the scanner enumerates every object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value."
+          if old_history not in text:
+              raise RuntimeError('Phase 3 README history paragraph marker is missing')
+          text = text.replace(old_history, new_history, 1)
+          text = text.replace(
+              'Generated Phase 3 JSON and Markdown are excluded from history inputs. Therefore committing the evidence does not recursively change the evidence.',
+              'Generated Phase 1–4 JSON and Markdown outputs are excluded from history inputs. Therefore committing inherited audit evidence does not recursively change the Phase 3 result.',
+          )
+          text = text.replace(
+              'GitHub Actions scans repository branches, tags, the current pull-request ref, and the checked-out merge commit. Unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review.',
+              'GitHub Actions audits the checked-out branch or pull-request merge revision and every ancestor reachable from that `HEAD`. Unrelated branch-only history, unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review.',
+          )
+          readme.write_text(text)
+
+          plan = Path('docs/plans/2026-08-21-phase-3-secrets-and-credentials.md')
+          text = plan.read_text()
+          text = text.replace(
+              'Scan tracked files, untracked nonignored files, sensitive ignored local files, and all reachable historical Git blobs.',
+              'Scan tracked files, untracked nonignored files, sensitive ignored local files, and every eligible historical Git blob reachable from the audited `HEAD`.',
+          )
+          text = text.replace(
+              "Scan repository branches and tags plus only the current pull request's head and merge commit, so unrelated or fork-controlled PR content cannot block every security gate.",
+              'Fetch required repository refs, but scope the deterministic history scan to the audited `HEAD` ancestor graph so unrelated branches and fork-controlled pull requests cannot perturb another revision’s gate.',
+          )
+          text = text.replace(
+              'Inventory tracked, untracked, and sensitive local files. Scan all reachable Git blobs in batches, enrich historical candidates with commit metadata, count skipped binary/oversized files, and produce deterministic digests.',
+              'Inventory tracked, untracked, and sensitive local files. Scan all eligible blobs reachable from audited `HEAD` in batches, enrich historical candidates with commit metadata from that same ancestor graph, count skipped binary/oversized files, and produce deterministic digests.',
+          )
+          text = text.replace(
+              'Add Phase 3 root commands, a full reproduction runner, and a read-only workflow that fetches repository branch/tag refs plus only the current pull-request ref, performs clean installs and inherited Phase 1/2 gates, executes Phase 3 tests and scan, runs the complete quality suite, and uploads only sanitized evidence.',
+              'Add Phase 3 root commands, a full reproduction runner, and a read-only workflow that fetches required branch/tag objects plus only the current pull-request ref, audits the checked-out `HEAD` ancestor graph, performs clean installs and inherited Phase 1/2 gates, executes Phase 3 tests and scan, runs the complete quality suite, and uploads only sanitized evidence.',
+          )
+          text = text.replace(
+              '- Current tree and every reachable eligible history blob are scanned.',
+              '- Current tree and every eligible history blob reachable from the audited `HEAD` are scanned.',
+          )
+          text = text.replace(
+              '- CI uses full repository branch/tag history, the current pull-request ref and merge commit, read-only repository permissions, pinned action revisions, and sanitized artifacts.',
+              '- CI makes required ancestor objects available, audits only the checked-out branch or pull-request merge `HEAD`, uses read-only repository permissions and pinned action revisions, and uploads sanitized artifacts.',
+          )
+          plan.write_text(text)
+          PY
+
+          node --check scripts/security/lib/secret-scan.mjs
+
+      - name: Remove temporary finalizer and commit implementation
+        run: |
+          git rm -- .github/workflows/security-phase-4-finalizer-history-scope.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(security): scope secret history to audited revision'
+
+      - name: Verify focused Phase 3 regressions
+        run: npm run security:phase3:test
+
+      - name: Regenerate deterministic Phase 1 through Phase 4 evidence
+        run: |
+          npm run security:phase4:generate
+          npm run security:phase3:generate
+          npm run security:phase1:generate
+          npm run security:phase2:generate
+          npm run security:phase1:generate
+          npm run security:phase2:generate
+          npm run security:phase3:generate
+          npm run security:phase4:generate
+
+          npm run security:phase1:check
+          npm run security:phase2:check
+          npm run security:phase3:check
+          npm run security:phase4:check
+
+      - name: Commit regenerated evidence
+        run: |
+          git add -A
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs(security): refresh audited Phase 1-4 evidence'
+          fi
+
+      - name: Verify final committed head
+        run: |
+          npm run security:phase1:check
+          npm run security:phase2:check
+          npm run security:phase3:check
+          npm run security:phase4:check
+          npm run security:phase4:reproduce
+
+      - name: Push verified implementation and evidence
+        run: |
+          git fetch origin security/phase-4-supply-chain-final
+          git rebase origin/security/phase-4-supply-chain-final
+          git push origin HEAD:security/phase-4-supply-chain-final
