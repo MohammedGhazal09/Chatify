@@ -37,9 +37,15 @@ jobs:
           echo '605a335c86dfec985eb7ab267d3e9160a95c882a1c29cc89b4bc0930a6af4a20  /tmp/phase4-source.tar.gz' | sha256sum --check
           tar --extract --gzip --file /tmp/phase4-source.tar.gz
 
+      - name: Apply reviewed npm 11.17 compatibility overlay
+        run: |
+          cat scripts/security/phase4-npm1117-fix/part-* | base64 --decode > /tmp/phase4-npm1117-fix.tar.gz
+          echo '21e00b8f306f34fd61a122a2ff216dee8bc7657a416d755748f18ca98d1fba51  /tmp/phase4-npm1117-fix.tar.gz' | sha256sum --check
+          tar --extract --gzip --file /tmp/phase4-npm1117-fix.tar.gz
+
       - name: Remove temporary and inherited bootstrap material
         run: |
-          git rm -r -- scripts/security/phase4-materialize
+          git rm -r -- scripts/security/phase4-materialize scripts/security/phase4-npm1117-fix
           git rm --ignore-unmatch \
             .github/workflows/security-phase-4-materialize.yml \
             .github/workflows/security-phase-4-source-export.yml \
@@ -153,21 +159,10 @@ jobs:
           }, indent=2) + '\n')
           PY
 
-      - name: Verify clean installs and focused Phase 4 behavior
+      - name: Verify strict clean installs and focused Phase 4 behavior
         run: |
-          npm --prefix Backend/Chatify ci
-          npm --prefix Frontend/Chatify ci
-
-          npm --prefix Backend/Chatify install-scripts ls --json > /tmp/backend-pending.json
-          npm --prefix Frontend/Chatify install-scripts ls --json > /tmp/frontend-pending.json
-          node - <<'NODE'
-          const fs = require('node:fs')
-          for (const [project, file] of [['backend', '/tmp/backend-pending.json'], ['frontend', '/tmp/frontend-pending.json']]) {
-            const value = JSON.parse(fs.readFileSync(file, 'utf8') || '{}')
-            const count = Array.isArray(value) ? value.length : Object.keys(value || {}).length
-            if (count !== 0) throw new Error(`${project} has ${count} pending install-script package(s)`)
-          }
-          NODE
+          npm --prefix Backend/Chatify ci --strict-allow-scripts
+          npm --prefix Frontend/Chatify ci --strict-allow-scripts
 
           npm run security:phase4:test
           npm --prefix Backend/Chatify test -- --run test/auth/discord-oauth-strategy.test.mjs
