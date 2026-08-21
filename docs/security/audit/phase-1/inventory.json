@@ -180,6 +180,10 @@
           "security:phase2:generate": "node scripts/security/phase2-threat-model.mjs --write",
           "security:phase2:reproduce": "node scripts/security/phase2-reproduce.mjs",
           "security:phase2:test": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs",
+          "security:phase3:check": "node scripts/security/phase3-secret-scan.mjs --check",
+          "security:phase3:generate": "node scripts/security/phase3-secret-scan.mjs --write",
+          "security:phase3:reproduce": "node scripts/security/phase3-reproduce.mjs",
+          "security:phase3:test": "node --test scripts/security/__tests__/phase3-*.test.mjs",
           "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
           "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
           "test": "npm run quality"
@@ -314,6 +318,30 @@
       },
       {
         "cwd": ".",
+        "script": "security:phase3:check",
+        "command": "npm run security:phase3:check",
+        "implementation": "node scripts/security/phase3-secret-scan.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase3:generate",
+        "command": "npm run security:phase3:generate",
+        "implementation": "node scripts/security/phase3-secret-scan.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase3:reproduce",
+        "command": "npm run security:phase3:reproduce",
+        "implementation": "node scripts/security/phase3-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase3:test",
+        "command": "npm run security:phase3:test",
+        "implementation": "node --test scripts/security/__tests__/phase3-*.test.mjs"
+      },
+      {
+        "cwd": ".",
         "script": "smoke:local",
         "command": "npm run smoke:local",
         "implementation": "npm --prefix Frontend/Chatify run test:ui --"
@@ -380,8 +408,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1525,
-    "totalTrackedBytes": 16795711,
+    "trackedFileCount": 1542,
+    "totalTrackedBytes": 16899566,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -504,6 +532,7 @@
         "Backend/Chatify/test/observability/observability-logger.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
         "Backend/Chatify/test/security/csrf.test.mjs",
+        "Backend/Chatify/test/security/secret-configuration.test.mjs",
         "Backend/Chatify/test/setup/app.mjs",
         "Backend/Chatify/test/setup/env.mjs",
         "Backend/Chatify/test/setup/mongo.mjs",
@@ -555,6 +584,7 @@
         "Backend/Chatify/Utils/profileFields.mjs",
         "Backend/Chatify/Utils/profileImageValidation.mjs",
         "Backend/Chatify/Utils/requestQueue.mjs",
+        "Backend/Chatify/Utils/secretConfiguration.mjs",
         "Backend/Chatify/Utils/sessionMetadata.mjs",
         "Backend/Chatify/Utils/spaceAccess.mjs",
         "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
@@ -567,15 +597,23 @@
         "scripts/production-evidence-check.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-reproduction.test.mjs",
+        "scripts/security/__tests__/phase3-secret-scan.test.mjs",
+        "scripts/security/__tests__/phase3-template-expression.test.mjs",
         "scripts/security/lib/inventory.mjs",
         "scripts/security/lib/phase2-policy.mjs",
         "scripts/security/lib/phase2-reproduction.mjs",
+        "scripts/security/lib/phase3-reproduction.mjs",
+        "scripts/security/lib/secret-detectors.mjs",
+        "scripts/security/lib/secret-scan.mjs",
         "scripts/security/lib/threat-model.mjs",
         "scripts/security/phase1-doctor.mjs",
         "scripts/security/phase1-inventory.mjs",
         "scripts/security/phase1-reproduce.mjs",
         "scripts/security/phase2-reproduce.mjs",
-        "scripts/security/phase2-threat-model.mjs"
+        "scripts/security/phase2-threat-model.mjs",
+        "scripts/security/phase3-reproduce.mjs",
+        "scripts/security/phase3-secret-scan.mjs"
       ],
       "configuration": [
         "Backend/Chatify/Config/DBConfig.mjs",
@@ -1613,11 +1651,17 @@
         "docs/operations/rollback.md",
         "docs/plans/2026-08-20-phase-1-repository-inventory.md",
         "docs/plans/2026-08-21-phase-2-threat-model.md",
+        "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
         "docs/security/audit/phase-1/README.md",
         "docs/security/audit/phase-2/README.md",
         "docs/security/audit/phase-2/threat-model.json",
         "docs/security/audit/phase-2/threat-model.md",
-        "docs/security/audit/phase-2/threat-model.source.json"
+        "docs/security/audit/phase-2/threat-model.source.json",
+        "docs/security/audit/phase-3/credential-exposure-response.md",
+        "docs/security/audit/phase-3/README.md",
+        "docs/security/audit/phase-3/secret-scan-allowlist.json",
+        "docs/security/audit/phase-3/secret-scan.json",
+        "docs/security/audit/phase-3/secret-scan.md"
       ],
       "frontend": [
         "Frontend/Chatify/.env.example",
@@ -2052,6 +2096,7 @@
         "Backend/Chatify/test/observability/observability-logger.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
         "Backend/Chatify/test/security/csrf.test.mjs",
+        "Backend/Chatify/test/security/secret-configuration.test.mjs",
         "Backend/Chatify/test/setup/app.mjs",
         "Backend/Chatify/test/setup/env.mjs",
         "Backend/Chatify/test/setup/mongo.mjs",
@@ -2184,7 +2229,10 @@
         "Frontend/Chatify/src/utils/sounds.test.ts",
         "Frontend/Chatify/src/utils/validationSchemas.test.ts",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
-        "scripts/security/__tests__/phase2-threat-model.test.mjs"
+        "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-reproduction.test.mjs",
+        "scripts/security/__tests__/phase3-secret-scan.test.mjs",
+        "scripts/security/__tests__/phase3-template-expression.test.mjs"
       ],
       "text-source-or-config": [
         ".agents/skills/csrf-protection/references/double-submit-cookie-pattern.md",
@@ -2223,6 +2271,7 @@
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
+        ".github/workflows/security-phase-3-secret-exposure.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
         ".planning/codebase/CONVENTIONS.md",
@@ -3181,6 +3230,7 @@
         "Backend/Chatify/test/observability/observability-logger.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
         "Backend/Chatify/test/security/csrf.test.mjs",
+        "Backend/Chatify/test/security/secret-configuration.test.mjs",
         "Backend/Chatify/test/setup/app.mjs",
         "Backend/Chatify/test/setup/env.mjs",
         "Backend/Chatify/test/setup/mongo.mjs",
@@ -3232,6 +3282,7 @@
         "Backend/Chatify/Utils/profileFields.mjs",
         "Backend/Chatify/Utils/profileImageValidation.mjs",
         "Backend/Chatify/Utils/requestQueue.mjs",
+        "Backend/Chatify/Utils/secretConfiguration.mjs",
         "Backend/Chatify/Utils/sessionMetadata.mjs",
         "Backend/Chatify/Utils/spaceAccess.mjs",
         "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
@@ -3247,11 +3298,17 @@
         "docs/operations/rollback.md",
         "docs/plans/2026-08-20-phase-1-repository-inventory.md",
         "docs/plans/2026-08-21-phase-2-threat-model.md",
+        "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
         "docs/security/audit/phase-1/README.md",
         "docs/security/audit/phase-2/README.md",
         "docs/security/audit/phase-2/threat-model.json",
         "docs/security/audit/phase-2/threat-model.md",
         "docs/security/audit/phase-2/threat-model.source.json",
+        "docs/security/audit/phase-3/credential-exposure-response.md",
+        "docs/security/audit/phase-3/README.md",
+        "docs/security/audit/phase-3/secret-scan-allowlist.json",
+        "docs/security/audit/phase-3/secret-scan.json",
+        "docs/security/audit/phase-3/secret-scan.md",
         "Frontend/Chatify/e2e/admin-delivery-health.spec.ts",
         "Frontend/Chatify/e2e/admin-hub.spec.ts",
         "Frontend/Chatify/e2e/admin-integrations.spec.ts",
@@ -3506,15 +3563,23 @@
         "scripts/production-evidence-check.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-reproduction.test.mjs",
+        "scripts/security/__tests__/phase3-secret-scan.test.mjs",
+        "scripts/security/__tests__/phase3-template-expression.test.mjs",
         "scripts/security/lib/inventory.mjs",
         "scripts/security/lib/phase2-policy.mjs",
         "scripts/security/lib/phase2-reproduction.mjs",
+        "scripts/security/lib/phase3-reproduction.mjs",
+        "scripts/security/lib/secret-detectors.mjs",
+        "scripts/security/lib/secret-scan.mjs",
         "scripts/security/lib/threat-model.mjs",
         "scripts/security/phase1-doctor.mjs",
         "scripts/security/phase1-inventory.mjs",
         "scripts/security/phase1-reproduce.mjs",
         "scripts/security/phase2-reproduce.mjs",
         "scripts/security/phase2-threat-model.mjs",
+        "scripts/security/phase3-reproduce.mjs",
+        "scripts/security/phase3-secret-scan.mjs",
         "skills-lock.json"
       ],
       "utilities": [
@@ -3544,6 +3609,7 @@
         "Backend/Chatify/Utils/profileFields.mjs",
         "Backend/Chatify/Utils/profileImageValidation.mjs",
         "Backend/Chatify/Utils/requestQueue.mjs",
+        "Backend/Chatify/Utils/secretConfiguration.mjs",
         "Backend/Chatify/Utils/sessionMetadata.mjs",
         "Backend/Chatify/Utils/spaceAccess.mjs",
         "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
@@ -3553,7 +3619,8 @@
       "workflows": [
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
-        ".github/workflows/security-phase-2-threat-model.yml"
+        ".github/workflows/security-phase-2-threat-model.yml",
+        ".github/workflows/security-phase-3-secret-exposure.yml"
       ]
     },
     "files": [
@@ -4044,6 +4111,15 @@
         "path": ".github/workflows/security-phase-2-threat-model.yml",
         "bytes": 1975,
         "sha256": "a433816ff47e3ea3eb9b8696b5589b15f5ad8f02670ea7c3e28f2d065dd40456",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
+        "path": ".github/workflows/security-phase-3-secret-exposure.yml",
+        "bytes": 2242,
+        "sha256": "80e3639cf1ede192530f6f28a50769b4cecb937b53df34c338af817a2cd4e8d4",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -12961,8 +13037,8 @@
       },
       {
         "path": "Backend/Chatify/.env.example",
-        "bytes": 1124,
-        "sha256": "769eced9fe12e5f5c6b3ef0761bdd8264791a3f5b27da99ef9ea565dc174b8e5",
+        "bytes": 1151,
+        "sha256": "5135cc4dec27f72fc28ccf7df02e7662bdb24803fc52f50f41f121929127f93d",
         "categories": [
           "backend"
         ]
@@ -13146,8 +13222,8 @@
       },
       {
         "path": "Backend/Chatify/Middlewares/csrfProtection.mjs",
-        "bytes": 1895,
-        "sha256": "e55867796e0774673fe104ce9dd99b77a2741eacac2f19a55e50743b879b333e",
+        "bytes": 1865,
+        "sha256": "8a7060e09787d7092f01a77ba20195fd00838a12da4bdd2e0a3f700e5212aded",
         "categories": [
           "backend",
           "middleware",
@@ -13566,8 +13642,8 @@
       },
       {
         "path": "Backend/Chatify/server.mjs",
-        "bytes": 697,
-        "sha256": "c0f5929e44f894a1a6cd382a4138e2fec41d395a4ac8ab9800d6b930646b6d55",
+        "bytes": 855,
+        "sha256": "923e1e0faf38af814bcbcca4692ec19352dc13fbb17a0bf73e7d4379ab550675",
         "categories": [
           "backend",
           "text-source-or-config"
@@ -14154,6 +14230,16 @@
         ]
       },
       {
+        "path": "Backend/Chatify/test/security/secret-configuration.test.mjs",
+        "bytes": 6173,
+        "sha256": "7cf3d53306d42672978ca9027446f3392a82022695166d2763f054e1816be603",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "Backend/Chatify/test/setup/app.mjs",
         "bytes": 156,
         "sha256": "9e512db991320c18f91bf5898e2fe6c4a50650ad02ce3da123346510c0599e40",
@@ -14165,8 +14251,8 @@
       },
       {
         "path": "Backend/Chatify/test/setup/env.mjs",
-        "bytes": 761,
-        "sha256": "4e27e1b4bbaffcc9e034d7187398c4b6bcd74c32e8092629f5bac4ce1d7804dc",
+        "bytes": 807,
+        "sha256": "8b34939b37d139c325afefa9f970ff534869468f981b2256a9a3331ef53eb4d4",
         "categories": [
           "backend",
           "tests",
@@ -14664,6 +14750,16 @@
         ]
       },
       {
+        "path": "Backend/Chatify/Utils/secretConfiguration.mjs",
+        "bytes": 9531,
+        "sha256": "a5de87ef2e0f00d93e0315a6854c95411a731b3ee277c297a13a55cf009898b7",
+        "categories": [
+          "backend",
+          "text-source-or-config",
+          "utilities"
+        ]
+      },
+      {
         "path": "Backend/Chatify/Utils/sessionMetadata.mjs",
         "bytes": 3147,
         "sha256": "0c41f96d79690eec29188644a4b8c1d1822c3441ceb5afad63d131a5e677627e",
@@ -14804,6 +14900,15 @@
         ]
       },
       {
+        "path": "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
+        "bytes": 4757,
+        "sha256": "db0eeae42ec5ee90cb268015b5ff48e4e18a900b3bdfef4baa5c90f04196cb1e",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "docs/security/audit/phase-1/README.md",
         "bytes": 6998,
         "sha256": "efb3eaa01fd2d364aeaa675dac5a3652315479a433db8d7535e50f810140b681",
@@ -14824,7 +14929,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.json",
         "bytes": 92029,
-        "sha256": "3f4a0b061616abe3bf7899c0f731d3b0b5ba7444f08f1e63be5663e210a6c1f9",
+        "sha256": "31a1a0518972efc530f466d564328dbb3a2906650ff5478f95dc74ced923910e",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14833,7 +14938,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.md",
         "bytes": 38504,
-        "sha256": "1ec0091404bb28c0c80127aa843a85c99090877a9dfb4a0cdbcce3ebfa05c281",
+        "sha256": "d89377b4c31987961c3c97524021f426c8c1e92bb1ad1a928947d019969c1783",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14843,6 +14948,51 @@
         "path": "docs/security/audit/phase-2/threat-model.source.json",
         "bytes": 86886,
         "sha256": "83831b9c6f7606da632bf8f530bb85f4be6b9f0622afb494435980f6ea939570",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-3/credential-exposure-response.md",
+        "bytes": 7696,
+        "sha256": "68295ae9a7404d49861c1bfddd15eea2fe1d20bf54eb34b2f022a8f019b477a1",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-3/README.md",
+        "bytes": 6424,
+        "sha256": "b9f348a6a9e206120d23488b374ea2273a413e2b33080bcdca2d29b5df3f984f",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-3/secret-scan-allowlist.json",
+        "bytes": 352,
+        "sha256": "2566d0538b5b70593f145a24648909afee7ce5fd4c535cc57fb2a802a7766189",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-3/secret-scan.json",
+        "bytes": 6760,
+        "sha256": "f543bebf8deea6e274f4da91028f7d58a4dd86c95a70f7fdccbce2f27fddd04e",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-3/secret-scan.md",
+        "bytes": 1740,
+        "sha256": "502e2d9efe5722a9cca219f1233612a360fdf84c09aa0357d84a4d9bb2c4b5af",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17224,8 +17374,8 @@
       },
       {
         "path": "package.json",
-        "bytes": 2111,
-        "sha256": "db3cce8c02283e1b7dc0ec474507086bc76776bea5eed110d835ece38472fbf3",
+        "bytes": 2451,
+        "sha256": "fe6098d0d133b098311dfb55dbebe741509dd4405b470249f3323fdaaa6a0758",
         "categories": [
           "package-manifests",
           "text-source-or-config"
@@ -17278,6 +17428,36 @@
         ]
       },
       {
+        "path": "scripts/security/__tests__/phase3-reproduction.test.mjs",
+        "bytes": 1613,
+        "sha256": "77c77e85ad35a692ab3cafa231e21dd910a0252961faa3e607919785b52b3cda",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/__tests__/phase3-secret-scan.test.mjs",
+        "bytes": 11628,
+        "sha256": "154b7c601aa5a154448350b1c1dd4fbbc19ad41c9f9170a8aca9adcec101bcce",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/__tests__/phase3-template-expression.test.mjs",
+        "bytes": 566,
+        "sha256": "8195cfb7ee0949e34f89b9a525ae9093f263f755cd42698477f7372bbd6b2cc4",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "scripts/security/lib/inventory.mjs",
         "bytes": 58529,
         "sha256": "0e5edab598d8ac5229c4f13ec330259b18353236381768eb6a20e9f22e02fc33",
@@ -17299,6 +17479,33 @@
         "path": "scripts/security/lib/phase2-reproduction.mjs",
         "bytes": 831,
         "sha256": "143e272c6f67a0ae321012b687deb767375cc31a32a7be32ccff28256551e0ae",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/phase3-reproduction.mjs",
+        "bytes": 1316,
+        "sha256": "c11d767bd7ba4ab94bb2955a95420277234c2dbcea130bc6ef8e28523bf89768",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/secret-detectors.mjs",
+        "bytes": 13019,
+        "sha256": "95ac24958336108408068de72110db0fad18c5e6d62141f011fece68dcafde57",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/secret-scan.mjs",
+        "bytes": 22247,
+        "sha256": "c0048bea3fc22c2c28564a36368ffbc167c96a9fe0f60792e828e936a065a015",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17353,6 +17560,24 @@
         "path": "scripts/security/phase2-threat-model.mjs",
         "bytes": 1975,
         "sha256": "69bf047720fe5b02c9d9863e3eaf1406d4a13d172dc19377634d1f5b88f73bd8",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase3-reproduce.mjs",
+        "bytes": 5733,
+        "sha256": "39c360bb13f3b12efaeba81e6cc46fbb70d34b40bb28519c0ab2e44c671763ba",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase3-secret-scan.mjs",
+        "bytes": 1517,
+        "sha256": "314aa73f57e724ee76b5f7b25b6f4ec79ec48574e95fb423d9f34f4a08b98f0a",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -20494,6 +20719,26 @@
         "cwd": ".",
         "name": "security:phase2:test",
         "implementation": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase3:check",
+        "implementation": "node scripts/security/phase3-secret-scan.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase3:generate",
+        "implementation": "node scripts/security/phase3-secret-scan.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase3:reproduce",
+        "implementation": "node scripts/security/phase3-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase3:test",
+        "implementation": "node --test scripts/security/__tests__/phase3-*.test.mjs"
       },
       {
         "cwd": ".",
@@ -24666,7 +24911,7 @@
       "evidence": [
         {
           "source": "Backend/Chatify/.env.example",
-          "line": 19
+          "line": 20
         },
         {
           "source": "Backend/Chatify/Config/passport.mjs",
@@ -24678,7 +24923,11 @@
         },
         {
           "source": "Backend/Chatify/test/setup/env.mjs",
-          "line": 11
+          "line": 12
+        },
+        {
+          "source": "Backend/Chatify/Utils/secretConfiguration.mjs",
+          "line": 10
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
@@ -24892,7 +25141,7 @@
       "evidence": [
         {
           "source": "Backend/Chatify/.env.example",
-          "line": 17
+          "line": 18
         },
         {
           "source": "Backend/Chatify/Config/passport.mjs",
@@ -24903,7 +25152,15 @@
           "line": 30
         },
         {
+          "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
+          "line": 99
+        },
+        {
           "source": "Backend/Chatify/test/setup/env.mjs",
+          "line": 10
+        },
+        {
+          "source": "Backend/Chatify/Utils/secretConfiguration.mjs",
           "line": 9
         },
         {
@@ -24921,10 +25178,13 @@
         "GITHUB_SHA"
       ],
       "staticHosts": [
+        "http://chatify.example.com",
         "http://localhost:5173",
         "https://cdn.discordapp.com",
+        "https://chatify.example.com",
         "https://your-frontend.example.com",
-        "mongodb://127.0.0.1:27017"
+        "mongodb://127.0.0.1:27017",
+        "mongodb://localhost:27017"
       ],
       "controls": [
         "response-size-limit",
@@ -24944,7 +25204,7 @@
       "evidence": [
         {
           "source": "Backend/Chatify/.env.example",
-          "line": 15
+          "line": 16
         },
         {
           "source": "Backend/Chatify/Config/passport.mjs",
@@ -24955,8 +25215,16 @@
           "line": 31
         },
         {
+          "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
+          "line": 66
+        },
+        {
           "source": "Backend/Chatify/test/setup/env.mjs",
-          "line": 7
+          "line": 8
+        },
+        {
+          "source": "Backend/Chatify/Utils/secretConfiguration.mjs",
+          "line": 8
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
@@ -24968,10 +25236,13 @@
         "GOOGLE_CLIENT_SECRET"
       ],
       "staticHosts": [
+        "http://chatify.example.com",
         "http://localhost:5173",
         "https://cdn.discordapp.com",
+        "https://chatify.example.com",
         "https://your-frontend.example.com",
-        "mongodb://127.0.0.1:27017"
+        "mongodb://127.0.0.1:27017",
+        "mongodb://localhost:27017"
       ],
       "controls": [
         "response-size-limit",
@@ -25010,12 +25281,20 @@
           "line": 42
         },
         {
+          "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
+          "line": 16
+        },
+        {
           "source": "Backend/Chatify/test/setup/mongo.mjs",
           "line": 8
         },
         {
           "source": "Backend/Chatify/Utils/operationalReadiness.mjs",
           "line": 14
+        },
+        {
+          "source": "Backend/Chatify/Utils/secretConfiguration.mjs",
+          "line": 110
         },
         {
           "source": "scripts/ops-check.mjs",
@@ -25026,11 +25305,14 @@
         "MONGODB_URL"
       ],
       "staticHosts": [
+        "http://chatify.example.com",
         "http://localhost:5173",
+        "https://chatify.example.com",
         "https://chatify.example.test",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017",
-        "mongodb://example.invalid"
+        "mongodb://example.invalid",
+        "mongodb://localhost:27017"
       ],
       "controls": [],
       "userControlledDestinationCandidate": false,
@@ -25045,7 +25327,7 @@
       "evidence": [
         {
           "source": "Backend/Chatify/.env.example",
-          "line": 36
+          "line": 37
         },
         {
           "source": "Backend/Chatify/Config/socket.mjs",
@@ -25054,6 +25336,10 @@
         {
           "source": "Backend/Chatify/test/observability/health-readiness.test.mjs",
           "line": 96
+        },
+        {
+          "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
+          "line": 79
         },
         {
           "source": "Backend/Chatify/Utils/callIceConfig.mjs",
@@ -25075,12 +25361,15 @@
         "CALL_TURN_USERNAME"
       ],
       "staticHosts": [
+        "http://chatify.example.com",
         "http://localhost:3000",
         "http://localhost:5173",
+        "https://chatify.example.com",
         "https://chatify.example.test",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017",
-        "mongodb://example.invalid"
+        "mongodb://example.invalid",
+        "mongodb://localhost:27017"
       ],
       "controls": [
         "retry-control",
@@ -25098,7 +25387,7 @@
       "evidence": [
         {
           "source": "Backend/Chatify/.env.example",
-          "line": 27
+          "line": 28
         },
         {
           "source": "Backend/Chatify/package.json",
@@ -25107,6 +25396,14 @@
         {
           "source": "Backend/Chatify/Services/notificationService.mjs",
           "line": 1
+        },
+        {
+          "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
+          "line": 64
+        },
+        {
+          "source": "Backend/Chatify/Utils/secretConfiguration.mjs",
+          "line": 206
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
@@ -25124,9 +25421,12 @@
         "VITE_VAPID_PUBLIC_KEY"
       ],
       "staticHosts": [
+        "http://chatify.example.com",
         "http://localhost:5173",
+        "https://chatify.example.com",
         "https://your-frontend.example.com",
-        "mongodb://127.0.0.1:27017"
+        "mongodb://127.0.0.1:27017",
+        "mongodb://localhost:27017"
       ],
       "controls": [
         "response-size-limit",
@@ -25174,7 +25474,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 23
+            "line": 24
           }
         ],
         "referencedAt": [
@@ -25210,7 +25510,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 14,
+            "line": 15,
             "kind": "process-env"
           }
         ],
@@ -25223,7 +25523,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 36
+            "line": 37
           }
         ],
         "referencedAt": [],
@@ -25236,7 +25536,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 39
+            "line": 40
           }
         ],
         "referencedAt": [],
@@ -25249,7 +25549,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 37
+            "line": 38
           }
         ],
         "referencedAt": [],
@@ -25262,7 +25562,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 38
+            "line": 39
           }
         ],
         "referencedAt": [],
@@ -25303,7 +25603,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 34
+            "line": 35
           }
         ],
         "referencedAt": [
@@ -25384,7 +25684,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 31
+            "line": 32
           }
         ],
         "referencedAt": [
@@ -25464,7 +25764,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 32
+            "line": 33
           }
         ],
         "referencedAt": [
@@ -25498,7 +25798,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 24
+            "line": 25
           }
         ],
         "referencedAt": [
@@ -25546,7 +25846,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 33
+            "line": 34
           }
         ],
         "referencedAt": [
@@ -25602,6 +25902,11 @@
             "source": "Backend/Chatify/Middlewares/csrfProtection.mjs",
             "line": 10,
             "kind": "process-env"
+          },
+          {
+            "source": "Backend/Chatify/test/setup/env.mjs",
+            "line": 3,
+            "kind": "process-env"
           }
         ],
         "exampleValue": "<redacted>"
@@ -25613,7 +25918,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 19
+            "line": 20
           }
         ],
         "referencedAt": [
@@ -25624,7 +25929,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 11,
+            "line": 12,
             "kind": "process-env"
           }
         ],
@@ -25637,7 +25942,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 20
+            "line": 21
           }
         ],
         "referencedAt": [
@@ -25648,7 +25953,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 12,
+            "line": 13,
             "kind": "process-env"
           }
         ],
@@ -25661,7 +25966,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 22
+            "line": 23
           }
         ],
         "referencedAt": [
@@ -25677,7 +25982,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 13,
+            "line": 14,
             "kind": "process-env"
           }
         ],
@@ -25696,7 +26001,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 3,
+            "line": 4,
             "kind": "process-env"
           }
         ],
@@ -25709,7 +26014,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 12
+            "line": 13
           }
         ],
         "referencedAt": [
@@ -25730,7 +26035,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 5,
+            "line": 6,
             "kind": "process-env"
           },
           {
@@ -25763,7 +26068,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 13
+            "line": 14
           }
         ],
         "referencedAt": [
@@ -25779,7 +26084,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 6,
+            "line": 7,
             "kind": "process-env"
           },
           {
@@ -25810,6 +26115,11 @@
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 60,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 62,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -25821,7 +26131,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 17
+            "line": 18
           }
         ],
         "referencedAt": [
@@ -25832,7 +26142,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 9,
+            "line": 10,
             "kind": "process-env"
           }
         ],
@@ -25845,7 +26155,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 18
+            "line": 19
           }
         ],
         "referencedAt": [
@@ -25856,7 +26166,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 10,
+            "line": 11,
             "kind": "process-env"
           }
         ],
@@ -25877,6 +26187,11 @@
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 57,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 59,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -25895,6 +26210,11 @@
           {
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 59,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 61,
             "kind": "process-env"
           }
         ],
@@ -25915,6 +26235,11 @@
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 58,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 60,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -25934,6 +26259,11 @@
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 56,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 58,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -25945,7 +26275,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 15
+            "line": 16
           }
         ],
         "referencedAt": [
@@ -25956,7 +26286,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 7,
+            "line": 8,
             "kind": "process-env"
           }
         ],
@@ -25969,7 +26299,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 16
+            "line": 17
           }
         ],
         "referencedAt": [
@@ -25980,7 +26310,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 8,
+            "line": 9,
             "kind": "process-env"
           }
         ],
@@ -26045,6 +26375,11 @@
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 76,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 78,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26063,6 +26398,11 @@
           {
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 77,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 79,
             "kind": "process-env"
           }
         ],
@@ -26267,7 +26607,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 25
+            "line": 26
           }
         ],
         "referencedAt": [
@@ -26286,7 +26626,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 26
+            "line": 27
           }
         ],
         "referencedAt": [
@@ -26316,7 +26656,7 @@
           },
           {
             "source": "Backend/Chatify/test/setup/env.mjs",
-            "line": 4,
+            "line": 5,
             "kind": "process-env"
           }
         ],
@@ -26335,7 +26675,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/server.mjs",
-            "line": 9,
+            "line": 13,
             "kind": "process-env"
           }
         ],
@@ -26354,7 +26694,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/server.mjs",
-            "line": 9,
+            "line": 13,
             "kind": "process-env"
           }
         ],
@@ -26417,6 +26757,11 @@
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 73,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 75,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26435,6 +26780,11 @@
           {
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 75,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 77,
             "kind": "process-env"
           }
         ],
@@ -26455,6 +26805,11 @@
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 74,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 76,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26473,6 +26828,11 @@
           {
             "source": "scripts/security/phase2-reproduce.mjs",
             "line": 72,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase3-reproduce.mjs",
+            "line": 74,
             "kind": "process-env"
           }
         ],
@@ -26497,11 +26857,6 @@
           {
             "source": "Backend/Chatify/Controller/authController.mjs",
             "line": 97,
-            "kind": "process-env"
-          },
-          {
-            "source": "Backend/Chatify/Middlewares/csrfProtection.mjs",
-            "line": 10,
             "kind": "process-env"
           },
           {
@@ -26556,7 +26911,12 @@
         "name": "TWO_FACTOR_ENCRYPTION_KEY",
         "category": "general-runtime",
         "sensitive": false,
-        "definedInExamples": [],
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 11
+          }
+        ],
         "referencedAt": [
           {
             "source": "Backend/Chatify/Utils/twoFactor.mjs",
@@ -26569,7 +26929,7 @@
             "kind": "process-env"
           }
         ],
-        "exampleValue": null
+        "exampleValue": "<empty>"
       },
       {
         "name": "VAPID_PRIVATE_KEY",
@@ -26578,7 +26938,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 29
+            "line": 30
           }
         ],
         "referencedAt": [
@@ -26597,7 +26957,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 28
+            "line": 29
           }
         ],
         "referencedAt": [
@@ -26616,7 +26976,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 27
+            "line": 28
           }
         ],
         "referencedAt": [
@@ -26701,8 +27061,7 @@
       "RUNNER_ARCH",
       "RUNNER_ENVIRONMENT",
       "RUNNER_NAME",
-      "RUNNER_OS",
-      "TWO_FACTOR_ENCRYPTION_KEY"
+      "RUNNER_OS"
     ],
     "unusedExamples": [
       "CALL_STUN_URLS",

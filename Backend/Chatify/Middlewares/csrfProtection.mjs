@@ -7,7 +7,7 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const isProd = () => process.env.NODE_ENV === 'production';
 
-const getCsrfSecret = () => process.env.CSRF_SECRET || process.env.SECRET_JWT_KEY;
+const getCsrfSecret = () => process.env.CSRF_SECRET;
 
 const signCsrfValue = (value) => createHmac('sha256', getCsrfSecret())
   .update(value)

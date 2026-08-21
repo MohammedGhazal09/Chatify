@@ -32,7 +32,11 @@
     "security:phase2:test": "node --test scripts/security/__tests__/phase2-threat-model.test.mjs",
     "security:phase2:generate": "node scripts/security/phase2-threat-model.mjs --write",
     "security:phase2:check": "node scripts/security/phase2-threat-model.mjs --check",
-    "security:phase2:reproduce": "node scripts/security/phase2-reproduce.mjs"
+    "security:phase2:reproduce": "node scripts/security/phase2-reproduce.mjs",
+    "security:phase3:test": "node --test scripts/security/__tests__/phase3-*.test.mjs",
+    "security:phase3:generate": "node scripts/security/phase3-secret-scan.mjs --write",
+    "security:phase3:check": "node scripts/security/phase3-secret-scan.mjs --check",
+    "security:phase3:reproduce": "node scripts/security/phase3-reproduce.mjs"
   },
   "author": "Mohammed Ghazal",
   "license": "ISC"
