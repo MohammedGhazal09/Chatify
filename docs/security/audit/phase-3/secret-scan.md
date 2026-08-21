@@ -6,23 +6,18 @@ This evidence is sanitized. It never stores discovered credential values, value 
 
 | Scope | Scanned | Bytes | Findings | Suppressed | Unsuppressed | Content SHA-256 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Current tree | 1405 | 8436385 | 3 | 0 | 3 | aca9b410d92f45426a669ec04f8952649468e07293a7b6fb069941cb7cb356ee |
-| Git history | 2913 | 28012741 | 2 | 0 | 2 | 78dff5ca2d2de4f5fb556dd92ac8e8e84ffbc93477cf7a4e3c96f149584c86c5 |
+| Current tree | 1405 | 8436849 | 0 | 0 | 0 | 3678fbaac23710b11ecfe1191b9db0d4fa7683ac8b1f6d0fff07b860df7dd3ae |
+| Git history | 2916 | 28059142 | 1 | 0 | 1 | 67d1ebadd4aa5facadea583ac547fde11da39c140a9ec64df0d0922081335225 |
 
 ## Current-tree candidates
 
-| Candidate | Detector | Severity | Confidence | Location | State |
-| --- | --- | --- | --- | --- | --- |
-| sec_d52d2aadac6733bf4304aaa7 | generic-secret-assignment | high | medium | Backend/Chatify/.env.example:13:1 | open |
-| sec_883197b195713e847a19d63d | generic-secret-assignment | high | medium | Frontend/Chatify/e2e/chat-phase52-encrypted-recovery.spec.ts:12:27 | open |
-| sec_fd021d00ff1a2dc89559be57 | generic-secret-assignment | high | medium | scripts/security/__tests__/phase3-secret-scan.test.mjs:133:39 | open |
+No candidates detected.
 
 ## Historical candidates
 
 | Candidate | Detector | Severity | Confidence | Location | State |
 | --- | --- | --- | --- | --- | --- |
-| sec_61357386e36dc3bcec1642e9 | generic-secret-assignment | high | medium | Backend/Chatify/.env.example:13:1 | open |
-| sec_fc6be141b0c0b8c9844e6f29 | generic-secret-assignment | high | medium | Frontend/Chatify/e2e/chat-phase52-encrypted-recovery.spec.ts:12:27 | open |
+| sec_ba995af4e5dcfc5219be0638 | generic-secret-assignment | high | medium | scripts/security/__tests__/phase3-secret-scan.test.mjs:133:39 | open |
 
 ## Secret-loading review
 

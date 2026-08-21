@@ -409,7 +409,7 @@
   },
   "components": {
     "trackedFileCount": 1541,
-    "totalTrackedBytes": 16894668,
+    "totalTrackedBytes": 16891910,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -14926,7 +14926,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.json",
         "bytes": 92029,
-        "sha256": "26361e41c9f016c93bf5a9dca29a9eec4597e5158a3fa354dfc23ecb27611a2c",
+        "sha256": "0d4c0f961a2a398836f961bf784240956cabf6d8e30fee36c0d19e46bbf5fdd0",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14935,7 +14935,7 @@
       {
         "path": "docs/security/audit/phase-2/threat-model.md",
         "bytes": 38504,
-        "sha256": "87576eb4aca42c95baf6a8ec7aaf7aa8cf0654d439786595b6508081ca518643",
+        "sha256": "33729f4aab486fc7825197e38d741abed4bcf2ab0d3fd28b67ac1bdd980ee2eb",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14979,8 +14979,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
-        "bytes": 9009,
-        "sha256": "d85e54dd9f03048eccdd00359955c0112c02a90d738de76bde669abdfead9a5b",
+        "bytes": 6415,
+        "sha256": "ef5f691de8eb36be3e6d647ace187443b77d9b4fea8f15de308c9dd87057153a",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14988,8 +14988,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
-        "bytes": 2363,
-        "sha256": "c4ad2163e6bf67cecca733faf06668871bfdebb6006610c5938e7c68376efc69",
+        "bytes": 1735,
+        "sha256": "68c8431ef1c0e6be9ee628d59f5148cf833638690fef6c01a8c5f88d768bd10e",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -17436,8 +17436,8 @@
       },
       {
         "path": "scripts/security/__tests__/phase3-secret-scan.test.mjs",
-        "bytes": 11386,
-        "sha256": "a209ccca273b131ad0f47884d3964cc76dc13c7773ec678df9d17c1e76a95521",
+        "bytes": 11628,
+        "sha256": "154b7c601aa5a154448350b1c1dd4fbbc19ad41c9f9170a8aca9adcec101bcce",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17482,8 +17482,8 @@
       },
       {
         "path": "scripts/security/lib/secret-detectors.mjs",
-        "bytes": 12768,
-        "sha256": "56cfca21c88147991ac0a83d983672577371c76e270686d20cbe8a53b6861ec6",
+        "bytes": 12990,
+        "sha256": "8f1d8f413f3463c0fe2157dcbeb71b931f7201293029b431c61607c818c36c70",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"

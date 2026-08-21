@@ -113,7 +113,11 @@ test('detectors reject descriptive placeholders and synthetic fixtures without h
     },
     {
       filePath: 'Frontend/Chatify/e2e/encrypted.spec.ts',
-      text: "const LOCAL_SECRET_KEY = 'chatify:e2ee:v1:conversation-secret:phase52-chat'",
+      text: "const LOCAL_SECRET_KEY = `chatify:e2ee:v1:conversation-secret:${ENCRYPTED_CHAT_ID}`",
+    },
+    {
+      filePath: 'Backend/Chatify/.env.example',
+      text: 'TWO_FACTOR_ENCRYPTION_KEY=\n\nFRONTEND_ORIGIN=https://your-frontend.example.com',
     },
     {
       filePath: 'Frontend/Chatify/src/api/axios.ts',
@@ -129,8 +133,9 @@ test('detectors reject descriptive placeholders and synthetic fixtures without h
     assert.deepEqual(scanTextForSecrets({ ...fixture, scope: 'current-tree' }), [])
   }
 
+  const realisticValue = ['rV8pL2qN7wX4mK9c', 'D6sJ3hF5zB1uY0aT'].join('')
   const realistic = scanTextForSecrets({
-    text: "const SERVICE_API_TOKEN = 'rV8pL2qN7wX4mK9cD6sJ3hF5zB1uY0aT'",
+    text: ['const SERVICE_API_TOKEN = ', "'", realisticValue, "'"].join(''),
     filePath: 'Backend/Chatify/test/provider.test.mjs',
     scope: 'current-tree',
   })

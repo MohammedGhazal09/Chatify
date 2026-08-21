@@ -4,6 +4,7 @@ export const SECRET_NAME_PATTERN = /(?:^|[_-])(?:api[_-]?key|secret|token|passwo
 const NON_SECRET_METADATA_NAME_PATTERN = /(?:^|[_-])(?:event|prefix|suffix|label|name|path|url|uri|expires?|expiry|ttl|timeout|duration|window|mode|type|id|count|enabled)(?:$|[_-])/i
 const TEST_OR_DOC_PATH_PATTERN = /(?:^|\/)(?:test|tests|__tests__|e2e|docs|\.planning|\.agents)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/i
 const SYNTHETIC_FIXTURE_VALUE_PATTERN = /(?:^|[-_:./])(?:example|sample|dummy|fake|fixture|mock|placeholder|material|marker|phase\d+)(?:[-_:./]|$)/i
+const SYNTHETIC_FIXTURE_NAME_PATTERN = /(?:^|[_-])(?:test|fixture|mock|dummy|fake|local|valid|sample)(?:$|[_-])/i
 const PLACEHOLDER_PATTERNS = [
   /^$/,
   /^(?:null|undefined|none)$/i,
@@ -115,7 +116,7 @@ const DETECTORS = [
 ]
 
 const GENERIC_QUOTED_ASSIGNMENT_PATTERN = /\b([A-Za-z_][A-Za-z0-9_-]{2,})\s*(?:=|:)\s*(["'`])([^"'`\n]{16,512})\2/g
-const GENERIC_LINE_ASSIGNMENT_PATTERN = /^\s*([A-Z][A-Z0-9_-]{2,})\s*(?:=|:)\s*([^\s#,{\[\]"'`]{16,512})\s*$/gm
+const GENERIC_LINE_ASSIGNMENT_PATTERN = /^[ \t]*([A-Z][A-Z0-9_-]{2,})[ \t]*(?:=|:)[ \t]*([^\s#,{\[\]"'`]{16,512})[ \t]*$/gm
 
 const normalize = (value) => String(value ?? '').trim()
 
@@ -251,6 +252,7 @@ const genericMatchesForPattern = ({ text, filePath, scope, occupied, pattern, va
       !isSecretMaterialName(name)
       || isPlaceholderValue(value)
       || isSyntheticFixtureValue({ value, filePath })
+      || (TEST_OR_DOC_PATH_PATTERN.test(filePath) && SYNTHETIC_FIXTURE_NAME_PATTERN.test(name))
       || occupied.some((item) => overlaps(item, span))
     ) continue
     if (calculateShannonEntropy(value) < 3 || value.length < 20) continue
