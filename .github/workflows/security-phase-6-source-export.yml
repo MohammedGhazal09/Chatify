@@ -13,7 +13,7 @@ permissions:
 jobs:
   export:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -32,10 +32,27 @@ jobs:
               '+refs/pull/${{ github.event.pull_request.number }}/head:refs/remotes/pull/${{ github.event.pull_request.number }}/head'
           fi
 
-      - name: Package tracked source and history
+      - name: Setup exact Node.js toolchain
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Install workspace dependencies
+        run: |
+          npm --prefix Backend/Chatify ci --strict-allow-scripts
+          npm --prefix Frontend/Chatify ci --strict-allow-scripts
+
+      - name: Package tracked source, history, and dependencies
         run: |
           git archive --format=tar.gz --output=chatify-phase6-source.tar.gz HEAD
           git bundle create chatify-phase6-history.bundle --all
+          tar -czf chatify-phase6-node-modules.tar.gz \
+            Backend/Chatify/node_modules \
+            Frontend/Chatify/node_modules
           git rev-parse HEAD > chatify-phase6-source.sha
 
       - name: Upload source archive
@@ -45,6 +62,7 @@ jobs:
           path: |
             chatify-phase6-source.tar.gz
             chatify-phase6-history.bundle
+            chatify-phase6-node-modules.tar.gz
             chatify-phase6-source.sha
           if-no-files-found: error
           retention-days: 1
