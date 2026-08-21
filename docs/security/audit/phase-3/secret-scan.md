@@ -6,8 +6,8 @@ This evidence is sanitized. It never stores discovered credential values, value 
 
 | Scope | Scanned | Bytes | Findings | Suppressed | Unsuppressed | Content SHA-256 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Current tree | 1405 | 8436849 | 0 | 0 | 0 | 3678fbaac23710b11ecfe1191b9db0d4fa7683ac8b1f6d0fff07b860df7dd3ae |
-| Git history | 2916 | 28059142 | 1 | 0 | 1 | 67d1ebadd4aa5facadea583ac547fde11da39c140a9ec64df0d0922081335225 |
+| Current tree | 1405 | 8437159 | 0 | 0 | 0 | 2289a4bb5a318eabd5258075c9d89faaf50a55b37af952376c39bf39befcc5f5 |
+| Git history | 2919 | 28084112 | 1 | 1 | 0 | b97c3bee459fb3bfe8139b723e8deb92d276fc368cb8dce1e5ec307f0d52eb47 |
 
 ## Current-tree candidates
 
@@ -17,7 +17,7 @@ No candidates detected.
 
 | Candidate | Detector | Severity | Confidence | Location | State |
 | --- | --- | --- | --- | --- | --- |
-| sec_ba995af4e5dcfc5219be0638 | generic-secret-assignment | high | medium | scripts/security/__tests__/phase3-secret-scan.test.mjs:133:39 | open |
+| sec_ba995af4e5dcfc5219be0638 | generic-secret-assignment | high | medium | scripts/security/__tests__/phase3-secret-scan.test.mjs:133:39 | suppressed |
 
 ## Secret-loading review
 
@@ -37,7 +37,7 @@ No candidates detected.
 | --- | --- |
 | currentTreeScanCompleted | true |
 | historyScanCompleted | true |
-| noUnsuppressedFindings | false |
+| noUnsuppressedFindings | true |
 | noFrontendSecretReferences | true |
 | noWeakSecretFallbacks | true |
 | noEnvironmentDumps | true |

@@ -409,7 +409,7 @@
   },
   "components": {
     "trackedFileCount": 1541,
-    "totalTrackedBytes": 16891910,
+    "totalTrackedBytes": 16892570,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -14970,8 +14970,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan-allowlist.json",
-        "bytes": 42,
-        "sha256": "7060c267c912e3156b87c646e3bc970eac1ac8bdd964cf0a794b83e6f1250614",
+        "bytes": 352,
+        "sha256": "2566d0538b5b70593f145a24648909afee7ce5fd4c535cc57fb2a802a7766189",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14979,8 +14979,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan.json",
-        "bytes": 6415,
-        "sha256": "ef5f691de8eb36be3e6d647ace187443b77d9b4fea8f15de308c9dd87057153a",
+        "bytes": 6760,
+        "sha256": "cbed4b2298f0ed93cfc27b6405e232f77a37ccd96aaaeda6a5da8745ed4563c3",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -14988,8 +14988,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan.md",
-        "bytes": 1735,
-        "sha256": "68c8431ef1c0e6be9ee628d59f5148cf833638690fef6c01a8c5f88d768bd10e",
+        "bytes": 1740,
+        "sha256": "f4b06eed81ec313f00769ebf1d49f87aaae66b8b2a0e6ca134d8649bc1122028",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
