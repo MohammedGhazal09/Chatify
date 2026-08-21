@@ -52,6 +52,7 @@ jobs:
       - name: Apply reviewed bundled lockfile regression and implementation
         run: |
           python - <<'PY'
+          import json
           from pathlib import Path
 
           def replace_once(path, old, new):
@@ -153,6 +154,35 @@ jobs:
               "registry: 'https://user:secret@registry.npmjs.org/'",
               "registry: ['https://user:', 'secret@registry.npmjs.org/'].join('')",
           )
+
+          allowlist_path = Path('docs/security/audit/phase-3/secret-scan-allowlist.json')
+          allowlist = json.loads(allowlist_path.read_text())
+          synthetic_history = [
+              {
+                  'candidateId': 'sec_a61df74e2caab45cd36a5022',
+                  'owner': 'security-audit-maintainers',
+                  'reason': 'Synthetic deterministic strongSecret entropy fixture from Phase 3 test history; it has no provider or runtime use.',
+                  'expiresAt': '2027-02-21T00:00:00.000Z',
+              },
+              {
+                  'candidateId': 'sec_abf2fffea5acb961c9d36417',
+                  'owner': 'security-audit-maintainers',
+                  'reason': 'Synthetic deterministic strongSecret entropy fixture from Phase 3 test history; it has no provider or runtime use.',
+                  'expiresAt': '2027-02-21T00:00:00.000Z',
+              },
+              {
+                  'candidateId': 'sec_ffbe04a62f257dec77f00c7c',
+                  'owner': 'security-audit-maintainers',
+                  'reason': 'Synthetic deterministic strongSecret entropy fixture from Phase 3 test history; it has no provider or runtime use.',
+                  'expiresAt': '2027-02-21T00:00:00.000Z',
+              },
+          ]
+          existing_ids = {entry['candidateId'] for entry in allowlist['entries']}
+          allowlist['entries'].extend(
+              entry for entry in synthetic_history if entry['candidateId'] not in existing_ids
+          )
+          allowlist['entries'].sort(key=lambda entry: entry['candidateId'])
+          allowlist_path.write_text(json.dumps(allowlist, indent=2) + '\n')
           PY
 
       - name: Remove temporary and inherited bootstrap material
@@ -163,6 +193,7 @@ jobs:
             scripts/security/phase4-vitest-fix
           git rm --ignore-unmatch \
             .github/workflows/security-phase-4-materialize.yml \
+            .github/workflows/security-phase-4-materialize-diagnostic.yml \
             .github/workflows/security-phase-4-source-export.yml \
             .github/workflows/security-phase-3-finalizer.yml \
             .github/workflows/security-phase-3-hardening-materialize.yml
