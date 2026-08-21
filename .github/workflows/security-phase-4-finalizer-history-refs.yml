@@ -1,0 +1,291 @@
+name: Temporary Phase 4 history-ref finalization
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase4-history-ref-finalization
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]' && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'security/phase-4-dependency-supply-chain')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout Phase 4 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-4-dependency-supply-chain
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch repository branches, tags, and the current PR head
+        run: |
+          git fetch --force --prune origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*'
+          git fetch --force origin \
+            '+refs/pull/5/head:refs/remotes/pull/5/head'
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Add synthetic merge-ref regression
+        run: |
+          cat > scripts/security/__tests__/phase3-history-ref-selection.test.mjs <<'EOF'
+          import assert from 'node:assert/strict'
+          import { execFileSync } from 'node:child_process'
+          import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+          import os from 'node:os'
+          import path from 'node:path'
+          import test from 'node:test'
+
+          import { buildSecretScan } from '../lib/secret-scan.mjs'
+
+          const git = (root, args) => execFileSync('git', args, {
+            cwd: root,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }).trim()
+
+          const commitAll = (root, message) => {
+            git(root, ['add', '-A'])
+            git(root, ['commit', '-qm', message])
+          }
+
+          const createRepository = async () => {
+            const root = await mkdtemp(path.join(os.tmpdir(), 'chatify-phase3-history-refs-'))
+            git(root, ['init', '-q'])
+            git(root, ['config', 'user.name', 'Security Test'])
+            git(root, ['config', 'user.email', 'security-test@example.invalid'])
+            await writeFile(path.join(root, 'package.json'), '{"name":"fixture","type":"module"}\n')
+            await mkdir(path.join(root, 'docs/security/audit/phase-3'), { recursive: true })
+            await writeFile(path.join(root, 'docs/security/audit/phase-3/secret-scan-allowlist.json'), '{"schemaVersion":1,"entries":[]}\n')
+            await writeFile(path.join(root, 'docs/security/audit/phase-3/credential-exposure-response.md'), '# Credential exposure response\n')
+            commitAll(root, 'fixture baseline')
+            return root
+          }
+
+          const createRefOnlyCommit = async (root, {
+            branchName,
+            refName,
+            filePath,
+            content,
+          }) => {
+            const baseBranch = git(root, ['branch', '--show-current'])
+            git(root, ['checkout', '-qb', branchName])
+            await writeFile(path.join(root, filePath), content)
+            commitAll(root, `add ${filePath}`)
+            const sha = git(root, ['rev-parse', 'HEAD'])
+            git(root, ['checkout', '-q', baseBranch])
+            git(root, ['branch', '-D', branchName])
+            git(root, ['update-ref', refName, sha])
+            return sha
+          }
+
+          test('history evidence excludes synthetic PR merge refs while retaining PR heads', async () => {
+            const root = await createRepository()
+            const headSecret = ['xkeysib-', 'c'.repeat(64)].join('')
+            const mergeSecret = ['ghp_', Array.from({ length: 36 }, (_, index) => 'Ab3xYz9Q'[index % 8]).join('')].join('')
+
+            await createRefOnlyCommit(root, {
+              branchName: 'fixture-pr-head',
+              refName: 'refs/remotes/pull/7/head',
+              filePath: 'head-only.env',
+              content: `BREVO_API_KEY=${headSecret}\n`,
+            })
+            await createRefOnlyCommit(root, {
+              branchName: 'fixture-pr-merge',
+              refName: 'refs/remotes/pull/7/merge',
+              filePath: 'merge-only.env',
+              content: `GITHUB_TOKEN=${mergeSecret}\n`,
+            })
+
+            const withMergeRef = await buildSecretScan(root, {
+              phase1Inventory: { sensitiveConfiguration: { variables: [] } },
+              now: new Date('2026-08-21T00:00:00Z'),
+            })
+
+            assert.equal(withMergeRef.history.findings.some((finding) => (
+              finding.filePath === 'head-only.env' && finding.detectorId === 'brevo-api-key'
+            )), true)
+            assert.equal(withMergeRef.history.findings.some((finding) => (
+              finding.filePath === 'merge-only.env' && finding.detectorId === 'github-token'
+            )), false)
+
+            git(root, ['update-ref', '-d', 'refs/remotes/pull/7/merge'])
+            const withoutMergeRef = await buildSecretScan(root, {
+              phase1Inventory: { sensitiveConfiguration: { variables: [] } },
+              now: new Date('2026-08-21T00:00:00Z'),
+            })
+
+            assert.equal(withMergeRef.history.contentSha256, withoutMergeRef.history.contentSha256)
+            assert.deepEqual(withMergeRef.history.findings, withoutMergeRef.history.findings)
+          })
+          EOF
+
+      - name: Prove the regression fails before implementation
+        run: |
+          set +e
+          node --test scripts/security/__tests__/phase3-history-ref-selection.test.mjs
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo 'Synthetic merge-ref regression unexpectedly passed before implementation.' >&2
+            exit 1
+          fi
+
+      - name: Select stable repository history refs explicitly
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              target = Path(path)
+              text = target.read_text()
+              if new in text:
+                  return
+              if old not in text:
+                  raise RuntimeError(f'Expected patch marker missing from {path}: {old[:140]!r}')
+              target.write_text(text.replace(old, new, 1))
+
+          scanner = 'scripts/security/lib/secret-scan.mjs'
+          replace_once(
+              scanner,
+              "const parseObjectList = (root) => {\n",
+              "const historyRefNames = (root) => {\n  const refs = runGit(root, [\n    'for-each-ref',\n    '--format=%(refname)',\n    'refs/heads',\n    'refs/remotes/origin',\n    'refs/tags',\n    'refs/remotes/pull',\n  ])\n    .split('\\n')\n    .filter(Boolean)\n    .filter((refName) => refName !== 'refs/remotes/origin/HEAD' && !refName.endsWith('/merge'))\n  const uniqueRefs = sortStrings(new Set(refs))\n  if (uniqueRefs.length === 0) throw new Error('No repository history refs are available for the Phase 3 scan')\n  return uniqueRefs\n}\n\nconst parseObjectList = (root, refs) => {\n",
+          )
+          replace_once(
+              scanner,
+              "  const lines = runGit(root, ['rev-list', '--objects', '--all']).split('\\n').filter(Boolean)\n",
+              "  const lines = runGit(root, ['rev-list', '--objects', ...refs]).split('\\n').filter(Boolean)\n",
+          )
+          replace_once(
+              scanner,
+              "const blobHistory = (root, blobSha, filePath) => {\n",
+              "const blobHistory = (root, blobSha, filePath, refs) => {\n",
+          )
+          replace_once(
+              scanner,
+              "    const commits = runGit(root, ['log', '--all', '--format=%H', `--find-object=${blobSha}`, '--', filePath])\n",
+              "    const commits = runGit(root, ['log', '--format=%H', `--find-object=${blobSha}`, ...refs, '--', filePath])\n",
+          )
+          replace_once(
+              scanner,
+              "const scanHistory = async (root, allowlist) => {\n  const objects = parseObjectList(root)\n",
+              "const scanHistory = async (root, allowlist) => {\n  const refs = historyRefNames(root)\n  const objects = parseObjectList(root, refs)\n",
+          )
+          replace_once(
+              scanner,
+              "        for (const detail of blobHistory(root, objectSha, filePath)) record._commits.set(detail.sha, detail)\n",
+              "        for (const detail of blobHistory(root, objectSha, filePath, refs)) record._commits.set(detail.sha, detail)\n",
+          )
+          replace_once(
+              scanner,
+              "    source: 'all-reachable-git-blobs',\n",
+              "    source: 'repository-branches-tags-and-pr-heads',\n",
+          )
+
+          readme = 'docs/security/audit/phase-3/README.md'
+          replace_once(
+              readme,
+              '| Repository scanner | `scripts/security/lib/secret-scan.mjs` | Scan the current worktree and all reachable Git blobs, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence. |',
+              '| Repository scanner | `scripts/security/lib/secret-scan.mjs` | Scan the current worktree plus repository branch, tag, and pull-request-head Git blobs, apply exact expiring allowlist entries, review secret-loading behavior, and build deterministic evidence. |',
+          )
+          replace_once(
+              readme,
+              "The workflow fetches every repository branch and tag. On a pull request, it additionally fetches only that pull request's head ref; the checked-out merge commit is already reachable as `HEAD`. Unrelated open pull requests are deliberately excluded so untrusted fork content cannot become an input to every repository security gate. The scanner enumerates every reachable Git object path, batch-checks object type and size, reads eligible unique blobs, and detects credentials that were later deleted. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.",
+              "The workflow fetches every repository branch and tag. On a pull request, it additionally fetches only that pull request's head ref. The scanner explicitly enumerates branch, tag, origin-branch, and pull-request-head refs while excluding synthetic `refs/remotes/pull/<n>/merge` refs. This keeps committed evidence stable between branch and GitHub merge-test checkouts without excluding either side of the proposed change: the base is covered by repository refs and the proposed code by the pull-request head. Unrelated open pull requests are also excluded so untrusted fork content cannot become an input to every repository security gate. Historical findings include sanitized first- and last-seen commit identifiers without storing the discovered value.",
+          )
+          replace_once(
+              readme,
+              'Static scanning cannot establish whether a candidate is active, determine every proprietary credential format, inspect provider consoles, rotate credentials, or purge external caches. GitHub Actions scans repository branches, tags, the current pull-request ref, and the checked-out merge commit. Unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review. Binary and oversized files require a separate content-aware process when their provenance is suspicious.',
+              'Static scanning cannot establish whether a candidate is active, determine every proprietary credential format, inspect provider consoles, rotate credentials, or purge external caches. GitHub Actions scans repository branches, tags, origin branches, and the current pull-request head; synthetic pull-request merge refs are excluded from deterministic history evidence and remain covered by the separate application and integration test workflows. Unrelated unmerged pull requests, separately retained workflow logs, release assets, forks, mirrors, backups, and third-party observability systems require separate operator review. Binary and oversized files require a separate content-aware process when their provenance is suspicious.',
+          )
+
+          plan = 'docs/plans/2026-08-21-phase-3-secrets-and-credentials.md'
+          replace_once(
+              plan,
+              '3. Scan tracked files, untracked nonignored files, sensitive ignored local files, and all reachable historical Git blobs.',
+              '3. Scan tracked files, untracked nonignored files, sensitive ignored local files, and historical blobs reachable from repository branches, tags, origin branches, and the current pull-request head.',
+          )
+          replace_once(
+              plan,
+              "10. Scan repository branches and tags plus only the current pull request's head and merge commit, so unrelated or fork-controlled PR content cannot block every security gate.",
+              "10. Scan repository branches and tags plus only the current pull request's head. Exclude synthetic pull-request merge refs so evidence is identical on the branch and GitHub's merge-test checkout; the merge result remains covered by application and integration testing.",
+          )
+          replace_once(
+              plan,
+              'Inventory tracked, untracked, and sensitive local files. Scan all reachable Git blobs in batches, enrich historical candidates with commit metadata, count skipped binary/oversized files, and produce deterministic digests.',
+              'Inventory tracked, untracked, and sensitive local files. Scan blobs reachable from explicit branch, tag, origin-branch, and current pull-request-head refs in batches, exclude synthetic merge refs, enrich historical candidates with commit metadata, count skipped binary/oversized files, and produce deterministic digests.',
+          )
+          replace_once(
+              plan,
+              '- Current tree and every reachable eligible history blob are scanned.',
+              '- Current tree and every eligible blob reachable from repository branches, tags, origin branches, and the current pull-request head are scanned.',
+          )
+          replace_once(
+              plan,
+              '- CI uses full repository branch/tag history, the current pull-request ref and merge commit, read-only repository permissions, pinned action revisions, and sanitized artifacts.',
+              '- CI uses full repository branch/tag history and the current pull-request head, excludes synthetic merge refs from deterministic evidence, and retains read-only repository permissions, pinned action revisions, and sanitized artifacts.',
+          )
+          PY
+
+      - name: Remove temporary workflow and commit source changes
+        run: |
+          git rm -- .github/workflows/security-phase-4-finalizer-history-refs.yml
+          git add \
+            scripts/security/__tests__/phase3-history-ref-selection.test.mjs \
+            scripts/security/lib/secret-scan.mjs \
+            docs/security/audit/phase-3/README.md \
+            docs/plans/2026-08-21-phase-3-secrets-and-credentials.md
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(security): stabilize Phase 3 history refs'
+
+      - name: Verify the regression and Phase 3 suite
+        run: |
+          node --check scripts/security/lib/secret-scan.mjs
+          node --test scripts/security/__tests__/phase3-history-ref-selection.test.mjs
+          npm run security:phase3:test
+
+      - name: Regenerate stable Phase 1 through Phase 4 evidence
+        run: |
+          npm run security:phase4:generate
+          npm run security:phase3:generate
+          npm run security:phase1:generate
+          npm run security:phase2:generate
+          npm run security:phase1:generate
+          npm run security:phase2:generate
+          npm run security:phase3:generate
+          npm run security:phase4:generate
+
+          npm run security:phase1:check
+          npm run security:phase2:check
+          npm run security:phase3:check
+          npm run security:phase4:check
+
+          git add -A
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs(security): refresh branch-stable Phase 1 through Phase 4 evidence'
+          fi
+
+      - name: Run complete Phase 4 reproduction on the final local commits
+        run: npm run security:phase4:reproduce
+
+      - name: Push the verified permanent tree
+        run: git push origin HEAD:security/phase-4-dependency-supply-chain
