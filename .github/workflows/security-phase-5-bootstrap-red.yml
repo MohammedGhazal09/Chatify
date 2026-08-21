@@ -35,10 +35,12 @@ jobs:
         working-directory: Backend/Chatify
         run: npm ci --strict-allow-scripts
 
-      - name: Prove Phase 5 runtime contract is red
+      - name: Prove Phase 5 runtime contracts are red
         run: |
           set +e
-          npm --prefix Backend/Chatify test -- --run test/auth/phase5-authentication-security.test.mjs \
+          npm --prefix Backend/Chatify test -- --run \
+            test/auth/phase5-authentication-security.test.mjs \
+            test/auth/phase5-sensitive-flows.test.mjs \
             2>&1 | tee /tmp/phase5-red.log
           status=${PIPESTATUS[0]}
           set -e
@@ -49,6 +51,7 @@ jobs:
           fi
 
           grep -F 'Phase 5 authentication and session invariants' /tmp/phase5-red.log
+          grep -F 'Phase 5 sensitive authentication exchanges' /tmp/phase5-red.log
           grep -E 'failed|FAIL|AssertionError|expected' /tmp/phase5-red.log >/dev/null
           echo 'Observed the required failing Phase 5 regression run before production changes.'
 
@@ -56,7 +59,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: phase-5-tdd-red-proof
+          name: phase-5-tdd-red-proof-sensitive-flows
           path: /tmp/phase5-red.log
           if-no-files-found: error
           retention-days: 14
