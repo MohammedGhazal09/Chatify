@@ -1,5 +1,6 @@
 name: Temporary Phase 3 final hardening materialization
 
+# This follow-up revision triggers the workflow after its definition is present on the PR branch.
 on:
   pull_request:
   workflow_dispatch:
