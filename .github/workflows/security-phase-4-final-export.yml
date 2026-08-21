@@ -1,6 +1,7 @@
 name: Temporary Phase 4 verified workspace export
 
 on:
+  pull_request:
   push:
     branches:
       - security/phase-4-dependency-supply-chain
@@ -15,6 +16,7 @@ concurrency:
 
 jobs:
   export:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'security/phase-4-dependency-supply-chain'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
 
@@ -102,5 +104,3 @@ jobs:
           path: /tmp/chatify-phase4-verified-workspace.tar.gz
           if-no-files-found: error
           retention-days: 1
-
-# Existing-workflow trigger commit.
