@@ -1,0 +1,104 @@
+name: Temporary Phase 3 materialization
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase3-materialization
+  cancel-in-progress: true
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Phase 3 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-3-secret-exposure
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch all available repository refs
+        run: |
+          git fetch --force --prune origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*' \
+            '+refs/pull/*/head:refs/remotes/pull/*/head'
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          package-manager-cache: false
+
+      - name: Restore reviewed Phase 3 source bundle
+        run: |
+          cat scripts/security/phase3-bootstrap-chunks/part-* | base64 --decode > /tmp/phase3-source.tar.gz
+          echo '3e073bc91cffcf45edbaf25931280d27398693166b0cbbced8cf0deca7d01e14  /tmp/phase3-source.tar.gz' | sha256sum --check
+          tar --extract --gzip --file /tmp/phase3-source.tar.gz
+          git rm -r -- scripts/security/phase3-bootstrap-chunks
+
+      - name: Verify source and generate sanitized evidence
+        id: phase3
+        run: |
+          git rm --cached -- .github/workflows/security-phase-3-materialize.yml
+
+          node --check scripts/security/lib/secret-detectors.mjs
+          node --check scripts/security/lib/secret-scan.mjs
+          node --check scripts/security/lib/phase3-reproduction.mjs
+          node --check scripts/security/phase3-secret-scan.mjs
+          node --check scripts/security/phase3-reproduce.mjs
+          node --check Backend/Chatify/Utils/secretConfiguration.mjs
+          node --check Backend/Chatify/server.mjs
+          npm run security:phase3:test
+          node --test Backend/Chatify/test/security/secret-configuration.test.mjs
+
+          set +e
+          npm run security:phase3:generate
+          phase3_status=$?
+          set -e
+
+          git add \
+            docs/security/audit/phase-3/secret-scan.json \
+            docs/security/audit/phase-3/secret-scan.md
+          npm run security:phase1:generate
+          npm run security:phase1:check
+          npm run security:phase2:generate
+          npm run security:phase2:check
+
+          set +e
+          npm run security:phase3:check
+          phase3_check_status=$?
+          set -e
+
+          git restore --staged -- .github/workflows/security-phase-3-materialize.yml
+          echo "generate_status=$phase3_status" >> "$GITHUB_OUTPUT"
+          echo "check_status=$phase3_check_status" >> "$GITHUB_OUTPUT"
+
+      - name: Commit reviewed source and sanitized evidence
+        run: |
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Expected Phase 3 source and evidence changes were not produced.' >&2
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'security: implement Phase 3 secret exposure controls'
+          git fetch origin security/phase-3-secret-exposure
+          git rebase origin/security/phase-3-secret-exposure
+          git push origin HEAD:security/phase-3-secret-exposure
+
+      - name: Enforce Phase 3 findings gate
+        if: steps.phase3.outputs.generate_status != '0' || steps.phase3.outputs.check_status != '0'
+        run: |
+          echo 'Phase 3 evidence was committed, but one or more exit gates failed. Review the sanitized report.' >&2
+          exit 1
