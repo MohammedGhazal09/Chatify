@@ -196,6 +196,29 @@ const classifyDependencySource = (entry) => {
   return 'unknown'
 }
 
+const parentPackageLockPath = (lockPath) => {
+  const marker = '/node_modules/'
+  const index = String(lockPath ?? '').lastIndexOf(marker)
+  return index === -1 ? null : String(lockPath).slice(0, index)
+}
+
+const verifiedBundleParent = (lockPath, packages) => {
+  let parentPath = parentPackageLockPath(lockPath)
+  while (parentPath) {
+    const parentEntry = packages?.[parentPath]
+    if (!parentEntry) return null
+    const sourceType = classifyDependencySource(parentEntry)
+    if (sourceType === 'bundled') {
+      parentPath = parentPackageLockPath(parentPath)
+      continue
+    }
+    return sourceType === 'npm-registry' && INTEGRITY_PATTERN.test(parentEntry?.integrity ?? '')
+      ? parentPath
+      : null
+  }
+  return null
+}
+
 const selectorSource = (selector) => {
   const value = String(selector ?? '').trim()
   if (/^(?:git\+|git:|git@|github:)/i.test(value)) return 'git'
@@ -256,6 +279,9 @@ const readProject = async (root, project, installPolicy) => {
     const version = String(entry?.version ?? '')
     const sourceType = classifyDependencySource(entry)
     const directType = packageName && lockPath === `node_modules/${packageName}` ? directTypes.get(packageName) ?? null : null
+    const bundleParentPath = sourceType === 'bundled'
+      ? verifiedBundleParent(lockPath, lockfile.packages ?? {})
+      : null
     const record = {
       package: packageName ?? lockPath,
       version,
@@ -268,7 +294,8 @@ const readProject = async (root, project, installPolicy) => {
       hasInstallScript: entry?.hasInstallScript === true,
       deprecated: typeof entry?.deprecated === 'string' ? entry.deprecated : null,
       integrityPresent: sourceType === 'bundled' ? null : INTEGRITY_PATTERN.test(entry?.integrity ?? ''),
-      integrityInherited: sourceType === 'bundled',
+      integrityInherited: sourceType === 'bundled' && Boolean(bundleParentPath),
+      bundleParentPath,
     }
     packages.push(record)
 
@@ -291,6 +318,14 @@ const readProject = async (root, project, installPolicy) => {
     }
     if (sourceCodes[sourceType]) {
       violations.push(violation(sourceCodes[sourceType], `Lockfile entry ${lockPath} uses disallowed source type ${sourceType}.`, {
+        project: project.id,
+        path: project.lockfilePath,
+        package: packageName ?? lockPath,
+      }))
+    }
+
+    if (sourceType === 'bundled' && !bundleParentPath) {
+      violations.push(violation('dependency-bundle-parent-unverified', `Bundled lockfile entry ${lockPath} has no integrity-verified parent artifact.`, {
         project: project.id,
         path: project.lockfilePath,
         package: packageName ?? lockPath,
@@ -559,7 +594,11 @@ export const buildDependencyPolicy = async (root, {
     lockfilesUseVersion3: !hasCodes('lockfile-version-invalid'),
     manifestsMatchLockfiles: !hasCodes('lockfile-root-mismatch'),
     dependencyVersionsExact: !hasCodes('lockfile-version-not-exact'),
-    dependencySourcesTrusted: !violations.some((item) => item.code.startsWith('dependency-source-') || item.code.startsWith('manifest-selector-')),
+    dependencySourcesTrusted: !violations.some((item) => (
+      item.code === 'dependency-bundle-parent-unverified'
+      || item.code.startsWith('dependency-source-')
+      || item.code.startsWith('manifest-selector-')
+    )),
     dependencyIntegrityComplete: !hasCodes('dependency-integrity-missing'),
     installScriptsReviewed: !violations.some((item) => item.code.startsWith('install-script-')),
     noDeprecatedDirectDependencies: !hasCodes('direct-dependency-deprecated'),

@@ -13,7 +13,7 @@ Confirm that:
 - direct selectors changed only where intended;
 - the root lockfile metadata exactly matches `package.json`;
 - no new Git, local, link, mutable-tag, HTTP, unknown, or unreviewed tarball source appears;
-- every independently fetched registry package retains an integrity value; explicitly bundled children remain attributable to their integrity-verified parent artifact;
+- every independently fetched registry package retains an integrity value; explicitly bundled children remain attributable to a verified registry parent artifact rather than self-declaring trust;
 - transitive additions and removals are explainable;
 - deprecated or abandoned direct dependencies are not introduced;
 - no unexpected package gains `hasInstallScript`.

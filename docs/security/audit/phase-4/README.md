@@ -32,7 +32,7 @@ The gate rejects:
 - package-lock formats other than v3 or stale root manifest metadata;
 - non-exact installed versions;
 - Git, local-file, link, mutable-tag, plain-HTTP, unknown, or unapproved remote-tarball sources;
-- independently fetched registry artifacts without Subresource Integrity metadata; explicitly bundled children inherit source and integrity from their verified parent artifact;
+- independently fetched registry artifacts without Subresource Integrity metadata, and bundled entries without an integrity-verified registry parent artifact;
 - lifecycle scripts not represented by a reviewed policy decision;
 - stale or broad lifecycle-script approvals;
 - deprecated direct dependencies;

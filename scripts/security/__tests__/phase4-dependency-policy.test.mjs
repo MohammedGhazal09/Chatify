@@ -174,9 +174,28 @@ test('bundled lockfile packages inherit source and integrity from their parent a
 
   assert.equal(bundled.sourceType, 'bundled')
   assert.equal(bundled.integrityInherited, true)
+  assert.equal(bundled.bundleParentPath, 'node_modules/axios')
   assert.equal(report.projects[0].lockfile.integrityCoverage.complete, true)
   assert.equal(report.violations.some((item) => item.package === 'bundled-helper'), false)
   assert.doesNotThrow(() => assertPhase4ExitGate(report))
+})
+
+test('bundled status cannot bypass source and integrity without a verified parent artifact', async () => {
+  const root = await createFixture()
+  const lockPath = path.join(root, 'Backend/Chatify/package-lock.json')
+  const parsed = JSON.parse(await readFile(lockPath, 'utf8'))
+  parsed.packages['node_modules/unverified-bundled-helper'] = {
+    version: '1.2.3',
+    inBundle: true,
+  }
+  await writeJson(lockPath, parsed)
+
+  const report = await buildDependencyPolicy(root, { now: NOW })
+  assert.equal(report.violations.some((item) => (
+    item.code === 'dependency-bundle-parent-unverified'
+    && item.package === 'unverified-bundled-helper'
+  )), true)
+  assert.throws(() => assertPhase4ExitGate(report), /dependencySourcesTrusted/)
 })
 
 test('unsafe sources, missing integrity, mutable actions, and missing update coverage fail closed', async () => {

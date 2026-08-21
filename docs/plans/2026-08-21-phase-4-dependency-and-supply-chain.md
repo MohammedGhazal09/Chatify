@@ -22,7 +22,7 @@ It also covers every committed GitHub Actions workflow and every dependency-poli
 2. Use Node.js built-ins for deterministic committed policy evidence. Live npm advisory, registry-signature, and SBOM results are time-varying and remain workflow artifacts rather than committed snapshots.
 3. Fail the permanent gate for any unsuppressed high or critical production advisory. Lower-severity advisories remain visible and require normal dependency maintenance.
 4. Permit a dependency exception only by exact package/advisory identity, accountable owner, specific rationale, compensating controls, and a future expiry no more than 90 days away. Critical advisories cannot be excepted.
-5. Require every independently fetched registry lockfile entry to use an exact version, HTTPS registry resolution, and an integrity value. A lock entry explicitly marked `inBundle`/`bundled` may omit its own source and integrity because npm extracts it from the integrity-verified parent artifact. Reject Git, local file, link, mutable-tag, and remote-tarball dependency sources unless a separately reviewed policy explicitly permits them.
+5. Require every independently fetched registry lockfile entry to use an exact version, HTTPS registry resolution, and an integrity value. A lock entry explicitly marked `inBundle`/`bundled` may omit its own source and integrity only when its nearest independently fetched ancestor is an HTTPS npm-registry artifact with valid SRI metadata. Reject unverified bundle roots, Git, local file, link, mutable-tag, and remote-tarball dependency sources unless a separately reviewed policy explicitly permits them.
 6. Require install-time lifecycle scripts to be explicitly approved or denied with npm's project `allowScripts` policy. Approvals are version-pinned; denials are name-wide. Under the pinned npm 11.17.0 toolchain, CI uses `npm ci --strict-allow-scripts` plus the deterministic lockfile policy to fail on every unreviewed script; it does not depend on the later `npm install-scripts ls` namespace.
 7. Require every remote GitHub Action to be pinned to a complete 40-character commit SHA. Local actions may use repository-relative paths.
 8. Remove `passport-discord`, whose installed package is unmaintained, and preserve Discord OAuth through a small repository-owned strategy built on the already-used `passport-oauth2` contract.
@@ -77,7 +77,7 @@ The Phase 4 reproduction sequence must perform strict clean installs that reject
 Phase 4 passes only when all of the following are true:
 
 - backend and frontend production audits contain no unsuppressed high or critical advisory;
-- every independently fetched package-lock registry artifact has an exact version, trusted HTTPS source, and integrity metadata; explicitly bundled children inherit source and integrity from their verified parent artifact;
+- every independently fetched package-lock registry artifact has an exact version, trusted HTTPS source, and integrity metadata; explicitly bundled children inherit source and integrity only through a verified registry parent artifact;
 - no Git, local, link, mutable-tag, or unapproved remote-tarball dependency exists;
 - direct manifest ranges and lockfile root metadata agree;
 - no unreviewed install-time script remains and every approval is narrowly version-pinned;

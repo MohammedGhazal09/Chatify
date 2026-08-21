@@ -95,7 +95,7 @@ Compare root dependency/devDependency selectors exactly, classify lock packages 
 
 - [ ] **Step 3: Implement source and integrity classification**
 
-Accept independently fetched registry artifacts only when `resolved` is HTTPS npm-registry content (or npm's registry-relative representation), `integrity` is SRI, and `version` is exact. Treat only entries explicitly marked `inBundle`/`bundled` as inheriting source and integrity from their verified parent artifact. Record and reject Git, local, link, HTTP, mutable tag, and remote-tarball sources.
+Accept independently fetched registry artifacts only when `resolved` is HTTPS npm-registry content (or npm's registry-relative representation), `integrity` is SRI, and `version` is exact. Treat an entry explicitly marked `inBundle`/`bundled` as inherited only when its nearest independently fetched ancestor is an integrity-verified registry artifact. Record and reject unverified bundle roots, Git, local, link, HTTP, mutable tag, and remote-tarball sources.
 
 - [ ] **Step 4: Implement lifecycle-script policy checks**
 
