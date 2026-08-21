@@ -2,16 +2,13 @@ name: Temporary Phase 3 deterministic finalization
 
 on:
   pull_request:
-  push:
-    branches:
-      - security/phase-3-secret-exposure
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: phase3-final-security-hardening
+  group: phase3-final-security-hardening-pr
   cancel-in-progress: true
 
 jobs:
