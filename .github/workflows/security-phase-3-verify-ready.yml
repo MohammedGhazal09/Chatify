@@ -1,6 +1,7 @@
 name: Temporary Phase 3 TDD red verification
 
 on:
+  pull_request:
   push:
     branches:
       - security/phase-3-secret-exposure
@@ -10,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: phase3-tdd-red
+  group: phase3-tdd-red-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
