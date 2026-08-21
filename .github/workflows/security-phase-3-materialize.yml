@@ -78,6 +78,16 @@ jobs:
           phase3_check_status=$?
           set -e
 
+          python - <<'PY'
+          from pathlib import Path
+
+          plan = Path('docs/plans/2026-08-21-phase-3-secrets-and-credentials.md')
+          plan.write_text('\n'.join(line.rstrip() for line in plan.read_text().splitlines()) + '\n')
+
+          report = Path('docs/security/audit/phase-3/secret-scan.md')
+          report.write_text(report.read_text().rstrip() + '\n')
+          PY
+
           git restore --staged -- .github/workflows/security-phase-3-materialize.yml
           echo "generate_status=$phase3_status" >> "$GITHUB_OUTPUT"
           echo "check_status=$phase3_check_status" >> "$GITHUB_OUTPUT"
