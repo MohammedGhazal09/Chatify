@@ -1,9 +1,19 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileTypeFromBuffer } from 'file-type';
+import {
+  inspectDocumentUpload,
+  inspectImageUpload,
+  inspectPdfUpload,
+  inspectTextUpload,
+  inspectVoiceUpload,
+  isDeceptiveUploadFilename,
+  sanitizeUploadFilename,
+} from './uploadSecurity.mjs';
 
 export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
 export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_ATTACHMENT_BATCH_SIZE_BYTES = 20 * 1024 * 1024;
 export const MIN_VOICE_DURATION_SECONDS = 1;
 export const MAX_VOICE_DURATION_SECONDS = 120;
 export const DEFAULT_SHARED_ASSET_LIMIT = 12;
@@ -11,39 +21,45 @@ export const MAX_SHARED_ASSET_LIMIT = 50;
 
 export const ATTACHMENT_ERROR_CODES = Object.freeze({
   COUNT_EXCEEDED: 'ATTACHMENT_COUNT_EXCEEDED',
+  BATCH_SIZE_EXCEEDED: 'ATTACHMENT_BATCH_SIZE_EXCEEDED',
   EMPTY_FILE: 'ATTACHMENT_EMPTY',
   SIZE_EXCEEDED: 'ATTACHMENT_SIZE_EXCEEDED',
   UNSUPPORTED_TYPE: 'ATTACHMENT_TYPE_UNSUPPORTED',
   INVALID_FILENAME: 'ATTACHMENT_FILENAME_INVALID',
+  DECEPTIVE_FILENAME: 'ATTACHMENT_FILENAME_DECEPTIVE',
+  CONTENT_MALFORMED: 'ATTACHMENT_CONTENT_MALFORMED',
+  ACTIVE_CONTENT: 'ATTACHMENT_ACTIVE_CONTENT',
+  POLYGLOT_REJECTED: 'ATTACHMENT_POLYGLOT_REJECTED',
+  IMAGE_DIMENSIONS_EXCEEDED: 'ATTACHMENT_IMAGE_DIMENSIONS_EXCEEDED',
+  TEXT_INVALID: 'ATTACHMENT_TEXT_INVALID',
+  CONTAINER_INVALID: 'ATTACHMENT_CONTAINER_INVALID',
   VOICE_DURATION_INVALID: 'VOICE_DURATION_INVALID',
   VOICE_DURATION_EXCEEDED: 'VOICE_DURATION_EXCEEDED',
 });
 
 const ALLOWED_ATTACHMENT_TYPES = Object.freeze({
-  '.png': { mimeTypes: ['image/png'], kind: 'media', signatureRequired: true },
-  '.jpg': { mimeTypes: ['image/jpeg'], kind: 'media', signatureRequired: true },
-  '.jpeg': { mimeTypes: ['image/jpeg'], kind: 'media', signatureRequired: true },
-  '.gif': { mimeTypes: ['image/gif'], kind: 'media', signatureRequired: true },
-  '.webp': { mimeTypes: ['image/webp'], kind: 'media', signatureRequired: true },
-  '.pdf': { mimeTypes: ['application/pdf'], kind: 'file', signatureRequired: true },
-  '.txt': { mimeTypes: ['text/plain'], kind: 'file', signatureRequired: false },
-  '.csv': { mimeTypes: ['text/csv', 'application/csv', 'text/plain'], kind: 'file', signatureRequired: false },
-  '.webm': { mimeTypes: ['audio/webm'], kind: 'voice', signatureRequired: false },
-  '.ogg': { mimeTypes: ['audio/ogg', 'audio/opus'], kind: 'voice', signatureRequired: false },
-  '.opus': { mimeTypes: ['audio/ogg', 'audio/opus'], kind: 'voice', signatureRequired: false },
+  '.png': { mimeTypes: ['image/png'], kind: 'media', inspection: 'image' },
+  '.jpg': { mimeTypes: ['image/jpeg'], kind: 'media', inspection: 'image' },
+  '.jpeg': { mimeTypes: ['image/jpeg'], kind: 'media', inspection: 'image' },
+  '.gif': { mimeTypes: ['image/gif'], kind: 'media', inspection: 'image' },
+  '.webp': { mimeTypes: ['image/webp'], kind: 'media', inspection: 'image' },
+  '.pdf': { mimeTypes: ['application/pdf'], kind: 'file', inspection: 'pdf' },
+  '.txt': { mimeTypes: ['text/plain'], kind: 'file', inspection: 'text' },
+  '.csv': { mimeTypes: ['text/csv', 'application/csv', 'text/plain'], kind: 'file', inspection: 'text' },
+  '.webm': { mimeTypes: ['audio/webm'], kind: 'voice', inspection: 'voice' },
+  '.ogg': { mimeTypes: ['audio/ogg', 'audio/opus'], kind: 'voice', inspection: 'voice' },
+  '.opus': { mimeTypes: ['audio/ogg', 'audio/opus'], kind: 'voice', inspection: 'voice' },
   '.docx': {
     mimeTypes: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
     kind: 'file',
-    signatureRequired: false,
+    inspection: 'document',
   },
   '.xlsx': {
     mimeTypes: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
     kind: 'file',
-    signatureRequired: false,
+    inspection: 'document',
   },
 });
-
-const CONTROL_CHARS_REGEX = /[\u0000-\u001f\u007f]/g;
 
 export const buildAttachmentError = (code, message, statusCode = 400) => ({
   ok: false,
@@ -58,25 +74,11 @@ const hashBuffer = (buffer) => crypto
   .digest('hex');
 
 export const sanitizeAttachmentDisplayName = (value) => {
-  const rawName = typeof value === 'string' ? value : 'attachment';
-  const baseName = path.basename(rawName).replace(CONTROL_CHARS_REGEX, '').trim();
-  const normalizedName = baseName
-    .replace(/[\\/]/g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/[^\w .()\-]/g, '_')
-    .trim();
-
-  if (!normalizedName || normalizedName === '.' || normalizedName === '..') {
-    return null;
-  }
-
-  if (normalizedName.length <= 140) {
-    return normalizedName;
-  }
-
-  const extension = path.extname(normalizedName);
-  const stemLength = Math.max(1, 140 - extension.length);
-  return `${normalizedName.slice(0, stemLength)}${extension}`;
+  if (isDeceptiveUploadFilename(value)) return null;
+  const displayName = sanitizeUploadFilename(value, 'attachment').slice(0, 140);
+  return displayName && displayName !== '.' && displayName !== '..'
+    ? displayName
+    : null;
 };
 
 const getAllowedType = (displayName) => {
@@ -88,22 +90,13 @@ const getAllowedType = (displayName) => {
 };
 
 const normalizeMimeType = (mimeType) => {
-  if (typeof mimeType !== 'string') {
-    return '';
-  }
-
+  if (typeof mimeType !== 'string') return '';
   return mimeType.split(';')[0].trim().toLowerCase();
 };
 
-const matchesAllowedMime = (mimeType, allowedType) => {
-  const normalizedMimeType = normalizeMimeType(mimeType);
-
-  if (!normalizedMimeType) {
-    return false;
-  }
-
-  return allowedType.mimeTypes.includes(normalizedMimeType);
-};
+const matchesAllowedMime = (mimeType, allowedType) => (
+  Boolean(mimeType) && allowedType.mimeTypes.includes(normalizeMimeType(mimeType))
+);
 
 const normalizeTextLikeMime = (mimeType, extension) => {
   if (extension === '.txt' && (!mimeType || mimeType === 'application/octet-stream')) {
@@ -116,13 +109,6 @@ const normalizeTextLikeMime = (mimeType, extension) => {
 
   return mimeType;
 };
-
-const isAllowedWebmVoiceContainer = ({ extension, allowedType, detectedMimeType, declaredMimeType }) => (
-  extension === '.webm'
-  && allowedType.kind === 'voice'
-  && detectedMimeType === 'video/webm'
-  && matchesAllowedMime(declaredMimeType, allowedType)
-);
 
 export const buildAttachmentFingerprint = (attachments = []) => hashBuffer(Buffer.from(JSON.stringify(
   attachments.map((attachment) => ({
@@ -159,6 +145,82 @@ const normalizeVoiceDurationSeconds = (metadata = {}) => {
   };
 };
 
+const mapInspectionFailure = ({ result, displayName, inspection }) => {
+  if (result.reason === 'active') {
+    return buildAttachmentError(
+      ATTACHMENT_ERROR_CODES.ACTIVE_CONTENT,
+      `${displayName} contains active content that is not allowed`
+    );
+  }
+
+  if (result.reason === 'polyglot') {
+    return buildAttachmentError(
+      ATTACHMENT_ERROR_CODES.POLYGLOT_REJECTED,
+      `${displayName} contains trailing or polyglot content`
+    );
+  }
+
+  if (result.reason === 'dimensions') {
+    return buildAttachmentError(
+      ATTACHMENT_ERROR_CODES.IMAGE_DIMENSIONS_EXCEEDED,
+      `${displayName} exceeds the safe image dimension limit`
+    );
+  }
+
+  if (result.reason === 'text') {
+    return buildAttachmentError(
+      ATTACHMENT_ERROR_CODES.TEXT_INVALID,
+      `${displayName} is not valid UTF-8 text`
+    );
+  }
+
+  if (result.reason === 'container') {
+    return buildAttachmentError(
+      ATTACHMENT_ERROR_CODES.CONTAINER_INVALID,
+      `${displayName} does not contain a valid ${inspection} container`
+    );
+  }
+
+  return buildAttachmentError(
+    ATTACHMENT_ERROR_CODES.CONTENT_MALFORMED,
+    `${displayName} is malformed or truncated`
+  );
+};
+
+const inspectAttachment = ({ buffer, extension, allowedType, declaredMimeType }) => {
+  const bareExtension = extension.slice(1);
+
+  if (allowedType.inspection === 'image') {
+    return inspectImageUpload({ buffer, mimeType: allowedType.mimeTypes[0] });
+  }
+
+  if (allowedType.inspection === 'pdf') return inspectPdfUpload(buffer);
+  if (allowedType.inspection === 'text') return inspectTextUpload(buffer);
+  if (allowedType.inspection === 'voice') return inspectVoiceUpload({ buffer, extension: bareExtension });
+  if (allowedType.inspection === 'document') {
+    return inspectDocumentUpload({ buffer, extension: bareExtension });
+  }
+
+  return declaredMimeType ? { ok: true, buffer } : { ok: false, reason: 'malformed' };
+};
+
+const resolveStoredMimeType = ({
+  extension,
+  allowedType,
+  declaredMimeType,
+  detectedMimeType,
+  inspection,
+}) => {
+  if (allowedType.inspection === 'image') return inspection.mimeType;
+  if (allowedType.inspection === 'pdf') return 'application/pdf';
+  if (allowedType.inspection === 'text') {
+    return normalizeTextLikeMime(declaredMimeType || detectedMimeType, extension);
+  }
+  if (allowedType.inspection === 'voice') return declaredMimeType;
+  if (allowedType.inspection === 'document') return declaredMimeType;
+  return detectedMimeType || declaredMimeType;
+};
+
 export const validateIncomingAttachments = async (files = [], options = {}) => {
   if (!Array.isArray(files) || files.length === 0) {
     return { ok: true, attachments: [], fingerprint: '' };
@@ -171,12 +233,29 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
     );
   }
 
+  const aggregateSize = files.reduce((total, file) => (
+    total + (Buffer.isBuffer(file?.buffer) ? file.buffer.length : Number(file?.size) || 0)
+  ), 0);
+
+  if (aggregateSize > MAX_ATTACHMENT_BATCH_SIZE_BYTES) {
+    return buildAttachmentError(
+      ATTACHMENT_ERROR_CODES.BATCH_SIZE_EXCEEDED,
+      'Attachments exceed the 20 MB aggregate upload limit'
+    );
+  }
+
   const attachments = [];
   const metadata = Array.isArray(options.metadata) ? options.metadata : [];
 
   for (const [index, file] of files.entries()) {
-    const displayName = sanitizeAttachmentDisplayName(file.originalname);
+    if (isDeceptiveUploadFilename(file?.originalname)) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.DECEPTIVE_FILENAME,
+        'Attachment filename contains deceptive or unsafe characters'
+      );
+    }
 
+    const displayName = sanitizeAttachmentDisplayName(file?.originalname);
     if (!displayName) {
       return buildAttachmentError(
         ATTACHMENT_ERROR_CODES.INVALID_FILENAME,
@@ -184,14 +263,17 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
       );
     }
 
-    if (!file.buffer?.length || file.size <= 0) {
+    const originalBuffer = Buffer.isBuffer(file?.buffer) ? file.buffer : Buffer.alloc(0);
+    const actualSize = originalBuffer.length;
+
+    if (actualSize <= 0) {
       return buildAttachmentError(
         ATTACHMENT_ERROR_CODES.EMPTY_FILE,
         `${displayName} is empty`
       );
     }
 
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+    if (actualSize > MAX_ATTACHMENT_SIZE_BYTES) {
       return buildAttachmentError(
         ATTACHMENT_ERROR_CODES.SIZE_EXCEEDED,
         `${displayName} exceeds the 10 MB attachment limit`
@@ -199,7 +281,6 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
     }
 
     const { extension, allowedType } = getAllowedType(displayName);
-
     if (!allowedType) {
       return buildAttachmentError(
         ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
@@ -207,57 +288,99 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
       );
     }
 
+    const declaredMimeType = normalizeMimeType(file?.mimetype ?? '');
+    if (!matchesAllowedMime(declaredMimeType, allowedType)) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
+        `${displayName} has an unsupported declared content type`
+      );
+    }
+
     let detectedType;
     try {
-      detectedType = await fileTypeFromBuffer(file.buffer);
+      detectedType = await fileTypeFromBuffer(originalBuffer);
     } catch {
       detectedType = undefined;
     }
     const detectedMimeType = normalizeMimeType(detectedType?.mime ?? '');
-    const declaredMimeType = normalizeMimeType(file.mimetype ?? '');
-    let mimeType = normalizeTextLikeMime(detectedMimeType || declaredMimeType, extension);
-    const hasWebmVoiceContainer = isAllowedWebmVoiceContainer({
+    const inspection = inspectAttachment({
+      buffer: originalBuffer,
       extension,
       allowedType,
-      detectedMimeType,
       declaredMimeType,
     });
 
-    if (allowedType.signatureRequired) {
-      if (!detectedType || !matchesAllowedMime(detectedType.mime, allowedType)) {
-        return buildAttachmentError(
-          ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
-          `${displayName} does not match its allowed file type`
-        );
-      }
-    } else if (!matchesAllowedMime(mimeType, allowedType)) {
-      if (hasWebmVoiceContainer) {
-        mimeType = declaredMimeType;
-      } else {
-        return buildAttachmentError(
-          ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
-          `${displayName} has an unsupported content type`
-        );
-      }
+    if (!inspection.ok) {
+      return mapInspectionFailure({
+        result: inspection,
+        displayName,
+        inspection: allowedType.inspection,
+      });
+    }
+
+    if (
+      detectedMimeType
+      && allowedType.inspection === 'image'
+      && !matchesAllowedMime(detectedMimeType, allowedType)
+    ) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
+        `${displayName} does not match its allowed file type`
+      );
+    }
+
+    if (
+      detectedMimeType
+      && allowedType.inspection === 'pdf'
+      && detectedMimeType !== 'application/pdf'
+    ) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
+        `${displayName} does not match its allowed file type`
+      );
+    }
+
+    if (
+      detectedMimeType
+      && allowedType.inspection === 'voice'
+      && !['audio/ogg', 'audio/opus', 'audio/webm', 'video/webm'].includes(detectedMimeType)
+    ) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.CONTAINER_INVALID,
+        `${displayName} does not contain a valid voice container`
+      );
+    }
+
+    const sanitizedBuffer = inspection.buffer ?? originalBuffer;
+    const mimeType = resolveStoredMimeType({
+      extension,
+      allowedType,
+      declaredMimeType,
+      detectedMimeType,
+      inspection,
+    });
+
+    if (!matchesAllowedMime(mimeType, allowedType)) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
+        `${displayName} has an unsupported content type`
+      );
     }
 
     const attachment = {
       displayName,
       originalExtension: extension.slice(1),
       mimeType,
-      size: file.size,
+      size: sanitizedBuffer.length,
       kind: allowedType.kind,
-      hash: hashBuffer(file.buffer),
-      buffer: file.buffer,
+      hash: hashBuffer(sanitizedBuffer),
+      buffer: sanitizedBuffer,
+      metadataRemoved: inspection.metadataRemoved === true,
     };
 
     if (allowedType.kind === 'voice') {
       const durationResult = normalizeVoiceDurationSeconds(metadata[index]);
-
-      if (!durationResult.ok) {
-        return durationResult;
-      }
-
+      if (!durationResult.ok) return durationResult;
       attachment.durationSeconds = durationResult.durationSeconds;
     }
 
