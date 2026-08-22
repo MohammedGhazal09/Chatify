@@ -33,15 +33,19 @@ jobs:
         with:
           node-version: "24.19.0"
           cache: npm
-          cache-dependency-path: Backend/Chatify/package-lock.json
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
 
       - name: Verify exact toolchain
         run: |
           test "$(node --version)" = 'v24.19.0'
           test "$(npm --version)" = '11.17.0'
 
-      - name: Install backend dependencies
-        run: npm --prefix Backend/Chatify ci --strict-allow-scripts
+      - name: Install controlled dependencies
+        run: |
+          npm --prefix Backend/Chatify ci --strict-allow-scripts
+          npm --prefix Frontend/Chatify ci --strict-allow-scripts
 
       - name: Check changed source syntax
         run: |
@@ -64,8 +68,15 @@ jobs:
             test/message/message.voice.test.mjs \
             test/user/user.profile-image.test.mjs
 
-      - name: Audit production backend dependencies
-        run: npm --prefix Backend/Chatify audit --omit=dev --audit-level=high
+      - name: Run protected browser attachment rendering regression
+        run: |
+          npm --prefix Frontend/Chatify test -- --run \
+            src/pages/chat/components/AttachmentPreviewModal.test.tsx
+
+      - name: Audit production dependencies
+        run: |
+          npm --prefix Backend/Chatify audit --omit=dev --audit-level=high
+          npm --prefix Frontend/Chatify audit --omit=dev --audit-level=high
 
       - name: Verify patch hygiene
         run: git diff --check HEAD^ HEAD
