@@ -44,7 +44,11 @@
     "security:phase5:test": "node --test scripts/security/__tests__/phase5-*.test.mjs",
     "security:phase5:generate": "node scripts/security/phase5-authentication-policy.mjs --write",
     "security:phase5:check": "node scripts/security/phase5-authentication-policy.mjs --check",
-    "security:phase5:reproduce": "node scripts/security/phase5-reproduce.mjs"
+    "security:phase5:reproduce": "node scripts/security/phase5-reproduce.mjs",
+    "security:phase11:test": "npm --prefix Backend/Chatify test -- --run test/security/phase11-upload-security.test.mjs test/message/message.attachments.test.mjs test/message/message.attachment-authorization.test.mjs test/message/message.voice.test.mjs test/user/user.profile-image.test.mjs test/message/message.mutations.test.mjs test/privacy/privacy-operations.test.mjs",
+    "security:phase11:generate": "node scripts/security/phase11-upload-policy.mjs --write",
+    "security:phase11:check": "node scripts/security/phase11-upload-policy.mjs --check",
+    "security:phase11:reproduce": "node scripts/security/phase11-reproduce.mjs"
   },
   "author": "Mohammed Ghazal",
   "license": "ISC"
