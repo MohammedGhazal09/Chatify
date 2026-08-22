@@ -49,6 +49,7 @@ jobs:
 
       - name: Check changed source syntax
         run: |
+          node --check Backend/Chatify/Controller/chatDeletionController.mjs
           node --check Backend/Chatify/Models/uploadBudgetModel.mjs
           node --check Backend/Chatify/Services/uploadBudgetService.mjs
           node --check Backend/Chatify/Services/uploadLifecycleService.mjs
