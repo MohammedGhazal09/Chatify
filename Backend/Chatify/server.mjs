@@ -12,6 +12,7 @@ await connectionPromise;
 const { initSocket } = await import('./Config/socket.mjs');
 const { startNotificationOutboxWorker } = await import('./Services/notificationService.mjs');
 const { startPrivacyOperationsWorker } = await import('./Services/privacyOperationsService.mjs');
+const { startAttachmentCleanupWorker } = await import('./Services/attachmentLifecycleService.mjs');
 
 const PORT = process.env.PORT || process.env.PORT_NUMBER || 5000;
 const httpServer = createServer(app);
@@ -23,5 +24,6 @@ httpServer.listen(PORT, () => {
 
 startNotificationOutboxWorker();
 startPrivacyOperationsWorker();
+startAttachmentCleanupWorker();
 
 export { io, httpServer as server };
