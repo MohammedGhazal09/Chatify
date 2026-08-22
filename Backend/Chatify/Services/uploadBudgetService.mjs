@@ -64,7 +64,7 @@ const startOfUtcDay = (value) => {
 };
 
 const ensureIndexes = () => {
-  UploadBudget[INDEX_READY] ??= UploadBudget.init();
+  UploadBudget[INDEX_READY] ??= UploadBudget.createIndexes();
   return UploadBudget[INDEX_READY];
 };
 
