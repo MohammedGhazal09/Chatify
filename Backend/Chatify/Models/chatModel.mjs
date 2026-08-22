@@ -4,6 +4,7 @@ import {
   buildDirectChatKey,
   normalizeChatEncryptionMode,
 } from "../Utils/encryptionMode.mjs";
+import { purgeChatUploadsAndMessages } from "../Services/attachmentLifecycleService.mjs";
 
 const GROUP_MEMBER_MIN = 3;
 const GROUP_MEMBER_MAX = 10;
@@ -90,6 +91,12 @@ chatSchema.pre("validate", function validateChatMembers(next) {
   }
 
   next();
+});
+
+chatSchema.pre("findOneAndDelete", async function purgeChatUploadData() {
+  const chat = await this.model.findOne(this.getFilter()).select("_id").lean();
+  if (!chat?._id) return;
+  await purgeChatUploadsAndMessages({ chatId: chat._id });
 });
 
 chatSchema.index(
