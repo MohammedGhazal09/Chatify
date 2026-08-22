@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { CHAT_ENCRYPTION_MODES } from "../Utils/encryptionMode.mjs";
+import { purgeAttachmentsForMessage } from "../Services/attachmentLifecycleService.mjs";
 
 const readBySchema = new mongoose.Schema({
   user: {
@@ -265,7 +266,6 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  // New fields for read receipts
   status: {
     type: String,
     enum: ['sent', 'delivered', 'read'],
@@ -278,9 +278,7 @@ const messageSchema = new mongoose.Schema({
     type: Date,
   },
   readBy: [readBySchema],
-  // Reactions
   reactions: [reactionSchema],
-  // Edit/Delete fields
   isEdited: {
     type: Boolean,
     default: false,
@@ -332,7 +330,20 @@ messageSchema.pre("validate", function validateEncryptedMessage(next) {
   next();
 });
 
-// Index for efficient queries on chat messages
+messageSchema.pre("save", function rememberAttachmentCleanup(next) {
+  this.$locals.purgeAttachmentsAfterSave = (
+    this.deletedForEveryone === true
+    && this.isModified("deletedForEveryone")
+  );
+  next();
+});
+
+messageSchema.post("save", async function purgeDeletedMessageAttachments(document) {
+  if (!document.$locals.purgeAttachmentsAfterSave) return;
+  document.$locals.purgeAttachmentsAfterSave = false;
+  await purgeAttachmentsForMessage({ messageId: document._id });
+});
+
 messageSchema.index({ chatId: 1, createdAt: 1 });
 messageSchema.index({ chatId: 1, createdAt: -1, _id: -1 });
 messageSchema.index({ chatId: 1, sender: 1, status: 1 });
@@ -350,7 +361,6 @@ messageSchema.index(
     },
   }
 );
-// Compound index for unread messages query optimization
 messageSchema.index({ chatId: 1, sender: 1, 'readBy.user': 1 });
 messageSchema.index({ chatId: 1, deletedFor: 1, deletedForEveryone: 1, createdAt: -1, _id: -1 });
 messageSchema.index(
