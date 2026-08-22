@@ -55,6 +55,7 @@ jobs:
           node --check Backend/Chatify/Middlewares/secureUpload.mjs
           node --check Backend/Chatify/Middlewares/uploadDeliverySecurity.mjs
           node --check Backend/Chatify/Utils/uploadContentSecurity.mjs
+          node --check Backend/Chatify/Utils/officeDocumentSecurity.mjs
           node --check Backend/Chatify/Utils/attachmentValidation.mjs
           node --check Backend/Chatify/Utils/profileImageValidation.mjs
 
