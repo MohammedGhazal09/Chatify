@@ -68,10 +68,11 @@ jobs:
             test/message/message.voice.test.mjs \
             test/user/user.profile-image.test.mjs
 
-      - name: Run protected browser attachment rendering regression
+      - name: Run protected browser upload rendering regressions
         run: |
           npm --prefix Frontend/Chatify test -- --run \
-            src/pages/chat/components/AttachmentPreviewModal.test.tsx
+            src/pages/chat/components/AttachmentPreviewModal.test.tsx \
+            src/pages/chat/components/UserAvatar.test.tsx
 
       - name: Audit production dependencies
         run: |
