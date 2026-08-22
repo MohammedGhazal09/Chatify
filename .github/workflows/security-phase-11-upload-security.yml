@@ -64,6 +64,7 @@ jobs:
         run: |
           npm --prefix Backend/Chatify test -- --run \
             test/security/phase11-upload-security.test.mjs \
+            test/security/phase11-image-container-security.test.mjs \
             test/security/phase11-office-container-security.test.mjs \
             test/security/phase11-chat-deletion-lifecycle.test.mjs \
             test/security/phase10-database-security.test.mjs \
