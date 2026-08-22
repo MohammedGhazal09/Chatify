@@ -27,6 +27,7 @@ import {
 } from "../Controller/privacyController.mjs";
 import protect from "../Middlewares/protectRoutes.mjs";
 import csrfProtection from "../Middlewares/csrfProtection.mjs";
+import privateFileResponse from "../Middlewares/privateFileResponse.mjs";
 import { privacyRequestLimiter, profileImageUploadLimiter } from "../Middlewares/rateLimiters.mjs";
 
 const router = Router();
@@ -41,7 +42,7 @@ router.route('/profile').patch(protect, csrfProtection, updateProfile)
 router.route('/profile-image')
   .patch(protect, csrfProtection, profileImageUploadLimiter, parseProfileImageUpload, uploadProfileImage)
   .delete(protect, csrfProtection, removeProfileImage)
-router.route('/:userId/profile-image').get(protect, getProfileImage)
+router.route('/:userId/profile-image').get(protect, privateFileResponse, getProfileImage)
 router.route('/identity').patch(protect, csrfProtection, updateIdentityMark)
 router.route('/privacy-settings').patch(protect, csrfProtection, updatePrivacySettings)
 router.route('/privacy/summary').get(protect, getPrivacySummary)
