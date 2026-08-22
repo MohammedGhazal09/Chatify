@@ -6,9 +6,10 @@ import {
   requireChatMembership,
   requireMessageMembership,
 } from '../Middlewares/databaseAuthorization.mjs';
+import { secureMessageAttachmentUpload } from '../Middlewares/secureUpload.mjs';
+import { enforceSecureUploadDelivery } from '../Middlewares/uploadDeliverySecurity.mjs';
 import {
   newMessage,
-  parseMessageAttachments,
   getAllMessages,
   searchMessages,
   getMessageContext,
@@ -35,7 +36,7 @@ const router = Router();
 // Static routes first
 router.route('/new-message').post(
   attachmentUploadLimiter,
-  parseMessageAttachments,
+  secureMessageAttachmentUpload,
   requireBodyChatMembership('chatId', { statusCode: 403 }),
   newMessage
 );
@@ -47,8 +48,16 @@ router.route('/context/:chatId/:messageId').get(
   getMessageContext
 );
 router.route('/batch/unread-counts').post(getBatchUnreadCounts);
-router.route('/attachments/:attachmentId/preview').get(requireAttachmentMembership, previewAttachment);
-router.route('/attachments/:attachmentId/download').get(requireAttachmentMembership, downloadAttachment);
+router.route('/attachments/:attachmentId/preview').get(
+  requireAttachmentMembership,
+  enforceSecureUploadDelivery('preview'),
+  previewAttachment
+);
+router.route('/attachments/:attachmentId/download').get(
+  requireAttachmentMembership,
+  enforceSecureUploadDelivery('download'),
+  downloadAttachment
+);
 router.route('/saved').get(listSavedMessages);
 router.route('/:chatId/shared-assets').get(requireChatMembership('chatId'), listSharedAssets);
 router.route('/:chatId/pinned').get(requireChatMembership('chatId'), listPinnedMessages);
