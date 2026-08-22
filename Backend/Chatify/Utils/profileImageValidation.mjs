@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileTypeFromBuffer } from 'file-type';
+import { validateAndSanitizeUploadContent } from './uploadContentSecurity.mjs';
 
 export const MAX_PROFILE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
 
@@ -9,6 +10,10 @@ export const PROFILE_IMAGE_ERROR_CODES = Object.freeze({
   SIZE_EXCEEDED: 'PROFILE_IMAGE_SIZE_EXCEEDED',
   UNSUPPORTED_TYPE: 'PROFILE_IMAGE_TYPE_UNSUPPORTED',
   INVALID_FILENAME: 'PROFILE_IMAGE_FILENAME_INVALID',
+  ACTIVE_CONTENT_REJECTED: 'PROFILE_IMAGE_ACTIVE_CONTENT_REJECTED',
+  POLYGLOT_REJECTED: 'PROFILE_IMAGE_POLYGLOT_REJECTED',
+  DIMENSIONS_EXCEEDED: 'PROFILE_IMAGE_DIMENSIONS_EXCEEDED',
+  MALFORMED_CONTENT: 'PROFILE_IMAGE_CONTENT_MALFORMED',
 });
 
 const ALLOWED_PROFILE_IMAGE_TYPES = Object.freeze({
@@ -47,6 +52,19 @@ export const sanitizeProfileImageDisplayName = (value) => {
   const extension = path.extname(normalizedName);
   const stemLength = Math.max(1, 120 - extension.length);
   return `${normalizedName.slice(0, stemLength)}${extension}`;
+};
+
+const mapContentSecurityError = (result) => {
+  const mappings = {
+    UPLOAD_ACTIVE_CONTENT_REJECTED: PROFILE_IMAGE_ERROR_CODES.ACTIVE_CONTENT_REJECTED,
+    UPLOAD_POLYGLOT_REJECTED: PROFILE_IMAGE_ERROR_CODES.POLYGLOT_REJECTED,
+    UPLOAD_IMAGE_DIMENSIONS_EXCEEDED: PROFILE_IMAGE_ERROR_CODES.DIMENSIONS_EXCEEDED,
+  };
+  return buildProfileImageError(
+    mappings[result.code] ?? PROFILE_IMAGE_ERROR_CODES.MALFORMED_CONTENT,
+    result.message,
+    result.statusCode ?? 400
+  );
 };
 
 export const validateIncomingProfileImage = async (file) => {
@@ -110,14 +128,34 @@ export const validateIncomingProfileImage = async (file) => {
     );
   }
 
+  const contentResult = await validateAndSanitizeUploadContent({
+    buffer: file.buffer,
+    mimeType: detectedType.mime,
+    extension: allowedType.extension,
+    purpose: 'profile-image',
+  });
+
+  if (!contentResult.ok) {
+    return mapContentSecurityError(contentResult);
+  }
+
+  if (contentResult.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
+    return buildProfileImageError(
+      PROFILE_IMAGE_ERROR_CODES.SIZE_EXCEEDED,
+      'Profile image exceeds the 2 MB limit'
+    );
+  }
+
   return {
     ok: true,
     profileImage: {
       displayName,
       originalExtension: allowedType.extension,
       mimeType: detectedType.mime,
-      size: file.size,
-      buffer: file.buffer,
+      size: contentResult.size,
+      buffer: contentResult.buffer,
+      dimensions: contentResult.dimensions,
+      metadataStripped: contentResult.metadataStripped,
     },
   };
 };
