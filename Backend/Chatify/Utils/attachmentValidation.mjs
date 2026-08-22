@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileTypeFromBuffer } from 'file-type';
 import { validateAndSanitizeUploadContent } from './uploadContentSecurity.mjs';
+import { validateOfficeDocumentContainer } from './officeDocumentSecurity.mjs';
 
 export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
 export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
@@ -21,6 +22,8 @@ export const ATTACHMENT_ERROR_CODES = Object.freeze({
   ACTIVE_CONTENT_REJECTED: 'ATTACHMENT_ACTIVE_CONTENT_REJECTED',
   POLYGLOT_REJECTED: 'ATTACHMENT_POLYGLOT_REJECTED',
   IMAGE_DIMENSIONS_EXCEEDED: 'ATTACHMENT_IMAGE_DIMENSIONS_EXCEEDED',
+  ARCHIVE_BOMB_REJECTED: 'ATTACHMENT_ARCHIVE_BOMB_REJECTED',
+  ARCHIVE_PATH_REJECTED: 'ATTACHMENT_ARCHIVE_PATH_REJECTED',
   MALFORMED_CONTENT: 'ATTACHMENT_CONTENT_MALFORMED',
   VOICE_DURATION_INVALID: 'VOICE_DURATION_INVALID',
   VOICE_DURATION_EXCEEDED: 'VOICE_DURATION_EXCEEDED',
@@ -51,6 +54,8 @@ const ALLOWED_ATTACHMENT_TYPES = Object.freeze({
 });
 
 const CONTROL_CHARS_REGEX = /[\u0000-\u001f\u007f]/g;
+const OFFICE_EXTENSIONS = new Set(['.docx', '.xlsx']);
+const ZIP_MIME_TYPES = new Set(['application/zip', 'application/x-zip-compressed']);
 
 export const buildAttachmentError = (code, message, statusCode = 400) => ({
   ok: false,
@@ -131,6 +136,30 @@ const isAllowedWebmVoiceContainer = ({ extension, allowedType, detectedMimeType,
   && matchesAllowedMime(declaredMimeType, allowedType)
 );
 
+const normalizeOfficeMime = ({
+  extension,
+  allowedType,
+  detectedMimeType,
+  declaredMimeType,
+}) => {
+  if (!OFFICE_EXTENSIONS.has(extension)) {
+    return null;
+  }
+
+  if (matchesAllowedMime(detectedMimeType, allowedType)) {
+    return detectedMimeType;
+  }
+
+  if (
+    ZIP_MIME_TYPES.has(detectedMimeType)
+    && matchesAllowedMime(declaredMimeType, allowedType)
+  ) {
+    return declaredMimeType;
+  }
+
+  return null;
+};
+
 export const buildAttachmentFingerprint = (attachments = []) => hashBuffer(Buffer.from(JSON.stringify(
   attachments.map((attachment) => ({
     displayName: attachment.displayName,
@@ -194,6 +223,8 @@ const mapContentSecurityError = (result, displayName) => {
     UPLOAD_ACTIVE_CONTENT_REJECTED: ATTACHMENT_ERROR_CODES.ACTIVE_CONTENT_REJECTED,
     UPLOAD_POLYGLOT_REJECTED: ATTACHMENT_ERROR_CODES.POLYGLOT_REJECTED,
     UPLOAD_IMAGE_DIMENSIONS_EXCEEDED: ATTACHMENT_ERROR_CODES.IMAGE_DIMENSIONS_EXCEEDED,
+    UPLOAD_ARCHIVE_BOMB_REJECTED: ATTACHMENT_ERROR_CODES.ARCHIVE_BOMB_REJECTED,
+    UPLOAD_ARCHIVE_PATH_REJECTED: ATTACHMENT_ERROR_CODES.ARCHIVE_PATH_REJECTED,
   };
   const code = mappings[result.code] ?? ATTACHMENT_ERROR_CODES.MALFORMED_CONTENT;
   return buildAttachmentError(
@@ -264,7 +295,14 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
     }
     const detectedMimeType = normalizeMimeType(detectedType?.mime ?? '');
     const declaredMimeType = normalizeMimeType(file.mimetype ?? '');
-    let mimeType = normalizeTextLikeMime(detectedMimeType || declaredMimeType, extension);
+    const officeMimeType = normalizeOfficeMime({
+      extension,
+      allowedType,
+      detectedMimeType,
+      declaredMimeType,
+    });
+    let mimeType = officeMimeType
+      ?? normalizeTextLikeMime(detectedMimeType || declaredMimeType, extension);
     const hasWebmVoiceContainer = isAllowedWebmVoiceContainer({
       extension,
       allowedType,
@@ -290,12 +328,28 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
       }
     }
 
-    const contentResult = await validateAndSanitizeUploadContent({
-      buffer: file.buffer,
-      mimeType,
-      extension: extension.slice(1),
-      purpose: 'attachment',
-    });
+    let contentResult;
+    if (OFFICE_EXTENSIONS.has(extension)) {
+      const officeResult = validateOfficeDocumentContainer({
+        buffer: file.buffer,
+        extension: extension.slice(1),
+      });
+      contentResult = officeResult.ok
+        ? {
+            ...officeResult,
+            size: officeResult.buffer.length,
+            dimensions: null,
+            metadataStripped: false,
+          }
+        : officeResult;
+    } else {
+      contentResult = await validateAndSanitizeUploadContent({
+        buffer: file.buffer,
+        mimeType,
+        extension: extension.slice(1),
+        purpose: 'attachment',
+      });
+    }
 
     if (!contentResult.ok) {
       return mapContentSecurityError(contentResult, displayName);
