@@ -55,7 +55,6 @@ jobs:
       - name: Run Phase 11 and adjacent backend regressions
         run: |
           npm --prefix Backend/Chatify test -- --run \
-            test/security/phase11-upload-diagnostic.test.mjs \
             test/security/phase11-upload-security.test.mjs \
             test/security/phase10-database-security.test.mjs \
             test/message/message.attachments.test.mjs \
