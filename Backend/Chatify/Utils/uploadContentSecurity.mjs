@@ -276,7 +276,10 @@ const sanitizeWebp = (buffer, purpose) => {
     return failure('UPLOAD_IMAGE_MALFORMED', 'WebP structure is invalid');
   }
 
-  const declaredEnd = Math.min(buffer.readUInt32LE(4) + 8, buffer.length);
+  const declaredEnd = buffer.readUInt32LE(4) + 8;
+  if (declaredEnd > buffer.length) {
+    return failure('UPLOAD_IMAGE_MALFORMED', 'WebP container length exceeds the received bytes');
+  }
   if (declaredEnd < buffer.length && hasNonPaddingBytes(buffer.subarray(declaredEnd))) {
     return failure('UPLOAD_POLYGLOT_REJECTED', 'Image contains trailing active content');
   }
@@ -305,6 +308,10 @@ const sanitizeWebp = (buffer, purpose) => {
       chunks.push({ type, data });
     }
     offset = chunkEnd;
+  }
+
+  if (offset !== declaredEnd) {
+    return failure('UPLOAD_IMAGE_MALFORMED', 'WebP container has incomplete trailing bytes');
   }
 
   if (metadataStripped) {
