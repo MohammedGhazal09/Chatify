@@ -14,7 +14,8 @@ const buildZip = (entries) => {
   let localOffset = 0;
 
   for (const entry of entries) {
-    const name = Buffer.from(entry.name, 'utf8');
+    const localName = Buffer.from(entry.localName ?? entry.name, 'utf8');
+    const centralName = Buffer.from(entry.name, 'utf8');
     const plain = Buffer.from(entry.content ?? '', 'utf8');
     const method = entry.compress === false ? 0 : 8;
     const compressed = method === 8 ? deflateRawSync(plain) : plain;
@@ -26,9 +27,9 @@ const buildZip = (entries) => {
     local.writeUInt32LE(0, 14);
     local.writeUInt32LE(compressed.length, 18);
     local.writeUInt32LE(plain.length, 22);
-    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(localName.length, 26);
     local.writeUInt16LE(0, 28);
-    localParts.push(local, name, compressed);
+    localParts.push(local, localName, compressed);
 
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
@@ -39,16 +40,16 @@ const buildZip = (entries) => {
     central.writeUInt32LE(0, 16);
     central.writeUInt32LE(compressed.length, 20);
     central.writeUInt32LE(plain.length, 24);
-    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(centralName.length, 28);
     central.writeUInt16LE(0, 30);
     central.writeUInt16LE(0, 32);
     central.writeUInt16LE(0, 34);
     central.writeUInt16LE(0, 36);
     central.writeUInt32LE(0, 38);
     central.writeUInt32LE(localOffset, 42);
-    centralParts.push(central, name);
+    centralParts.push(central, centralName);
 
-    localOffset += local.length + name.length + compressed.length;
+    localOffset += local.length + localName.length + compressed.length;
   }
 
   const centralDirectory = Buffer.concat(centralParts);
@@ -148,6 +149,38 @@ describe('Phase 11 OOXML container security', () => {
     ])).resolves.toMatchObject({
       ok: false,
       code: ATTACHMENT_ERROR_CODES.ARCHIVE_BOMB_REJECTED,
+    });
+  });
+
+  it('rejects oversized stored XML and local/central filename ambiguity', async () => {
+    const oversizedStoredXml = buildZip([
+      ...baseEntries,
+      {
+        name: 'word/large-stored.xml',
+        content: 'A'.repeat(3 * 1024 * 1024),
+        compress: false,
+      },
+    ]);
+    const mismatchedNames = buildZip([
+      ...baseEntries,
+      {
+        name: 'word/extra.xml',
+        localName: 'word/vbaProject.bin',
+        content: '<safe/>',
+      },
+    ]);
+
+    await expect(validateIncomingAttachments([
+      makeDocxFile(oversizedStoredXml, 'stored-oversize.docx'),
+    ])).resolves.toMatchObject({
+      ok: false,
+      code: ATTACHMENT_ERROR_CODES.ARCHIVE_BOMB_REJECTED,
+    });
+    await expect(validateIncomingAttachments([
+      makeDocxFile(mismatchedNames, 'ambiguous.docx'),
+    ])).resolves.toMatchObject({
+      ok: false,
+      code: ATTACHMENT_ERROR_CODES.MALFORMED_CONTENT,
     });
   });
 });
