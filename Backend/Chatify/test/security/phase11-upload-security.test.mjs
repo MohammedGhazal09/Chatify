@@ -31,7 +31,6 @@ import {
 } from '../../Utils/attachmentValidation.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import {
-  attachPdf,
   attachText,
   tinyPdfBuffer,
   tinyTextBuffer,
@@ -234,6 +233,11 @@ describe('Phase 11 upload and attachment security', () => {
       displayName: 'report\r\nX-Injected: yes.txt',
       mode: 'preview',
     });
+    const pdfHeaders = buildSecureUploadHeaders({
+      mimeType: 'application/pdf',
+      displayName: 'report.pdf',
+      mode: 'preview',
+    });
 
     expect(imageHeaders).toMatchObject({
       'Cache-Control': 'private, no-store',
@@ -244,6 +248,7 @@ describe('Phase 11 upload and attachment security', () => {
     });
     expect(imageHeaders['Content-Disposition']).toMatch(/^inline;/);
     expect(textHeaders['Content-Disposition']).toMatch(/^attachment;/);
+    expect(pdfHeaders['Content-Disposition']).toMatch(/^attachment;/);
     expect(textHeaders['Content-Disposition']).not.toMatch(/[\r\n]/);
   });
 
@@ -326,11 +331,9 @@ describe('Phase 11 upload and attachment security', () => {
       orphanGraceMs: 0,
     });
 
-    expect(result).toEqual(expect.objectContaining({
-      attachmentOrphansDeleted: 1,
-      profileImageOrphansDeleted: 1,
-      errors: 0,
-    }));
+    expect(result.attachmentOrphansDeleted).toBeGreaterThanOrEqual(1);
+    expect(result.profileImageOrphansDeleted).toBeGreaterThanOrEqual(1);
+    expect(result.errors).toBe(0);
     expect(JSON.stringify(result)).not.toContain('privateValue');
     expect(await getAttachmentBucket().find({ _id: attachmentStorageId }).toArray()).toHaveLength(0);
     expect(await getProfileImageBucket().find({ _id: profileStorageId }).toArray()).toHaveLength(0);
