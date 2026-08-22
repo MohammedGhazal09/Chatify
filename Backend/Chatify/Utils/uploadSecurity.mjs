@@ -53,19 +53,6 @@ const validateDimensions = (width, height) => {
   return pass({ width, height });
 };
 
-const crc32 = (input) => {
-  let crc = 0xffffffff;
-
-  for (const byte of input) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
-    }
-  }
-
-  return (crc ^ 0xffffffff) >>> 0;
-};
-
 const parsePng = (input) => {
   const buffer = asBuffer(input);
 
@@ -75,6 +62,7 @@ const parsePng = (input) => {
 
   let offset = 8;
   let dimensions = null;
+  let sawImageData = false;
   let sawIend = false;
   let metadataRemoved = false;
   const retainedChunks = [PNG_SIGNATURE];
@@ -92,8 +80,7 @@ const parsePng = (input) => {
       return fail('malformed');
     }
 
-    const typeBuffer = buffer.subarray(typeStart, dataStart);
-    const type = typeBuffer.toString('ascii');
+    const type = buffer.subarray(typeStart, dataStart).toString('ascii');
     const data = buffer.subarray(dataStart, dataEnd);
 
     if (!/^[A-Za-z]{4}$/.test(type)) return fail('malformed');
@@ -102,14 +89,14 @@ const parsePng = (input) => {
       if (dimensions || length !== 13 || offset !== 8) return fail('malformed');
       dimensions = validateDimensions(data.readUInt32BE(0), data.readUInt32BE(4));
       if (!dimensions.ok) return dimensions;
+    } else if (!dimensions) {
+      return fail('malformed');
     }
 
-    const expectedCrc = buffer.readUInt32BE(dataEnd);
-    const actualCrc = crc32(Buffer.concat([typeBuffer, data]));
-    if (expectedCrc !== actualCrc) return fail('malformed');
+    if (type === 'IDAT') sawImageData = true;
 
     if (type === 'IEND') {
-      if (length !== 0 || !dimensions) return fail('malformed');
+      if (length !== 0 || !dimensions || !sawImageData) return fail('malformed');
       sawIend = true;
       retainedChunks.push(buffer.subarray(offset, chunkEnd));
       if (chunkEnd !== buffer.length) return fail('polyglot');
@@ -347,20 +334,22 @@ const makeRiff = (chunks) => {
 };
 
 const parseWebp = (input) => {
-  const buffer = asBuffer(input);
+  const inputBuffer = asBuffer(input);
 
   if (
-    buffer.length < 20
-    || buffer.subarray(0, 4).toString('ascii') !== 'RIFF'
-    || buffer.subarray(8, 12).toString('ascii') !== 'WEBP'
+    inputBuffer.length < 20
+    || inputBuffer.subarray(0, 4).toString('ascii') !== 'RIFF'
+    || inputBuffer.subarray(8, 12).toString('ascii') !== 'WEBP'
   ) {
     return fail('malformed');
   }
 
-  const declaredSize = buffer.readUInt32LE(4) + 8;
-  if (declaredSize !== buffer.length) {
-    return declaredSize < buffer.length ? fail('polyglot') : fail('malformed');
-  }
+  const declaredSize = inputBuffer.readUInt32LE(4) + 8;
+  if (declaredSize > inputBuffer.length || declaredSize < 20) return fail('malformed');
+
+  const trailing = inputBuffer.subarray(declaredSize);
+  if (trailing.length > 3 || trailing.some((byte) => byte !== 0)) return fail('polyglot');
+  const buffer = inputBuffer.subarray(0, declaredSize);
 
   let offset = 12;
   let dimensions = null;
@@ -385,16 +374,10 @@ const parseWebp = (input) => {
 
     if (WEBP_METADATA_CHUNKS.has(type)) {
       metadataRemoved = true;
-    } else if (type === 'VP8X' && data.length >= 10 && metadataRemoved) {
-      const sanitized = Buffer.from(data);
-      sanitized[0] &= ~0x2c;
-      const chunk = Buffer.alloc(8 + sanitized.length + (sanitized.length % 2));
-      chunk.write(type, 0, 4, 'ascii');
-      chunk.writeUInt32LE(sanitized.length, 4);
-      sanitized.copy(chunk, 8);
-      retainedChunks.push(chunk);
     } else {
-      retainedChunks.push(buffer.subarray(offset, paddedEnd));
+      const chunk = Buffer.from(buffer.subarray(offset, paddedEnd));
+      if (type === 'VP8X' && chunk.length >= 18) chunk[8] &= ~0x2c;
+      retainedChunks.push(chunk);
     }
 
     offset = paddedEnd;
@@ -402,19 +385,8 @@ const parseWebp = (input) => {
 
   if (!dimensions || offset !== buffer.length) return fail('malformed');
 
-  let sanitizedBuffer = buffer;
-  if (metadataRemoved) {
-    const normalizedChunks = retainedChunks.map((chunk) => {
-      if (chunk.subarray(0, 4).toString('ascii') !== 'VP8X') return chunk;
-      const normalized = Buffer.from(chunk);
-      normalized[8] &= ~0x2c;
-      return normalized;
-    });
-    sanitizedBuffer = makeRiff(normalizedChunks);
-  }
-
   return pass({
-    buffer: sanitizedBuffer,
+    buffer: metadataRemoved ? makeRiff(retainedChunks) : buffer,
     width: dimensions.width,
     height: dimensions.height,
     metadataRemoved,
@@ -476,8 +448,7 @@ export const inspectTextUpload = (input) => {
   if (buffer.includes(0x00)) return fail('text');
 
   try {
-    const decoder = new TextDecoder('utf-8', { fatal: true });
-    decoder.decode(buffer);
+    new TextDecoder('utf-8', { fatal: true }).decode(buffer);
   } catch {
     return fail('text');
   }
@@ -565,8 +536,8 @@ export const sanitizeUploadFilename = (filename, fallback = 'attachment') => {
     : '';
   const basename = path.basename(normalized.replace(/[\\/]+/g, '_'));
   const withoutControls = basename
-    .replace(UPLOAD_CONTROL_PATTERN, '')
-    .replace(BIDI_CONTROL_PATTERN, '')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/gu, '')
+    .replace(/[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu, '')
     .replace(/[^a-zA-Z0-9._()\- ]/g, '_')
     .replace(/\s+/g, ' ')
     .replace(/^\.+/, '')
