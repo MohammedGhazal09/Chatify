@@ -2,7 +2,6 @@ import { inflateRawSync } from 'node:zlib';
 
 const ZIP_LOCAL_FILE_SIGNATURE = 0x04034b50;
 const ZIP_CENTRAL_FILE_SIGNATURE = 0x02014b50;
-const ZIP_END_SIGNATURE = 0x06054b50;
 const MAX_ZIP_COMMENT_BYTES = 65_535;
 const MAX_ARCHIVE_ENTRIES = 500;
 const MAX_ARCHIVE_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
@@ -74,7 +73,7 @@ const readCentralDirectory = (buffer) => {
   if (endOffset + 22 + commentLength > buffer.length) {
     return failure('UPLOAD_ARCHIVE_MALFORMED', 'Office document ZIP comment is truncated');
   }
-  if (centralOffset + centralSize > endOffset || centralOffset < 0) {
+  if (centralOffset + centralSize > endOffset) {
     return failure('UPLOAD_ARCHIVE_MALFORMED', 'Office document ZIP directory is invalid');
   }
 
@@ -136,6 +135,7 @@ const readCentralDirectory = (buffer) => {
 
     entries.push({
       name,
+      flags,
       method,
       compressedSize,
       uncompressedSize,
@@ -157,14 +157,34 @@ const readEntryBytes = (buffer, entry) => {
     return failure('UPLOAD_ARCHIVE_MALFORMED', 'Office document local archive entry is invalid');
   }
 
+  const localFlags = buffer.readUInt16LE(offset + 6);
   const localMethod = buffer.readUInt16LE(offset + 8);
   const nameLength = buffer.readUInt16LE(offset + 26);
   const extraLength = buffer.readUInt16LE(offset + 28);
-  const dataStart = offset + 30 + nameLength + extraLength;
+  const nameStart = offset + 30;
+  const nameEnd = nameStart + nameLength;
+  const dataStart = nameEnd + extraLength;
   const dataEnd = dataStart + entry.compressedSize;
 
-  if (localMethod !== entry.method || dataEnd > buffer.length) {
+  if (nameEnd > buffer.length || dataEnd > buffer.length) {
     return failure('UPLOAD_ARCHIVE_MALFORMED', 'Office document entry data is truncated');
+  }
+
+  const localName = normalizeEntryName(decodeEntryName(
+    buffer.subarray(nameStart, nameEnd),
+    (localFlags & 0x0800) !== 0
+  ));
+
+  if (
+    localMethod !== entry.method
+    || localFlags !== entry.flags
+    || localName !== entry.name
+  ) {
+    return failure('UPLOAD_ARCHIVE_MALFORMED', 'Office document local and central entry headers disagree');
+  }
+
+  if (entry.uncompressedSize > MAX_INSPECTED_XML_BYTES) {
+    return failure('UPLOAD_ARCHIVE_BOMB_REJECTED', 'Inspectable office document XML exceeds the safe limit');
   }
 
   const compressed = buffer.subarray(dataStart, dataEnd);
@@ -175,13 +195,9 @@ const readEntryBytes = (buffer, entry) => {
     return { ok: true, buffer: Buffer.from(compressed) };
   }
 
-  if (entry.uncompressedSize > MAX_INSPECTED_XML_BYTES) {
-    return failure('UPLOAD_ARCHIVE_BOMB_REJECTED', 'Inspectable office document XML exceeds the safe limit');
-  }
-
   try {
     const inflated = inflateRawSync(compressed, {
-      maxOutputLength: Math.min(entry.uncompressedSize, MAX_INSPECTED_XML_BYTES),
+      maxOutputLength: entry.uncompressedSize,
     });
     if (inflated.length !== entry.uncompressedSize) {
       return failure('UPLOAD_ARCHIVE_MALFORMED', 'Office document entry size does not match its directory record');
