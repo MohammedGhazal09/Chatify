@@ -54,6 +54,7 @@ The defaults can be reduced or raised within bounded maximums through the docume
 
 ### Lifecycle and orphan cleanup
 
+- Conversation deletion revalidates membership and group-administrator authority inside a MongoDB transaction, removes the conversation's messages, marks its attachment records deleted, and commits those database changes atomically before notifying sockets.
 - A periodic worker deletes aged soft-deleted attachment records and their GridFS objects.
 - The worker reconciles both GridFS buckets against live attachment and user references and removes stale orphaned objects after a configurable grace period.
 - Worker results contain counts and timestamps only; stored filenames, content, and private metadata are not copied into evidence or logs.
@@ -67,6 +68,7 @@ The focused backend matrix covers:
 
 - The complete Phase 11 upload contract.
 - OOXML archive traversal, active-content, and decompression-bomb cases.
+- Transactional conversation deletion and subsequent physical GridFS cleanup.
 - The inherited Phase 10 database-security contract.
 - Message attachments, protected attachment delivery, voice messages, and profile images.
 
