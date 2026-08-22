@@ -57,7 +57,6 @@ const AttachmentPreviewModal = ({ attachment, onClose }: AttachmentPreviewModalP
   }
 
   const isImage = attachment.kind === 'media' || attachment.mimeType.startsWith('image/');
-  const isPdf = attachment.mimeType === 'application/pdf';
   const isProtectedRemotePreview = Boolean(previewUrl && !attachment.localPreviewUrl);
 
   return (
@@ -109,12 +108,6 @@ const AttachmentPreviewModal = ({ attachment, onClose }: AttachmentPreviewModalP
               alt={attachment.displayName}
               crossOrigin={isProtectedRemotePreview ? 'use-credentials' : undefined}
               className="mx-auto h-full max-h-[calc(92vh-112px)] w-full object-contain"
-            />
-          ) : previewUrl && isPdf ? (
-            <iframe
-              src={previewUrl}
-              title={attachment.displayName}
-              className="h-full min-h-[70vh] w-full rounded-[var(--chat-radius-md)] border border-[var(--chat-border)] bg-white"
             />
           ) : (
             <div className="grid h-full min-h-[320px] place-items-center rounded-[var(--chat-radius-md)] border border-dashed border-[var(--chat-border)] bg-[var(--chat-panel-subtle)] p-6 text-center">
