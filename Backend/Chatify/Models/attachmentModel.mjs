@@ -1,5 +1,12 @@
 import mongoose from "mongoose";
 
+export const ATTACHMENT_STORAGE_STATES = Object.freeze({
+  ACTIVE: "active",
+  DELETING: "deleting",
+  PENDING_CLEANUP: "pending_cleanup",
+  DELETED: "deleted",
+});
+
 const attachmentSchema = new mongoose.Schema({
   chatId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -63,6 +70,36 @@ const attachmentSchema = new mongoose.Schema({
     enum: ["active", "deleted"],
     default: "active",
   },
+  storageState: {
+    type: String,
+    enum: Object.values(ATTACHMENT_STORAGE_STATES),
+    default: ATTACHMENT_STORAGE_STATES.ACTIVE,
+    required: true,
+  },
+  deletedAt: {
+    type: Date,
+    default: null,
+  },
+  storageDeletedAt: {
+    type: Date,
+    default: null,
+  },
+  cleanupAttempts: {
+    type: Number,
+    min: 0,
+    default: 0,
+  },
+  nextCleanupAt: {
+    type: Date,
+    default: null,
+  },
+  cleanupErrorCode: {
+    type: String,
+    trim: true,
+    maxlength: 80,
+    default: null,
+    select: false,
+  },
 }, {
   timestamps: true,
   versionKey: false,
@@ -72,6 +109,7 @@ attachmentSchema.index({ chatId: 1, kind: 1, status: 1, createdAt: -1, _id: -1 }
 attachmentSchema.index({ messageId: 1, status: 1 });
 attachmentSchema.index({ uploader: 1, createdAt: -1 });
 attachmentSchema.index({ chatId: 1, displayName: 1 });
+attachmentSchema.index({ storageState: 1, nextCleanupAt: 1, updatedAt: 1 });
 
 const Attachment = mongoose.model("Attachments", attachmentSchema);
 
