@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { attachmentUploadLimiter } from '../Middlewares/rateLimiters.mjs';
+import privateFileResponse from '../Middlewares/privateFileResponse.mjs';
 import {
   requireAttachmentMembership,
   requireBodyChatMembership,
@@ -47,8 +48,16 @@ router.route('/context/:chatId/:messageId').get(
   getMessageContext
 );
 router.route('/batch/unread-counts').post(getBatchUnreadCounts);
-router.route('/attachments/:attachmentId/preview').get(requireAttachmentMembership, previewAttachment);
-router.route('/attachments/:attachmentId/download').get(requireAttachmentMembership, downloadAttachment);
+router.route('/attachments/:attachmentId/preview').get(
+  requireAttachmentMembership,
+  privateFileResponse,
+  previewAttachment
+);
+router.route('/attachments/:attachmentId/download').get(
+  requireAttachmentMembership,
+  privateFileResponse,
+  downloadAttachment
+);
 router.route('/saved').get(listSavedMessages);
 router.route('/:chatId/shared-assets').get(requireChatMembership('chatId'), listSharedAssets);
 router.route('/:chatId/pinned').get(requireChatMembership('chatId'), listPinnedMessages);
