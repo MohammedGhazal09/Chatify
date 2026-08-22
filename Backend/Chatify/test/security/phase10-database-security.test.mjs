@@ -3,15 +3,27 @@ import { describe, expect, it } from 'vitest';
 
 import Chats from '../../Models/chatModel.mjs';
 import InviteLink from '../../Models/inviteLinkModel.mjs';
+import PrivacyRequest, {
+  PRIVACY_REQUEST_ACTIONS,
+  PRIVACY_REQUEST_STATUSES,
+  PRIVACY_REQUEST_TYPES,
+} from '../../Models/privacyRequestModel.mjs';
+import Session from '../../Models/sessionModel.mjs';
 import User from '../../Models/userModel.mjs';
+import { processPrivacyOperations } from '../../Services/privacyOperationsService.mjs';
 import {
+  DatabaseConfigurationError,
   DatabaseInputValidationError,
   assertSafeMongoInput,
   buildMongoConnectionOptions,
   normalizeDatabaseLimit,
+  validateMongoTransportSecurity,
   withDatabaseTransaction,
 } from '../../Utils/databaseSecurity.mjs';
-import { buildCriticalIndexDefinitionReport } from '../../Utils/databaseIndexPolicy.mjs';
+import {
+  buildCriticalIndexDefinitionReport,
+  verifyCriticalDatabaseIndexes,
+} from '../../Utils/databaseIndexPolicy.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import { createUser, uniqueEmail, uniqueUsername } from '../fixtures/users.mjs';
 import { createAgent, getCsrfForAgent, signupWithAgent } from '../helpers/authAgent.mjs';
@@ -31,6 +43,11 @@ describe('Phase 10 MongoDB and Mongoose security controls', () => {
       expect(error.code).toBe('INVALID_DATABASE_INPUT');
       expect(error.path).toContain(expectedKey);
     }
+  });
+
+  it('rejects oversized query arrays before they can amplify database work', () => {
+    expect(() => assertSafeMongoInput({ ids: Array.from({ length: 101 }, (_, index) => index) }))
+      .toThrow(DatabaseInputValidationError);
   });
 
   it('rejects operator injection at the HTTP edge instead of mutating it into a broader query', async () => {
@@ -72,6 +89,28 @@ describe('Phase 10 MongoDB and Mongoose security controls', () => {
 
     await expect(User.findOne({ unknownSecurityField: true }))
       .rejects.toMatchObject({ name: 'StrictModeError' });
+  });
+
+  it('fails closed on insecure production MongoDB transport settings', () => {
+    expect(() => validateMongoTransportSecurity({
+      NODE_ENV: 'production',
+      MONGODB_URL: 'mongodb://database.example.test/chatify',
+    })).toThrow(DatabaseConfigurationError);
+
+    expect(() => validateMongoTransportSecurity({
+      NODE_ENV: 'production',
+      MONGODB_URL: 'mongodb+srv://database.example.test/chatify?tls=false',
+    })).toThrow(DatabaseConfigurationError);
+
+    expect(() => validateMongoTransportSecurity({
+      NODE_ENV: 'production',
+      MONGODB_URL: 'mongodb://database.example.test/chatify?tls=true&tlsAllowInvalidCertificates=true',
+    })).toThrow(DatabaseConfigurationError);
+
+    expect(validateMongoTransportSecurity({
+      NODE_ENV: 'production',
+      MONGODB_URL: 'mongodb+srv://database.example.test/chatify',
+    })).toEqual({ required: true, secure: true });
   });
 
   it('uses bounded production connection and query defaults', () => {
@@ -121,15 +160,61 @@ describe('Phase 10 MongoDB and Mongoose security controls', () => {
     expect(await User.findOne({ email: rolledBackEmail })).toBeNull();
   });
 
-  it('declares every critical unique, pagination, and TTL index required by Phase 10', () => {
-    const report = buildCriticalIndexDefinitionReport();
+  it('processes a due privacy deletion exactly once when workers race', async () => {
+    const now = new Date('2026-08-22T10:00:00.000Z');
+    const owner = await signupWithAgent({
+      firstName: 'Concurrent',
+      lastName: 'Deletion',
+    });
+    const request = await PrivacyRequest.create({
+      user: owner.user._id,
+      type: PRIVACY_REQUEST_TYPES.ACCOUNT_DELETION,
+      status: PRIVACY_REQUEST_STATUSES.PENDING,
+      requestedAt: new Date('2026-08-01T10:00:00.000Z'),
+      scheduledFor: new Date('2026-08-21T10:00:00.000Z'),
+      events: [{
+        action: PRIVACY_REQUEST_ACTIONS.DELETION_REQUESTED,
+        actor: owner.user._id,
+        metadata: {},
+      }],
+    });
 
-    expect(report.ok).toBe(true);
-    expect(report.missing).toEqual([]);
-    expect(report.mismatched).toEqual([]);
+    expect(await Session.countDocuments({ userId: owner.user._id })).toBeGreaterThan(0);
+
+    const results = await Promise.all([
+      processPrivacyOperations({ now, recordRun: false }),
+      processPrivacyOperations({ now, recordRun: false }),
+    ]);
+    const processedCount = results.reduce(
+      (total, result) => total + result.counts.deletionRequestsProcessed,
+      0
+    );
+    const storedRequest = await PrivacyRequest.findById(request._id).lean();
+    const storedUser = await User.findById(owner.user._id).lean();
+
+    expect(processedCount).toBe(1);
+    expect(storedRequest.status).toBe(PRIVACY_REQUEST_STATUSES.COMPLETED);
+    expect(storedRequest.events.filter(
+      (event) => event.action === PRIVACY_REQUEST_ACTIONS.DELETION_PROCESSED
+    )).toHaveLength(1);
+    expect(storedUser.email).toBe(`deleted-${owner.user._id}@chatify.invalid`);
+    expect(await Session.countDocuments({ userId: owner.user._id })).toBe(0);
+  });
+
+  it('declares and creates every critical unique, pagination, and TTL index', async () => {
+    const definitionReport = buildCriticalIndexDefinitionReport();
+
+    expect(definitionReport.ok).toBe(true);
+    expect(definitionReport.missing).toEqual([]);
+    expect(definitionReport.mismatched).toEqual([]);
 
     const expiresAtIndex = InviteLink.schema.indexes().find(([keys]) => keys.expiresAt === 1);
     expect(expiresAtIndex?.[1]).toEqual(expect.objectContaining({ expireAfterSeconds: 0 }));
+
+    const liveReport = await verifyCriticalDatabaseIndexes({ createMissing: true });
+    expect(liveReport.ok).toBe(true);
+    expect(liveReport.missing).toEqual([]);
+    expect(liveReport.mismatched).toEqual([]);
   });
 
   it('lets the database resolve concurrent direct-chat uniqueness races', async () => {

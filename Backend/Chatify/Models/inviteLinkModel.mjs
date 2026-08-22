@@ -82,7 +82,7 @@ inviteLinkSchema.pre('validate', function validateInviteTarget(next) {
 
 inviteLinkSchema.index({ targetType: 1, chat: 1, createdAt: -1 });
 inviteLinkSchema.index({ targetType: 1, space: 1, createdAt: -1 });
-inviteLinkSchema.index({ expiresAt: 1 });
+inviteLinkSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const InviteLink = mongoose.model('InviteLinks', inviteLinkSchema);
 

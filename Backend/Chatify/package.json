@@ -6,6 +6,8 @@
   "scripts": {
     "test": "vitest run --config vitest.config.mjs",
     "test:watch": "vitest --config vitest.config.mjs",
+    "db:indexes:check": "node scripts/database-indexes.mjs",
+    "db:indexes:apply": "node scripts/database-indexes.mjs --apply",
     "start": "node server.mjs"
   },
   "author": "Mohammed Ghazal",
