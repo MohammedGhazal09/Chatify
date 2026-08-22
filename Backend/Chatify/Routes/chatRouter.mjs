@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireChatMembership } from '../Middlewares/databaseAuthorization.mjs';
+import { deleteChatWithUploads } from '../Controller/chatDeletionController.mjs';
 import {
   acceptContactRequest,
   blockChatPeer,
@@ -7,7 +8,6 @@ import {
   createChat,
   createContactRequest,
   createGroupChat,
-  deleteChat,
   declineContactRequest,
   getAllChats,
   getContactRequests,
@@ -26,6 +26,6 @@ router.route('/contact-requests/:requestId/decline').post(declineContactRequest)
 router.route('/contact-requests/:requestId').delete(cancelContactRequest);
 router.route('/:chatId/organization').patch(requireChatMembership('chatId'), updateChatOrganization);
 router.route('/:chatId/block').post(requireChatMembership('chatId'), blockChatPeer).delete(requireChatMembership('chatId'), unblockChatPeer);
-router.route('/:chatId').delete(requireChatMembership('chatId'), deleteChat);
+router.route('/:chatId').delete(requireChatMembership('chatId'), deleteChatWithUploads);
 
 export default router;
