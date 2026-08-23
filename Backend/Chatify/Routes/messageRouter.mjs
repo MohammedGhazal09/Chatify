@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { attachmentUploadLimiter } from '../Middlewares/rateLimiters.mjs';
 import {
+  buildMessageMembershipGuard,
   requireAttachmentMembership,
   requireBodyChatMembership,
   requireChatMembership,
@@ -33,6 +34,21 @@ import {
 
 const router = Router();
 
+const privateChatSearchOptions = Object.freeze({
+  unauthorizedStatusCode: 403,
+  unauthorizedMessage: 'Forbidden or not found',
+});
+
+const requirePrivateMessageMembership = buildMessageMembershipGuard({
+  invalidStatusCode: 404,
+  invalidMessage: 'Message not found',
+  missingStatusCode: 404,
+  missingMessage: 'Message not found',
+  unauthorizedStatusCode: 404,
+  unauthorizedMessage: 'Message not found',
+  concealUnauthorized: true,
+});
+
 // Static routes first
 router.route('/new-message').post(
   attachmentUploadLimiter,
@@ -41,9 +57,12 @@ router.route('/new-message').post(
   newMessage
 );
 router.route('/get-all-messages/:id').get(requireChatMembership('id', { statusCode: 403 }), getAllMessages);
-router.route('/search/:chatId').get(requireChatMembership('chatId'), searchMessages);
+router.route('/search/:chatId').get(
+  requireChatMembership('chatId', privateChatSearchOptions),
+  searchMessages
+);
 router.route('/context/:chatId/:messageId').get(
-  requireChatMembership('chatId'),
+  requireChatMembership('chatId', privateChatSearchOptions),
   requireMessageMembership,
   getMessageContext
 );
@@ -70,6 +89,8 @@ router.route('/:messageId').delete(requireMessageMembership, deleteMessage);
 router.route('/:messageId/edit').patch(requireMessageMembership, editMessage);
 router.route('/:messageId/reaction').post(requireMessageMembership, toggleReaction);
 router.route('/:messageId/pin').post(requireMessageMembership, pinMessage).delete(requireMessageMembership, unpinMessage);
-router.route('/:messageId/save').post(requireMessageMembership, saveMessage).delete(requireMessageMembership, unsaveMessage);
+router.route('/:messageId/save')
+  .post(requirePrivateMessageMembership, saveMessage)
+  .delete(requirePrivateMessageMembership, unsaveMessage);
 
 export default router;
