@@ -1,0 +1,52 @@
+name: Audit dependency refresh
+
+on:
+  push:
+    branches:
+      - audit/security-plan-remediation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout audited revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Verify backend production dependencies
+        working-directory: Backend/Chatify
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit --omit=dev --audit-level=high --json > ../../backend-audit.json
+
+      - name: Verify frontend production dependencies
+        working-directory: Frontend/Chatify
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit --omit=dev --audit-level=high --json > ../../frontend-audit.json
+
+      - name: Upload dependency audit reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-audit-${{ github.sha }}
+          path: |
+            backend-audit.json
+            frontend-audit.json
+          if-no-files-found: error
+          retention-days: 1

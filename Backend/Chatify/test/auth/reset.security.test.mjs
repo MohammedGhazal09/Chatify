@@ -5,6 +5,8 @@ import Session from '../../Models/sessionModel.mjs';
 import { sendPasswordResetEmail } from '../../Services/emailService.mjs';
 import { createAgent, getCsrfForAgent, loginWithAgent, signupWithAgent } from '../helpers/authAgent.mjs';
 import { getTestApp } from '../setup/app.mjs';
+import { connectSocketWithReady, extractCookieHeader, waitForSocketEvent } from '../helpers/socketClient.mjs';
+import { startSocketTestServer } from '../helpers/socketServer.mjs';
 
 vi.mock('../../Services/emailService.mjs', () => ({
   sendPasswordResetEmail: vi.fn(),
@@ -84,7 +86,7 @@ describe('password reset security', () => {
 
   it('invalidates the active reset record after five failed attempts', async () => {
     const { user } = await signupWithAgent({ firstName: 'Reset', lastName: 'Attempts' });
-    const { agent, csrfToken, code } = await requestResetCode(user.email);
+    const { agent, csrfToken, code } = await(requestResetCode(user.email));
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await postAuth(agent, csrfToken, 'verify-reset-code', {
@@ -136,13 +138,42 @@ describe('password reset security', () => {
     }).expect(400);
   });
 
+  it('disconnects active realtime sessions after a successful password reset', async () => {
+    const server = await startSocketTestServer();
+    let socket;
+
+    try {
+      const signup = await signupWithAgent({ firstName: 'Reset', lastName: 'Realtime' });
+      socket = (await connectSocketWithReady(
+        server.url,
+        extractCookieHeader(signup.response)
+      )).socket;
+      const revokedPromise = waitForSocketEvent(socket, 'auth:revoked');
+      const disconnectPromise = waitForSocketEvent(socket, 'disconnect');
+      const { agent, csrfToken, code } = await requestResetCode(signup.user.email);
+
+      await postAuth(agent, csrfToken, 'reset-password', {
+        email: signup.user.email,
+        code,
+        newPassword: 'NewPassword123!',
+      }).expect(200);
+
+      await expect(revokedPromise).resolves.toMatchObject({ reason: 'password_reset' });
+      await expect(disconnectPromise).resolves.toBe('io server disconnect');
+      expect(socket.connected).toBe(false);
+    } finally {
+      socket?.disconnect();
+      await server.close();
+    }
+  });
+
   it('revokes existing refresh sessions after a successful password reset', async () => {
     const app = await getTestApp();
     const { user, response: signupResponse } = await signupWithAgent({
       firstName: 'Reset',
       lastName: 'Sessions',
     });
-    const oldRefreshCookie = getRefreshTokenCookie(signupResponse)?.split(';')[0];
+    const oldRefreshTokenCookie = getRefreshTokenCookie(signupResponse)?.split(';')[0];
     const { agent, csrfToken, code } = await requestResetCode(user.email);
 
     await postAuth(agent, csrfToken, 'reset-password', {
