@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - security/phase-11-upload-attachments
+  pull_request:
+    branches:
+      - security/phase-10-mongodb-data-integrity
   workflow_dispatch:
 
 permissions:
@@ -88,5 +91,9 @@ jobs:
             docs/security/audit/phase-4 \
             docs/security/audit/phase-5
           git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'Inherited evidence is already current.'
+            exit 0
+          fi
           git commit -m 'docs(security): refresh inherited evidence for Phase 11'
           git push origin HEAD:security/phase-11-upload-attachments
