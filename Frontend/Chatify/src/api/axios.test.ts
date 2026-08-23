@@ -116,6 +116,40 @@ describe('axios auth refresh handling', () => {
     expect(refreshCalls).toBe(1);
   });
 
+  it('retries a rate-limited request at most once', async () => {
+    let calls = 0;
+    const adapter: AxiosAdapter = vi.fn(async (config) => {
+      calls += 1;
+
+      if (calls <= 2) {
+        return Promise.reject({
+          config,
+          response: {
+            status: 429,
+            config,
+            data: {},
+            headers: { 'retry-after': '0' },
+          },
+        });
+      }
+
+      return {
+        config,
+        data: { ok: true },
+        headers: {},
+        status: 200,
+        statusText: 'OK',
+      };
+    });
+
+    axiosInstance.defaults.adapter = adapter;
+
+    await expect(axiosInstance.get('/api/rate-limited')).rejects.toMatchObject({
+      response: expect.objectContaining({ status: 429 }),
+    });
+    expect(calls).toBe(2);
+  });
+
   it('attaches the CSRF token to multipart profile image updates', async () => {
     document.cookie = 'XSRF-TOKEN=profile-csrf-token; path=/';
     const adapter: AxiosAdapter = vi.fn(async (config) => ({
