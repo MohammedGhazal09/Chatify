@@ -43,11 +43,16 @@ jobs:
       - name: Install controlled dependencies
         run: npm --prefix Backend/Chatify ci --strict-allow-scripts
 
-      - name: Check existing presence source syntax
+      - name: Check Phase 14 source syntax
         run: |
           node --check Backend/Chatify/Config/socket.mjs
+          node --check Backend/Chatify/server.mjs
           node --check Backend/Chatify/Controller/userController.mjs
           node --check Backend/Chatify/Routes/userRouter.mjs
+          node --check Backend/Chatify/Utils/presencePrivacy.mjs
+          node --check Backend/Chatify/Services/socketPresencePrivacyService.mjs
+          node --check Backend/Chatify/Middlewares/presencePrivacy.mjs
+          node --check Backend/Chatify/test/helpers/socketServer.mjs
 
       - name: Run Phase 14 and adjacent regressions
         run: |
