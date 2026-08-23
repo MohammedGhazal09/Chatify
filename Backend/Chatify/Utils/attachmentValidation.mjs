@@ -310,6 +310,13 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
       declaredMimeType,
     });
 
+    if (allowedType.kind === 'voice' && !detectedType) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
+        `${displayName} does not contain a recognized voice container`
+      );
+    }
+
     if (allowedType.signatureRequired) {
       if (!detectedType || !matchesAllowedMime(detectedType.mime, allowedType)) {
         return buildAttachmentError(
