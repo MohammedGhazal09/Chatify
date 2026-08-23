@@ -83,11 +83,15 @@ const createPushJob = async ({ endpoint, suffix }) => {
   return { recipient, job, endpointHash };
 };
 
+const enableProductionDelivery = () => {
+  process.env.NODE_ENV = 'production';
+};
+
 describe('Phase 12 push delivery security', () => {
   beforeEach(() => {
     webPushMocks.sendNotification.mockReset();
     webPushMocks.setVapidDetails.mockReset();
-    process.env.NODE_ENV = 'production';
+    process.env.NODE_ENV = ORIGINAL_ENV.NODE_ENV ?? 'test';
     process.env.VAPID_SUBJECT = 'mailto:security@example.test';
     process.env.VAPID_PUBLIC_KEY = 'phase-12-public-key';
     process.env.VAPID_PRIVATE_KEY = 'phase-12-private-key';
@@ -106,6 +110,7 @@ describe('Phase 12 push delivery security', () => {
     const endpoint = 'https://push.example.test/subscriptions/recipient';
     const { job } = await createPushJob({ endpoint, suffix: 'bounded-delivery' });
     webPushMocks.sendNotification.mockResolvedValue({ statusCode: 201 });
+    enableProductionDelivery();
 
     await expect(processNotificationOutbox()).resolves.toEqual({
       processed: 1,
@@ -141,6 +146,7 @@ describe('Phase 12 push delivery security', () => {
       new Error('Received unexpected response code'),
       { statusCode: 410 }
     ));
+    enableProductionDelivery();
 
     await expect(processNotificationOutbox()).resolves.toEqual({
       processed: 1,
@@ -160,6 +166,7 @@ describe('Phase 12 push delivery security', () => {
   it('quarantines legacy unsafe endpoints before contacting the push provider', async () => {
     const endpoint = 'https://127.0.0.1/internal-control-plane';
     const { recipient, job } = await createPushJob({ endpoint, suffix: 'legacy-unsafe' });
+    enableProductionDelivery();
 
     await expect(processNotificationOutbox()).resolves.toEqual({
       processed: 1,
