@@ -4,187 +4,98 @@ on:
   push:
     branches:
       - security/phase-11-upload-attachments
+  pull_request:
+    branches:
+      - security/phase-10-mongodb-data-integrity
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: phase-11-pdf-materialization
-  cancel-in-progress: false
+  group: phase-11-upload-security
+  cancel-in-progress: true
 
 jobs:
-  materialize-pdf-validation:
-    if: github.repository == 'MohammedGhazal09/Chatify'
+  phase-11-upload-security:
+    name: Upload validation, delivery, quotas, and lifecycle
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
-      - name: Checkout exact Phase 11 branch
+      - name: Checkout exact revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: security/phase-11-upload-attachments
           fetch-depth: 0
-          persist-credentials: true
 
       - name: Setup exact Node.js toolchain
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24.19.0"
           cache: npm
-          cache-dependency-path: Backend/Chatify/package-lock.json
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
 
-      - name: Verify exact branch and toolchain
+      - name: Verify exact toolchain
         run: |
-          git fetch --force origin \
-            '+refs/heads/security/phase-11-upload-attachments:refs/remotes/origin/security/phase-11-upload-attachments'
-          test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/security/phase-11-upload-attachments)"
           test "$(node --version)" = 'v24.19.0'
           test "$(npm --version)" = '11.17.0'
 
-      - name: Decode escaped PDF action names
+      - name: Install controlled dependencies
         run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const file = 'Backend/Chatify/Utils/uploadContentSecurity.mjs';
-          const source = fs.readFileSync(file, 'utf8');
-          const before = `  const text = buffer.toString('latin1');
-          if (ACTIVE_PDF_PATTERN.test(text)) {`;
-          const after = `  const text = buffer.toString('latin1');
-          const normalizedText = text.replace(/#([0-9a-f]{2})/gi, (_match, hex) => (
-            String.fromCharCode(Number.parseInt(hex, 16))
-          ));
-          if (ACTIVE_PDF_PATTERN.test(normalizedText)) {`;
-          const occurrences = source.split(before).length - 1;
-          if (occurrences !== 1) {
-            throw new Error(`Expected one PDF validation target, found ${occurrences}`);
-          }
-          fs.writeFileSync(file, source.replace(before, after));
-          NODE
+          npm --prefix Backend/Chatify ci --strict-allow-scripts
+          npm --prefix Frontend/Chatify ci --strict-allow-scripts
+
+      - name: Check changed source syntax
+        run: |
+          node --check Backend/Chatify/Controller/chatDeletionController.mjs
+          node --check Backend/Chatify/Models/uploadBudgetModel.mjs
+          node --check Backend/Chatify/Services/uploadBudgetService.mjs
+          node --check Backend/Chatify/Services/uploadLifecycleService.mjs
+          node --check Backend/Chatify/Middlewares/databaseAuthorization.mjs
+          node --check Backend/Chatify/Middlewares/secureUpload.mjs
+          node --check Backend/Chatify/Middlewares/uploadDeliverySecurity.mjs
+          node --check Backend/Chatify/Routes/chatRouter.mjs
+          node --check Backend/Chatify/Routes/messageRouter.mjs
           node --check Backend/Chatify/Utils/uploadContentSecurity.mjs
+          node --check Backend/Chatify/Utils/officeDocumentSecurity.mjs
+          node --check Backend/Chatify/Utils/attachmentValidation.mjs
+          node --check Backend/Chatify/Utils/profileImageValidation.mjs
+          node --check Backend/Chatify/test/helpers/authAgent.mjs
 
-      - name: Install controlled backend dependencies
-        run: npm --prefix Backend/Chatify ci --strict-allow-scripts
-
-      - name: Prove escaped PDF regression is green
+      - name: Run Phase 11 and adjacent backend regressions
         run: |
           npm --prefix Backend/Chatify test -- --run \
             test/security/phase11-upload-security.test.mjs \
+            test/security/phase11-image-container-security.test.mjs \
             test/security/phase11-media-type-security.test.mjs \
-            test/security/phase11-office-container-security.test.mjs
+            test/security/phase11-office-container-security.test.mjs \
+            test/security/phase11-chat-deletion-lifecycle.test.mjs \
+            test/security/phase10-database-security.test.mjs \
+            test/chat/chat.organization.test.mjs \
+            test/message/message.attachments.test.mjs \
+            test/message/message.attachment-authorization.test.mjs \
+            test/message/message.saved.test.mjs \
+            test/message/message.search.test.mjs \
+            test/message/message.voice.test.mjs \
+            test/user/user.profile-image.test.mjs \
+            test/user/user.username.test.mjs
 
-      - name: Restore permanent read-only Phase 11 workflow
+      - name: Run protected browser and compatibility regressions
         run: |
-          rm -f .github/workflows/security-phase-11-pdf-finalize.yml
-          cat > .github/workflows/security-phase-11-upload-security.yml <<'YAML'
-          name: Security Phase 11 Uploads and Attachments
+          npm --prefix Frontend/Chatify test -- --run \
+            src/pages/chat/components/AttachmentPreviewModal.test.tsx \
+            src/pages/chat/components/UserAvatar.test.tsx \
+            src/pages/signup/signup.test.tsx
 
-          on:
-            push:
-              branches:
-                - security/phase-11-upload-attachments
-            pull_request:
-              branches:
-                - security/phase-10-mongodb-data-integrity
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          concurrency:
-            group: phase-11-upload-security
-            cancel-in-progress: true
-
-          jobs:
-            phase-11-upload-security:
-              name: Upload validation, delivery, quotas, and lifecycle
-              runs-on: ubuntu-24.04
-              timeout-minutes: 45
-
-              steps:
-                - name: Checkout exact revision
-                  uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-                  with:
-                    fetch-depth: 0
-
-                - name: Setup exact Node.js toolchain
-                  uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-                  with:
-                    node-version: "24.19.0"
-                    cache: npm
-                    cache-dependency-path: |
-                      Backend/Chatify/package-lock.json
-                      Frontend/Chatify/package-lock.json
-
-                - name: Verify exact toolchain
-                  run: |
-                    test "$(node --version)" = 'v24.19.0'
-                    test "$(npm --version)" = '11.17.0'
-
-                - name: Install controlled dependencies
-                  run: |
-                    npm --prefix Backend/Chatify ci --strict-allow-scripts
-                    npm --prefix Frontend/Chatify ci --strict-allow-scripts
-
-                - name: Check changed source syntax
-                  run: |
-                    node --check Backend/Chatify/Controller/chatDeletionController.mjs
-                    node --check Backend/Chatify/Models/uploadBudgetModel.mjs
-                    node --check Backend/Chatify/Services/uploadBudgetService.mjs
-                    node --check Backend/Chatify/Services/uploadLifecycleService.mjs
-                    node --check Backend/Chatify/Middlewares/databaseAuthorization.mjs
-                    node --check Backend/Chatify/Middlewares/secureUpload.mjs
-                    node --check Backend/Chatify/Middlewares/uploadDeliverySecurity.mjs
-                    node --check Backend/Chatify/Routes/chatRouter.mjs
-                    node --check Backend/Chatify/Routes/messageRouter.mjs
-                    node --check Backend/Chatify/Utils/uploadContentSecurity.mjs
-                    node --check Backend/Chatify/Utils/officeDocumentSecurity.mjs
-                    node --check Backend/Chatify/Utils/attachmentValidation.mjs
-                    node --check Backend/Chatify/Utils/profileImageValidation.mjs
-                    node --check Backend/Chatify/test/helpers/authAgent.mjs
-
-                - name: Run Phase 11 and adjacent backend regressions
-                  run: |
-                    npm --prefix Backend/Chatify test -- --run \
-                      test/security/phase11-upload-security.test.mjs \
-                      test/security/phase11-image-container-security.test.mjs \
-                      test/security/phase11-media-type-security.test.mjs \
-                      test/security/phase11-office-container-security.test.mjs \
-                      test/security/phase11-chat-deletion-lifecycle.test.mjs \
-                      test/security/phase10-database-security.test.mjs \
-                      test/chat/chat.organization.test.mjs \
-                      test/message/message.attachments.test.mjs \
-                      test/message/message.attachment-authorization.test.mjs \
-                      test/message/message.saved.test.mjs \
-                      test/message/message.search.test.mjs \
-                      test/message/message.voice.test.mjs \
-                      test/user/user.profile-image.test.mjs \
-                      test/user/user.username.test.mjs
-
-                - name: Run protected browser and compatibility regressions
-                  run: |
-                    npm --prefix Frontend/Chatify test -- --run \
-                      src/pages/chat/components/AttachmentPreviewModal.test.tsx \
-                      src/pages/chat/components/UserAvatar.test.tsx \
-                      src/pages/signup/signup.test.tsx
-
-                - name: Audit production dependencies
-                  run: |
-                    npm --prefix Backend/Chatify audit --omit=dev --audit-level=high
-                    npm --prefix Frontend/Chatify audit --omit=dev --audit-level=high
-
-                - name: Verify complete Phase 11 patch hygiene
-                  run: |
-                    git fetch --force origin \
-                      '+refs/heads/security/phase-10-mongodb-data-integrity:refs/remotes/origin/security/phase-10-mongodb-data-integrity'
-                    git diff --check refs/remotes/origin/security/phase-10-mongodb-data-integrity...HEAD
-          YAML
-
-      - name: Publish permanent source fix
+      - name: Audit production dependencies
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git diff --cached --check
-          git commit -m 'fix(security): decode escaped PDF action names'
-          git push origin HEAD:security/phase-11-upload-attachments
+          npm --prefix Backend/Chatify audit --omit=dev --audit-level=high
+          npm --prefix Frontend/Chatify audit --omit=dev --audit-level=high
+
+      - name: Verify complete Phase 11 patch hygiene
+        run: |
+          git fetch --force origin \
+            '+refs/heads/security/phase-10-mongodb-data-integrity:refs/remotes/origin/security/phase-10-mongodb-data-integrity'
+          git diff --check refs/remotes/origin/security/phase-10-mongodb-data-integrity...HEAD
