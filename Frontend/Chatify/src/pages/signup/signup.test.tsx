@@ -42,7 +42,7 @@ describe('Signup', () => {
     await user.type(screen.getByLabelText(/last name/i), 'Musa');
     await user.type(screen.getByLabelText(/username/i), 'Ahmed.Musa');
     await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
+    await user.type(screen.getByLabelText(/^password$/i), 'Password123!');
     await user.keyboard('{Enter}');
 
     await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
@@ -52,7 +52,7 @@ describe('Signup', () => {
         lastName: 'Musa',
         username: 'ahmed.musa',
         email: 'user@example.com',
-        password: 'password123',
+        password: 'Password123!',
       }),
       expect.objectContaining({ onError: expect.any(Function) })
     );
