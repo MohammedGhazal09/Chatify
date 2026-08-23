@@ -64,7 +64,7 @@ jobs:
             test/socket/socket.call-auth.test.mjs \
             test/socket/socket.call-blocking.test.mjs \
             test/socket/socket.authorization.test.mjs \
-            test/socket/socket.session-lifecycle.test.mjs
+            test/security/phase13-socket-session-lifecycle.test.mjs
 
       - name: Run browser call-controller regressions
         run: |
