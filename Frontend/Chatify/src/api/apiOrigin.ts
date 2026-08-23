@@ -29,7 +29,9 @@ const shouldUseSameOriginApi = (
 const getFallbackOrigin = (
   env: RuntimeEnv,
   location: RuntimeLocation | undefined
-) => location?.origin ?? (env.PROD ? 'https://localhost' : LOCAL_BACKEND_URL);
+) => env.PROD
+  ? location?.origin ?? 'https://localhost'
+  : LOCAL_BACKEND_URL;
 
 const resolveConfiguredOrigin = (
   value: unknown,
