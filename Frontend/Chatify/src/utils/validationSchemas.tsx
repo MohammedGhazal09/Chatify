@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { normalizeUsername, validateUsername } from './usernameValidation'
 
+const hasControlCharacters = (value: string) => Array.from(value).some((character) => {
+  const codePoint = character.codePointAt(0) ?? 0;
+  return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+});
+
 const canonicalEmailSchema = z.string()
   .transform((value) => value.normalize('NFKC').trim().toLocaleLowerCase('en-US'))
   .pipe(z.email('Please enter a valid email address').min(1, 'Email is required'))
@@ -28,7 +33,7 @@ export const signupSchema = z.object({
     .min(12, 'Password must be at least 12 characters')
     .max(128, 'Password must be at most 128 characters')
     .refine((value) => value.trim().length > 0, 'Password cannot contain only whitespace')
-    .refine((value) => !/[\u0000-\u001f\u007f-\u009f]/u.test(value), 'Password cannot contain control characters'),
+    .refine((value) => !hasControlCharacters(value), 'Password cannot contain control characters'),
 })
 
 export const usernameSetupSchema = z.object({ username: usernameSchema })
