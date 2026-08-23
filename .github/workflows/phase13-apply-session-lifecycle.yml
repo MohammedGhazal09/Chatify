@@ -1,0 +1,321 @@
+name: Phase 13 Apply Session Lifecycle
+
+on:
+  push:
+    branches:
+      - security/phase-13-socket-auth-authorization
+    paths:
+      - .github/workflows/phase13-apply-session-lifecycle.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-session-lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-13-socket-auth-authorization
+          fetch-depth: 2
+
+      - name: Setup exact Node.js toolchain
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+
+      - name: Apply session lifecycle implementation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+
+          def replace_once(relative_path, old, new):
+              path = root / relative_path
+              text = path.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{relative_path}: expected one match, found {count}')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          service_path = root / 'Backend/Chatify/Services/socketSessionLifecycleService.mjs'
+          service_path.write_text("""import {
+            readAccessTokenFromCookieHeader,
+            verifyAccessToken,
+          } from '../Utils/authToken.mjs';
+          import { logger } from '../Utils/observabilityLogger.mjs';
+
+          let installedServers = new WeakSet();
+          const sessionSockets = new Map();
+          const userSockets = new Map();
+          const socketMetadata = new Map();
+          const accessTokenExpiryTimers = new Map();
+
+          const normalizeId = (value) => value?.toString?.() ?? '';
+
+          const addSocket = (index, key, socket) => {
+            if (!index.has(key)) {
+              index.set(key, new Set());
+            }
+            index.get(key).add(socket);
+          };
+
+          const removeSocket = (index, key, socket) => {
+            const sockets = index.get(key);
+            if (!sockets) return;
+            sockets.delete(socket);
+            if (sockets.size === 0) {
+              index.delete(key);
+            }
+          };
+
+          const clearAccessTokenExpiryTimer = (socketId) => {
+            const timer = accessTokenExpiryTimers.get(socketId);
+            if (!timer) return;
+            clearTimeout(timer);
+            accessTokenExpiryTimers.delete(socketId);
+          };
+
+          const unregisterAuthenticatedSocket = (socket) => {
+            const metadata = socketMetadata.get(socket.id);
+            clearAccessTokenExpiryTimer(socket.id);
+
+            if (!metadata) return;
+            socketMetadata.delete(socket.id);
+            removeSocket(sessionSockets, metadata.sessionId, socket);
+            removeSocket(userSockets, metadata.userId, socket);
+          };
+
+          const revokeSocket = (socket, reason) => {
+            if (!socket?.connected) {
+              unregisterAuthenticatedSocket(socket);
+              return false;
+            }
+
+            socket.emit('auth:revoked', { reason });
+            socket.disconnect(true);
+            return true;
+          };
+
+          const scheduleAccessTokenExpiry = (socket, expiresAtMs) => {
+            const revokeExpiredSocket = () => {
+              accessTokenExpiryTimers.delete(socket.id);
+              revokeSocket(socket, 'access_token_expired');
+            };
+            const delayMs = expiresAtMs - Date.now();
+
+            if (!Number.isFinite(delayMs) || delayMs <= 0) {
+              queueMicrotask(revokeExpiredSocket);
+              return;
+            }
+
+            const timer = setTimeout(revokeExpiredSocket, delayMs);
+            timer.unref?.();
+            accessTokenExpiryTimers.set(socket.id, timer);
+          };
+
+          const registerAuthenticatedSocket = (socket) => {
+            const token = readAccessTokenFromCookieHeader(socket.handshake.headers.cookie);
+
+            try {
+              const { userId, sessionId, decoded } = verifyAccessToken(token);
+              const normalizedUserId = normalizeId(userId);
+              const normalizedSessionId = normalizeId(sessionId);
+              const socketUserId = normalizeId(socket.data.userId);
+              const socketSessionId = normalizeId(socket.data.sessionId);
+
+              if (
+                !normalizedUserId ||
+                !normalizedSessionId ||
+                normalizedUserId !== socketUserId ||
+                normalizedSessionId !== socketSessionId
+              ) {
+                revokeSocket(socket, 'session_identity_mismatch');
+                return;
+              }
+
+              const metadata = {
+                userId: normalizedUserId,
+                sessionId: normalizedSessionId,
+                expiresAtMs: Number(decoded.exp) * 1000,
+              };
+
+              socketMetadata.set(socket.id, metadata);
+              addSocket(sessionSockets, metadata.sessionId, socket);
+              addSocket(userSockets, metadata.userId, socket);
+              socket.once('disconnect', () => unregisterAuthenticatedSocket(socket));
+              scheduleAccessTokenExpiry(socket, metadata.expiresAtMs);
+            } catch (error) {
+              logger.warn('socket.session_lifecycle_registration_failed', {
+                socketId: socket.id,
+                code: error?.code ?? error?.name,
+              });
+              revokeSocket(socket, 'session_invalid');
+            }
+          };
+
+          export const installSocketSessionLifecycle = (io) => {
+            if (!io || installedServers.has(io)) {
+              return io;
+            }
+
+            installedServers.add(io);
+            io.on('connection', registerAuthenticatedSocket);
+            return io;
+          };
+
+          export const disconnectSessionSockets = (sessionId, reason = 'session_revoked') => {
+            const normalizedSessionId = normalizeId(sessionId);
+            const sockets = [...(sessionSockets.get(normalizedSessionId) ?? [])];
+            return sockets.reduce(
+              (count, socket) => count + (revokeSocket(socket, reason) ? 1 : 0),
+              0
+            );
+          };
+
+          export const disconnectUserSessionSockets = (userId, reason = 'all_sessions_revoked') => {
+            const normalizedUserId = normalizeId(userId);
+            const sockets = [...(userSockets.get(normalizedUserId) ?? [])];
+            return sockets.reduce(
+              (count, socket) => count + (revokeSocket(socket, reason) ? 1 : 0),
+              0
+            );
+          };
+
+          export const getSocketSessionLifecycleStatus = () => ({
+            connectedUsers: userSockets.size,
+            connectedSessions: sessionSockets.size,
+            connectedSockets: socketMetadata.size,
+            pendingAccessTokenExpiryTimers: accessTokenExpiryTimers.size,
+          });
+
+          export const resetSocketSessionLifecycleForTests = () => {
+            accessTokenExpiryTimers.forEach((timer) => clearTimeout(timer));
+            accessTokenExpiryTimers.clear();
+            sessionSockets.clear();
+            userSockets.clear();
+            socketMetadata.clear();
+            installedServers = new WeakSet();
+          };
+          """, encoding='utf-8')
+
+          replace_once(
+              'Backend/Chatify/server.mjs',
+              "const { initSocket } = await import('./Config/socket.mjs');\nconst { startNotificationOutboxWorker } = await import('./Services/notificationService.mjs');",
+              "const { initSocket } = await import('./Config/socket.mjs');\nconst { installSocketSessionLifecycle } = await import('./Services/socketSessionLifecycleService.mjs');\nconst { startNotificationOutboxWorker } = await import('./Services/notificationService.mjs');"
+          )
+          replace_once(
+              'Backend/Chatify/server.mjs',
+              "const io = initSocket(httpServer);\n\nhttpServer.listen(PORT, () => {",
+              "const io = initSocket(httpServer);\ninstallSocketSessionLifecycle(io);\n\nhttpServer.listen(PORT, () => {"
+          )
+
+          socket_helper_path = root / 'Backend/Chatify/test/helpers/socketServer.mjs'
+          socket_helper_path.write_text("""import { createServer } from 'node:http';
+          import { once } from 'node:events';
+          import { getTestApp } from '../setup/app.mjs';
+          import { closeSocketServer, initSocket } from '../../Config/socket.mjs';
+          import {
+            installSocketSessionLifecycle,
+            resetSocketSessionLifecycleForTests,
+          } from '../../Services/socketSessionLifecycleService.mjs';
+
+          export const startSocketTestServer = async () => {
+            const app = await getTestApp();
+            const httpServer = createServer(app);
+            const io = initSocket(httpServer);
+            installSocketSessionLifecycle(io);
+
+            httpServer.listen(0, '127.0.0.1');
+            await once(httpServer, 'listening');
+
+            const address = httpServer.address();
+            const url = `http://127.0.0.1:${address.port}`;
+
+            const close = async () => {
+              await closeSocketServer();
+              resetSocketSessionLifecycleForTests();
+
+              if (httpServer.listening) {
+                httpServer.close();
+                await once(httpServer, 'close');
+              }
+            };
+
+            return { httpServer, io, url, close };
+          };
+          """, encoding='utf-8')
+
+          replace_once(
+              'Backend/Chatify/Utils/tokenCookieGenerator.mjs',
+              "  return { accessToken, refreshToken: nextRefreshToken, session: nextSession, user };",
+              "  return {\n    accessToken,\n    refreshToken: nextRefreshToken,\n    session: nextSession,\n    replacedSessionId: claimedSession._id.toString(),\n    user,\n  };"
+          )
+          replace_once(
+              'Backend/Chatify/Utils/tokenCookieGenerator.mjs',
+              "export const revokeRefreshSession = async (refreshToken) => {\n  if (!refreshToken) return false;\n  const result = await Session.findOneAndUpdate(\n    { refreshTokenHash: hashRefreshToken(refreshToken), revokedAt: null },\n    { $set: { revokedAt: new Date(), lastUsedAt: new Date() } },\n  );\n  return Boolean(result);\n};",
+              "export const revokeRefreshSession = async (refreshToken) => {\n  if (!refreshToken) return null;\n  return Session.findOneAndUpdate(\n    { refreshTokenHash: hashRefreshToken(refreshToken), revokedAt: null },\n    { $set: { revokedAt: new Date(), lastUsedAt: new Date() } },\n  );\n};"
+          )
+
+          replace_once(
+              'Backend/Chatify/Controller/authController.mjs',
+              "import {sendPasswordResetEmail} from '../Services/emailService.mjs';\nimport { resolveOAuthFinalizeBaseURL } from '../Utils/oauthConfig.mjs';",
+              "import {sendPasswordResetEmail} from '../Services/emailService.mjs';\nimport {\n  disconnectSessionSockets,\n  disconnectUserSessionSockets,\n} from '../Services/socketSessionLifecycleService.mjs';\nimport { resolveOAuthFinalizeBaseURL } from '../Utils/oauthConfig.mjs';"
+          )
+          replace_once(
+              'Backend/Chatify/Controller/authController.mjs',
+              "export const logout = asyncErrHandler(async (req, res) => {\n  let accessSessionRevoked = false;\n  let refreshSessionRevoked = false;\n  let userId = null;\n\n  const accessToken = readAccessTokenFromRequest(req);\n  if (accessToken) {\n    try {\n      const verified = verifyAccessToken(accessToken);\n      userId = verified.userId;\n      accessSessionRevoked = await revokeSessionById({\n        sessionId: verified.sessionId,\n        userId: verified.userId,\n      });\n    } catch {\n      accessSessionRevoked = false;\n    }\n  }\n\n  refreshSessionRevoked = await revokeRefreshSession(readRefreshTokenFromRequest(req));\n  clearSessionCookies(res);\n  logger.info('auth.logout_completed', {\n    userId,\n    accessSessionRevoked,\n    refreshSessionRevoked,\n  });\n\n  return res.status(200).json({ status: 'success', message: 'Logged out successfully' });\n});",
+              "export const logout = asyncErrHandler(async (req, res) => {\n  let accessSessionRevoked = false;\n  let refreshSessionRevoked = false;\n  let userId = null;\n  const revokedSessionIds = new Set();\n\n  const accessToken = readAccessTokenFromRequest(req);\n  if (accessToken) {\n    try {\n      const verified = verifyAccessToken(accessToken);\n      userId = verified.userId;\n      revokedSessionIds.add(verified.sessionId);\n      accessSessionRevoked = await revokeSessionById({\n        sessionId: verified.sessionId,\n        userId: verified.userId,\n      });\n    } catch {\n      accessSessionRevoked = false;\n    }\n  }\n\n  const revokedRefreshSession = await revokeRefreshSession(readRefreshTokenFromRequest(req));\n  refreshSessionRevoked = Boolean(revokedRefreshSession);\n  if (revokedRefreshSession) {\n    revokedSessionIds.add(revokedRefreshSession._id.toString());\n    userId ??= revokedRefreshSession.userId?.toString?.() ?? null;\n  }\n\n  const disconnectedSockets = [...revokedSessionIds].reduce(\n    (count, sessionId) => count + disconnectSessionSockets(sessionId, 'session_logout'),\n    0\n  );\n\n  clearSessionCookies(res);\n  logger.info('auth.logout_completed', {\n    userId,\n    accessSessionRevoked,\n    refreshSessionRevoked,\n    disconnectedSockets,\n  });\n\n  return res.status(200).json({ status: 'success', message: 'Logged out successfully' });\n});"
+          )
+          replace_once(
+              'Backend/Chatify/Controller/authController.mjs',
+              "export const refreshToken = asyncErrHandler(async (req, res, next) => {\n  await rotateSessionCookies({\n    refreshToken: readRefreshTokenFromRequest(req),\n    res,\n    req,\n  });\n\n  return res.status(200).json({ status: 'success', message: 'Token refreshed successfully' });\n});",
+              "export const refreshToken = asyncErrHandler(async (req, res, next) => {\n  const rotation = await rotateSessionCookies({\n    refreshToken: readRefreshTokenFromRequest(req),\n    res,\n    req,\n  });\n\n  disconnectSessionSockets(rotation.replacedSessionId, 'session_rotated');\n\n  return res.status(200).json({ status: 'success', message: 'Token refreshed successfully' });\n});"
+          )
+          replace_once(
+              'Backend/Chatify/Controller/authController.mjs',
+              "  session.revokedAt = new Date();\n  session.lastUsedAt = new Date();\n  await session.save();\n\n  return res.status(200).json({",
+              "  session.revokedAt = new Date();\n  session.lastUsedAt = new Date();\n  await session.save();\n  disconnectSessionSockets(session._id, 'session_revoked');\n\n  return res.status(200).json({"
+          )
+          replace_once(
+              'Backend/Chatify/Controller/authController.mjs',
+              "  clearSessionCookies(res);\n\n  return res.status(200).json({\n    status: 'success',\n    data: {\n      revokedCount: result.modifiedCount ?? 0,",
+              "  const disconnectedSockets = disconnectUserSessionSockets(\n    req.userId,\n    'all_sessions_revoked'\n  );\n  clearSessionCookies(res);\n\n  return res.status(200).json({\n    status: 'success',\n    data: {\n      revokedCount: result.modifiedCount ?? 0,\n      disconnectedSockets,"
+          )
+          replace_once(
+              'Backend/Chatify/Controller/authController.mjs',
+              "    await user.save();\n    await revokeRefreshSessionsForUser(user._id);\n    clearSessionCookies(res);",
+              "    await user.save();\n    await revokeRefreshSessionsForUser(user._id);\n    disconnectUserSessionSockets(user._id, 'password_reset');\n    clearSessionCookies(res);"
+          )
+
+          replace_once(
+              '.github/workflows/security-phase-13-socket-auth-authorization.yml',
+              "          node --check Backend/Chatify/Config/socket.mjs\n          node --check Backend/Chatify/Controller/authController.mjs",
+              "          node --check Backend/Chatify/Config/socket.mjs\n          node --check Backend/Chatify/server.mjs\n          node --check Backend/Chatify/Services/socketSessionLifecycleService.mjs\n          node --check Backend/Chatify/Controller/authController.mjs"
+          )
+
+          Path('.github/workflows/phase13-apply-session-lifecycle.yml').unlink()
+          PY
+
+      - name: Verify generated patch
+        run: |
+          node --check Backend/Chatify/server.mjs
+          node --check Backend/Chatify/Services/socketSessionLifecycleService.mjs
+          node --check Backend/Chatify/Controller/authController.mjs
+          node --check Backend/Chatify/Utils/tokenCookieGenerator.mjs
+          node --check Backend/Chatify/test/helpers/socketServer.mjs
+          git diff --check
+
+      - name: Commit implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(security): revoke stale socket sessions'
+          git push origin HEAD:security/phase-13-socket-auth-authorization
