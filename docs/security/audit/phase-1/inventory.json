@@ -5,11 +5,27 @@
     "sourceSelection": "git-index",
     "excludedPaths": [
       "docs/security/audit/phase-1/inventory.json",
-      "docs/security/audit/phase-1/inventory.md"
+      "docs/security/audit/phase-1/inventory.md",
+      "docs/security/audit/phase-2/threat-model.json",
+      "docs/security/audit/phase-2/threat-model.md",
+      "docs/security/audit/phase-3/secret-scan.json",
+      "docs/security/audit/phase-3/secret-scan.md",
+      "docs/security/audit/phase-4/dependency-policy.json",
+      "docs/security/audit/phase-4/dependency-policy.md",
+      "docs/security/audit/phase-5/authentication-policy.json",
+      "docs/security/audit/phase-5/authentication-policy.md"
     ],
     "generatedOutputsExcludedFromSelfInventory": [
       "docs/security/audit/phase-1/inventory.json",
-      "docs/security/audit/phase-1/inventory.md"
+      "docs/security/audit/phase-1/inventory.md",
+      "docs/security/audit/phase-2/threat-model.json",
+      "docs/security/audit/phase-2/threat-model.md",
+      "docs/security/audit/phase-3/secret-scan.json",
+      "docs/security/audit/phase-3/secret-scan.md",
+      "docs/security/audit/phase-4/dependency-policy.json",
+      "docs/security/audit/phase-4/dependency-policy.md",
+      "docs/security/audit/phase-5/authentication-policy.json",
+      "docs/security/audit/phase-5/authentication-policy.md"
     ],
     "excludedContentDirectories": [
       ".agents",
@@ -46,6 +62,8 @@
         "type": "commonjs-default",
         "engines": {},
         "scripts": {
+          "db:indexes:apply": "node scripts/database-indexes.mjs --apply",
+          "db:indexes:check": "node scripts/database-indexes.mjs",
           "start": "node server.mjs",
           "test": "vitest run --config vitest.config.mjs",
           "test:watch": "vitest --config vitest.config.mjs"
@@ -175,7 +193,7 @@
           "security:phase1:check": "node scripts/security/phase1-inventory.mjs --check",
           "security:phase1:generate": "node scripts/security/phase1-inventory.mjs --write",
           "security:phase1:reproduce": "node scripts/security/phase1-reproduce.mjs",
-          "security:phase1:test": "node --test scripts/security/__tests__/phase1-inventory.test.mjs",
+          "security:phase1:test": "node --test scripts/security/__tests__/phase1-*.test.mjs",
           "security:phase2:check": "node scripts/security/phase2-threat-model.mjs --check",
           "security:phase2:generate": "node scripts/security/phase2-threat-model.mjs --write",
           "security:phase2:reproduce": "node scripts/security/phase2-reproduce.mjs",
@@ -188,6 +206,10 @@
           "security:phase4:generate": "node scripts/security/phase4-dependency-policy.mjs --write",
           "security:phase4:reproduce": "node scripts/security/phase4-reproduce.mjs",
           "security:phase4:test": "node --test scripts/security/__tests__/phase4-*.test.mjs",
+          "security:phase5:check": "node scripts/security/phase5-authentication-policy.mjs --check",
+          "security:phase5:generate": "node scripts/security/phase5-authentication-policy.mjs --write",
+          "security:phase5:reproduce": "node scripts/security/phase5-reproduce.mjs",
+          "security:phase5:test": "node --test scripts/security/__tests__/phase5-*.test.mjs",
           "smoke:local": "npm --prefix Frontend/Chatify run test:ui --",
           "smoke:prod": "npm --prefix Frontend/Chatify run test:e2e:prod --",
           "test": "npm run quality"
@@ -294,7 +316,7 @@
         "cwd": ".",
         "script": "security:phase1:test",
         "command": "npm run security:phase1:test",
-        "implementation": "node --test scripts/security/__tests__/phase1-inventory.test.mjs"
+        "implementation": "node --test scripts/security/__tests__/phase1-*.test.mjs"
       },
       {
         "cwd": ".",
@@ -370,6 +392,30 @@
       },
       {
         "cwd": ".",
+        "script": "security:phase5:check",
+        "command": "npm run security:phase5:check",
+        "implementation": "node scripts/security/phase5-authentication-policy.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase5:generate",
+        "command": "npm run security:phase5:generate",
+        "implementation": "node scripts/security/phase5-authentication-policy.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase5:reproduce",
+        "command": "npm run security:phase5:reproduce",
+        "implementation": "node scripts/security/phase5-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "script": "security:phase5:test",
+        "command": "npm run security:phase5:test",
+        "implementation": "node --test scripts/security/__tests__/phase5-*.test.mjs"
+      },
+      {
+        "cwd": ".",
         "script": "smoke:local",
         "command": "npm run smoke:local",
         "implementation": "npm --prefix Frontend/Chatify run test:ui --"
@@ -436,8 +482,8 @@
     ]
   },
   "components": {
-    "trackedFileCount": 1563,
-    "totalTrackedBytes": 17435100,
+    "trackedFileCount": 1595,
+    "totalTrackedBytes": 17139279,
     "categories": {
       "backend": [
         "Backend/Chatify/.env.example",
@@ -451,6 +497,7 @@
         "Backend/Chatify/Controller/adminController.mjs",
         "Backend/Chatify/Controller/authController.mjs",
         "Backend/Chatify/Controller/chatController.mjs",
+        "Backend/Chatify/Controller/chatDeletionController.mjs",
         "Backend/Chatify/Controller/errController.mjs",
         "Backend/Chatify/Controller/integrationController.mjs",
         "Backend/Chatify/Controller/inviteLinkController.mjs",
@@ -461,6 +508,7 @@
         "Backend/Chatify/Controller/twoFactorController.mjs",
         "Backend/Chatify/Controller/userController.mjs",
         "Backend/Chatify/Middlewares/csrfProtection.mjs",
+        "Backend/Chatify/Middlewares/databaseAuthorization.mjs",
         "Backend/Chatify/Middlewares/integrationRuntimeAuth.mjs",
         "Backend/Chatify/Middlewares/protectRoutes.mjs",
         "Backend/Chatify/Middlewares/queueMiddleware.mjs",
@@ -468,6 +516,8 @@
         "Backend/Chatify/Middlewares/requestLogger.mjs",
         "Backend/Chatify/Middlewares/requireAdmin.mjs",
         "Backend/Chatify/Middlewares/sanitization.mjs",
+        "Backend/Chatify/Middlewares/secureUpload.mjs",
+        "Backend/Chatify/Middlewares/uploadDeliverySecurity.mjs",
         "Backend/Chatify/Models/abuseReportModel.mjs",
         "Backend/Chatify/Models/attachmentModel.mjs",
         "Backend/Chatify/Models/callSessionModel.mjs",
@@ -488,6 +538,7 @@
         "Backend/Chatify/Models/sessionModel.mjs",
         "Backend/Chatify/Models/spaceModel.mjs",
         "Backend/Chatify/Models/twoFactorChallengeModel.mjs",
+        "Backend/Chatify/Models/uploadBudgetModel.mjs",
         "Backend/Chatify/Models/userBlockModel.mjs",
         "Backend/Chatify/Models/userModel.mjs",
         "Backend/Chatify/package-lock.json",
@@ -502,12 +553,15 @@
         "Backend/Chatify/Routes/moderationRouter.mjs",
         "Backend/Chatify/Routes/spaceRouter.mjs",
         "Backend/Chatify/Routes/userRouter.mjs",
+        "Backend/Chatify/scripts/database-indexes.mjs",
         "Backend/Chatify/server.mjs",
         "Backend/Chatify/Services/attachmentStorageService.mjs",
         "Backend/Chatify/Services/emailService.mjs",
         "Backend/Chatify/Services/notificationService.mjs",
         "Backend/Chatify/Services/privacyOperationsService.mjs",
         "Backend/Chatify/Services/profileImageStorageService.mjs",
+        "Backend/Chatify/Services/uploadBudgetService.mjs",
+        "Backend/Chatify/Services/uploadLifecycleService.mjs",
         "Backend/Chatify/test/admin/delivery-health.test.mjs",
         "Backend/Chatify/test/admin/privacy-operations.test.mjs",
         "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
@@ -515,6 +569,8 @@
         "Backend/Chatify/test/auth/email-template.test.mjs",
         "Backend/Chatify/test/auth/oauth-account-linking.test.mjs",
         "Backend/Chatify/test/auth/oauth-config.test.mjs",
+        "Backend/Chatify/test/auth/phase5-authentication-security.test.mjs",
+        "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
         "Backend/Chatify/test/auth/reset.security.test.mjs",
         "Backend/Chatify/test/auth/session.management.test.mjs",
         "Backend/Chatify/test/auth/two-factor.test.mjs",
@@ -562,6 +618,12 @@
         "Backend/Chatify/test/observability/observability-logger.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
         "Backend/Chatify/test/security/csrf.test.mjs",
+        "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-chat-deletion-lifecycle.test.mjs",
+        "Backend/Chatify/test/security/phase11-image-container-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-media-type-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-office-container-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-upload-security.test.mjs",
         "Backend/Chatify/test/security/secret-configuration.test.mjs",
         "Backend/Chatify/test/setup/app.mjs",
         "Backend/Chatify/test/setup/env.mjs",
@@ -590,6 +652,7 @@
         "Backend/Chatify/test/user/user.username.test.mjs",
         "Backend/Chatify/Utils/asyncErrHandler.mjs",
         "Backend/Chatify/Utils/attachmentValidation.mjs",
+        "Backend/Chatify/Utils/authIdentity.mjs",
         "Backend/Chatify/Utils/authToken.mjs",
         "Backend/Chatify/Utils/callIceConfig.mjs",
         "Backend/Chatify/Utils/callSessionState.mjs",
@@ -598,6 +661,9 @@
         "Backend/Chatify/Utils/conversationControls.mjs",
         "Backend/Chatify/Utils/conversationOrganization.mjs",
         "Backend/Chatify/Utils/customError.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
+        "Backend/Chatify/Utils/databaseIndexState.mjs",
+        "Backend/Chatify/Utils/databaseSecurity.mjs",
         "Backend/Chatify/Utils/deliveryHealth.mjs",
         "Backend/Chatify/Utils/emailmsg.mjs",
         "Backend/Chatify/Utils/encryptionMode.mjs",
@@ -610,6 +676,7 @@
         "Backend/Chatify/Utils/notificationTemplates.mjs",
         "Backend/Chatify/Utils/oauthConfig.mjs",
         "Backend/Chatify/Utils/observabilityLogger.mjs",
+        "Backend/Chatify/Utils/officeDocumentSecurity.mjs",
         "Backend/Chatify/Utils/operationalReadiness.mjs",
         "Backend/Chatify/Utils/profileFields.mjs",
         "Backend/Chatify/Utils/profileImageValidation.mjs",
@@ -619,20 +686,26 @@
         "Backend/Chatify/Utils/spaceAccess.mjs",
         "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
         "Backend/Chatify/Utils/twoFactor.mjs",
+        "Backend/Chatify/Utils/uploadContentSecurity.mjs",
         "Backend/Chatify/Utils/usernameValidation.mjs",
         "Backend/Chatify/vitest.config.mjs"
       ],
       "cli-and-operations": [
         "scripts/ops-check.mjs",
         "scripts/production-evidence-check.mjs",
+        "scripts/security/__tests__/phase1-downstream-generated-evidence.test.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-downstream-generated-evidence.test.mjs",
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
         "scripts/security/__tests__/phase3-template-expression.test.mjs",
         "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
         "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
         "scripts/security/__tests__/phase4-reproduction.test.mjs",
+        "scripts/security/__tests__/phase5-authentication-policy.test.mjs",
+        "scripts/security/__tests__/phase5-reproduction.test.mjs",
+        "scripts/security/lib/authentication-policy.mjs",
         "scripts/security/lib/dependency-policy.mjs",
         "scripts/security/lib/inventory.mjs",
         "scripts/security/lib/live-supply-chain.mjs",
@@ -640,6 +713,7 @@
         "scripts/security/lib/phase2-reproduction.mjs",
         "scripts/security/lib/phase3-reproduction.mjs",
         "scripts/security/lib/phase4-reproduction.mjs",
+        "scripts/security/lib/phase5-reproduction.mjs",
         "scripts/security/lib/secret-detectors.mjs",
         "scripts/security/lib/secret-scan.mjs",
         "scripts/security/lib/threat-model.mjs",
@@ -652,7 +726,9 @@
         "scripts/security/phase3-secret-scan.mjs",
         "scripts/security/phase4-dependency-policy.mjs",
         "scripts/security/phase4-live-supply-chain.mjs",
-        "scripts/security/phase4-reproduce.mjs"
+        "scripts/security/phase4-reproduce.mjs",
+        "scripts/security/phase5-authentication-policy.mjs",
+        "scripts/security/phase5-reproduce.mjs"
       ],
       "configuration": [
         "Backend/Chatify/Config/DBConfig.mjs",
@@ -664,6 +740,7 @@
         "Backend/Chatify/Controller/adminController.mjs",
         "Backend/Chatify/Controller/authController.mjs",
         "Backend/Chatify/Controller/chatController.mjs",
+        "Backend/Chatify/Controller/chatDeletionController.mjs",
         "Backend/Chatify/Controller/errController.mjs",
         "Backend/Chatify/Controller/integrationController.mjs",
         "Backend/Chatify/Controller/inviteLinkController.mjs",
@@ -1694,22 +1771,21 @@
         "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
         "docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md",
         "docs/security/audit/phase-1/README.md",
+        "docs/security/audit/phase-11/README.md",
         "docs/security/audit/phase-2/README.md",
-        "docs/security/audit/phase-2/threat-model.json",
-        "docs/security/audit/phase-2/threat-model.md",
         "docs/security/audit/phase-2/threat-model.source.json",
         "docs/security/audit/phase-3/credential-exposure-response.md",
         "docs/security/audit/phase-3/README.md",
         "docs/security/audit/phase-3/secret-scan-allowlist.json",
-        "docs/security/audit/phase-3/secret-scan.json",
-        "docs/security/audit/phase-3/secret-scan.md",
         "docs/security/audit/phase-4/dependency-exceptions.json",
-        "docs/security/audit/phase-4/dependency-policy.json",
-        "docs/security/audit/phase-4/dependency-policy.md",
         "docs/security/audit/phase-4/dependency-update-procedure.md",
         "docs/security/audit/phase-4/install-script-policy.json",
         "docs/security/audit/phase-4/README.md",
-        "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md"
+        "docs/security/audit/phase-5/phase-5-authentication-session-spec.md",
+        "docs/security/audit/phase-5/README.md",
+        "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md",
+        "docs/superpowers/plans/2026-08-21-phase-5-authentication-session-security.md",
+        "docs/superpowers/plans/2026-08-23-phase-11-upload-attachments-completion.md"
       ],
       "frontend": [
         "Frontend/Chatify/.env.example",
@@ -1851,6 +1927,7 @@
         "Frontend/Chatify/src/pages/chat/components/AbstractIdentityTile.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/AbstractIdentityTile.tsx",
         "Frontend/Chatify/src/pages/chat/components/AttachmentPreview.tsx",
+        "Frontend/Chatify/src/pages/chat/components/AttachmentPreviewModal.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/AttachmentPreviewModal.tsx",
         "Frontend/Chatify/src/pages/chat/components/AttachmentTray.tsx",
         "Frontend/Chatify/src/pages/chat/components/CallOverlay.test.tsx",
@@ -2030,13 +2107,16 @@
       ],
       "middleware": [
         "Backend/Chatify/Middlewares/csrfProtection.mjs",
+        "Backend/Chatify/Middlewares/databaseAuthorization.mjs",
         "Backend/Chatify/Middlewares/integrationRuntimeAuth.mjs",
         "Backend/Chatify/Middlewares/protectRoutes.mjs",
         "Backend/Chatify/Middlewares/queueMiddleware.mjs",
         "Backend/Chatify/Middlewares/rateLimiters.mjs",
         "Backend/Chatify/Middlewares/requestLogger.mjs",
         "Backend/Chatify/Middlewares/requireAdmin.mjs",
-        "Backend/Chatify/Middlewares/sanitization.mjs"
+        "Backend/Chatify/Middlewares/sanitization.mjs",
+        "Backend/Chatify/Middlewares/secureUpload.mjs",
+        "Backend/Chatify/Middlewares/uploadDeliverySecurity.mjs"
       ],
       "models": [
         "Backend/Chatify/Models/abuseReportModel.mjs",
@@ -2059,6 +2139,7 @@
         "Backend/Chatify/Models/sessionModel.mjs",
         "Backend/Chatify/Models/spaceModel.mjs",
         "Backend/Chatify/Models/twoFactorChallengeModel.mjs",
+        "Backend/Chatify/Models/uploadBudgetModel.mjs",
         "Backend/Chatify/Models/userBlockModel.mjs",
         "Backend/Chatify/Models/userModel.mjs"
       ],
@@ -2088,7 +2169,9 @@
         "Backend/Chatify/Services/emailService.mjs",
         "Backend/Chatify/Services/notificationService.mjs",
         "Backend/Chatify/Services/privacyOperationsService.mjs",
-        "Backend/Chatify/Services/profileImageStorageService.mjs"
+        "Backend/Chatify/Services/profileImageStorageService.mjs",
+        "Backend/Chatify/Services/uploadBudgetService.mjs",
+        "Backend/Chatify/Services/uploadLifecycleService.mjs"
       ],
       "tests": [
         "Backend/Chatify/test/admin/delivery-health.test.mjs",
@@ -2098,6 +2181,8 @@
         "Backend/Chatify/test/auth/email-template.test.mjs",
         "Backend/Chatify/test/auth/oauth-account-linking.test.mjs",
         "Backend/Chatify/test/auth/oauth-config.test.mjs",
+        "Backend/Chatify/test/auth/phase5-authentication-security.test.mjs",
+        "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
         "Backend/Chatify/test/auth/reset.security.test.mjs",
         "Backend/Chatify/test/auth/session.management.test.mjs",
         "Backend/Chatify/test/auth/two-factor.test.mjs",
@@ -2145,6 +2230,12 @@
         "Backend/Chatify/test/observability/observability-logger.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
         "Backend/Chatify/test/security/csrf.test.mjs",
+        "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-chat-deletion-lifecycle.test.mjs",
+        "Backend/Chatify/test/security/phase11-image-container-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-media-type-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-office-container-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-upload-security.test.mjs",
         "Backend/Chatify/test/security/secret-configuration.test.mjs",
         "Backend/Chatify/test/setup/app.mjs",
         "Backend/Chatify/test/setup/env.mjs",
@@ -2235,6 +2326,7 @@
         "Frontend/Chatify/src/pages/admin/AdminModeration.test.tsx",
         "Frontend/Chatify/src/pages/admin/AdminPrivacyOperations.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/AbstractIdentityTile.test.tsx",
+        "Frontend/Chatify/src/pages/chat/components/AttachmentPreviewModal.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/CallOverlay.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/ChatContextRail.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/ChatListItem.test.tsx",
@@ -2277,14 +2369,18 @@
         "Frontend/Chatify/src/utils/notificationPrivacy.test.ts",
         "Frontend/Chatify/src/utils/sounds.test.ts",
         "Frontend/Chatify/src/utils/validationSchemas.test.ts",
+        "scripts/security/__tests__/phase1-downstream-generated-evidence.test.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-downstream-generated-evidence.test.mjs",
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
         "scripts/security/__tests__/phase3-template-expression.test.mjs",
         "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
         "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
-        "scripts/security/__tests__/phase4-reproduction.test.mjs"
+        "scripts/security/__tests__/phase4-reproduction.test.mjs",
+        "scripts/security/__tests__/phase5-authentication-policy.test.mjs",
+        "scripts/security/__tests__/phase5-reproduction.test.mjs"
       ],
       "text-source-or-config": [
         ".agents/skills/csrf-protection/references/double-submit-cookie-pattern.md",
@@ -2323,9 +2419,11 @@
         ".github/dependabot.yml",
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
+        ".github/workflows/security-phase-11-upload-security.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
         ".github/workflows/security-phase-3-secret-exposure.yml",
         ".github/workflows/security-phase-4-supply-chain.yml",
+        ".github/workflows/security-phase-5-authentication-session.yml",
         ".planning/codebase/ARCHITECTURE.md",
         ".planning/codebase/CONCERNS.md",
         ".planning/codebase/CONVENTIONS.md",
@@ -3175,6 +3273,7 @@
         "Backend/Chatify/Controller/adminController.mjs",
         "Backend/Chatify/Controller/authController.mjs",
         "Backend/Chatify/Controller/chatController.mjs",
+        "Backend/Chatify/Controller/chatDeletionController.mjs",
         "Backend/Chatify/Controller/errController.mjs",
         "Backend/Chatify/Controller/integrationController.mjs",
         "Backend/Chatify/Controller/inviteLinkController.mjs",
@@ -3185,6 +3284,7 @@
         "Backend/Chatify/Controller/twoFactorController.mjs",
         "Backend/Chatify/Controller/userController.mjs",
         "Backend/Chatify/Middlewares/csrfProtection.mjs",
+        "Backend/Chatify/Middlewares/databaseAuthorization.mjs",
         "Backend/Chatify/Middlewares/integrationRuntimeAuth.mjs",
         "Backend/Chatify/Middlewares/protectRoutes.mjs",
         "Backend/Chatify/Middlewares/queueMiddleware.mjs",
@@ -3192,6 +3292,8 @@
         "Backend/Chatify/Middlewares/requestLogger.mjs",
         "Backend/Chatify/Middlewares/requireAdmin.mjs",
         "Backend/Chatify/Middlewares/sanitization.mjs",
+        "Backend/Chatify/Middlewares/secureUpload.mjs",
+        "Backend/Chatify/Middlewares/uploadDeliverySecurity.mjs",
         "Backend/Chatify/Models/abuseReportModel.mjs",
         "Backend/Chatify/Models/attachmentModel.mjs",
         "Backend/Chatify/Models/callSessionModel.mjs",
@@ -3212,6 +3314,7 @@
         "Backend/Chatify/Models/sessionModel.mjs",
         "Backend/Chatify/Models/spaceModel.mjs",
         "Backend/Chatify/Models/twoFactorChallengeModel.mjs",
+        "Backend/Chatify/Models/uploadBudgetModel.mjs",
         "Backend/Chatify/Models/userBlockModel.mjs",
         "Backend/Chatify/Models/userModel.mjs",
         "Backend/Chatify/package-lock.json",
@@ -3226,12 +3329,15 @@
         "Backend/Chatify/Routes/moderationRouter.mjs",
         "Backend/Chatify/Routes/spaceRouter.mjs",
         "Backend/Chatify/Routes/userRouter.mjs",
+        "Backend/Chatify/scripts/database-indexes.mjs",
         "Backend/Chatify/server.mjs",
         "Backend/Chatify/Services/attachmentStorageService.mjs",
         "Backend/Chatify/Services/emailService.mjs",
         "Backend/Chatify/Services/notificationService.mjs",
         "Backend/Chatify/Services/privacyOperationsService.mjs",
         "Backend/Chatify/Services/profileImageStorageService.mjs",
+        "Backend/Chatify/Services/uploadBudgetService.mjs",
+        "Backend/Chatify/Services/uploadLifecycleService.mjs",
         "Backend/Chatify/test/admin/delivery-health.test.mjs",
         "Backend/Chatify/test/admin/privacy-operations.test.mjs",
         "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
@@ -3239,6 +3345,8 @@
         "Backend/Chatify/test/auth/email-template.test.mjs",
         "Backend/Chatify/test/auth/oauth-account-linking.test.mjs",
         "Backend/Chatify/test/auth/oauth-config.test.mjs",
+        "Backend/Chatify/test/auth/phase5-authentication-security.test.mjs",
+        "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
         "Backend/Chatify/test/auth/reset.security.test.mjs",
         "Backend/Chatify/test/auth/session.management.test.mjs",
         "Backend/Chatify/test/auth/two-factor.test.mjs",
@@ -3286,6 +3394,12 @@
         "Backend/Chatify/test/observability/observability-logger.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
         "Backend/Chatify/test/security/csrf.test.mjs",
+        "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-chat-deletion-lifecycle.test.mjs",
+        "Backend/Chatify/test/security/phase11-image-container-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-media-type-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-office-container-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-upload-security.test.mjs",
         "Backend/Chatify/test/security/secret-configuration.test.mjs",
         "Backend/Chatify/test/setup/app.mjs",
         "Backend/Chatify/test/setup/env.mjs",
@@ -3314,6 +3428,7 @@
         "Backend/Chatify/test/user/user.username.test.mjs",
         "Backend/Chatify/Utils/asyncErrHandler.mjs",
         "Backend/Chatify/Utils/attachmentValidation.mjs",
+        "Backend/Chatify/Utils/authIdentity.mjs",
         "Backend/Chatify/Utils/authToken.mjs",
         "Backend/Chatify/Utils/callIceConfig.mjs",
         "Backend/Chatify/Utils/callSessionState.mjs",
@@ -3322,6 +3437,9 @@
         "Backend/Chatify/Utils/conversationControls.mjs",
         "Backend/Chatify/Utils/conversationOrganization.mjs",
         "Backend/Chatify/Utils/customError.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
+        "Backend/Chatify/Utils/databaseIndexState.mjs",
+        "Backend/Chatify/Utils/databaseSecurity.mjs",
         "Backend/Chatify/Utils/deliveryHealth.mjs",
         "Backend/Chatify/Utils/emailmsg.mjs",
         "Backend/Chatify/Utils/encryptionMode.mjs",
@@ -3334,6 +3452,7 @@
         "Backend/Chatify/Utils/notificationTemplates.mjs",
         "Backend/Chatify/Utils/oauthConfig.mjs",
         "Backend/Chatify/Utils/observabilityLogger.mjs",
+        "Backend/Chatify/Utils/officeDocumentSecurity.mjs",
         "Backend/Chatify/Utils/operationalReadiness.mjs",
         "Backend/Chatify/Utils/profileFields.mjs",
         "Backend/Chatify/Utils/profileImageValidation.mjs",
@@ -3343,6 +3462,7 @@
         "Backend/Chatify/Utils/spaceAccess.mjs",
         "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
         "Backend/Chatify/Utils/twoFactor.mjs",
+        "Backend/Chatify/Utils/uploadContentSecurity.mjs",
         "Backend/Chatify/Utils/usernameValidation.mjs",
         "Backend/Chatify/vitest.config.mjs",
         "docs/operations/ci-quality-gates.md",
@@ -3357,22 +3477,21 @@
         "docs/plans/2026-08-21-phase-3-secrets-and-credentials.md",
         "docs/plans/2026-08-21-phase-4-dependency-and-supply-chain.md",
         "docs/security/audit/phase-1/README.md",
+        "docs/security/audit/phase-11/README.md",
         "docs/security/audit/phase-2/README.md",
-        "docs/security/audit/phase-2/threat-model.json",
-        "docs/security/audit/phase-2/threat-model.md",
         "docs/security/audit/phase-2/threat-model.source.json",
         "docs/security/audit/phase-3/credential-exposure-response.md",
         "docs/security/audit/phase-3/README.md",
         "docs/security/audit/phase-3/secret-scan-allowlist.json",
-        "docs/security/audit/phase-3/secret-scan.json",
-        "docs/security/audit/phase-3/secret-scan.md",
         "docs/security/audit/phase-4/dependency-exceptions.json",
-        "docs/security/audit/phase-4/dependency-policy.json",
-        "docs/security/audit/phase-4/dependency-policy.md",
         "docs/security/audit/phase-4/dependency-update-procedure.md",
         "docs/security/audit/phase-4/install-script-policy.json",
         "docs/security/audit/phase-4/README.md",
+        "docs/security/audit/phase-5/phase-5-authentication-session-spec.md",
+        "docs/security/audit/phase-5/README.md",
         "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md",
+        "docs/superpowers/plans/2026-08-21-phase-5-authentication-session-security.md",
+        "docs/superpowers/plans/2026-08-23-phase-11-upload-attachments-completion.md",
         "Frontend/Chatify/e2e/admin-delivery-health.spec.ts",
         "Frontend/Chatify/e2e/admin-hub.spec.ts",
         "Frontend/Chatify/e2e/admin-integrations.spec.ts",
@@ -3508,6 +3627,7 @@
         "Frontend/Chatify/src/pages/chat/components/AbstractIdentityTile.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/AbstractIdentityTile.tsx",
         "Frontend/Chatify/src/pages/chat/components/AttachmentPreview.tsx",
+        "Frontend/Chatify/src/pages/chat/components/AttachmentPreviewModal.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/AttachmentPreviewModal.tsx",
         "Frontend/Chatify/src/pages/chat/components/AttachmentTray.tsx",
         "Frontend/Chatify/src/pages/chat/components/CallOverlay.test.tsx",
@@ -3625,14 +3745,19 @@
         "README.md",
         "scripts/ops-check.mjs",
         "scripts/production-evidence-check.mjs",
+        "scripts/security/__tests__/phase1-downstream-generated-evidence.test.mjs",
         "scripts/security/__tests__/phase1-inventory.test.mjs",
         "scripts/security/__tests__/phase2-threat-model.test.mjs",
+        "scripts/security/__tests__/phase3-downstream-generated-evidence.test.mjs",
         "scripts/security/__tests__/phase3-reproduction.test.mjs",
         "scripts/security/__tests__/phase3-secret-scan.test.mjs",
         "scripts/security/__tests__/phase3-template-expression.test.mjs",
         "scripts/security/__tests__/phase4-dependency-policy.test.mjs",
         "scripts/security/__tests__/phase4-live-supply-chain.test.mjs",
         "scripts/security/__tests__/phase4-reproduction.test.mjs",
+        "scripts/security/__tests__/phase5-authentication-policy.test.mjs",
+        "scripts/security/__tests__/phase5-reproduction.test.mjs",
+        "scripts/security/lib/authentication-policy.mjs",
         "scripts/security/lib/dependency-policy.mjs",
         "scripts/security/lib/inventory.mjs",
         "scripts/security/lib/live-supply-chain.mjs",
@@ -3640,6 +3765,7 @@
         "scripts/security/lib/phase2-reproduction.mjs",
         "scripts/security/lib/phase3-reproduction.mjs",
         "scripts/security/lib/phase4-reproduction.mjs",
+        "scripts/security/lib/phase5-reproduction.mjs",
         "scripts/security/lib/secret-detectors.mjs",
         "scripts/security/lib/secret-scan.mjs",
         "scripts/security/lib/threat-model.mjs",
@@ -3653,11 +3779,14 @@
         "scripts/security/phase4-dependency-policy.mjs",
         "scripts/security/phase4-live-supply-chain.mjs",
         "scripts/security/phase4-reproduce.mjs",
+        "scripts/security/phase5-authentication-policy.mjs",
+        "scripts/security/phase5-reproduce.mjs",
         "skills-lock.json"
       ],
       "utilities": [
         "Backend/Chatify/Utils/asyncErrHandler.mjs",
         "Backend/Chatify/Utils/attachmentValidation.mjs",
+        "Backend/Chatify/Utils/authIdentity.mjs",
         "Backend/Chatify/Utils/authToken.mjs",
         "Backend/Chatify/Utils/callIceConfig.mjs",
         "Backend/Chatify/Utils/callSessionState.mjs",
@@ -3666,6 +3795,9 @@
         "Backend/Chatify/Utils/conversationControls.mjs",
         "Backend/Chatify/Utils/conversationOrganization.mjs",
         "Backend/Chatify/Utils/customError.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
+        "Backend/Chatify/Utils/databaseIndexState.mjs",
+        "Backend/Chatify/Utils/databaseSecurity.mjs",
         "Backend/Chatify/Utils/deliveryHealth.mjs",
         "Backend/Chatify/Utils/emailmsg.mjs",
         "Backend/Chatify/Utils/encryptionMode.mjs",
@@ -3678,6 +3810,7 @@
         "Backend/Chatify/Utils/notificationTemplates.mjs",
         "Backend/Chatify/Utils/oauthConfig.mjs",
         "Backend/Chatify/Utils/observabilityLogger.mjs",
+        "Backend/Chatify/Utils/officeDocumentSecurity.mjs",
         "Backend/Chatify/Utils/operationalReadiness.mjs",
         "Backend/Chatify/Utils/profileFields.mjs",
         "Backend/Chatify/Utils/profileImageValidation.mjs",
@@ -3687,14 +3820,17 @@
         "Backend/Chatify/Utils/spaceAccess.mjs",
         "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
         "Backend/Chatify/Utils/twoFactor.mjs",
+        "Backend/Chatify/Utils/uploadContentSecurity.mjs",
         "Backend/Chatify/Utils/usernameValidation.mjs"
       ],
       "workflows": [
         ".github/workflows/security-and-test-foundation.yml",
         ".github/workflows/security-phase-1-inventory.yml",
+        ".github/workflows/security-phase-11-upload-security.yml",
         ".github/workflows/security-phase-2-threat-model.yml",
         ".github/workflows/security-phase-3-secret-exposure.yml",
-        ".github/workflows/security-phase-4-supply-chain.yml"
+        ".github/workflows/security-phase-4-supply-chain.yml",
+        ".github/workflows/security-phase-5-authentication-session.yml"
       ]
     },
     "files": [
@@ -4190,6 +4326,15 @@
         ]
       },
       {
+        "path": ".github/workflows/security-phase-11-upload-security.yml",
+        "bytes": 4147,
+        "sha256": "693986e18d885f290f81e55e2a751247c90823c739f856023f8c44144edf0d6f",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
         "path": ".github/workflows/security-phase-2-threat-model.yml",
         "bytes": 1975,
         "sha256": "a433816ff47e3ea3eb9b8696b5589b15f5ad8f02670ea7c3e28f2d065dd40456",
@@ -4211,6 +4356,15 @@
         "path": ".github/workflows/security-phase-4-supply-chain.yml",
         "bytes": 2233,
         "sha256": "256a1ab27c293d22b77190e9013b5322bb9145645f26ac5d6d8e3993971a50b2",
+        "categories": [
+          "text-source-or-config",
+          "workflows"
+        ]
+      },
+      {
+        "path": ".github/workflows/security-phase-5-authentication-session.yml",
+        "bytes": 2580,
+        "sha256": "910348caed20b0e40c4702926724d300582be58eb1efccadfbcb26297039f3d3",
         "categories": [
           "text-source-or-config",
           "workflows"
@@ -13128,8 +13282,8 @@
       },
       {
         "path": "Backend/Chatify/.env.example",
-        "bytes": 1151,
-        "sha256": "5135cc4dec27f72fc28ccf7df02e7662bdb24803fc52f50f41f121929127f93d",
+        "bytes": 1488,
+        "sha256": "c8cdc9f6c950f69d10d7a8d038a06e2e1c2d4d49a0b8e0c334eb3b8be0373e63",
         "categories": [
           "backend"
         ]
@@ -13163,8 +13317,8 @@
       },
       {
         "path": "Backend/Chatify/Config/DBConfig.mjs",
-        "bytes": 624,
-        "sha256": "86753ced61b46112c6579d0676d4d8940b3762e52026cb0071a69cdb196c6a19",
+        "bytes": 2650,
+        "sha256": "33c35ef022a2fb8bd035c4932e4a2d407d04c951d76a701c8e617c63fb67c9f6",
         "categories": [
           "backend",
           "configuration",
@@ -13183,8 +13337,8 @@
       },
       {
         "path": "Backend/Chatify/Config/passport.mjs",
-        "bytes": 6626,
-        "sha256": "b2769267d1b6809c877bbf835d861b7ab8228068ffed075b75dbcdebdab7dd26",
+        "bytes": 5499,
+        "sha256": "d1cbdf7ba6f0c086f1d5adeea83782bb2f6548e426c1b8404baaba1851852fbc",
         "categories": [
           "backend",
           "configuration",
@@ -13213,8 +13367,8 @@
       },
       {
         "path": "Backend/Chatify/Controller/authController.mjs",
-        "bytes": 16699,
-        "sha256": "afb7996046db513d2219961983e8da811c788e58f62fce35b84cc6d237e16dc7",
+        "bytes": 17093,
+        "sha256": "4738afa9f64d71da23deb9d9da106202de7b56ad4610782515a79743ca6ddac3",
         "categories": [
           "backend",
           "controllers",
@@ -13225,6 +13379,16 @@
         "path": "Backend/Chatify/Controller/chatController.mjs",
         "bytes": 30292,
         "sha256": "2d0d8ee9fe075a1ccba51a9902f9aad8f39702e39163d993cba1c52f2b506220",
+        "categories": [
+          "backend",
+          "controllers",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Controller/chatDeletionController.mjs",
+        "bytes": 2259,
+        "sha256": "8e8797e8731a4c1e31e45324b6ab906bfd72c1d2e97a3dfe3d137e7e13ffce69",
         "categories": [
           "backend",
           "controllers",
@@ -13303,8 +13467,8 @@
       },
       {
         "path": "Backend/Chatify/Controller/twoFactorController.mjs",
-        "bytes": 10537,
-        "sha256": "f5478bc9f3f6af40d90edf035be0e53c9feecef8f5b3bd0a577f47ec0501486b",
+        "bytes": 11479,
+        "sha256": "854b6575f61701671bf2cfb2ed215eac1a12c400545e2c3f07bd37ed8a50fe95",
         "categories": [
           "backend",
           "controllers",
@@ -13325,6 +13489,16 @@
         "path": "Backend/Chatify/Middlewares/csrfProtection.mjs",
         "bytes": 1865,
         "sha256": "8a7060e09787d7092f01a77ba20195fd00838a12da4bdd2e0a3f700e5212aded",
+        "categories": [
+          "backend",
+          "middleware",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Middlewares/databaseAuthorization.mjs",
+        "bytes": 6137,
+        "sha256": "ba958f5e40686a4b05597c1154ea43d7c068dee114b3c53d10ed33536aeb757b",
         "categories": [
           "backend",
           "middleware",
@@ -13393,8 +13567,28 @@
       },
       {
         "path": "Backend/Chatify/Middlewares/sanitization.mjs",
-        "bytes": 1317,
-        "sha256": "864ba9d901121dd16acb9a56d2ebcc152024344684f7b9a64d9c928cfef3283d",
+        "bytes": 1444,
+        "sha256": "55fff60c7ebf614ad6c57bfcfe9726df3021c73f9458d3170797b9a8e6fcfed5",
+        "categories": [
+          "backend",
+          "middleware",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Middlewares/secureUpload.mjs",
+        "bytes": 7174,
+        "sha256": "2754299d35145c59b87719d87a21d3ddc6d88f1f05142ab1751be539b4fa315e",
+        "categories": [
+          "backend",
+          "middleware",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Middlewares/uploadDeliverySecurity.mjs",
+        "bytes": 2109,
+        "sha256": "e098556c02cfb9e91990d5df091f7568a6ea5dd5eb64dbeb17f3536ec55a6805",
         "categories": [
           "backend",
           "middleware",
@@ -13493,8 +13687,8 @@
       },
       {
         "path": "Backend/Chatify/Models/inviteLinkModel.mjs",
-        "bytes": 1806,
-        "sha256": "698ded806aabc8a878cc1318d1fe0998da41dad98c5a97512883efcbc4ba11c9",
+        "bytes": 1833,
+        "sha256": "ad67e288a6bd9825b7680f88acd4c8baed8d7176f3b4501092b7da03fef15dd8",
         "categories": [
           "backend",
           "models",
@@ -13503,8 +13697,8 @@
       },
       {
         "path": "Backend/Chatify/Models/messageModel.mjs",
-        "bytes": 7277,
-        "sha256": "423583ab400187d07b2eceaed4a97494d23ebac2aef854990d0b431bd3529b29",
+        "bytes": 7763,
+        "sha256": "6193533df3b920325149655b404485a55131a32dc87b2ca837b521d0a3ce9a20",
         "categories": [
           "backend",
           "models",
@@ -13523,8 +13717,8 @@
       },
       {
         "path": "Backend/Chatify/Models/oauthHandoffModel.mjs",
-        "bytes": 646,
-        "sha256": "0db99523a0e5fdf591a177ad3d6f74ae7af147be4ed5c935e05607d58f55b3da",
+        "bytes": 752,
+        "sha256": "2f1ad524ba16c3f19acf2bf48368a3a8e54e9776b8c3d148f4aae4dcaa4c6c4c",
         "categories": [
           "backend",
           "models",
@@ -13593,8 +13787,18 @@
       },
       {
         "path": "Backend/Chatify/Models/twoFactorChallengeModel.mjs",
-        "bytes": 843,
-        "sha256": "2e295272b9d045b0e844eb7bb74d485f892b38b052a59ce17d538a04f3bb97ce",
+        "bytes": 897,
+        "sha256": "ea7ca9891f48b5e8fdd55c22cd7275970199fea363b40cdef06168cb67245690",
+        "categories": [
+          "backend",
+          "models",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Models/uploadBudgetModel.mjs",
+        "bytes": 1029,
+        "sha256": "134383092182bc4cb3a9b7281b26ffccaa40c18642b8016a4374ab6790defcb5",
         "categories": [
           "backend",
           "models",
@@ -13613,8 +13817,8 @@
       },
       {
         "path": "Backend/Chatify/Models/userModel.mjs",
-        "bytes": 11345,
-        "sha256": "4563de1ac560057bf320d442bad0411daa090ec8ee876c04c5f668604b75ae87",
+        "bytes": 11524,
+        "sha256": "2c50e27128281f47f1bbc74df09f6b2f11685b79e4905cab0f9a26b731819717",
         "categories": [
           "backend",
           "models",
@@ -13633,8 +13837,8 @@
       },
       {
         "path": "Backend/Chatify/package.json",
-        "bytes": 1243,
-        "sha256": "dd8be49d8e21d408466cc6e695cfb9a4dce850b5e8e5dfd943044d9b20e85de0",
+        "bytes": 1373,
+        "sha256": "5e432cd271c70ada77936d670c62de346c463e86b5c8dc94de732481148d0eb5",
         "categories": [
           "backend",
           "package-manifests",
@@ -13653,8 +13857,8 @@
       },
       {
         "path": "Backend/Chatify/Routes/authRouter.mjs",
-        "bytes": 2331,
-        "sha256": "95e331d73454c7434a0de43b57fc6e056717351083ee17d3aeb86c044da93567",
+        "bytes": 2459,
+        "sha256": "b1128a8b5097e6191f8c21db1a04389400012be03f954b53b989ddf74b8f4c69",
         "categories": [
           "backend",
           "routes",
@@ -13663,8 +13867,8 @@
       },
       {
         "path": "Backend/Chatify/Routes/chatRouter.mjs",
-        "bytes": 1051,
-        "sha256": "08218d0c3ad300357f3291f593b6f0e1245687cbb897fe8797279dd8e5e540a7",
+        "bytes": 1494,
+        "sha256": "21476e9032c83283dcedc67f6f2f622b31dd4145599b045b18ebe3e12312d64b",
         "categories": [
           "backend",
           "routes",
@@ -13703,8 +13907,8 @@
       },
       {
         "path": "Backend/Chatify/Routes/messageRouter.mjs",
-        "bytes": 1799,
-        "sha256": "01e2726f14796177deddd81fbc87da614f7297f5a0be49b69b62b3767d27af87",
+        "bytes": 3405,
+        "sha256": "6e0c72596bb7bbc62c190a875c21ac8f9df60a9372df9deb4eeb36865790e836",
         "categories": [
           "backend",
           "routes",
@@ -13733,8 +13937,8 @@
       },
       {
         "path": "Backend/Chatify/Routes/userRouter.mjs",
-        "bytes": 2639,
-        "sha256": "851e0e5337447dbabd1eaa928ec4fe4d43379ae6b9eda89e65588c31671e00cb",
+        "bytes": 2826,
+        "sha256": "a9a0b96848a969923af5c8f35243738f92dac6a1f12f31a7f9ae9537c772e1b1",
         "categories": [
           "backend",
           "routes",
@@ -13742,9 +13946,18 @@
         ]
       },
       {
+        "path": "Backend/Chatify/scripts/database-indexes.mjs",
+        "bytes": 1391,
+        "sha256": "3fa6ddf58e0cb1d7066fb2f90fc57f9fdafc70298d3f7c2799fce1ade935cd47",
+        "categories": [
+          "backend",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "Backend/Chatify/server.mjs",
-        "bytes": 855,
-        "sha256": "923e1e0faf38af814bcbcca4692ec19352dc13fbb17a0bf73e7d4379ab550675",
+        "bytes": 1154,
+        "sha256": "48c315650a5f64acb75d369b54a1b7cde53422c7bf0a2532513d2a10a2e83224",
         "categories": [
           "backend",
           "text-source-or-config"
@@ -13782,8 +13995,8 @@
       },
       {
         "path": "Backend/Chatify/Services/privacyOperationsService.mjs",
-        "bytes": 12923,
-        "sha256": "bd1cdcea18bfdd3c514c6218bf5edc573c0310ad0f4bbe84a40804021e4fd0d9",
+        "bytes": 14646,
+        "sha256": "acd471a4de9e8b907eb2aeabf9d0ffde6e769f532ea81fc330bc85efc1b4deb4",
         "categories": [
           "backend",
           "services",
@@ -13794,6 +14007,26 @@
         "path": "Backend/Chatify/Services/profileImageStorageService.mjs",
         "bytes": 1751,
         "sha256": "d189d2c85d49e2f932b74518b3adafe9adaaf61fd5b9a750eddde24d39770565",
+        "categories": [
+          "backend",
+          "services",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Services/uploadBudgetService.mjs",
+        "bytes": 4086,
+        "sha256": "de1dd4191a6df1ad187986f036063654523dd7128d28f6376123726d13c61af0",
+        "categories": [
+          "backend",
+          "services",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Services/uploadLifecycleService.mjs",
+        "bytes": 5156,
+        "sha256": "81cfb965904be854108f5a4a36d13ce2d8ccf1af4cad56ac8f6271fff4ff0a65",
         "categories": [
           "backend",
           "services",
@@ -13822,8 +14055,8 @@
       },
       {
         "path": "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
-        "bytes": 11242,
-        "sha256": "eb50ff98431e98d125f8cb6d1113bd8a964ccb761f8c6387bdd7b7da3a2b28d9",
+        "bytes": 11200,
+        "sha256": "5ec63c3b4a2d4eba125ad7f48c7a011ba3df6e38a207cab3cbb80fa13548a540",
         "categories": [
           "backend",
           "tests",
@@ -13864,6 +14097,26 @@
         "path": "Backend/Chatify/test/auth/oauth-config.test.mjs",
         "bytes": 1671,
         "sha256": "4d9b65f326dc84b23d4319238ebea30a812eda50a0a7530c7a70be8c4389218f",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/test/auth/phase5-authentication-security.test.mjs",
+        "bytes": 6232,
+        "sha256": "365eea962b1e6d466145b29385cc54d117c9dbc03693b3310128eb2821f47cd3",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
+        "bytes": 6585,
+        "sha256": "560c7ad6ed65eb0e96c5b4081b24da8d358387da67bebda2953f17d9d84aa37b",
         "categories": [
           "backend",
           "tests",
@@ -13962,8 +14215,8 @@
       },
       {
         "path": "Backend/Chatify/test/fixtures/attachments.mjs",
-        "bytes": 1360,
-        "sha256": "65adecaf5fb595b88a807b74d852c2af168d5ff8cb000ce72b489cc6f13babc9",
+        "bytes": 1484,
+        "sha256": "251dacc8aab574c87b5b376d0a2609524ba036e6af6c6d7a80702f0f7d9278bf",
         "categories": [
           "backend",
           "tests",
@@ -14012,8 +14265,8 @@
       },
       {
         "path": "Backend/Chatify/test/helpers/authAgent.mjs",
-        "bytes": 2939,
-        "sha256": "e964499a8ffe80506692da7815fba97de781942dc3ce9aac6d9bc4038870a78c",
+        "bytes": 2998,
+        "sha256": "64deb49be685ca622627f7985e0abe877b48b7b18ac404adf059ec9f259fa7b9",
         "categories": [
           "backend",
           "tests",
@@ -14062,8 +14315,8 @@
       },
       {
         "path": "Backend/Chatify/test/message/message.attachment-authorization.test.mjs",
-        "bytes": 3112,
-        "sha256": "4d281d3893123a6a8afde213d0395b594f5cd6fc30bbd00f0ab2ddd4c147ea93",
+        "bytes": 3351,
+        "sha256": "1e573b242784d8b0162814255288b74842b00eae404d50969e9be5caca45e408",
         "categories": [
           "backend",
           "tests",
@@ -14341,6 +14594,66 @@
         ]
       },
       {
+        "path": "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+        "bytes": 10143,
+        "sha256": "774f1715fe752c9545da2eb6f4d253621ab87d18920ade34317d4f5445dbf416",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/test/security/phase11-chat-deletion-lifecycle.test.mjs",
+        "bytes": 2124,
+        "sha256": "dbfdb2b47c12d186f8200f4731ca86274e3ffde5e43ee0da0256ad312e86fa89",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/test/security/phase11-image-container-security.test.mjs",
+        "bytes": 736,
+        "sha256": "8fb17e9309115b0ced025ecdb0473b7e2817618e0edb68712702e57c083d7e2b",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/test/security/phase11-media-type-security.test.mjs",
+        "bytes": 945,
+        "sha256": "273471e957b9409a93c95df36628c1ec644e288f1a295731d44b2e56af27acf8",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/test/security/phase11-office-container-security.test.mjs",
+        "bytes": 5911,
+        "sha256": "970aaca62a6b32318254b996a22a891e834cf473f41fd793ee13f0bea1839d5f",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/test/security/phase11-upload-security.test.mjs",
+        "bytes": 13663,
+        "sha256": "e7de2e94fc60eaff33bcc04fe780d5e0318a676dc3f807a661a04e0402c717bb",
+        "categories": [
+          "backend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "Backend/Chatify/test/security/secret-configuration.test.mjs",
         "bytes": 6173,
         "sha256": "7cf3d53306d42672978ca9027446f3392a82022695166d2763f054e1816be603",
@@ -14372,8 +14685,8 @@
       },
       {
         "path": "Backend/Chatify/test/setup/mongo.mjs",
-        "bytes": 703,
-        "sha256": "5caa2af00c14213e19094ba259847d3e898c0128e9d45ed30b04c4f4e5926e5b",
+        "bytes": 979,
+        "sha256": "ddec315ada32b95a17135aa93ecb0aee7359b7e911cb38a0ff763dd347550e40",
         "categories": [
           "backend",
           "tests",
@@ -14612,8 +14925,18 @@
       },
       {
         "path": "Backend/Chatify/Utils/attachmentValidation.mjs",
-        "bytes": 9303,
-        "sha256": "fd1ed3588cc52825f63d9380263db38fbea1500a1074f94243a9cdf1e671200a",
+        "bytes": 13393,
+        "sha256": "6ad6b38c2a43381fe162f0662694ad86c10bdc82daae4f65d8154ee5cbbdd52f",
+        "categories": [
+          "backend",
+          "text-source-or-config",
+          "utilities"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Utils/authIdentity.mjs",
+        "bytes": 1661,
+        "sha256": "8a9b97db6bc5876f9a67296ffd9c6825cbad8d0f6d562887f441e59d0e48e638",
         "categories": [
           "backend",
           "text-source-or-config",
@@ -14622,8 +14945,8 @@
       },
       {
         "path": "Backend/Chatify/Utils/authToken.mjs",
-        "bytes": 1312,
-        "sha256": "66c4aeac9ef6f0185fa3c4dcd36237313bf7fae93dd5a16463cd5270ce65b142",
+        "bytes": 2080,
+        "sha256": "de97707f96f6e3682310e0d5a2369a92ba8f64854dc51d92eadfd5b59b4ff037",
         "categories": [
           "backend",
           "text-source-or-config",
@@ -14694,6 +15017,36 @@
         "path": "Backend/Chatify/Utils/customError.mjs",
         "bytes": 295,
         "sha256": "1c92cd3c3dfee5829b7f847a901b24b2d34cab726efa2deb1990c893c15a9864",
+        "categories": [
+          "backend",
+          "text-source-or-config",
+          "utilities"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
+        "bytes": 8399,
+        "sha256": "0b5d32a9b68eef2873b4240855a7312b4208ea473f181610dfd63fefa78168a4",
+        "categories": [
+          "backend",
+          "text-source-or-config",
+          "utilities"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Utils/databaseIndexState.mjs",
+        "bytes": 637,
+        "sha256": "622cffbcac03fd3c4a852000f196b8e7272f5174ec15dd8243d224d60b0bd8c1",
+        "categories": [
+          "backend",
+          "text-source-or-config",
+          "utilities"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Utils/databaseSecurity.mjs",
+        "bytes": 9551,
+        "sha256": "52ccfbcbb8dda2823181bc7f60b0e2db80df43a4962f29d21723d7c231b9b72c",
         "categories": [
           "backend",
           "text-source-or-config",
@@ -14821,9 +15174,19 @@
         ]
       },
       {
+        "path": "Backend/Chatify/Utils/officeDocumentSecurity.mjs",
+        "bytes": 9687,
+        "sha256": "a323662fc3c77a7b578e767bb7db572d936cb1f5409ef9e6e5caf78752916c97",
+        "categories": [
+          "backend",
+          "text-source-or-config",
+          "utilities"
+        ]
+      },
+      {
         "path": "Backend/Chatify/Utils/operationalReadiness.mjs",
-        "bytes": 4354,
-        "sha256": "b71529f49f9b49b0f8b3d02b8639b62b5d5a818ef7927cac4110f2f960313bab",
+        "bytes": 4827,
+        "sha256": "88778d5d93f6f47295da900cf849b2db6a2414e4a8f2dfa537cda477fa1120fb",
         "categories": [
           "backend",
           "text-source-or-config",
@@ -14842,8 +15205,8 @@
       },
       {
         "path": "Backend/Chatify/Utils/profileImageValidation.mjs",
-        "bytes": 3425,
-        "sha256": "f4ca65161d167909e7b55e82225f0897b945a2ab729129547fb5b0b458229f9c",
+        "bytes": 4876,
+        "sha256": "c5bdb15dbacbd87a9e715c0ad472f6c277b0fd58c8fa53ba97ec6cdc94e54b26",
         "categories": [
           "backend",
           "text-source-or-config",
@@ -14872,8 +15235,8 @@
       },
       {
         "path": "Backend/Chatify/Utils/sessionMetadata.mjs",
-        "bytes": 3147,
-        "sha256": "0c41f96d79690eec29188644a4b8c1d1822c3441ceb5afad63d131a5e677627e",
+        "bytes": 3597,
+        "sha256": "fa50ffaeee397814cc407b33f2eafc76941866737fe1332d545587d9a2caa613",
         "categories": [
           "backend",
           "text-source-or-config",
@@ -14892,8 +15255,8 @@
       },
       {
         "path": "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
-        "bytes": 6854,
-        "sha256": "e6b1c71f0bdb9b39c0063ac9809ca6716950064c590777106c6c3f5602607994",
+        "bytes": 8396,
+        "sha256": "7a0a928b34171dc636d02a1bf42c5df0cb6266d30b1dba66590ce9925f1458bc",
         "categories": [
           "backend",
           "text-source-or-config",
@@ -14904,6 +15267,16 @@
         "path": "Backend/Chatify/Utils/twoFactor.mjs",
         "bytes": 7113,
         "sha256": "783e38179b25cf842c5591a99bbc36805092fa4de9b5bc7fb2bf118cd6aac3e0",
+        "categories": [
+          "backend",
+          "text-source-or-config",
+          "utilities"
+        ]
+      },
+      {
+        "path": "Backend/Chatify/Utils/uploadContentSecurity.mjs",
+        "bytes": 16706,
+        "sha256": "57bed415588d24b3afb068db4f3b4e5622bf87ba9b2f282cef2f88bc3614bb5c",
         "categories": [
           "backend",
           "text-source-or-config",
@@ -15038,6 +15411,15 @@
         ]
       },
       {
+        "path": "docs/security/audit/phase-11/README.md",
+        "bytes": 6085,
+        "sha256": "d79c0d56c60b168ca3152309294eccc9eaca01bb71c0af066b67222c0b1a49a2",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "docs/security/audit/phase-2/README.md",
         "bytes": 6066,
         "sha256": "14403b6dd8cfcb7c998c9909eaf4da29bbc460039f11add29d31817354074038",
@@ -15047,27 +15429,9 @@
         ]
       },
       {
-        "path": "docs/security/audit/phase-2/threat-model.json",
-        "bytes": 92083,
-        "sha256": "57679c452507e08e993d7bc557005f2bc6b2f0f447b441b330936ea50a512d35",
-        "categories": [
-          "documentation-and-runbooks",
-          "text-source-or-config"
-        ]
-      },
-      {
-        "path": "docs/security/audit/phase-2/threat-model.md",
-        "bytes": 38504,
-        "sha256": "3aa0937af05a39451cbdf83031edf139559e84f6f11dbdbba395535b62507f57",
-        "categories": [
-          "documentation-and-runbooks",
-          "text-source-or-config"
-        ]
-      },
-      {
         "path": "docs/security/audit/phase-2/threat-model.source.json",
-        "bytes": 86886,
-        "sha256": "83831b9c6f7606da632bf8f530bb85f4be6b9f0622afb494435980f6ea939570",
+        "bytes": 87616,
+        "sha256": "148efaadd3bb2dc129c85b615c369ec99a38adee736c74e3d56ad9975fb1ffbf",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15093,26 +15457,8 @@
       },
       {
         "path": "docs/security/audit/phase-3/secret-scan-allowlist.json",
-        "bytes": 352,
-        "sha256": "2566d0538b5b70593f145a24648909afee7ce5fd4c535cc57fb2a802a7766189",
-        "categories": [
-          "documentation-and-runbooks",
-          "text-source-or-config"
-        ]
-      },
-      {
-        "path": "docs/security/audit/phase-3/secret-scan.json",
-        "bytes": 6768,
-        "sha256": "a7ea87343a2d70c468b26fac66abae5e190a8e440a58ce4db6b071df2d3c45b2",
-        "categories": [
-          "documentation-and-runbooks",
-          "text-source-or-config"
-        ]
-      },
-      {
-        "path": "docs/security/audit/phase-3/secret-scan.md",
-        "bytes": 1740,
-        "sha256": "6b9d612a503cfd1ee689840dc2102a4b1570d134b99d4bc345da5661f292b712",
+        "bytes": 2191,
+        "sha256": "57c128320cd71bb3443668a42096ad2340e50c19f8bf7661e10682adaac04209",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15122,24 +15468,6 @@
         "path": "docs/security/audit/phase-4/dependency-exceptions.json",
         "bytes": 42,
         "sha256": "7060c267c912e3156b87c646e3bc970eac1ac8bdd964cf0a794b83e6f1250614",
-        "categories": [
-          "documentation-and-runbooks",
-          "text-source-or-config"
-        ]
-      },
-      {
-        "path": "docs/security/audit/phase-4/dependency-policy.json",
-        "bytes": 389841,
-        "sha256": "3b7da0a7e3b46ca51b66c81915d7cec80835c87b93089cef01ed8d4f9f6e943f",
-        "categories": [
-          "documentation-and-runbooks",
-          "text-source-or-config"
-        ]
-      },
-      {
-        "path": "docs/security/audit/phase-4/dependency-policy.md",
-        "bytes": 5120,
-        "sha256": "721271444cbf2874318057e8dee118b0eaf64adc319d421c48ba859473013e8e",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -15173,9 +15501,45 @@
         ]
       },
       {
+        "path": "docs/security/audit/phase-5/phase-5-authentication-session-spec.md",
+        "bytes": 7871,
+        "sha256": "97d16cb075cee503d6492198c1038eac065ad1ea5427c188b97ecf4cb534a50a",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/security/audit/phase-5/README.md",
+        "bytes": 6884,
+        "sha256": "3e2999317b589a9afb73e7ea19c09579f915f077ce7900970d31b9c66a8c80af",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "docs/superpowers/plans/2026-08-21-phase-4-dependency-supply-chain.md",
         "bytes": 19312,
         "sha256": "255f6f09f0e649dfd72fd46e6b734cbe46580dce11554db6fa54595f0f5db88c",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/superpowers/plans/2026-08-21-phase-5-authentication-session-security.md",
+        "bytes": 14435,
+        "sha256": "8408480b7b279cc720d58e8cfc89ed8a4bf3f01b9b3f74d87607e21718901fba",
+        "categories": [
+          "documentation-and-runbooks",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "docs/superpowers/plans/2026-08-23-phase-11-upload-attachments-completion.md",
+        "bytes": 7834,
+        "sha256": "a18359be2c651b44df0dfdd0a6a6d544c35a558fc5edc09becc1ec83745071df",
         "categories": [
           "documentation-and-runbooks",
           "text-source-or-config"
@@ -16496,9 +16860,19 @@
         ]
       },
       {
+        "path": "Frontend/Chatify/src/pages/chat/components/AttachmentPreviewModal.test.tsx",
+        "bytes": 1841,
+        "sha256": "d3b60e34de7463fdfbe620515fba3defc679e1b3b333aae9f4d291aa2f44cfe6",
+        "categories": [
+          "frontend",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "Frontend/Chatify/src/pages/chat/components/AttachmentPreviewModal.tsx",
-        "bytes": 5485,
-        "sha256": "f9049f0f7854fa48e50f209607110891c5ee424d26034ba3e509a1c588804ad3",
+        "bytes": 5148,
+        "sha256": "ceb2547bb51dcabf651b47999060c2178e9e58986c2b69c085a887226dc31a94",
         "categories": [
           "frontend",
           "text-source-or-config"
@@ -16998,8 +17372,8 @@
       },
       {
         "path": "Frontend/Chatify/src/pages/chat/components/UserAvatar.test.tsx",
-        "bytes": 3942,
-        "sha256": "e1e8ed03de1c9c3cf79da0d0055605afc4e7d0feac877a2d2316ded865a2aca8",
+        "bytes": 4235,
+        "sha256": "438a2495ce34288c60a36b37a8d59bcb7d5fa2fcc629ae3a1d0ef7f0eeb146ef",
         "categories": [
           "frontend",
           "tests",
@@ -17008,8 +17382,8 @@
       },
       {
         "path": "Frontend/Chatify/src/pages/chat/components/UserAvatar.tsx",
-        "bytes": 2802,
-        "sha256": "4132e6266eea6d6b1863373a91992256d781df28497ecf1c1809cd642bc71dc8",
+        "bytes": 3148,
+        "sha256": "a5cf0c933804d12c3194a262f2b3dc6a29885bfcabfccc8a44b2705bd299ec4d",
         "categories": [
           "frontend",
           "text-source-or-config"
@@ -17242,8 +17616,8 @@
       },
       {
         "path": "Frontend/Chatify/src/pages/signup/signup.test.tsx",
-        "bytes": 1888,
-        "sha256": "2ec218af5c50ebf5a7107faaa82a53d70e0c622f6aa10657797ab62e615a1600",
+        "bytes": 1890,
+        "sha256": "3dcc5aa66362de8d5365f590808a88a1f7b28a64d390fbea5a53907cf9cd956e",
         "categories": [
           "frontend",
           "tests",
@@ -17438,8 +17812,8 @@
       },
       {
         "path": "Frontend/Chatify/src/utils/validationSchemas.test.ts",
-        "bytes": 1019,
-        "sha256": "792a0f0aa89cb2e335a9e94da4b71b67a02f129cc7eb5af7d4fb33312eb3f9e2",
+        "bytes": 2163,
+        "sha256": "c234cb0ee1b50da1dcb20d23a6180f065d92de55c81a80200f75c2b4b0844cda",
         "categories": [
           "frontend",
           "tests",
@@ -17448,8 +17822,8 @@
       },
       {
         "path": "Frontend/Chatify/src/utils/validationSchemas.tsx",
-        "bytes": 1653,
-        "sha256": "0558d3d472eaf8139496486882238d851b92f9943d710a68a2f032470e4c968a",
+        "bytes": 2035,
+        "sha256": "e04ce86524db77bc5c4c411a977d41137e9ac4ddc325461542cd1c0e65c4d725",
         "categories": [
           "frontend",
           "text-source-or-config"
@@ -17557,8 +17931,8 @@
       },
       {
         "path": "package.json",
-        "bytes": 2803,
-        "sha256": "2c923351cb09351f2e43a3bddc6179f75948541da53dc418dc107448f3f71646",
+        "bytes": 3155,
+        "sha256": "b11fe57267dbbac9ded9dbde07febea7fd8b87c19d97ac30448e8738fdcedddc",
         "categories": [
           "package-manifests",
           "text-source-or-config"
@@ -17591,6 +17965,16 @@
         ]
       },
       {
+        "path": "scripts/security/__tests__/phase1-downstream-generated-evidence.test.mjs",
+        "bytes": 1039,
+        "sha256": "6383ef1975f7348319652e6416a60e5318f05657551b9b67064106583c36d5b8",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "scripts/security/__tests__/phase1-inventory.test.mjs",
         "bytes": 12752,
         "sha256": "e0b093e8aba7638bdd2659eeb44fb9f0f59b4185705e4f7efab4e9b47b87c03c",
@@ -17603,7 +17987,17 @@
       {
         "path": "scripts/security/__tests__/phase2-threat-model.test.mjs",
         "bytes": 19335,
-        "sha256": "61cfc86dbac89e4b0636d0c256f328204195f0091813d2fd52d3a560459f150e",
+        "sha256": "1dac7d080662b279445fcf9c278154f53da2880bbf6baa836f5a372ea7e7e3b7",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/__tests__/phase3-downstream-generated-evidence.test.mjs",
+        "bytes": 857,
+        "sha256": "5893e618ba8b073df566ba2e79fe57f33b0ccf47915700c2fa16d743deaaca75",
         "categories": [
           "cli-and-operations",
           "tests",
@@ -17671,6 +18065,35 @@
         ]
       },
       {
+        "path": "scripts/security/__tests__/phase5-authentication-policy.test.mjs",
+        "bytes": 9667,
+        "sha256": "bcf2bc37f7310d0188326764512566b2784ad5383f2a9b86639e27544e5a0f29",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/__tests__/phase5-reproduction.test.mjs",
+        "bytes": 1567,
+        "sha256": "73e1ba8b7a082fc5862462e300980598ba3ceb3a3a4b4373dd46a2578b2973a6",
+        "categories": [
+          "cli-and-operations",
+          "tests",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/lib/authentication-policy.mjs",
+        "bytes": 17760,
+        "sha256": "881924e662e036f838912de7b86ef99f544750501ebeff8f91fc93559d915a4f",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "scripts/security/lib/dependency-policy.mjs",
         "bytes": 40579,
         "sha256": "fcb2f7d9cccfb415cdec65b3667d1e51ed4d71bb28c76636c06344af86372f3b",
@@ -17681,8 +18104,8 @@
       },
       {
         "path": "scripts/security/lib/inventory.mjs",
-        "bytes": 58529,
-        "sha256": "0e5edab598d8ac5229c4f13ec330259b18353236381768eb6a20e9f22e02fc33",
+        "bytes": 59030,
+        "sha256": "9dad7828be9358dce3cde27cca5e4ec8ff57227a4623f35a9478e78cddc7fb5b",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17734,6 +18157,15 @@
         ]
       },
       {
+        "path": "scripts/security/lib/phase5-reproduction.mjs",
+        "bytes": 2637,
+        "sha256": "29ce7d45251e440d755ad4822634ec79a5045ea149f9824961c9b50b3d16577d",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
         "path": "scripts/security/lib/secret-detectors.mjs",
         "bytes": 13019,
         "sha256": "95ac24958336108408068de72110db0fad18c5e6d62141f011fece68dcafde57",
@@ -17744,8 +18176,8 @@
       },
       {
         "path": "scripts/security/lib/secret-scan.mjs",
-        "bytes": 22424,
-        "sha256": "2fb34edaef3cfd63926d6063352db0af3e742d4ef53a7364afc5f52646a7e82a",
+        "bytes": 22617,
+        "sha256": "207b1d57102574fcf6f4952e65e3011a3398f1b843fd1a0e4ff25978e6d1ff2e",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -17845,6 +18277,24 @@
         "path": "scripts/security/phase4-reproduce.mjs",
         "bytes": 6105,
         "sha256": "8e98119b34591127c12d278c97e7941cd6da914cb705d1da9c13261ba375de90",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase5-authentication-policy.mjs",
+        "bytes": 1621,
+        "sha256": "b1c8af41bdbe56821402a4d6caad4e8c364f949d7af5ea884f40170cd6dfcaac",
+        "categories": [
+          "cli-and-operations",
+          "text-source-or-config"
+        ]
+      },
+      {
+        "path": "scripts/security/phase5-reproduce.mjs",
+        "bytes": 6147,
+        "sha256": "aa992a7ff5817c44222d87bbc8c0bcf3dab549ba2758a7fb0d84569fc01899cd",
         "categories": [
           "cli-and-operations",
           "text-source-or-config"
@@ -18189,6 +18639,7 @@
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 129,
         "middlewareAndHandlerTokens": [
+          "authLimiter",
           "logout"
         ],
         "mountMiddlewareTokens": [
@@ -18278,6 +18729,7 @@
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 129,
         "middlewareAndHandlerTokens": [
+          "authLimiter",
           "protect",
           "revokeSession"
         ],
@@ -18296,6 +18748,7 @@
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 129,
         "middlewareAndHandlerTokens": [
+          "authLimiter",
           "protect",
           "revokeAllSessions"
         ],
@@ -18345,12 +18798,14 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/:chatId",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 28,
+        "line": 37,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
         "middlewareAndHandlerTokens": [
-          "deleteChat"
+          "chatId",
+          "deleteChatWithUploads",
+          "requireChatMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -18363,11 +18818,13 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/:chatId/block",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 27,
+        "line": 36,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
         "middlewareAndHandlerTokens": [
+          "chatId",
+          "requireChatMembership",
           "unblockChatPeer"
         ],
         "mountMiddlewareTokens": [
@@ -18381,12 +18838,14 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/:chatId/block",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 27,
+        "line": 36,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
         "middlewareAndHandlerTokens": [
-          "blockChatPeer"
+          "blockChatPeer",
+          "chatId",
+          "requireChatMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -18399,11 +18858,14 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/:chatId/organization",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 26,
+        "line": 32,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
         "middlewareAndHandlerTokens": [
+          "chatId",
+          "concealedChatOptions",
+          "requireChatMembership",
           "updateChatOrganization"
         ],
         "mountMiddlewareTokens": [
@@ -18417,7 +18879,7 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/contact-requests",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 22,
+        "line": 28,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
@@ -18435,7 +18897,7 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/contact-requests",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 22,
+        "line": 28,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
@@ -18453,7 +18915,7 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/contact-requests/:requestId",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 25,
+        "line": 31,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
@@ -18471,7 +18933,7 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/contact-requests/:requestId/accept",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 23,
+        "line": 29,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
@@ -18489,7 +18951,7 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/contact-requests/:requestId/decline",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 24,
+        "line": 30,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
@@ -18507,7 +18969,7 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/create-group-chat",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 20,
+        "line": 26,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
@@ -18525,7 +18987,7 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/create-new-chat",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 19,
+        "line": 25,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
@@ -18543,7 +19005,7 @@
         "mountPath": "/api/chat",
         "fullPath": "/api/chat/get-all-chats",
         "source": "Backend/Chatify/Routes/chatRouter.mjs",
-        "line": 21,
+        "line": 27,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 131,
@@ -18859,12 +19321,14 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:chatId/mark-read",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 43,
+        "line": 86,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "markMessagesAsRead"
+          "chatId",
+          "markMessagesAsRead",
+          "requireChatMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -18878,12 +19342,14 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:chatId/pinned",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 39,
+        "line": 82,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "listPinnedMessages"
+          "chatId",
+          "listPinnedMessages",
+          "requireChatMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -18897,12 +19363,14 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:chatId/shared-assets",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 38,
+        "line": 81,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "listSharedAssets"
+          "chatId",
+          "listSharedAssets",
+          "requireChatMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -18916,12 +19384,14 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:chatId/unread-count",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 44,
+        "line": 87,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "getUnreadCount"
+          "chatId",
+          "getUnreadCount",
+          "requireChatMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -18935,12 +19405,13 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:messageId",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 45,
+        "line": 88,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "deleteMessage"
+          "deleteMessage",
+          "requireMessageMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -18954,12 +19425,13 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:messageId/edit",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 46,
+        "line": 89,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "editMessage"
+          "editMessage",
+          "requireMessageMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -18973,11 +19445,12 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:messageId/pin",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 48,
+        "line": 91,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
+          "requireMessageMembership",
           "unpinMessage"
         ],
         "mountMiddlewareTokens": [
@@ -18992,12 +19465,13 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:messageId/pin",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 48,
+        "line": 91,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "pinMessage"
+          "pinMessage",
+          "requireMessageMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -19011,11 +19485,12 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:messageId/reaction",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 47,
+        "line": 90,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
+          "requireMessageMembership",
           "toggleReaction"
         ],
         "mountMiddlewareTokens": [
@@ -19030,12 +19505,13 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:messageId/read",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 42,
+        "line": 85,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "markMessageAsRead"
+          "markMessageAsRead",
+          "requireMessageMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -19049,11 +19525,12 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:messageId/save",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 49,
+        "line": 94,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
+          "requirePrivateMessageMembership",
           "unsaveMessage"
         ],
         "mountMiddlewareTokens": [
@@ -19068,11 +19545,12 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/:messageId/save",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 49,
+        "line": 93,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
+          "requirePrivateMessageMembership",
           "saveMessage"
         ],
         "mountMiddlewareTokens": [
@@ -19087,12 +19565,15 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/attachments/:attachmentId/download",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 36,
+        "line": 75,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "downloadAttachment"
+          "download",
+          "downloadAttachment",
+          "enforceSecureUploadDelivery",
+          "requireAttachmentMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -19106,12 +19587,15 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/attachments/:attachmentId/preview",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 35,
+        "line": 70,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "previewAttachment"
+          "enforceSecureUploadDelivery",
+          "preview",
+          "previewAttachment",
+          "requireAttachmentMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -19125,7 +19609,7 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/batch/unread-counts",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 34,
+        "line": 69,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
@@ -19144,12 +19628,16 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/context/:chatId/:messageId",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 33,
+        "line": 64,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "getMessageContext"
+          "chatId",
+          "getMessageContext",
+          "privateChatSearchOptions",
+          "requireChatMembership",
+          "requireMessageMembership"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -19163,12 +19651,15 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/get-all-messages/:id",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 31,
+        "line": 59,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
-          "getAllMessages"
+          "getAllMessages",
+          "id",
+          "requireChatMembership",
+          "statusCode"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -19182,14 +19673,17 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/new-message",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 30,
+        "line": 53,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
           "attachmentUploadLimiter",
+          "chatId",
           "newMessage",
-          "parseMessageAttachments"
+          "requireBodyChatMembership",
+          "secureMessageAttachmentUpload",
+          "statusCode"
         ],
         "mountMiddlewareTokens": [
           "csrfProtection",
@@ -19203,7 +19697,7 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/saved",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 37,
+        "line": 80,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
@@ -19222,11 +19716,14 @@
         "mountPath": "/api/message",
         "fullPath": "/api/message/search/:chatId",
         "source": "Backend/Chatify/Routes/messageRouter.mjs",
-        "line": 32,
+        "line": 60,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 132,
         "middlewareAndHandlerTokens": [
+          "chatId",
+          "privateChatSearchOptions",
+          "requireChatMembership",
           "searchMessages"
         ],
         "mountMiddlewareTokens": [
@@ -19620,12 +20117,14 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/:userId/profile-image",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 44,
+        "line": 45,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
         "middlewareAndHandlerTokens": [
+          "enforceSecureUploadDelivery",
           "getProfileImage",
+          "preview",
           "protect"
         ],
         "mountMiddlewareTokens": []
@@ -19636,7 +20135,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/get-all-users",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 35,
+        "line": 36,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19652,7 +20151,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/get-logged-user",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 34,
+        "line": 35,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19668,7 +20167,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/identity",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 45,
+        "line": 50,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19685,7 +20184,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/lookup/:username",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 38,
+        "line": 39,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19701,7 +20200,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/notification-preferences",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 52,
+        "line": 57,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19717,7 +20216,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/notification-preferences",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 53,
+        "line": 58,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19734,7 +20233,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/notification-preferences/email-unsubscribe",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 55,
+        "line": 60,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19751,7 +20250,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/online-status/:userId",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 36,
+        "line": 37,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19767,7 +20266,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/online-users",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 37,
+        "line": 38,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19783,7 +20282,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/privacy-settings",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 46,
+        "line": 51,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19800,7 +20299,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/privacy/deletion-request",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 49,
+        "line": 54,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19818,7 +20317,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/privacy/deletion-request/cancel",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 50,
+        "line": 55,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19836,7 +20335,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/privacy/export",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 48,
+        "line": 53,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19854,7 +20353,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/privacy/summary",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 47,
+        "line": 52,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19870,7 +20369,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/profile-image",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 43,
+        "line": 44,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19887,15 +20386,15 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/profile-image",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 42,
+        "line": 43,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
         "middlewareAndHandlerTokens": [
           "csrfProtection",
-          "parseProfileImageUpload",
           "profileImageUploadLimiter",
           "protect",
+          "secureProfileImageUpload",
           "uploadProfileImage"
         ],
         "mountMiddlewareTokens": []
@@ -19906,7 +20405,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/profile",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 40,
+        "line": 41,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19923,7 +20422,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/push-subscriptions",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 58,
+        "line": 63,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19940,7 +20439,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/push-subscriptions",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 57,
+        "line": 62,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -19957,7 +20456,7 @@
         "mountPath": "/api/user",
         "fullPath": "/api/user/username",
         "source": "Backend/Chatify/Routes/userRouter.mjs",
-        "line": 39,
+        "line": 40,
         "receiver": "router",
         "mountSource": "Backend/Chatify/app.mjs",
         "mountLine": 130,
@@ -20788,17 +21287,17 @@
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 737
+        "line": 746
       },
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 737
+        "line": 746
       },
       {
         "kind": "cron-or-scheduler",
         "source": "scripts/security/lib/inventory.mjs",
-        "line": 737
+        "line": 746
       },
       {
         "kind": "setInterval",
@@ -20808,7 +21307,12 @@
       {
         "kind": "setInterval",
         "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-        "line": 420
+        "line": 483
+      },
+      {
+        "kind": "setInterval",
+        "source": "Backend/Chatify/Services/uploadLifecycleService.mjs",
+        "line": 149
       },
       {
         "kind": "setInterval",
@@ -20975,7 +21479,7 @@
       {
         "cwd": ".",
         "name": "security:phase1:test",
-        "implementation": "node --test scripts/security/__tests__/phase1-inventory.test.mjs"
+        "implementation": "node --test scripts/security/__tests__/phase1-*.test.mjs"
       },
       {
         "cwd": ".",
@@ -21039,6 +21543,26 @@
       },
       {
         "cwd": ".",
+        "name": "security:phase5:check",
+        "implementation": "node scripts/security/phase5-authentication-policy.mjs --check"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase5:generate",
+        "implementation": "node scripts/security/phase5-authentication-policy.mjs --write"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase5:reproduce",
+        "implementation": "node scripts/security/phase5-reproduce.mjs"
+      },
+      {
+        "cwd": ".",
+        "name": "security:phase5:test",
+        "implementation": "node --test scripts/security/__tests__/phase5-*.test.mjs"
+      },
+      {
+        "cwd": ".",
         "name": "smoke:local",
         "implementation": "npm --prefix Frontend/Chatify run test:ui --"
       },
@@ -21051,6 +21575,16 @@
         "cwd": ".",
         "name": "test",
         "implementation": "npm run quality"
+      },
+      {
+        "cwd": "Backend/Chatify",
+        "name": "db:indexes:apply",
+        "implementation": "node scripts/database-indexes.mjs --apply"
+      },
+      {
+        "cwd": "Backend/Chatify",
+        "name": "db:indexes:check",
+        "implementation": "node scripts/database-indexes.mjs"
       },
       {
         "cwd": "Backend/Chatify",
@@ -21616,12 +22150,17 @@
         "hashing"
       ],
       "consumerFiles": [
+        "Backend/Chatify/Controller/chatDeletionController.mjs",
         "Backend/Chatify/Controller/messageController.mjs",
         "Backend/Chatify/Controller/moderationController.mjs",
+        "Backend/Chatify/Middlewares/databaseAuthorization.mjs",
         "Backend/Chatify/Models/messageModel.mjs",
+        "Backend/Chatify/Services/uploadLifecycleService.mjs",
         "Backend/Chatify/test/message/message.attachments.test.mjs",
         "Backend/Chatify/test/message/message.e2ee.test.mjs",
         "Backend/Chatify/test/message/message.voice.test.mjs",
+        "Backend/Chatify/test/security/phase11-chat-deletion-lifecycle.test.mjs",
+        "Backend/Chatify/test/security/phase11-upload-security.test.mjs",
         "Frontend/Chatify/src/pages/chat/components/ConversationDetailContent.tsx",
         "Frontend/Chatify/src/pages/chat/components/MessageComposer.test.tsx",
         "Frontend/Chatify/src/pages/chat/components/MessageComposer.tsx",
@@ -21652,9 +22191,20 @@
         "mentionFingerprint",
         "messageId",
         "moderation",
-        "replyFingerprint"
+        "replyFingerprint",
+        "uploadedProfileImage"
       ],
       "deletionOperations": [
+        {
+          "operation": "deleteMany",
+          "source": "Backend/Chatify/Controller/chatDeletionController.mjs",
+          "line": 50
+        },
+        {
+          "operation": "deleteOne",
+          "source": "Backend/Chatify/Controller/chatDeletionController.mjs",
+          "line": 51
+        },
         {
           "operation": "deleteOne",
           "source": "Backend/Chatify/Controller/messageController.mjs",
@@ -21664,6 +22214,11 @@
           "operation": "deleteOne",
           "source": "Backend/Chatify/Controller/messageController.mjs",
           "line": 566
+        },
+        {
+          "operation": "deleteMany",
+          "source": "Backend/Chatify/Services/uploadLifecycleService.mjs",
+          "line": 100
         }
       ],
       "extractionConfidence": "heuristic-static-inventory; validate accepted and returned fields during authorization/data-flow review"
@@ -21954,12 +22509,14 @@
       "consumerFiles": [
         "Backend/Chatify/Config/socket.mjs",
         "Backend/Chatify/Controller/chatController.mjs",
+        "Backend/Chatify/Controller/chatDeletionController.mjs",
         "Backend/Chatify/Controller/inviteLinkController.mjs",
         "Backend/Chatify/Controller/messageController.mjs",
         "Backend/Chatify/Controller/moderationController.mjs",
         "Backend/Chatify/Controller/privacyController.mjs",
         "Backend/Chatify/Controller/spaceController.mjs",
         "Backend/Chatify/Controller/userController.mjs",
+        "Backend/Chatify/Middlewares/databaseAuthorization.mjs",
         "Backend/Chatify/Models/abuseReportModel.mjs",
         "Backend/Chatify/Models/attachmentModel.mjs",
         "Backend/Chatify/Models/callSessionModel.mjs",
@@ -21988,6 +22545,8 @@
         "Backend/Chatify/test/message/message.saved.test.mjs",
         "Backend/Chatify/test/message/message.status-unread.test.mjs",
         "Backend/Chatify/test/notification/notification.outbox.test.mjs",
+        "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-upload-security.test.mjs",
         "Backend/Chatify/test/space/space.contract.test.mjs",
         "Backend/Chatify/test/space/space.join.test.mjs",
         "Backend/Chatify/test/space/space.membership.test.mjs",
@@ -21995,6 +22554,7 @@
         "Backend/Chatify/test/space/space.socket.test.mjs",
         "Backend/Chatify/test/user/user.profile-image.test.mjs",
         "Backend/Chatify/Utils/chatAccess.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
         "Backend/Chatify/Utils/deliveryHealth.mjs",
         "Backend/Chatify/Utils/integrationPermissions.mjs",
         "Frontend/Chatify/src/pages/chat/components/ChatSidebar.tsx"
@@ -22061,6 +22621,16 @@
           "operation": "findByIdAndDelete",
           "source": "Backend/Chatify/Controller/chatController.mjs",
           "line": 1054
+        },
+        {
+          "operation": "deleteMany",
+          "source": "Backend/Chatify/Controller/chatDeletionController.mjs",
+          "line": 50
+        },
+        {
+          "operation": "deleteOne",
+          "source": "Backend/Chatify/Controller/chatDeletionController.mjs",
+          "line": 51
         },
         {
           "operation": "deleteOne",
@@ -22601,14 +23171,16 @@
         {
           "schema": "inviteLinkSchema",
           "keys": "{ expiresAt: 1 }",
-          "options": "",
+          "options": "{ expireAfterSeconds: 0 }",
           "line": 85
         }
       ],
       "timestampsEnabled": true,
       "hashingOrEncryptionSignals": [],
       "consumerFiles": [
-        "Backend/Chatify/test/invite/invite-links.test.mjs"
+        "Backend/Chatify/test/invite/invite-links.test.mjs",
+        "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs"
       ],
       "clientInputCandidates": [],
       "responseFieldCandidates": [
@@ -22625,22 +23197,22 @@
       "fields": [
         {
           "name": "algorithm",
-          "line": 118,
+          "line": 135,
           "definition": "algorithm: { type: String, enum: [\"AES-GCM\"], },"
         },
         {
           "name": "answeredAt",
-          "line": 93,
+          "line": 110,
           "definition": "answeredAt: { type: Date, },"
         },
         {
           "name": "attachmentCount",
-          "line": 159,
+          "line": 176,
           "definition": "attachmentCount: { type: Number, min: 0, default: 0, },"
         },
         {
           "name": "attachmentFingerprint",
-          "line": 260,
+          "line": 278,
           "definition": "attachmentFingerprint: { type: String, select: false, },"
         },
         {
@@ -22650,57 +23222,57 @@
         },
         {
           "name": "attachmentManifest",
-          "line": 133,
+          "line": 150,
           "definition": "attachmentManifest: { type: mongoose.Schema.Types.Mixed, },"
         },
         {
           "name": "attachments",
-          "line": 256,
-          "definition": "attachments: { type: [attachmentSummarySchema], default: [], },"
+          "line": 273,
+          "definition": "attachments: { type: [attachmentSummarySchema], default: [], set: normalizeAttachmentSummaries, },"
         },
         {
           "name": "authTag",
-          "line": 114,
+          "line": 131,
           "definition": "authTag: { type: String, trim: true, },"
         },
         {
           "name": "callActivity",
-          "line": 253,
+          "line": 270,
           "definition": "callActivity: { type: callActivitySchema, },"
         },
         {
           "name": "calleeId",
-          "line": 75,
+          "line": 92,
           "definition": "calleeId: { type: mongoose.Schema.Types.ObjectId, ref: \"Users\", },"
         },
         {
           "name": "callerId",
-          "line": 71,
+          "line": 88,
           "definition": "callerId: { type: mongoose.Schema.Types.ObjectId, ref: \"Users\", },"
         },
         {
           "name": "callId",
-          "line": 67,
+          "line": 84,
           "definition": "callId: { type: String, trim: true, },"
         },
         {
           "name": "chatId",
-          "line": 198,
+          "line": 215,
           "definition": "chatId: { type: mongoose.Schema.Types.ObjectId, ref: \"Chats\", },"
         },
         {
           "name": "ciphertext",
-          "line": 106,
+          "line": 123,
           "definition": "ciphertext: { type: String, trim: true, },"
         },
         {
           "name": "clientMessageId",
-          "line": 206,
+          "line": 223,
           "definition": "clientMessageId: { type: String, trim: true, },"
         },
         {
           "name": "createdAt",
-          "line": 172,
+          "line": 189,
           "definition": "createdAt: { type: Date, },"
         },
         {
@@ -22710,32 +23282,32 @@
         },
         {
           "name": "deletedAt",
-          "line": 303,
+          "line": 321,
           "definition": "deletedAt: { type: Date, },"
         },
         {
           "name": "deletedBy",
-          "line": 299,
+          "line": 317,
           "definition": "deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: \"Users\", },"
         },
         {
           "name": "deletedFor",
-          "line": 291,
+          "line": 309,
           "definition": "deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: \"Users\", }],"
         },
         {
           "name": "deletedForEveryone",
-          "line": 295,
+          "line": 313,
           "definition": "deletedForEveryone: { type: Boolean, default: false, },"
         },
         {
           "name": "deliveredAt",
-          "line": 274,
+          "line": 292,
           "definition": "deliveredAt: { type: Date, },"
         },
         {
           "name": "displayName",
-          "line": 189,
+          "line": 206,
           "definition": "displayName: { type: String, trim: true, maxlength: 120, default: \"\", },"
         },
         {
@@ -22745,17 +23317,17 @@
         },
         {
           "name": "durationSeconds",
-          "line": 52,
+          "line": 116,
           "definition": "durationSeconds: { type: Number, min: 0, },"
         },
         {
           "name": "durationSeconds",
-          "line": 99,
+          "line": 52,
           "definition": "durationSeconds: { type: Number, min: 0, },"
         },
         {
           "name": "editedAt",
-          "line": 288,
+          "line": 306,
           "definition": "editedAt: { type: Date, },"
         },
         {
@@ -22765,52 +23337,52 @@
         },
         {
           "name": "encryptedAt",
-          "line": 130,
+          "line": 147,
           "definition": "encryptedAt: { type: Date, },"
         },
         {
           "name": "encryptedPayload",
-          "line": 231,
+          "line": 248,
           "definition": "encryptedPayload: { type: encryptedPayloadSchema, },"
         },
         {
           "name": "encryptedPayloadFingerprint",
-          "line": 234,
+          "line": 251,
           "definition": "encryptedPayloadFingerprint: { type: String, select: false, },"
         },
         {
           "name": "encryptionMode",
-          "line": 226,
+          "line": 243,
           "definition": "encryptionMode: { type: String, enum: Object.values(CHAT_ENCRYPTION_MODES), default: CHAT_ENCRYPTION_MODES.STANDARD, },"
         },
         {
           "name": "endedAt",
-          "line": 96,
+          "line": 113,
           "definition": "endedAt: { type: Date, },"
         },
         {
           "name": "isDeleted",
-          "line": 164,
+          "line": 181,
           "definition": "isDeleted: { type: Boolean, default: false, },"
         },
         {
           "name": "isEdited",
-          "line": 284,
+          "line": 302,
           "definition": "isEdited: { type: Boolean, default: false, },"
         },
         {
           "name": "isEncrypted",
-          "line": 168,
+          "line": 185,
           "definition": "isEncrypted: { type: Boolean, default: false, },"
         },
         {
           "name": "iv",
-          "line": 110,
+          "line": 127,
           "definition": "iv: { type: String, trim: true, },"
         },
         {
           "name": "keyVersion",
-          "line": 122,
+          "line": 139,
           "definition": "keyVersion: { type: Number, min: 1, },"
         },
         {
@@ -22820,27 +23392,27 @@
         },
         {
           "name": "mentionFingerprint",
-          "line": 249,
+          "line": 266,
           "definition": "mentionFingerprint: { type: String, select: false, },"
         },
         {
           "name": "mentions",
-          "line": 245,
+          "line": 262,
           "definition": "mentions: { type: [mentionSchema], default: [], },"
         },
         {
           "name": "messageId",
-          "line": 139,
+          "line": 156,
           "definition": "messageId: { type: mongoose.Schema.Types.ObjectId, ref: \"Messages\", required: true, },"
         },
         {
           "name": "messageType",
-          "line": 149,
+          "line": 166,
           "definition": "messageType: { type: String, enum: [\"text\", \"call\", \"encrypted\"], default: \"text\", },"
         },
         {
           "name": "messageType",
-          "line": 221,
+          "line": 238,
           "definition": "messageType: { type: String, enum: [\"text\", \"call\", \"encrypted\"], default: \"text\", },"
         },
         {
@@ -22850,32 +23422,32 @@
         },
         {
           "name": "mode",
-          "line": 79,
+          "line": 96,
           "definition": "mode: { type: String, enum: [\"audio\", \"video\"], },"
         },
         {
           "name": "pinned",
-          "line": 306,
+          "line": 324,
           "definition": "pinned: { type: Boolean, default: false, },"
         },
         {
           "name": "pinnedAt",
-          "line": 314,
+          "line": 332,
           "definition": "pinnedAt: { type: Date, },"
         },
         {
           "name": "pinnedBy",
-          "line": 310,
+          "line": 328,
           "definition": "pinnedBy: { type: mongoose.Schema.Types.ObjectId, ref: \"Users\", },"
         },
         {
           "name": "reactions",
-          "line": 282,
+          "line": 300,
           "definition": "reactions: [reactionSchema], // Edit/Delete fields"
         },
         {
           "name": "read",
-          "line": 264,
+          "line": 282,
           "definition": "read: { type: Boolean, default: false, }, // New fields for read receipts"
         },
         {
@@ -22885,47 +23457,47 @@
         },
         {
           "name": "readAt",
-          "line": 277,
+          "line": 295,
           "definition": "readAt: { type: Date, },"
         },
         {
           "name": "readBy",
-          "line": 280,
+          "line": 298,
           "definition": "readBy: [readBySchema], // Reactions"
         },
         {
           "name": "replyFingerprint",
-          "line": 241,
+          "line": 258,
           "definition": "replyFingerprint: { type: String, select: false, },"
         },
         {
           "name": "replyTo",
-          "line": 238,
+          "line": 255,
           "definition": "replyTo: { type: replyToSchema, },"
         },
         {
           "name": "result",
-          "line": 83,
+          "line": 100,
           "definition": "result: { type: String, enum: [\"missed\", \"rejected\", \"ended\", \"failed\", \"canceled\", \"blocked\"], },"
         },
         {
           "name": "ringingAt",
-          "line": 90,
+          "line": 107,
           "definition": "ringingAt: { type: Date, },"
         },
         {
           "name": "sender",
-          "line": 144,
+          "line": 161,
           "definition": "sender: { type: mongoose.Schema.Types.ObjectId, ref: \"Users\", required: true, },"
         },
         {
           "name": "sender",
-          "line": 202,
+          "line": 219,
           "definition": "sender: { type: mongoose.Schema.Types.ObjectId, ref: \"Users\", },"
         },
         {
           "name": "senderDeviceId",
-          "line": 126,
+          "line": 143,
           "definition": "senderDeviceId: { type: String, trim: true, },"
         },
         {
@@ -22935,12 +23507,12 @@
         },
         {
           "name": "startedAt",
-          "line": 87,
+          "line": 104,
           "definition": "startedAt: { type: Date, },"
         },
         {
           "name": "status",
-          "line": 269,
+          "line": 287,
           "definition": "status: { type: String, enum: ['sent', 'delivered', 'read'], default: 'sent', },"
         },
         {
@@ -22950,12 +23522,12 @@
         },
         {
           "name": "text",
-          "line": 210,
+          "line": 227,
           "definition": "text: { type: String, required() { return this.messageType !== \"call\" && this.messageType !== \"encrypted\" && !this.deletedForEveryone && (!this.attachments || this.attachments.length === 0); }, maxlength: 1000, default: '', },"
         },
         {
           "name": "textPreview",
-          "line": 154,
+          "line": 171,
           "definition": "textPreview: { type: String, maxlength: 160, default: \"\", },"
         },
         {
@@ -22965,7 +23537,7 @@
         },
         {
           "name": "user",
-          "line": 178,
+          "line": 195,
           "definition": "user: { type: mongoose.Schema.Types.ObjectId, ref: \"Users\", required: true, },"
         },
         {
@@ -22975,7 +23547,7 @@
         },
         {
           "name": "username",
-          "line": 183,
+          "line": 200,
           "definition": "username: { type: String, required: true, trim: true, lowercase: true, },"
         }
       ],
@@ -23020,73 +23592,73 @@
           "schema": "messageSchema",
           "keys": "{ chatId: 1, createdAt: 1 }",
           "options": "",
-          "line": 336
+          "line": 354
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, createdAt: -1, _id: -1 }",
           "options": "",
-          "line": 337
+          "line": 355
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, sender: 1, status: 1 }",
           "options": "",
-          "line": 338
+          "line": 356
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, sender: 1, createdAt: -1, _id: -1 }",
           "options": "",
-          "line": 339
+          "line": 357
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, pinned: 1, pinnedAt: -1 }",
           "options": "",
-          "line": 340
+          "line": 358
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, messageType: 1, createdAt: -1 }",
           "options": "",
-          "line": 341
+          "line": 359
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, 'replyTo.messageId': 1, createdAt: -1 }",
           "options": "",
-          "line": 342
+          "line": 360
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, 'mentions.user': 1, createdAt: -1 }",
           "options": "",
-          "line": 343
+          "line": 361
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, 'callActivity.callId': 1 }",
           "options": "{ unique: true, partialFilterExpression: { 'callActivity.callId': { $exists: true, $type: \"string\" }, }, }",
-          "line": 344
+          "line": 362
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, sender: 1, 'readBy.user': 1 }",
           "options": "",
-          "line": 354
+          "line": 372
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, deletedFor: 1, deletedForEveryone: 1, createdAt: -1, _id: -1 }",
           "options": "",
-          "line": 355
+          "line": 373
         },
         {
           "schema": "messageSchema",
           "keys": "{ chatId: 1, sender: 1, clientMessageId: 1 }",
           "options": "{ unique: true, partialFilterExpression: { clientMessageId: { $exists: true, $type: \"string\" }, }, }",
-          "line": 356
+          "line": 374
         }
       ],
       "timestampsEnabled": true,
@@ -23096,9 +23668,11 @@
       "consumerFiles": [
         "Backend/Chatify/Config/socket.mjs",
         "Backend/Chatify/Controller/chatController.mjs",
+        "Backend/Chatify/Controller/chatDeletionController.mjs",
         "Backend/Chatify/Controller/messageController.mjs",
         "Backend/Chatify/Controller/moderationController.mjs",
         "Backend/Chatify/Controller/privacyController.mjs",
+        "Backend/Chatify/Middlewares/databaseAuthorization.mjs",
         "Backend/Chatify/Models/abuseReportModel.mjs",
         "Backend/Chatify/Models/attachmentModel.mjs",
         "Backend/Chatify/Models/chatModel.mjs",
@@ -23121,6 +23695,7 @@
         "Backend/Chatify/test/moderation/abuse-report.test.mjs",
         "Backend/Chatify/test/notification/notification.delivery.test.mjs",
         "Backend/Chatify/test/notification/notification.outbox.test.mjs",
+        "Backend/Chatify/test/security/phase11-chat-deletion-lifecycle.test.mjs",
         "Backend/Chatify/test/socket/socket.attachments-pins.test.mjs",
         "Backend/Chatify/test/socket/socket.authorization.test.mjs",
         "Backend/Chatify/test/socket/socket.blocking.test.mjs",
@@ -23130,6 +23705,7 @@
         "Backend/Chatify/test/space/space.messaging.test.mjs",
         "Backend/Chatify/Utils/callSessionState.mjs",
         "Backend/Chatify/Utils/chatAccess.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
         "Backend/Chatify/Utils/deliveryHealth.mjs",
         "Frontend/Chatify/e2e/admin-delivery-health.spec.ts",
         "Frontend/Chatify/src/i18n/locales.ts",
@@ -23183,6 +23759,16 @@
           "operation": "findByIdAndDelete",
           "source": "Backend/Chatify/Controller/chatController.mjs",
           "line": 1054
+        },
+        {
+          "operation": "deleteMany",
+          "source": "Backend/Chatify/Controller/chatDeletionController.mjs",
+          "line": 50
+        },
+        {
+          "operation": "deleteOne",
+          "source": "Backend/Chatify/Controller/chatDeletionController.mjs",
+          "line": 51
         },
         {
           "operation": "deleteOne",
@@ -23413,10 +23999,12 @@
         "Backend/Chatify/test/notification/notification.delivery.test.mjs",
         "Backend/Chatify/test/notification/notification.outbox.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
         "Backend/Chatify/Utils/deliveryHealth.mjs"
       ],
       "clientInputCandidates": [],
       "responseFieldCandidates": [
+        "_id",
         "discordId",
         "email",
         "githubId",
@@ -23438,37 +24026,37 @@
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 166
+          "line": 180
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 167
+          "line": 181
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 168
+          "line": 182
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 252
+          "line": 313
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 256
+          "line": 317
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 257
+          "line": 318
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 258
+          "line": 319
         }
       ],
       "extractionConfidence": "heuristic-static-inventory; validate accepted and returned fields during authorization/data-flow review"
@@ -23476,36 +24064,43 @@
     {
       "source": "Backend/Chatify/Models/oauthHandoffModel.mjs",
       "modelNames": [
-        "OAuthHandoff"
+        "OAuthHandoffs"
       ],
       "fields": [
         {
           "name": "consumedAt",
-          "line": 18,
-          "definition": "consumedAt: { type: Date, default: null, },"
+          "line": 8,
+          "definition": "consumedAt: { type: Date, default: null },"
         },
         {
           "name": "expiresAt",
-          "line": 22,
-          "definition": "expiresAt: { type: Date, required: true, },"
+          "line": 9,
+          "definition": "expiresAt: { type: Date, required: true },"
         },
         {
-          "name": "jti",
-          "line": 4,
-          "definition": "jti: { type: String, required: true, unique: true, },"
+          "name": "provider",
+          "line": 6,
+          "definition": "provider: { type: String, enum: ['google', 'github', 'discord'], required: true },"
         },
         {
           "name": "stateHash",
-          "line": 14,
-          "definition": "stateHash: { type: String, required: true, },"
+          "line": 7,
+          "definition": "stateHash: { type: String, required: true },"
+        },
+        {
+          "name": "tokenHash",
+          "line": 4,
+          "definition": "tokenHash: { type: String, required: true, unique: true },"
         },
         {
           "name": "userId",
-          "line": 9,
-          "definition": "userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'Users', },"
+          "line": 5,
+          "definition": "userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true, index: true },"
         }
       ],
-      "sensitiveFields": [],
+      "sensitiveFields": [
+        "tokenHash"
+      ],
       "ownershipFields": [
         "userId"
       ],
@@ -23514,7 +24109,7 @@
         "expiresAt"
       ],
       "uniqueFields": [
-        "jti"
+        "tokenHash"
       ],
       "ttlFields": [],
       "references": [
@@ -23525,14 +24120,23 @@
           "schema": "oauthHandoffSchema",
           "keys": "{ expiresAt: 1 }",
           "options": "{ expireAfterSeconds: 0 }",
-          "line": 31
+          "line": 12
+        },
+        {
+          "schema": "oauthHandoffSchema",
+          "keys": "{ userId: 1, consumedAt: 1, expiresAt: 1 }",
+          "options": "",
+          "line": 13
         }
       ],
       "timestampsEnabled": true,
       "hashingOrEncryptionSignals": [],
       "consumerFiles": [
         "Backend/Chatify/Controller/authController.mjs",
-        "Backend/Chatify/test/auth/auth.lifecycle.test.mjs"
+        "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
+        "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
+        "scripts/security/lib/authentication-policy.mjs"
       ],
       "clientInputCandidates": [
         "code",
@@ -23553,17 +24157,17 @@
         {
           "operation": "deleteOne",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 497
+          "line": 464
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 536
+          "line": 503
         },
         {
-          "operation": "deleteOne",
+          "operation": "findOneAndDelete",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 603
+          "line": 564
         }
       ],
       "extractionConfidence": "heuristic-static-inventory; validate accepted and returned fields during authorization/data-flow review"
@@ -23630,8 +24234,11 @@
         "Backend/Chatify/Controller/authController.mjs",
         "Backend/Chatify/Services/privacyOperationsService.mjs",
         "Backend/Chatify/test/admin/privacy-operations.test.mjs",
+        "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
         "Backend/Chatify/test/auth/reset.security.test.mjs",
-        "Backend/Chatify/test/privacy/privacy-operations.test.mjs"
+        "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
+        "scripts/security/lib/authentication-policy.mjs"
       ],
       "clientInputCandidates": [
         "code",
@@ -23644,6 +24251,7 @@
         "username"
       ],
       "responseFieldCandidates": [
+        "_id",
         "authProvider",
         "discordId",
         "githubId",
@@ -23661,52 +24269,52 @@
         {
           "operation": "deleteOne",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 497
+          "line": 464
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 536
+          "line": 503
         },
         {
-          "operation": "deleteOne",
+          "operation": "findOneAndDelete",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 603
+          "line": 564
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 166
+          "line": 180
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 167
+          "line": 181
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 168
+          "line": 182
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 252
+          "line": 313
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 256
+          "line": 317
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 257
+          "line": 318
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 258
+          "line": 319
         }
       ],
       "extractionConfidence": "heuristic-static-inventory; validate accepted and returned fields during authorization/data-flow review"
@@ -24114,9 +24722,12 @@
         "Backend/Chatify/Controller/privacyController.mjs",
         "Backend/Chatify/Services/privacyOperationsService.mjs",
         "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
+        "Backend/Chatify/test/auth/phase5-authentication-security.test.mjs",
         "Backend/Chatify/test/auth/reset.security.test.mjs",
         "Backend/Chatify/test/auth/session.management.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
+        "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
         "Backend/Chatify/Utils/sessionMetadata.mjs",
         "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
         "scripts/security/lib/phase2-policy.mjs"
@@ -24132,6 +24743,7 @@
         "username"
       ],
       "responseFieldCandidates": [
+        "_id",
         "authProvider",
         "discordId",
         "githubId",
@@ -24149,52 +24761,52 @@
         {
           "operation": "deleteOne",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 497
+          "line": 464
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 536
+          "line": 503
         },
         {
-          "operation": "deleteOne",
+          "operation": "findOneAndDelete",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 603
+          "line": 564
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 166
+          "line": 180
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 167
+          "line": 181
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 168
+          "line": 182
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 252
+          "line": 313
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 256
+          "line": 317
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 257
+          "line": 318
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 258
+          "line": 319
         }
       ],
       "extractionConfidence": "heuristic-static-inventory; validate accepted and returned fields during authorization/data-flow review"
@@ -24354,40 +24966,52 @@
       "fields": [
         {
           "name": "attemptCount",
-          "line": 19,
-          "definition": "attemptCount: { type: Number, default: 0, min: 0, },"
+          "line": 9,
+          "definition": "attemptCount: { type: Number, default: 0, min: 0 },"
         },
         {
           "name": "challengeTokenHash",
-          "line": 10,
-          "definition": "challengeTokenHash: { type: String, required: true, unique: true, },"
+          "line": 5,
+          "definition": "challengeTokenHash: { type: String, required: true, unique: true },"
         },
         {
           "name": "consumedAt",
-          "line": 24,
-          "definition": "consumedAt: { type: Date, },"
+          "line": 10,
+          "definition": "consumedAt: { type: Date, default: null },"
         },
         {
           "name": "expiresAt",
-          "line": 27,
-          "definition": "expiresAt: { type: Date, required: true, },"
+          "line": 11,
+          "definition": "expiresAt: { type: Date, required: true },"
+        },
+        {
+          "name": "ipHash",
+          "line": 8,
+          "definition": "ipHash: { type: String, default: null, select: false },"
         },
         {
           "name": "rememberMe",
-          "line": 15,
-          "definition": "rememberMe: { type: Boolean, default: false, },"
+          "line": 6,
+          "definition": "rememberMe: { type: Boolean, default: false },"
+        },
+        {
+          "name": "userAgentHash",
+          "line": 7,
+          "definition": "userAgentHash: { type: String, default: null, select: false },"
         },
         {
           "name": "userId",
           "line": 4,
-          "definition": "userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true, index: true, },"
+          "definition": "userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true, index: true },"
         }
       ],
       "sensitiveFields": [
-        "challengeTokenHash"
+        "challengeTokenHash",
+        "ipHash"
       ],
       "ownershipFields": [
         "rememberMe",
+        "userAgentHash",
         "userId"
       ],
       "roleFields": [],
@@ -24406,26 +25030,113 @@
           "schema": "twoFactorChallengeSchema",
           "keys": "{ expiresAt: 1 }",
           "options": "{ expireAfterSeconds: 0 }",
-          "line": 36
+          "line": 14
         },
         {
           "schema": "twoFactorChallengeSchema",
           "keys": "{ userId: 1, consumedAt: 1, expiresAt: 1 }",
           "options": "",
-          "line": 37
+          "line": 15
         }
       ],
       "timestampsEnabled": true,
       "hashingOrEncryptionSignals": [],
       "consumerFiles": [
-        "Backend/Chatify/Controller/twoFactorController.mjs"
+        "Backend/Chatify/Controller/twoFactorController.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
+        "scripts/security/lib/authentication-policy.mjs"
       ],
       "clientInputCandidates": [
         "challengeToken",
         "code",
-        "currentPassword"
+        "currentPassword",
+        "email"
       ],
-      "responseFieldCandidates": [],
+      "responseFieldCandidates": [
+        "ipHash",
+        "userAgentHash"
+      ],
+      "deletionOperations": [],
+      "extractionConfidence": "heuristic-static-inventory; validate accepted and returned fields during authorization/data-flow review"
+    },
+    {
+      "source": "Backend/Chatify/Models/uploadBudgetModel.mjs",
+      "modelNames": [
+        "UploadBudgets"
+      ],
+      "fields": [
+        {
+          "name": "bytes",
+          "line": 23,
+          "definition": "bytes: { type: Number, min: 0, default: 0, },"
+        },
+        {
+          "name": "expiresAt",
+          "line": 38,
+          "definition": "expiresAt: { type: Date, required: true, },"
+        },
+        {
+          "name": "files",
+          "line": 28,
+          "definition": "files: { type: Number, min: 0, default: 0, },"
+        },
+        {
+          "name": "periodStart",
+          "line": 19,
+          "definition": "periodStart: { type: Date, required: true, },"
+        },
+        {
+          "name": "purpose",
+          "line": 14,
+          "definition": "purpose: { type: String, enum: Object.values(UPLOAD_BUDGET_PURPOSES), required: true, },"
+        },
+        {
+          "name": "requests",
+          "line": 33,
+          "definition": "requests: { type: Number, min: 0, default: 0, },"
+        },
+        {
+          "name": "userId",
+          "line": 9,
+          "definition": "userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', required: true, },"
+        }
+      ],
+      "sensitiveFields": [],
+      "ownershipFields": [
+        "userId"
+      ],
+      "roleFields": [],
+      "lifecycleAndAuditFields": [
+        "expiresAt"
+      ],
+      "uniqueFields": [],
+      "ttlFields": [],
+      "references": [
+        "Users"
+      ],
+      "indexes": [
+        {
+          "schema": "uploadBudgetSchema",
+          "keys": "{ userId: 1, purpose: 1, periodStart: 1 }",
+          "options": "{ unique: true }",
+          "line": 47
+        },
+        {
+          "schema": "uploadBudgetSchema",
+          "keys": "{ expiresAt: 1 }",
+          "options": "{ expireAfterSeconds: 0 }",
+          "line": 51
+        }
+      ],
+      "timestampsEnabled": true,
+      "hashingOrEncryptionSignals": [],
+      "consumerFiles": [
+        "Backend/Chatify/test/security/phase11-upload-security.test.mjs"
+      ],
+      "clientInputCandidates": [],
+      "responseFieldCandidates": [
+        "uploadedProfileImage"
+      ],
       "deletionOperations": [],
       "extractionConfidence": "heuristic-static-inventory; validate accepted and returned fields during authorization/data-flow review"
     },
@@ -24523,357 +25234,357 @@
       "fields": [
         {
           "name": "accentId",
-          "line": 82,
+          "line": 83,
           "definition": "accentId: { type: String, required: true, enum: IDENTITY_MARK_ACCENT_IDS, },"
         },
         {
           "name": "algorithm",
-          "line": 199,
+          "line": 200,
           "definition": "algorithm: { type: String, required: true, enum: ['aes-256-gcm'], },"
         },
         {
           "name": "authProvider",
-          "line": 363,
+          "line": 368,
           "definition": "authProvider: { type: String, enum: ['local', 'google', 'discord', 'github'], default: 'local', },"
         },
         {
           "name": "authTag",
-          "line": 212,
+          "line": 213,
           "definition": "authTag: { type: String, required: true, },"
         },
         {
           "name": "backupCodes",
-          "line": 257,
+          "line": 258,
           "definition": "backupCodes: { type: [twoFactorBackupCodeSchema], default: undefined, select: false, },"
         },
         {
           "name": "ciphertext",
-          "line": 208,
+          "line": 209,
           "definition": "ciphertext: { type: String, required: true, },"
         },
         {
           "name": "codeHash",
-          "line": 222,
+          "line": 223,
           "definition": "codeHash: { type: String, required: true, select: false, },"
         },
         {
           "name": "createdAt",
-          "line": 227,
+          "line": 228,
           "definition": "createdAt: { type: Date, default: Date.now, },"
         },
         {
           "name": "discordId",
-          "line": 391,
+          "line": 396,
           "definition": "discordId: { type: String, sparse: true },"
         },
         {
           "name": "email",
-          "line": 299,
-          "definition": "email: { type: String, required: true, unique: true, trim: true, validate: [validator.isEmail, 'Please provide a valid email address'], },"
+          "line": 300,
+          "definition": "email: { type: String, required: true, unique: true, lowercase: true, set: normalizeEmail, validate: [validator.isEmail, 'Please provide a valid email address'], },"
         },
         {
           "name": "emailNotificationsEnabled",
-          "line": 169,
+          "line": 170,
           "definition": "emailNotificationsEnabled: { type: Boolean, default: false, },"
         },
         {
           "name": "emailUnsubscribedAt",
-          "line": 182,
+          "line": 183,
           "definition": "emailUnsubscribedAt: { type: Date, },"
         },
         {
           "name": "enabled",
-          "line": 241,
+          "line": 242,
           "definition": "enabled: { type: Boolean, default: false, },"
         },
         {
           "name": "enabledAt",
-          "line": 262,
+          "line": 263,
           "definition": "enabledAt: { type: Date, },"
         },
         {
           "name": "endpoint",
-          "line": 141,
+          "line": 142,
           "definition": "endpoint: { type: String, required: true, },"
         },
         {
           "name": "endpointHash",
-          "line": 137,
+          "line": 138,
           "definition": "endpointHash: { type: String, required: true, },"
         },
         {
           "name": "firstName",
-          "line": 290,
+          "line": 291,
           "definition": "firstName: { type: String, required: true, trim: true },"
         },
         {
           "name": "githubId",
-          "line": 395,
+          "line": 400,
           "definition": "githubId: { type: String, sparse: true },"
         },
         {
           "name": "googleId",
-          "line": 387,
+          "line": 392,
           "definition": "googleId: { type: String, sparse: true },"
         },
         {
           "name": "identityMark",
-          "line": 355,
+          "line": 360,
           "definition": "identityMark: { type: identityMarkSchema, required: false, },"
         },
         {
           "name": "identityMarkUpdatedAt",
-          "line": 359,
+          "line": 364,
           "definition": "identityMarkUpdatedAt: { type: Date, required: false, },"
         },
         {
           "name": "initials",
-          "line": 65,
+          "line": 66,
           "definition": "initials: { type: String, required: true, trim: true, uppercase: true, maxlength: 3, },"
         },
         {
           "name": "isOnline",
-          "line": 406,
+          "line": 411,
           "definition": "isOnline: { type: Boolean, default: false, },"
         },
         {
           "name": "isVerified",
-          "line": 399,
+          "line": 404,
           "definition": "isVerified: { type: Boolean, default: function() { return this.authProvider !== 'local'; } }, // Online/Offline status tracking"
         },
         {
           "name": "iv",
-          "line": 204,
+          "line": 205,
           "definition": "iv: { type: String, required: true, },"
         },
         {
           "name": "keys",
-          "line": 145,
+          "line": 146,
           "definition": "keys: { p256dh: { type: String, required: true, }, auth: { type: String, required: true, }, },"
         },
         {
           "name": "label",
-          "line": 59,
+          "line": 60,
           "definition": "label: { type: String, required: true, trim: true, maxlength: 32, },"
         },
         {
           "name": "lastName",
-          "line": 295,
+          "line": 296,
           "definition": "lastName: { type: String, trim: true },"
         },
         {
           "name": "lastSeen",
-          "line": 410,
+          "line": 415,
           "definition": "lastSeen: { type: Date, }, // Privacy settings for online status"
         },
         {
           "name": "lastVerifiedAt",
-          "line": 265,
+          "line": 266,
           "definition": "lastVerifiedAt: { type: Date, },"
         },
         {
           "name": "lastWarningAt",
-          "line": 97,
+          "line": 98,
           "definition": "lastWarningAt: { type: Date, },"
         },
         {
           "name": "lastWarningBy",
-          "line": 100,
+          "line": 101,
           "definition": "lastWarningBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', },"
         },
         {
           "name": "messagePreviewMode",
-          "line": 173,
+          "line": 174,
           "definition": "messagePreviewMode: { type: String, enum: ['none'], default: 'none', },"
         },
         {
           "name": "messagingRestrictedUntil",
-          "line": 109,
+          "line": 110,
           "definition": "messagingRestrictedUntil: { type: Date, },"
         },
         {
           "name": "mimeType",
-          "line": 37,
+          "line": 38,
           "definition": "mimeType: { type: String, required: true, },"
         },
         {
           "name": "moderation",
-          "line": 374,
+          "line": 379,
           "definition": "moderation: { type: moderationStateSchema, default: () => ({}), select: false, },"
         },
         {
           "name": "mutedChatIds",
-          "line": 178,
+          "line": 179,
           "definition": "mutedChatIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Chats', }],"
         },
         {
           "name": "notificationPreferences",
-          "line": 379,
+          "line": 384,
           "definition": "notificationPreferences: { type: notificationPreferencesSchema, default: () => ({}), },"
         },
         {
           "name": "paletteId",
-          "line": 72,
+          "line": 73,
           "definition": "paletteId: { type: String, required: true, enum: IDENTITY_MARK_PALETTE_IDS, },"
         },
         {
           "name": "password",
-          "line": 319,
-          "definition": "password: { type: String, required: function() { return this.authProvider === 'local'; }, minlength: [8, 'Password must be at least 8 characters long'], trim: true, maxlength: [100, 'Password must be at most 100 characters long'], select: …"
+          "line": 321,
+          "definition": "password: { type: String, required: function() { return this.authProvider === 'local'; }, validate: { validator(value) { return !value || validatePasswordPolicy(value).ok; }, message: 'Password must be 12-128 characters and contain no cont…"
         },
         {
           "name": "patternId",
-          "line": 77,
+          "line": 78,
           "definition": "patternId: { type: String, required: true, enum: IDENTITY_MARK_PATTERN_IDS, },"
         },
         {
           "name": "pendingCreatedAt",
-          "line": 253,
+          "line": 254,
           "definition": "pendingCreatedAt: { type: Date, select: false, },"
         },
         {
           "name": "pendingSecretEncrypted",
-          "line": 249,
+          "line": 250,
           "definition": "pendingSecretEncrypted: { type: encryptedTwoFactorSecretSchema, select: false, },"
         },
         {
           "name": "profileBio",
-          "line": 333,
+          "line": 338,
           "definition": "profileBio: { type: String, trim: true, maxlength: [160, 'Profile bio must be 160 characters or fewer'], default: '', },"
         },
         {
           "name": "profilePic",
-          "line": 329,
+          "line": 334,
           "definition": "profilePic: { type: String, required: false },"
         },
         {
           "name": "profileStatus",
-          "line": 339,
+          "line": 344,
           "definition": "profileStatus: { type: String, trim: true, maxlength: [80, 'Profile status must be 80 characters or fewer'], default: '', },"
         },
         {
           "name": "providerProfilePic",
-          "line": 345,
+          "line": 350,
           "definition": "providerProfilePic: { type: String, required: false, select: false, },"
         },
         {
           "name": "pushEnabled",
-          "line": 165,
+          "line": 166,
           "definition": "pushEnabled: { type: Boolean, default: false, },"
         },
         {
           "name": "pushSubscriptions",
-          "line": 189,
+          "line": 190,
           "definition": "pushSubscriptions: { type: [pushSubscriptionSchema], default: [], },"
         },
         {
           "name": "restrictedAt",
-          "line": 112,
+          "line": 113,
           "definition": "restrictedAt: { type: Date, },"
         },
         {
           "name": "restrictedBy",
-          "line": 115,
+          "line": 116,
           "definition": "restrictedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', },"
         },
         {
           "name": "restrictionLiftedAt",
-          "line": 124,
+          "line": 125,
           "definition": "restrictionLiftedAt: { type: Date, },"
         },
         {
           "name": "restrictionLiftedBy",
-          "line": 127,
+          "line": 128,
           "definition": "restrictionLiftedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Users', },"
         },
         {
           "name": "restrictionReason",
-          "line": 119,
+          "line": 120,
           "definition": "restrictionReason: { type: String, trim: true, maxlength: 1000, },"
         },
         {
           "name": "role",
-          "line": 368,
+          "line": 373,
           "definition": "role: { type: String, enum: ['user', 'admin'], default: 'user', select: false, },"
         },
         {
           "name": "secretEncrypted",
-          "line": 245,
+          "line": 246,
           "definition": "secretEncrypted: { type: encryptedTwoFactorSecretSchema, select: false, },"
         },
         {
           "name": "showLastSeen",
-          "line": 418,
+          "line": 423,
           "definition": "showLastSeen: { type: Boolean, default: true, },"
         },
         {
           "name": "showOnlineStatus",
-          "line": 414,
+          "line": 419,
           "definition": "showOnlineStatus: { type: Boolean, default: true, },"
         },
         {
           "name": "showProfileStatus",
-          "line": 422,
+          "line": 427,
           "definition": "showProfileStatus: { type: Boolean, default: true, }"
         },
         {
           "name": "size",
-          "line": 41,
+          "line": 42,
           "definition": "size: { type: Number, required: true, },"
         },
         {
           "name": "storageFileId",
-          "line": 33,
+          "line": 34,
           "definition": "storageFileId: { type: mongoose.Schema.Types.ObjectId, required: true, },"
         },
         {
           "name": "twoFactor",
-          "line": 383,
+          "line": 388,
           "definition": "twoFactor: { type: twoFactorSchema, default: () => ({}), },"
         },
         {
           "name": "unsubscribeTokenHash",
-          "line": 185,
+          "line": 186,
           "definition": "unsubscribeTokenHash: { type: String, select: false, },"
         },
         {
           "name": "updatedAt",
-          "line": 155,
+          "line": 156,
           "definition": "updatedAt: { type: Date, default: Date.now, },"
         },
         {
           "name": "updatedAt",
-          "line": 49,
+          "line": 50,
           "definition": "updatedAt: { type: Date, default: Date.now, },"
         },
         {
           "name": "updatedAt",
-          "line": 87,
+          "line": 88,
           "definition": "updatedAt: { type: Date, default: Date.now, },"
         },
         {
           "name": "uploadedProfileImage",
-          "line": 350,
+          "line": 355,
           "definition": "uploadedProfileImage: { type: uploadedProfileImageSchema, required: false, select: false, },"
         },
         {
           "name": "usedAt",
-          "line": 231,
+          "line": 232,
           "definition": "usedAt: { type: Date, default: null, },"
         },
         {
           "name": "username",
-          "line": 306,
+          "line": 308,
           "definition": "username: { type: String, required: false, trim: true, lowercase: true, set: normalizeUsername, validate: { validator(value) { return !value || validateUsername(value).ok; }, message: 'Username must be 3-24 letters, numbers, dots, or under…"
         },
         {
           "name": "version",
-          "line": 45,
+          "line": 46,
           "definition": "version: { type: String, required: true, },"
         },
         {
           "name": "warningReason",
-          "line": 104,
+          "line": 105,
           "definition": "warningReason: { type: String, trim: true, maxlength: 1000, },"
         }
       ],
@@ -24926,37 +25637,37 @@
           "schema": "userSchema",
           "keys": "{ googleId: 1, authProvider: 1}",
           "options": "",
-          "line": 457
+          "line": 462
         },
         {
           "schema": "userSchema",
           "keys": "{ discordId: 1, authProvider: 1}",
           "options": "",
-          "line": 458
+          "line": 463
         },
         {
           "schema": "userSchema",
           "keys": "{ githubId: 1, authProvider: 1}",
           "options": "",
-          "line": 459
+          "line": 464
         },
         {
           "schema": "userSchema",
           "keys": "{ username: 1 }",
           "options": "{ unique: true, partialFilterExpression: { username: { $type: 'string' } }, }",
-          "line": 460
+          "line": 465
         },
         {
           "schema": "userSchema",
           "keys": "{ 'notificationPreferences.mutedChatIds': 1 }",
           "options": "",
-          "line": 467
+          "line": 472
         },
         {
           "schema": "userSchema",
           "keys": "{ 'notificationPreferences.pushSubscriptions.endpointHash': 1 }",
           "options": "",
-          "line": 468
+          "line": 473
         }
       ],
       "timestampsEnabled": true,
@@ -24996,13 +25707,17 @@
         "Backend/Chatify/Models/sessionModel.mjs",
         "Backend/Chatify/Models/spaceModel.mjs",
         "Backend/Chatify/Models/twoFactorChallengeModel.mjs",
+        "Backend/Chatify/Models/uploadBudgetModel.mjs",
         "Backend/Chatify/Models/userBlockModel.mjs",
         "Backend/Chatify/Services/notificationService.mjs",
         "Backend/Chatify/Services/privacyOperationsService.mjs",
+        "Backend/Chatify/Services/uploadLifecycleService.mjs",
         "Backend/Chatify/test/admin/delivery-health.test.mjs",
         "Backend/Chatify/test/admin/privacy-operations.test.mjs",
         "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
         "Backend/Chatify/test/auth/oauth-account-linking.test.mjs",
+        "Backend/Chatify/test/auth/phase5-authentication-security.test.mjs",
+        "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
         "Backend/Chatify/test/auth/two-factor.test.mjs",
         "Backend/Chatify/test/chat/chat.organization.test.mjs",
         "Backend/Chatify/test/fixtures/users.mjs",
@@ -25014,6 +25729,8 @@
         "Backend/Chatify/test/notification/notification.outbox.test.mjs",
         "Backend/Chatify/test/notification/notification.preferences.test.mjs",
         "Backend/Chatify/test/privacy/privacy-operations.test.mjs",
+        "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+        "Backend/Chatify/test/security/phase11-upload-security.test.mjs",
         "Backend/Chatify/test/socket/socket.message-state.test.mjs",
         "Backend/Chatify/test/socket/socket.presence-reconnect.test.mjs",
         "Backend/Chatify/test/user/user.identity.test.mjs",
@@ -25022,13 +25739,15 @@
         "Backend/Chatify/test/user/user.profile-image.test.mjs",
         "Backend/Chatify/test/user/user.profile.test.mjs",
         "Backend/Chatify/test/user/user.username.test.mjs",
+        "Backend/Chatify/Utils/databaseIndexPolicy.mjs",
         "Backend/Chatify/Utils/messageMentions.mjs",
         "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
         "Frontend/Chatify/src/pages/admin/AdminDeliveryHealth.tsx",
         "Frontend/Chatify/src/pages/chat/components/ChatSidebar.tsx",
         "Frontend/Chatify/src/pages/chat/components/ConversationDetailContent.tsx",
         "Frontend/Chatify/src/pages/chat/components/NewChatDialog.tsx",
-        "Frontend/Chatify/src/pages/chat/components/SpacesSidebar.tsx"
+        "Frontend/Chatify/src/pages/chat/components/SpacesSidebar.tsx",
+        "scripts/security/lib/authentication-policy.mjs"
       ],
       "clientInputCandidates": [
         "assignedTo",
@@ -25071,6 +25790,7 @@
         "firstName",
         "githubId",
         "googleId",
+        "ipHash",
         "isOnline",
         "kind",
         "lastName",
@@ -25097,23 +25817,24 @@
         "twoFactor.backupCodes.codeHash",
         "twoFactor.secretEncrypted",
         "uploadedProfileImage",
+        "userAgentHash",
         "username"
       ],
       "deletionOperations": [
         {
           "operation": "deleteOne",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 497
+          "line": 464
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 536
+          "line": 503
         },
         {
-          "operation": "deleteOne",
+          "operation": "findOneAndDelete",
           "source": "Backend/Chatify/Controller/authController.mjs",
-          "line": 603
+          "line": 564
         },
         {
           "operation": "findByIdAndDelete",
@@ -25143,37 +25864,42 @@
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 166
+          "line": 180
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 167
+          "line": 181
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 168
+          "line": 182
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 252
+          "line": 313
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 256
+          "line": 317
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 257
+          "line": 318
         },
         {
           "operation": "deleteMany",
           "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-          "line": 258
+          "line": 319
+        },
+        {
+          "operation": "deleteMany",
+          "source": "Backend/Chatify/Services/uploadLifecycleService.mjs",
+          "line": 100
         }
       ],
       "extractionConfidence": "heuristic-static-inventory; validate accepted and returned fields during authorization/data-flow review"
@@ -25185,7 +25911,7 @@
       "evidence": [
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1010
+          "line": 1019
         }
       ],
       "environmentVariables": [],
@@ -25212,7 +25938,7 @@
         },
         {
           "source": "Backend/Chatify/Config/passport.mjs",
-          "line": 180
+          "line": 140
         },
         {
           "source": "Backend/Chatify/test/setup/env.mjs",
@@ -25224,7 +25950,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1102
+          "line": 1111
         }
       ],
       "environmentVariables": [
@@ -25270,7 +25996,7 @@
       "evidence": [
         {
           "source": "Backend/Chatify/package.json",
-          "line": 15
+          "line": 17
         },
         {
           "source": "Backend/Chatify/Services/emailService.mjs",
@@ -25406,7 +26132,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1139
+          "line": 1148
         }
       ],
       "environmentVariables": [],
@@ -25442,7 +26168,7 @@
         },
         {
           "source": "Backend/Chatify/package.json",
-          "line": 29
+          "line": 31
         },
         {
           "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
@@ -25458,7 +26184,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1101
+          "line": 1110
         }
       ],
       "environmentVariables": [
@@ -25505,7 +26231,7 @@
         },
         {
           "source": "Backend/Chatify/package.json",
-          "line": 30
+          "line": 32
         },
         {
           "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
@@ -25521,7 +26247,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1100
+          "line": 1109
         }
       ],
       "environmentVariables": [
@@ -25559,7 +26285,11 @@
         },
         {
           "source": "Backend/Chatify/Config/DBConfig.mjs",
-          "line": 4
+          "line": 16
+        },
+        {
+          "source": "Backend/Chatify/scripts/database-indexes.mjs",
+          "line": 25
         },
         {
           "source": "Backend/Chatify/Services/attachmentStorageService.mjs",
@@ -25574,16 +26304,24 @@
           "line": 42
         },
         {
+          "source": "Backend/Chatify/test/security/phase10-database-security.test.mjs",
+          "line": 97
+        },
+        {
           "source": "Backend/Chatify/test/security/secret-configuration.test.mjs",
           "line": 16
         },
         {
           "source": "Backend/Chatify/test/setup/mongo.mjs",
-          "line": 8
+          "line": 14
+        },
+        {
+          "source": "Backend/Chatify/Utils/databaseSecurity.mjs",
+          "line": 24
         },
         {
           "source": "Backend/Chatify/Utils/operationalReadiness.mjs",
-          "line": 14
+          "line": 15
         },
         {
           "source": "Backend/Chatify/Utils/secretConfiguration.mjs",
@@ -25595,6 +26333,7 @@
         }
       ],
       "environmentVariables": [
+        "MONGODB_CREATE_MISSING_INDEXES",
         "MONGODB_URL"
       ],
       "staticHosts": [
@@ -25604,8 +26343,10 @@
         "https://chatify.example.test",
         "https://your-frontend.example.com",
         "mongodb://127.0.0.1:27017",
+        "mongodb://database.example.test",
         "mongodb://example.invalid",
-        "mongodb://localhost:27017"
+        "mongodb://localhost:27017",
+        "mongodb+srv://database.example.test"
       ],
       "controls": [],
       "userControlledDestinationCandidate": false,
@@ -25620,7 +26361,7 @@
       "evidence": [
         {
           "source": "Backend/Chatify/.env.example",
-          "line": 37
+          "line": 47
         },
         {
           "source": "Backend/Chatify/Config/socket.mjs",
@@ -25684,7 +26425,7 @@
         },
         {
           "source": "Backend/Chatify/package.json",
-          "line": 34
+          "line": 36
         },
         {
           "source": "Backend/Chatify/Services/notificationService.mjs",
@@ -25700,7 +26441,7 @@
         },
         {
           "source": "scripts/security/lib/inventory.mjs",
-          "line": 1012
+          "line": 1021
         },
         {
           "source": "scripts/security/lib/phase2-policy.mjs",
@@ -25754,11 +26495,50 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
-            "line": 11,
+            "line": 13,
             "kind": "process-env"
           }
         ],
         "exampleValue": "<redacted>"
+      },
+      {
+        "name": "ATTACHMENT_UPLOAD_DAILY_BYTES",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 37
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "104857600"
+      },
+      {
+        "name": "ATTACHMENT_UPLOAD_DAILY_FILES",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 38
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "100"
+      },
+      {
+        "name": "ATTACHMENT_UPLOAD_DAILY_REQUESTS",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 39
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "50"
       },
       {
         "name": "BREVO_API_KEY",
@@ -25816,7 +26596,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 37
+            "line": 47
           }
         ],
         "referencedAt": [],
@@ -25829,7 +26609,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 40
+            "line": 50
           }
         ],
         "referencedAt": [],
@@ -25842,7 +26622,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 38
+            "line": 48
           }
         ],
         "referencedAt": [],
@@ -25855,7 +26635,7 @@
         "definedInExamples": [
           {
             "source": "Backend/Chatify/.env.example",
-            "line": 39
+            "line": 49
           }
         ],
         "referencedAt": [],
@@ -26217,7 +26997,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Config/passport.mjs",
-            "line": 180,
+            "line": 140,
             "kind": "process-env"
           },
           {
@@ -26241,7 +27021,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Config/passport.mjs",
-            "line": 181,
+            "line": 141,
             "kind": "process-env"
           },
           {
@@ -26323,7 +27103,7 @@
           },
           {
             "source": "Backend/Chatify/Controller/authController.mjs",
-            "line": 38,
+            "line": 39,
             "kind": "process-env"
           },
           {
@@ -26435,7 +27215,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Config/passport.mjs",
-            "line": 167,
+            "line": 131,
             "kind": "process-env"
           },
           {
@@ -26459,7 +27239,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Config/passport.mjs",
-            "line": 168,
+            "line": 132,
             "kind": "process-env"
           },
           {
@@ -26495,6 +27275,11 @@
             "source": "scripts/security/phase4-reproduce.mjs",
             "line": 79,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
+            "line": 79,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26522,6 +27307,11 @@
           },
           {
             "source": "scripts/security/phase4-reproduce.mjs",
+            "line": 81,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
             "line": 81,
             "kind": "process-env"
           }
@@ -26553,6 +27343,11 @@
             "source": "scripts/security/phase4-reproduce.mjs",
             "line": 80,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
+            "line": 80,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26582,6 +27377,11 @@
             "source": "scripts/security/phase4-reproduce.mjs",
             "line": 78,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
+            "line": 78,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26599,7 +27399,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Config/passport.mjs",
-            "line": 153,
+            "line": 122,
             "kind": "process-env"
           },
           {
@@ -26623,7 +27423,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Config/passport.mjs",
-            "line": 154,
+            "line": 123,
             "kind": "process-env"
           },
           {
@@ -26703,6 +27503,11 @@
             "source": "scripts/security/phase4-reproduce.mjs",
             "line": 98,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
+            "line": 96,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26732,6 +27537,25 @@
             "source": "scripts/security/phase4-reproduce.mjs",
             "line": 99,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
+            "line": 97,
+            "kind": "process-env"
+          }
+        ],
+        "exampleValue": null
+      },
+      {
+        "name": "MONGODB_CREATE_MISSING_INDEXES",
+        "category": "database",
+        "sensitive": false,
+        "definedInExamples": [],
+        "referencedAt": [
+          {
+            "source": "Backend/Chatify/Config/DBConfig.mjs",
+            "line": 17,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -26749,7 +27573,17 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Config/DBConfig.mjs",
-            "line": 4,
+            "line": 53,
+            "kind": "process-env"
+          },
+          {
+            "source": "Backend/Chatify/scripts/database-indexes.mjs",
+            "line": 25,
+            "kind": "process-env"
+          },
+          {
+            "source": "Backend/Chatify/scripts/database-indexes.mjs",
+            "line": 30,
             "kind": "process-env"
           },
           {
@@ -26759,12 +27593,12 @@
           },
           {
             "source": "Backend/Chatify/test/setup/mongo.mjs",
-            "line": 14,
+            "line": 25,
             "kind": "process-env"
           },
           {
             "source": "Backend/Chatify/test/setup/mongo.mjs",
-            "line": 15,
+            "line": 27,
             "kind": "process-env"
           }
         ],
@@ -26816,13 +27650,23 @@
             "kind": "process-env"
           },
           {
+            "source": "Backend/Chatify/Config/DBConfig.mjs",
+            "line": 18,
+            "kind": "process-env"
+          },
+          {
+            "source": "Backend/Chatify/Config/DBConfig.mjs",
+            "line": 42,
+            "kind": "process-env"
+          },
+          {
             "source": "Backend/Chatify/Config/socket.mjs",
             "line": 51,
             "kind": "process-env"
           },
           {
             "source": "Backend/Chatify/Controller/authController.mjs",
-            "line": 36,
+            "line": 37,
             "kind": "process-env"
           },
           {
@@ -26867,7 +27711,7 @@
           },
           {
             "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-            "line": 82,
+            "line": 86,
             "kind": "process-env"
           },
           {
@@ -26912,12 +27756,12 @@
           },
           {
             "source": "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
-            "line": 17,
+            "line": 31,
             "kind": "process-env"
           },
           {
             "source": "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
-            "line": 29,
+            "line": 36,
             "kind": "process-env"
           },
           {
@@ -26979,7 +27823,12 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Controller/authController.mjs",
-            "line": 469,
+            "line": 436,
+            "kind": "process-env"
+          },
+          {
+            "source": "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
+            "line": 15,
             "kind": "process-env"
           },
           {
@@ -27003,7 +27852,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/server.mjs",
-            "line": 13,
+            "line": 17,
             "kind": "process-env"
           }
         ],
@@ -27022,7 +27871,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/server.mjs",
-            "line": 13,
+            "line": 17,
             "kind": "process-env"
           }
         ],
@@ -27036,7 +27885,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-            "line": 62,
+            "line": 66,
             "kind": "process-env"
           }
         ],
@@ -27050,7 +27899,7 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-            "line": 83,
+            "line": 87,
             "kind": "process-env"
           }
         ],
@@ -27064,11 +27913,50 @@
         "referencedAt": [
           {
             "source": "Backend/Chatify/Services/privacyOperationsService.mjs",
-            "line": 74,
+            "line": 78,
             "kind": "process-env"
           }
         ],
         "exampleValue": null
+      },
+      {
+        "name": "PROFILE_IMAGE_UPLOAD_DAILY_BYTES",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 40
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "20971520"
+      },
+      {
+        "name": "PROFILE_IMAGE_UPLOAD_DAILY_FILES",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 41
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "20"
+      },
+      {
+        "name": "PROFILE_IMAGE_UPLOAD_DAILY_REQUESTS",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 42
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "20"
       },
       {
         "name": "RUNNER_ARCH",
@@ -27094,6 +27982,11 @@
           {
             "source": "scripts/security/phase4-reproduce.mjs",
             "line": 95,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
+            "line": 94,
             "kind": "process-env"
           }
         ],
@@ -27123,6 +28016,11 @@
           {
             "source": "scripts/security/phase4-reproduce.mjs",
             "line": 97,
+            "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
+            "line": 95,
             "kind": "process-env"
           }
         ],
@@ -27182,6 +28080,11 @@
             "source": "scripts/security/phase4-reproduce.mjs",
             "line": 94,
             "kind": "process-env"
+          },
+          {
+            "source": "scripts/security/phase5-reproduce.mjs",
+            "line": 93,
+            "kind": "process-env"
           }
         ],
         "exampleValue": null
@@ -27198,18 +28101,13 @@
         ],
         "referencedAt": [
           {
-            "source": "Backend/Chatify/Controller/authController.mjs",
-            "line": 390,
+            "source": "Backend/Chatify/test/auth/phase5-authentication-security.test.mjs",
+            "line": 32,
             "kind": "process-env"
           },
           {
-            "source": "Backend/Chatify/Controller/authController.mjs",
-            "line": 97,
-            "kind": "process-env"
-          },
-          {
-            "source": "Backend/Chatify/test/auth/auth.lifecycle.test.mjs",
-            "line": 56,
+            "source": "Backend/Chatify/test/auth/phase5-sensitive-flows.test.mjs",
+            "line": 99,
             "kind": "process-env"
           },
           {
@@ -27234,12 +28132,12 @@
           },
           {
             "source": "Backend/Chatify/Utils/authToken.mjs",
-            "line": 44,
+            "line": 35,
             "kind": "process-env"
           },
           {
             "source": "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
-            "line": 56,
+            "line": 49,
             "kind": "process-env"
           },
           {
@@ -27278,6 +28176,45 @@
           }
         ],
         "exampleValue": "<empty>"
+      },
+      {
+        "name": "UPLOAD_LIFECYCLE_WORKER_ENABLED",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 43
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "1"
+      },
+      {
+        "name": "UPLOAD_ORPHAN_GRACE_MS",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 44
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "86400000"
+      },
+      {
+        "name": "UPLOAD_RECONCILIATION_INTERVAL_MS",
+        "category": "media-and-uploads",
+        "sensitive": false,
+        "definedInExamples": [
+          {
+            "source": "Backend/Chatify/.env.example",
+            "line": 45
+          }
+        ],
+        "referencedAt": [],
+        "exampleValue": "21600000"
       },
       {
         "name": "VAPID_PRIVATE_KEY",
@@ -27402,6 +28339,7 @@
       "HERCULES_ARTIFACT_DIR",
       "ImageOS",
       "ImageVersion",
+      "MONGODB_CREATE_MISSING_INDEXES",
       "NEEDS_JSON",
       "PRIVACY_OUTBOX_RETENTION_DAYS",
       "PRIVACY_WORKER_ENABLED",
@@ -27412,10 +28350,19 @@
       "RUNNER_OS"
     ],
     "unusedExamples": [
+      "ATTACHMENT_UPLOAD_DAILY_BYTES",
+      "ATTACHMENT_UPLOAD_DAILY_FILES",
+      "ATTACHMENT_UPLOAD_DAILY_REQUESTS",
       "CALL_STUN_URLS",
       "CALL_TURN_CREDENTIAL",
       "CALL_TURN_URLS",
       "CALL_TURN_USERNAME",
+      "PROFILE_IMAGE_UPLOAD_DAILY_BYTES",
+      "PROFILE_IMAGE_UPLOAD_DAILY_FILES",
+      "PROFILE_IMAGE_UPLOAD_DAILY_REQUESTS",
+      "UPLOAD_LIFECYCLE_WORKER_ENABLED",
+      "UPLOAD_ORPHAN_GRACE_MS",
+      "UPLOAD_RECONCILIATION_INTERVAL_MS",
       "VITE_BACKEND_URL",
       "VITE_SOCKET_URL"
     ],
@@ -27436,6 +28383,7 @@
         "FRONTEND_ORIGIN_DEV"
       ],
       "database": [
+        "MONGODB_CREATE_MISSING_INDEXES",
         "MONGODB_URL"
       ],
       "email": [
@@ -27485,6 +28433,17 @@
         "TWO_FACTOR_ENCRYPTION_KEY",
         "VITE_BACKEND_URL",
         "VITE_SOCKET_URL"
+      ],
+      "media-and-uploads": [
+        "ATTACHMENT_UPLOAD_DAILY_BYTES",
+        "ATTACHMENT_UPLOAD_DAILY_FILES",
+        "ATTACHMENT_UPLOAD_DAILY_REQUESTS",
+        "PROFILE_IMAGE_UPLOAD_DAILY_BYTES",
+        "PROFILE_IMAGE_UPLOAD_DAILY_FILES",
+        "PROFILE_IMAGE_UPLOAD_DAILY_REQUESTS",
+        "UPLOAD_LIFECYCLE_WORKER_ENABLED",
+        "UPLOAD_ORPHAN_GRACE_MS",
+        "UPLOAD_RECONCILIATION_INTERVAL_MS"
       ],
       "retention-and-lifecycle": [
         "EXPIRES_IN",

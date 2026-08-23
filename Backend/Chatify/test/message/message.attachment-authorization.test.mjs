@@ -33,7 +33,10 @@ describe('attachment authorization', () => {
       .expect(200);
 
     expect(preview.headers['content-type']).toMatch(/application\/pdf/);
-    expect(preview.headers['content-disposition']).toMatch(/^inline/);
+    expect(preview.headers['content-disposition']).toMatch(/^attachment/);
+    expect(preview.headers['x-content-type-options']).toBe('nosniff');
+    expect(preview.headers['content-security-policy']).toBe("sandbox; default-src 'none'");
+    expect(preview.headers['cache-control']).toBe('private, no-store');
     expect(download.headers['content-disposition']).toMatch(/^attachment/);
   });
 

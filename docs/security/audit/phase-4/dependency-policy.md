@@ -38,6 +38,8 @@ This file is generated deterministically from package manifests, lockfiles, work
 | .github/workflows/security-phase-1-inventory.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
 | .github/workflows/security-phase-1-inventory.yml | 30 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
 | .github/workflows/security-phase-1-inventory.yml | 51 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
+| .github/workflows/security-phase-11-upload-security.yml | 27 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-phase-11-upload-security.yml | 32 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
 | .github/workflows/security-phase-2-threat-model.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
 | .github/workflows/security-phase-2-threat-model.yml | 30 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
 | .github/workflows/security-phase-2-threat-model.yml | 53 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
@@ -47,6 +49,9 @@ This file is generated deterministically from package manifests, lockfiles, work
 | .github/workflows/security-phase-4-supply-chain.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
 | .github/workflows/security-phase-4-supply-chain.yml | 45 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
 | .github/workflows/security-phase-4-supply-chain.yml | 58 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
+| .github/workflows/security-phase-5-authentication-session.yml | 25 | actions/checkout | 11d5960a326750d5838078e36cf38b85af677262 | true | true |
+| .github/workflows/security-phase-5-authentication-session.yml | 42 | actions/setup-node | 249970729cb0ef3589644e2896645e5dc5ba9c38 | true | true |
+| .github/workflows/security-phase-5-authentication-session.yml | 65 | actions/upload-artifact | ea165f8d65b6e75b540449e92b4886f43607fa02 | true | true |
 
 ## Dependabot coverage
 

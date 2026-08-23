@@ -9,7 +9,15 @@ const assertSuccess = (response, context) => {
   }
 };
 
-const AUTO_CSRF_ROUTE_PREFIXES = ['/api/chat', '/api/message', '/api/moderation', '/api/admin', '/api/space', '/api/invite'];
+const AUTO_CSRF_ROUTE_PREFIXES = [
+  '/api/chat',
+  '/api/message',
+  '/api/moderation',
+  '/api/admin',
+  '/api/space',
+  '/api/invite',
+  '/api/user/profile-image',
+];
 const AUTO_CSRF_METHODS = ['post', 'put', 'patch', 'delete'];
 
 const shouldAttachAutoCsrf = (path) => (
@@ -17,7 +25,7 @@ const shouldAttachAutoCsrf = (path) => (
   AUTO_CSRF_ROUTE_PREFIXES.some((prefix) => path.startsWith(prefix))
 );
 
-const attachAutoCsrfForChatRoutes = (agent, csrfToken) => {
+const attachAutoCsrfForProtectedRoutes = (agent, csrfToken) => {
   if (!csrfToken || agent.__chatifyAutoCsrfAttached) {
     return agent;
   }
@@ -70,7 +78,7 @@ export const signupWithAgent = async (overrides = {}, options = {}) => {
   const user = await User.findOne({ email: payload.email });
 
   if (options.autoCsrf !== false) {
-    attachAutoCsrfForChatRoutes(agent, csrfToken);
+    attachAutoCsrfForProtectedRoutes(agent, csrfToken);
   }
 
   return { agent, user, payload, response };
@@ -86,7 +94,7 @@ export const loginWithAgent = async ({ email, password = TEST_PASSWORD, remember
   assertSuccess(response, 'login');
 
   if (autoCsrf !== false) {
-    attachAutoCsrfForChatRoutes(agent, csrfToken);
+    attachAutoCsrfForProtectedRoutes(agent, csrfToken);
   }
 
   return { agent, response };

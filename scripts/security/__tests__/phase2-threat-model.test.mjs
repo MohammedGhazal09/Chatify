@@ -231,7 +231,7 @@ test('committed Chatify threat model maps the complete Phase 1 inventory', async
 
   assert.equal(model.coverage.httpRoutes.total, 116)
   assert.equal(model.coverage.socketEvents.total, 67)
-  assert.equal(model.coverage.dataModels.total, 22)
+  assert.equal(model.coverage.dataModels.total, 23)
   assert.equal(model.coverage.externalProviders.total, 9)
   assert.equal(model.exitGate.allCurrentSurfacesMapped, true)
 })
