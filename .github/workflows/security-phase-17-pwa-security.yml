@@ -1,0 +1,70 @@
+name: Security Phase 17 PWA and Push Lifecycle
+
+on:
+  push:
+    branches:
+      - security/phase-17-pwa-cache-push-security
+  pull_request:
+    branches:
+      - security/phase-16-frontend-browser-security
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase-17-pwa-security:
+    name: Service-worker isolation, updates, and push cleanup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+
+      - name: Setup exact Node.js toolchain
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: Frontend/Chatify/package-lock.json
+
+      - name: Verify exact toolchain
+        run: |
+          test "$(node --version)" = 'v24.19.0'
+          test "$(npm --version)" = '11.17.0'
+
+      - name: Install controlled frontend dependencies
+        run: npm --prefix Frontend/Chatify ci --strict-allow-scripts
+
+      - name: Check service-worker syntax
+        run: node --check Frontend/Chatify/public/chatify-service-worker.js
+
+      - name: Run service-worker adversarial harness
+        run: node --test scripts/security/__tests__/phase17-service-worker.test.mjs
+
+      - name: Run Phase 17 browser regressions
+        run: |
+          npm --prefix Frontend/Chatify test -- --run \
+            src/utils/pushNotifications.test.ts \
+            src/hooks/useAuthQuery.pwa-security.test.tsx \
+            src/hooks/useAuthQuery.test.tsx \
+            src/hooks/useNotificationPreferences.test.tsx
+
+      - name: Run frontend lint
+        run: npm --prefix Frontend/Chatify run lint
+
+      - name: Build production PWA artifact
+        run: npm --prefix Frontend/Chatify run build
+
+      - name: Audit production dependencies
+        run: npm --prefix Frontend/Chatify audit --omit=dev --audit-level=high
+
+      - name: Verify patch hygiene
+        run: git diff --check HEAD^ HEAD
