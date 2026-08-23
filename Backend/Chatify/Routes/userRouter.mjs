@@ -26,6 +26,11 @@ import {
 } from "../Controller/privacyController.mjs";
 import protect from "../Middlewares/protectRoutes.mjs";
 import csrfProtection from "../Middlewares/csrfProtection.mjs";
+import {
+  capturePresencePrivacyMutation,
+  sanitizeContactPresenceResponse,
+  sanitizeSinglePresenceResponse,
+} from "../Middlewares/presencePrivacy.mjs";
 import { privacyRequestLimiter, profileImageUploadLimiter } from "../Middlewares/rateLimiters.mjs";
 import { secureProfileImageUpload } from '../Middlewares/secureUpload.mjs';
 import { enforceSecureUploadDelivery } from '../Middlewares/uploadDeliverySecurity.mjs';
@@ -34,8 +39,16 @@ const router = Router();
 
 router.route('/get-logged-user').get(protect, getLoggedUser)
 router.route('/get-all-users').get(protect, getAllUsers)
-router.route('/online-status/:userId').get(protect, getOnlineStatus)
-router.route('/online-users').get(protect, getOnlineUsers)
+router.route('/online-status/:userId').get(
+  protect,
+  sanitizeSinglePresenceResponse,
+  getOnlineStatus
+)
+router.route('/online-users').get(
+  protect,
+  sanitizeContactPresenceResponse,
+  getOnlineUsers
+)
 router.route('/lookup/:username').get(protect, lookupUserByUsername)
 router.route('/username').patch(protect, csrfProtection, setUsername)
 router.route('/profile').patch(protect, csrfProtection, updateProfile)
@@ -48,7 +61,12 @@ router.route('/:userId/profile-image').get(
   getProfileImage
 )
 router.route('/identity').patch(protect, csrfProtection, updateIdentityMark)
-router.route('/privacy-settings').patch(protect, csrfProtection, updatePrivacySettings)
+router.route('/privacy-settings').patch(
+  protect,
+  csrfProtection,
+  capturePresencePrivacyMutation,
+  updatePrivacySettings
+)
 router.route('/privacy/summary').get(protect, getPrivacySummary)
 router.route('/privacy/export').post(protect, csrfProtection, privacyRequestLimiter, exportAccountData)
 router.route('/privacy/deletion-request').post(protect, csrfProtection, privacyRequestLimiter, requestAccountDeletion)
