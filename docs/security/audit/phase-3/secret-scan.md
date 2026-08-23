@@ -6,8 +6,8 @@ This evidence is sanitized. It never stores discovered credential values, value 
 
 | Scope | Scanned | Bytes | Findings | Suppressed | Unsuppressed | Content SHA-256 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Current tree | 1463 | 8822901 | 0 | 0 | 0 | bd8eed12aed28ea5101b54831f04a1e7b3311f9205fbed3d4cb38c15ef71a21b |
-| Git history | 3120 | 29888153 | 6 | 6 | 0 | 930520c08d7835c5f022015be75596abc1cb671ecbd37ba24c4aa559c9fed8a6 |
+| Current tree | 1463 | 8822901 | 0 | 0 | 0 | 70c251c19ce5ca14e2fadc5b1ee27c2a2cbd7f822e76ecc7c24f7cb12f72fd95 |
+| Git history | 3123 | 29912486 | 6 | 6 | 0 | 1c21da7cef99a40935624aebe2d5d5e5d8a8f0bf3b332c5d53bce073f6dc1702 |
 
 ## Current-tree candidates
 

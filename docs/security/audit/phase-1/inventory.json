@@ -17987,7 +17987,7 @@
       {
         "path": "scripts/security/__tests__/phase2-threat-model.test.mjs",
         "bytes": 19335,
-        "sha256": "61cfc86dbac89e4b0636d0c256f328204195f0091813d2fd52d3a560459f150e",
+        "sha256": "1dac7d080662b279445fcf9c278154f53da2880bbf6baa836f5a372ea7e7e3b7",
         "categories": [
           "cli-and-operations",
           "tests",
