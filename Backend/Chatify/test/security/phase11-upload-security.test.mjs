@@ -135,6 +135,26 @@ describe('Phase 11 upload and attachment security', () => {
     });
   });
 
+  it('rejects PDF active-content names encoded with PDF hex escapes', async () => {
+    const escapedActivePdf = Buffer.from([
+      '%PDF-1.7',
+      '1 0 obj << /Open#41ction 2 0 R >> endobj',
+      '2 0 obj << /S /J#53 /J#53 (app.alert(1)) >> endobj',
+      'trailer << /Root 1 0 R >>',
+      '%%EOF',
+    ].join('\n'), 'latin1');
+
+    await expect(validateAndSanitizeUploadContent({
+      buffer: escapedActivePdf,
+      mimeType: 'application/pdf',
+      extension: 'pdf',
+      purpose: 'attachment',
+    })).resolves.toMatchObject({
+      ok: false,
+      code: 'UPLOAD_ACTIVE_CONTENT_REJECTED',
+    });
+  });
+
   it('strips privacy-sensitive PNG and JPEG metadata before storage', async () => {
     const png = await validateAndSanitizeUploadContent({
       buffer: addPngTextMetadata(tinyPngBuffer()),
