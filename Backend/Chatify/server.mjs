@@ -10,6 +10,7 @@ const { default: app } = await import('./app.mjs');
 const { connectionPromise } = await import('./Config/DBConfig.mjs');
 await connectionPromise;
 const { initSocket } = await import('./Config/socket.mjs');
+const { installSocketPresencePrivacy } = await import('./Services/socketPresencePrivacyService.mjs');
 const { installSocketSessionLifecycle } = await import('./Services/socketSessionLifecycleService.mjs');
 const { startNotificationOutboxWorker } = await import('./Services/notificationService.mjs');
 const { startPrivacyOperationsWorker } = await import('./Services/privacyOperationsService.mjs');
@@ -18,6 +19,7 @@ const { startUploadLifecycleWorker } = await import('./Services/uploadLifecycleS
 const PORT = process.env.PORT || process.env.PORT_NUMBER || 5000;
 const httpServer = createServer(app);
 const io = initSocket(httpServer);
+installSocketPresencePrivacy(io);
 installSocketSessionLifecycle(io);
 
 httpServer.listen(PORT, () => {
