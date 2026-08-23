@@ -22,12 +22,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git --exclude='*.tar.gz' -czf "chatify-source-${GITHUB_SHA}.tar.gz" .
+          tar --exclude=.git -czf "${RUNNER_TEMP}/chatify-source-${GITHUB_SHA}.tar.gz" .
 
       - name: Upload source archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: chatify-source-${{ github.sha }}
-          path: chatify-source-${{ github.sha }}.tar.gz
+          path: ${{ runner.temp }}/chatify-source-${{ github.sha }}.tar.gz
           if-no-files-found: error
           retention-days: 1
