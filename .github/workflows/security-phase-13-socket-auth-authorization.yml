@@ -46,6 +46,10 @@ jobs:
       - name: Check Phase 13 source syntax
         run: |
           node --check Backend/Chatify/Config/socket.mjs
+          node --check Backend/Chatify/server.mjs
+          node --check Backend/Chatify/Services/socketSessionLifecycleService.mjs
+          node --check Backend/Chatify/Middlewares/socketSessionInvalidation.mjs
+          node --check Backend/Chatify/Routes/authRouter.mjs
           node --check Backend/Chatify/Controller/authController.mjs
           node --check Backend/Chatify/Utils/tokenCookieGenerator.mjs
           node --check Backend/Chatify/Utils/authToken.mjs
