@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authstore";
 import { useEffect } from "react";
-
+import { normalizeInternalAppPath } from '../security/browserSecurity';
 
 export const useAuthRedirect = () => {
   const { isAuthenticated } = useAuthStore();
@@ -10,10 +10,10 @@ export const useAuthRedirect = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      const from = location.state?.from?.pathname || '/';
-      navigate(from, { replace: true})
+      const from = normalizeInternalAppPath(location.state?.from?.pathname, '/');
+      navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, location]);
+  }, [isAuthenticated, navigate, location.state]);
 
   return { isAuthenticated };
-}
+};

