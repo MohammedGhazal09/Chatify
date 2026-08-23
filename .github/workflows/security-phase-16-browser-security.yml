@@ -50,7 +50,8 @@ jobs:
             src/security/browserPolicy.test.ts \
             src/api/apiOrigin.test.ts \
             src/api/axios.test.ts \
-            src/components/protectedRoute.test.tsx
+            src/components/protectedRoute.test.tsx \
+            src/hooks/useAuthRedirect.test.tsx
 
       - name: Run frontend lint
         run: npm --prefix Frontend/Chatify run lint
