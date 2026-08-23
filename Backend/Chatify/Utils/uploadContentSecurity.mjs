@@ -367,7 +367,10 @@ const validatePdf = (buffer) => {
     return failure('UPLOAD_DOCUMENT_MALFORMED', 'PDF signature is invalid');
   }
   const text = buffer.toString('latin1');
-  if (ACTIVE_PDF_PATTERN.test(text)) {
+  const normalizedText = text.replace(/#([0-9a-f]{2})/gi, (_match, hex) => (
+    String.fromCharCode(Number.parseInt(hex, 16))
+  ));
+  if (ACTIVE_PDF_PATTERN.test(normalizedText)) {
     return failure('UPLOAD_ACTIVE_CONTENT_REJECTED', 'PDF contains active or embedded content');
   }
   return { ok: true, buffer, dimensions: null, metadataStripped: false };
