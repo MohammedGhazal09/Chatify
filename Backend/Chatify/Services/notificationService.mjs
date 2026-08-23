@@ -19,11 +19,17 @@ import {
   serializeOutboxPayload,
 } from '../Utils/notificationTemplates.mjs';
 import { isEncryptedConversation } from '../Utils/encryptionMode.mjs';
+import {
+  createRestrictedHttpsAgent,
+  normalizeOutboundHttpsUrl,
+} from '../Utils/outboundRequestSecurity.mjs';
 import { sendNotificationEmail } from './emailService.mjs';
 
 const DEFAULT_OUTBOX_BATCH_SIZE = 25;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const RETRY_BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000];
+const PUSH_REQUEST_TIMEOUT_MS = 10_000;
+const PUSH_TTL_SECONDS = 60;
 const PROVIDER_DRY_RUN = 'dry-run';
 const PROVIDER_BREVO = 'brevo';
 const PROVIDER_WEB_PUSH = 'web-push';
@@ -31,12 +37,14 @@ const sanitizedTextPattern = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|https:\/
 
 let workerTimer = null;
 let webPushConfigured = false;
+let webPushAgent = null;
 
 class NotificationDeliveryError extends Error {
-  constructor(message, code) {
+  constructor(message, code, { terminal = false } = {}) {
     super(message);
     this.name = 'NotificationDeliveryError';
     this.code = code;
+    this.terminal = terminal;
   }
 }
 
@@ -289,6 +297,14 @@ const configureWebPush = () => {
   webPushConfigured = true;
 };
 
+const getWebPushAgent = () => {
+  if (!webPushAgent) {
+    webPushAgent = createRestrictedHttpsAgent();
+  }
+
+  return webPushAgent;
+};
+
 const deliverEmailNotification = async (job) => {
   if (shouldDryRunNotifications()) {
     return { provider: PROVIDER_DRY_RUN, providerStatus: 'dry-run-sent' };
@@ -317,6 +333,26 @@ const findPushSubscription = (user, endpointHash) => (
     .find((subscription) => subscription.endpointHash === endpointHash)
 );
 
+const removePushSubscriptionForUser = async (user, endpointHash) => {
+  if (!user?.notificationPreferences) {
+    return;
+  }
+
+  const currentSubscriptions = user.notificationPreferences.pushSubscriptions ?? [];
+  const remainingSubscriptions = currentSubscriptions
+    .filter((subscription) => subscription.endpointHash !== endpointHash);
+
+  if (remainingSubscriptions.length === currentSubscriptions.length) {
+    return;
+  }
+
+  user.notificationPreferences.pushSubscriptions = remainingSubscriptions;
+  if (remainingSubscriptions.length === 0) {
+    user.notificationPreferences.pushEnabled = false;
+  }
+  await user.save();
+};
+
 const deliverPushNotification = async (job) => {
   if (shouldDryRunNotifications()) {
     return { provider: PROVIDER_DRY_RUN, providerStatus: 'dry-run-sent' };
@@ -328,23 +364,56 @@ const deliverPushNotification = async (job) => {
   const subscription = findPushSubscription(user, job.pushSubscriptionEndpointHash);
 
   if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
-    throw new NotificationDeliveryError('Push subscription is unavailable', 'push_subscription_unavailable');
+    throw new NotificationDeliveryError(
+      'Push subscription is unavailable',
+      'push_subscription_unavailable',
+      { terminal: true }
+    );
   }
 
-  await webPush.sendNotification(
-    {
-      endpoint: subscription.endpoint,
-      keys: {
-        p256dh: subscription.keys.p256dh,
-        auth: subscription.keys.auth,
+  const endpointValidation = normalizeOutboundHttpsUrl(subscription.endpoint);
+
+  if (!endpointValidation.ok) {
+    await removePushSubscriptionForUser(user, job.pushSubscriptionEndpointHash);
+    throw new NotificationDeliveryError(
+      'Push subscription endpoint is unsafe',
+      'push_subscription_unsafe',
+      { terminal: true }
+    );
+  }
+
+  try {
+    await webPush.sendNotification(
+      {
+        endpoint: endpointValidation.url,
+        keys: {
+          p256dh: subscription.keys.p256dh,
+          auth: subscription.keys.auth,
+        },
       },
-    },
-    JSON.stringify({
-      title: job.payload.title,
-      body: job.payload.body,
-      url: '/chat',
-    })
-  );
+      JSON.stringify({
+        title: job.payload.title,
+        body: job.payload.body,
+        url: '/chat',
+      }),
+      {
+        agent: getWebPushAgent(),
+        timeout: PUSH_REQUEST_TIMEOUT_MS,
+        TTL: PUSH_TTL_SECONDS,
+      }
+    );
+  } catch (error) {
+    if ([404, 410].includes(Number(error?.statusCode))) {
+      await removePushSubscriptionForUser(user, job.pushSubscriptionEndpointHash);
+      throw new NotificationDeliveryError(
+        'Push subscription has expired',
+        'push_subscription_expired',
+        { terminal: true }
+      );
+    }
+
+    throw error;
+  }
 
   return { provider: PROVIDER_WEB_PUSH, providerStatus: 'sent' };
 };
@@ -414,7 +483,7 @@ export const processNotificationOutbox = async ({ limit = DEFAULT_OUTBOX_BATCH_S
         provider: result.provider,
       });
     } catch (error) {
-      const terminal = attempts >= job.maxAttempts;
+      const terminal = error?.terminal === true || attempts >= job.maxAttempts;
       const sanitizedError = sanitizeProviderError(error);
 
       await NotificationOutbox.updateOne(
@@ -481,4 +550,8 @@ export const stopNotificationOutboxWorker = () => {
 export const resetNotificationOutboxWorkerForTests = () => {
   stopNotificationOutboxWorker();
   webPushConfigured = false;
+  if (webPushAgent) {
+    webPushAgent.destroy();
+    webPushAgent = null;
+  }
 };
