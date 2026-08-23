@@ -57,6 +57,70 @@ jobs:
             .github/workflows/security-phase-4-supply-chain.yml \
             .github/workflows/security-phase-5-authentication-session.yml
 
+      - name: Map Phase 11 persistence and worker surfaces into the threat model
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const file = 'docs/security/audit/phase-2/threat-model.source.json';
+          const source = JSON.parse(fs.readFileSync(file, 'utf8'));
+
+          const backgroundId = 'BACKGROUND-UPLOAD-LIFECYCLE-WORKER';
+          if (!source.entryPointGroups.some((group) => group.id === backgroundId)) {
+            const insertionIndex = source.entryPointGroups.findIndex((group) => (
+              group.id === 'BACKGROUND-SOCKET-TIMERS'
+            ));
+            const group = {
+              id: backgroundId,
+              kind: 'background-job',
+              boundaryId: 'BOUNDARY-DATABASE',
+              sourcePrefixes: [
+                'Backend/Chatify/Services/uploadLifecycleService.mjs',
+              ],
+              assetIds: [
+                'media-storage',
+                'operations-control-plane',
+              ],
+              dataClassIds: [
+                'media-attachments',
+                'operational-telemetry',
+              ],
+            };
+            source.entryPointGroups.splice(
+              insertionIndex >= 0 ? insertionIndex : source.entryPointGroups.length,
+              0,
+              group
+            );
+          }
+
+          const modelGroupId = 'MODELS-UPLOAD-SECURITY';
+          if (!source.modelGroups.some((group) => group.id === modelGroupId)) {
+            const insertionIndex = source.modelGroups.findIndex((group) => (
+              group.id === 'MODELS-SOCIAL-SPACES'
+            ));
+            const group = {
+              id: modelGroupId,
+              modelSources: [
+                'Backend/Chatify/Models/uploadBudgetModel.mjs',
+              ],
+              assetIds: [
+                'media-storage',
+                'operations-control-plane',
+              ],
+              dataClassIds: [
+                'account-pii',
+                'operational-telemetry',
+              ],
+            };
+            source.modelGroups.splice(
+              insertionIndex >= 0 ? insertionIndex : source.modelGroups.length,
+              0,
+              group
+            );
+          }
+
+          fs.writeFileSync(file, `${JSON.stringify(source, null, 2)}\n`);
+          NODE
+
       - name: Regenerate deterministic Phase 1 through Phase 5 evidence
         run: |
           for pass in 1 2; do
