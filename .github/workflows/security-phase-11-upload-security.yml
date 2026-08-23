@@ -26,7 +26,7 @@ jobs:
       - name: Checkout exact revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Setup exact Node.js toolchain
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -53,12 +53,16 @@ jobs:
           node --check Backend/Chatify/Models/uploadBudgetModel.mjs
           node --check Backend/Chatify/Services/uploadBudgetService.mjs
           node --check Backend/Chatify/Services/uploadLifecycleService.mjs
+          node --check Backend/Chatify/Middlewares/databaseAuthorization.mjs
           node --check Backend/Chatify/Middlewares/secureUpload.mjs
           node --check Backend/Chatify/Middlewares/uploadDeliverySecurity.mjs
+          node --check Backend/Chatify/Routes/chatRouter.mjs
+          node --check Backend/Chatify/Routes/messageRouter.mjs
           node --check Backend/Chatify/Utils/uploadContentSecurity.mjs
           node --check Backend/Chatify/Utils/officeDocumentSecurity.mjs
           node --check Backend/Chatify/Utils/attachmentValidation.mjs
           node --check Backend/Chatify/Utils/profileImageValidation.mjs
+          node --check Backend/Chatify/test/helpers/authAgent.mjs
 
       - name: Run Phase 11 and adjacent backend regressions
         run: |
@@ -69,21 +73,29 @@ jobs:
             test/security/phase11-office-container-security.test.mjs \
             test/security/phase11-chat-deletion-lifecycle.test.mjs \
             test/security/phase10-database-security.test.mjs \
+            test/chat/chat.organization.test.mjs \
             test/message/message.attachments.test.mjs \
             test/message/message.attachment-authorization.test.mjs \
+            test/message/message.saved.test.mjs \
+            test/message/message.search.test.mjs \
             test/message/message.voice.test.mjs \
-            test/user/user.profile-image.test.mjs
+            test/user/user.profile-image.test.mjs \
+            test/user/user.username.test.mjs
 
-      - name: Run protected browser upload rendering regressions
+      - name: Run protected browser and compatibility regressions
         run: |
           npm --prefix Frontend/Chatify test -- --run \
             src/pages/chat/components/AttachmentPreviewModal.test.tsx \
-            src/pages/chat/components/UserAvatar.test.tsx
+            src/pages/chat/components/UserAvatar.test.tsx \
+            src/pages/signup/signup.test.tsx
 
       - name: Audit production dependencies
         run: |
           npm --prefix Backend/Chatify audit --omit=dev --audit-level=high
           npm --prefix Frontend/Chatify audit --omit=dev --audit-level=high
 
-      - name: Verify patch hygiene
-        run: git diff --check HEAD^ HEAD
+      - name: Verify complete Phase 11 patch hygiene
+        run: |
+          git fetch --force origin \
+            '+refs/heads/security/phase-10-mongodb-data-integrity:refs/remotes/origin/security/phase-10-mongodb-data-integrity'
+          git diff --check refs/remotes/origin/security/phase-10-mongodb-data-integrity...HEAD
