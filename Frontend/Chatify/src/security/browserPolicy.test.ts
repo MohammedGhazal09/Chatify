@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const readProjectFile = (relativePath: string) => readFileSync(
-  new URL(`../../${relativePath}`, import.meta.url),
+  resolve(process.cwd(), relativePath),
   'utf8'
 );
 
