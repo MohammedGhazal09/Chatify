@@ -48,7 +48,7 @@ jobs:
           test "$(node --version)" = 'v24.19.0'
           test "$(npm --version)" = '11.17.0'
 
-      - name: Restore inherited read-only workflows
+      - name: Restore inherited workflows and the exact previously passing Phase 2 test
         run: |
           git checkout refs/remotes/origin/security/phase-10-mongodb-data-integrity -- \
             .github/workflows/security-phase-1-inventory.yml \
@@ -56,6 +56,18 @@ jobs:
             .github/workflows/security-phase-3-secret-exposure.yml \
             .github/workflows/security-phase-4-supply-chain.yml \
             .github/workflows/security-phase-5-authentication-session.yml
+          git checkout f176018a260d234723e1e4b4f683ac45429a6e30 -- \
+            scripts/security/__tests__/phase2-threat-model.test.mjs
+          node <<'NODE'
+          const fs = require('node:fs');
+          const file = 'scripts/security/__tests__/phase2-threat-model.test.mjs';
+          const source = fs.readFileSync(file, 'utf8');
+          const before = 'assert.equal(model.coverage.dataModels.total, 22)';
+          const after = 'assert.equal(model.coverage.dataModels.total, 23)';
+          const count = source.split(before).length - 1;
+          if (count !== 1) throw new Error(`Expected one model-count assertion, found ${count}`);
+          fs.writeFileSync(file, source.replace(before, after));
+          NODE
 
       - name: Regenerate deterministic Phase 1 through Phase 5 evidence
         run: |
@@ -81,6 +93,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
+            scripts/security/__tests__/phase2-threat-model.test.mjs \
             .github/workflows/security-phase-1-inventory.yml \
             .github/workflows/security-phase-2-threat-model.yml \
             .github/workflows/security-phase-3-secret-exposure.yml \
