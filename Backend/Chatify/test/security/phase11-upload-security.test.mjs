@@ -361,6 +361,7 @@ describe('Phase 11 upload and attachment security', () => {
       .get(uploaded.body.data.user.profilePic)
       .expect(200);
 
+    expect(response.headers['cache-control']).toBe('private, no-store');
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['cross-origin-resource-policy']).toBe('same-origin');
     expect(response.headers['referrer-policy']).toBe('no-referrer');
