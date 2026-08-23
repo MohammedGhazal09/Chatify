@@ -16,7 +16,7 @@ const AUTO_CSRF_ROUTE_PREFIXES = [
   '/api/admin',
   '/api/space',
   '/api/invite',
-  '/api/user',
+  '/api/user/profile-image',
 ];
 const AUTO_CSRF_METHODS = ['post', 'put', 'patch', 'delete'];
 
