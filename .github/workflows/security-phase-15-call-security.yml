@@ -69,7 +69,8 @@ jobs:
       - name: Run browser call-controller regressions
         run: |
           npm --prefix Frontend/Chatify test -- --run \
-            src/hooks/useCallController.test.tsx
+            src/hooks/useCallController.test.tsx \
+            src/hooks/useCallController.ice-config-security.test.tsx
 
       - name: Audit production dependencies
         run: |
