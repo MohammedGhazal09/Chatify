@@ -1,6 +1,7 @@
 name: Audit dependency refresh
 
 on:
+  pull_request:
   push:
     branches:
       - audit/security-plan-remediation
