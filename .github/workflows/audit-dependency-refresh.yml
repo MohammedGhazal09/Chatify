@@ -27,17 +27,22 @@ jobs:
 
       - name: Refresh backend lockfile
         working-directory: Backend/Chatify
-        run: |
-          npm audit fix --package-lock-only
-          npm audit --omit=dev --audit-level=high
+        run: npm audit fix --package-lock-only || true
+
+      - name: Verify backend production audit
+        working-directory: Backend/Chatify
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Refresh frontend lockfile
         working-directory: Frontend/Chatify
-        run: |
-          npm audit fix --package-lock-only
-          npm audit --omit=dev --audit-level=high
+        run: npm audit fix --package-lock-only || true
+
+      - name: Verify frontend production audit
+        working-directory: Frontend/Chatify
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Package refreshed manifests
+        if: always()
         run: |
           tar -czf "$RUNNER_TEMP/refreshed-lockfiles.tgz" \
             Backend/Chatify/package.json \
@@ -46,6 +51,7 @@ jobs:
             Frontend/Chatify/package-lock.json
 
       - name: Upload refreshed manifests
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: chatify-refreshed-lockfiles
