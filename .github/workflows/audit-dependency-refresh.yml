@@ -1,0 +1,54 @@
+name: Audit Dependency Refresh
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: Refresh vulnerable lockfile resolutions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+
+      - name: Refresh backend lockfile
+        working-directory: Backend/Chatify
+        run: |
+          npm audit fix --package-lock-only
+          npm audit --omit=dev --audit-level=high
+
+      - name: Refresh frontend lockfile
+        working-directory: Frontend/Chatify
+        run: |
+          npm audit fix --package-lock-only
+          npm audit --omit=dev --audit-level=high
+
+      - name: Package refreshed manifests
+        run: |
+          tar -czf "$RUNNER_TEMP/refreshed-lockfiles.tgz" \
+            Backend/Chatify/package.json \
+            Backend/Chatify/package-lock.json \
+            Frontend/Chatify/package.json \
+            Frontend/Chatify/package-lock.json
+
+      - name: Upload refreshed manifests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chatify-refreshed-lockfiles
+          path: ${{ runner.temp }}/refreshed-lockfiles.tgz
+          if-no-files-found: error
+          retention-days: 1
