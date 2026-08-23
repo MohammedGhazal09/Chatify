@@ -1,14 +1,11 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const readProjectFile = (relativePath: string) => readFileSync(
-  resolve(process.cwd(), relativePath),
-  'utf8'
-);
+import applicationDocument from '../../index.html?raw';
+import deploymentConfig from '../../vercel.json?raw';
+import viteConfiguration from '../../vite.config.ts?raw';
 
 const getVercelHeaders = () => {
-  const vercel = JSON.parse(readProjectFile('vercel.json')) as {
+  const vercel = JSON.parse(deploymentConfig) as {
     headers?: Array<{
       source: string;
       headers: Array<{ key: string; value: string }>;
@@ -20,10 +17,8 @@ const getVercelHeaders = () => {
 
 describe('Phase 16 deployed browser policy', () => {
   it('does not execute unpinned third-party scripts from the application document', () => {
-    const html = readProjectFile('index.html');
-
-    expect(html).not.toMatch(/<script[^>]+src=["']https?:\/\//i);
-    expect(html).not.toContain('cdnflow.co');
+    expect(applicationDocument).not.toMatch(/<script[^>]+src=["']https?:\/\//i);
+    expect(applicationDocument).not.toContain('cdnflow.co');
   });
 
   it('deploys a restrictive CSP and browser isolation headers', () => {
@@ -46,8 +41,6 @@ describe('Phase 16 deployed browser policy', () => {
   });
 
   it('keeps production source maps explicitly disabled', () => {
-    const viteConfig = readProjectFile('vite.config.ts');
-
-    expect(viteConfig).toMatch(/build\s*:\s*\{[\s\S]*sourcemap\s*:\s*false/);
+    expect(viteConfiguration).toMatch(/build\s*:\s*\{[\s\S]*sourcemap\s*:\s*false/);
   });
 });
