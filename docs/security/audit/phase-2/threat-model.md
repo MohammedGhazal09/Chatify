@@ -30,7 +30,7 @@ Chatify is a browser-based MERN messaging system that combines cookie-authentica
 - Cryptographic proof of browser WebRTC, TLS, Argon2, JWT, AES-GCM, and third-party library primitives; misuse and integration of those primitives remain in scope.
 - Production network controls, secret stores, backups, firewall rules, and provider-console settings that are not represented by repository evidence; unsafe repository assumptions about them remain in scope.
 
-The model is derived from Phase 1 runtime-surface SHA-256 `a8b1efab7e95b63360755203d941fd4b1a69b376ef447b3cf95a22de4d19f226`, covering 116 HTTP routes, 67 Socket.IO registrations, 22 data models, and 9 external-provider groups. File-only audit and documentation changes do not alter this digest. It is a repository-scoped threat model, not a vulnerability report.
+The model is derived from Phase 1 runtime-surface SHA-256 `e473173175f6b5ac8e80c51ff14571c3f19de766b3c7dbeb7ea6c47a566fe22e`, covering 116 HTTP routes, 67 Socket.IO registrations, 23 data models, and 9 external-provider groups. File-only audit and documentation changes do not alter this digest. It is a repository-scoped threat model, not a vulnerability report.
 
 ## Threat Model, Trust Boundaries, and Assumptions
 
@@ -136,8 +136,8 @@ The model is derived from Phase 1 runtime-surface SHA-256 `a8b1efab7e95b63360755
 | httpRoutes | 116 | 116 | 0 | 0 |
 | socketEvents | 67 | 67 | 0 | 0 |
 | serviceWorkerEvents | 2 | 2 | 0 | 0 |
-| backgroundJobs | 18 | 18 | 0 | 0 |
-| dataModels | 22 | 22 | 0 | 0 |
+| backgroundJobs | 19 | 19 | 0 | 0 |
+| dataModels | 23 | 23 | 0 | 0 |
 | externalProviders | 9 | 9 | 0 | 0 |
 
 ### Attacker stories

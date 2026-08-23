@@ -3,15 +3,15 @@
   "repository": "MohammedGhazal09/Chatify",
   "version": "46dff3834a9f727840cfb02a2e8acaef43cf06f8",
   "inventory": {
-    "runtimeSurfaceSha256": "a8b1efab7e95b63360755203d941fd4b1a69b376ef447b3cf95a22de4d19f226",
+    "runtimeSurfaceSha256": "e473173175f6b5ac8e80c51ff14571c3f19de766b3c7dbeb7ea6c47a566fe22e",
     "schemaVersion": 1,
     "sourceSelection": "git-index",
     "surfaceCounts": {
       "httpRoutes": 116,
       "socketEvents": 67,
       "serviceWorkerEvents": 2,
-      "backgroundJobs": 18,
-      "dataModels": 22,
+      "backgroundJobs": 19,
+      "dataModels": 23,
       "externalProviders": 9
     }
   },
@@ -1209,6 +1209,22 @@
       ]
     },
     {
+      "id": "BACKGROUND-UPLOAD-LIFECYCLE-WORKER",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-DATABASE",
+      "sourcePrefixes": [
+        "Backend/Chatify/Services/uploadLifecycleService.mjs"
+      ],
+      "assetIds": [
+        "media-storage",
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "media-attachments",
+        "operational-telemetry"
+      ]
+    },
+    {
       "id": "BACKGROUND-SOCKET-TIMERS",
       "kind": "background-job",
       "boundaryId": "BOUNDARY-SOCKET",
@@ -1326,6 +1342,20 @@
         "encrypted-message-material",
         "media-attachments",
         "social-graph-presence"
+      ]
+    },
+    {
+      "id": "MODELS-UPLOAD-SECURITY",
+      "modelSources": [
+        "Backend/Chatify/Models/uploadBudgetModel.mjs"
+      ],
+      "assetIds": [
+        "media-storage",
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "account-pii",
+        "operational-telemetry"
       ]
     },
     {
@@ -2858,8 +2888,8 @@
       ]
     },
     "backgroundJobs": {
-      "mapped": 18,
-      "total": 18,
+      "mapped": 19,
+      "total": 19,
       "unmapped": [],
       "ambiguous": [],
       "groups": [
@@ -2890,6 +2920,10 @@
         {
           "id": "BACKGROUND-SOCKET-TIMERS",
           "count": 2
+        },
+        {
+          "id": "BACKGROUND-UPLOAD-LIFECYCLE-WORKER",
+          "count": 1
         }
       ],
       "ignoredDevelopmentOnly": [
@@ -2898,8 +2932,8 @@
       ]
     },
     "dataModels": {
-      "mapped": 22,
-      "total": 22,
+      "mapped": 23,
+      "total": 23,
       "unmapped": [],
       "ambiguous": [],
       "groups": [
@@ -2926,6 +2960,10 @@
         {
           "id": "MODELS-SOCIAL-SPACES",
           "count": 5
+        },
+        {
+          "id": "MODELS-UPLOAD-SECURITY",
+          "count": 1
         }
       ]
     },

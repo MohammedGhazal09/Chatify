@@ -1,36 +1,32 @@
 name: Security Phase 1 Inventory
 
 on:
+  pull_request:
   push:
     branches:
-      - security/phase-11-upload-attachments
-  pull_request:
-    branches:
-      - security/phase-10-mongodb-data-integrity
+      - main
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: phase-11-inherited-evidence-materialization
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  materialize-inherited-evidence:
-    if: github.repository == 'MohammedGhazal09/Chatify'
+  phase-1-repository-inventory:
+    name: Phase 1 inventory and clean reproduction
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
-      - name: Checkout exact Phase 11 branch
+      - name: Checkout full history
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: security/phase-11-upload-attachments
           fetch-depth: 0
-          persist-credentials: true
 
-      - name: Setup exact Node.js toolchain
+      - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24.19.0"
@@ -39,125 +35,26 @@ jobs:
             Backend/Chatify/package-lock.json
             Frontend/Chatify/package-lock.json
 
-      - name: Verify exact branch and toolchain
-        run: |
-          git fetch --force origin \
-            '+refs/heads/security/phase-11-upload-attachments:refs/remotes/origin/security/phase-11-upload-attachments' \
-            '+refs/heads/security/phase-10-mongodb-data-integrity:refs/remotes/origin/security/phase-10-mongodb-data-integrity'
-          test "$(git rev-parse HEAD)" = "$(git rev-parse refs/remotes/origin/security/phase-11-upload-attachments)"
-          test "$(node --version)" = 'v24.19.0'
-          test "$(npm --version)" = '11.17.0'
+      - name: Reproduce and validate Phase 1
+        run: npm run security:phase1:reproduce
 
-      - name: Restore inherited read-only workflows
-        run: |
-          git checkout refs/remotes/origin/security/phase-10-mongodb-data-integrity -- \
-            .github/workflows/security-phase-1-inventory.yml \
-            .github/workflows/security-phase-2-threat-model.yml \
-            .github/workflows/security-phase-3-secret-exposure.yml \
-            .github/workflows/security-phase-4-supply-chain.yml \
-            .github/workflows/security-phase-5-authentication-session.yml
+      - name: Verify generated inventory has no drift
+        run: git diff --exit-code -- docs/security/audit/phase-1
 
-      - name: Map Phase 11 persistence and worker surfaces into the threat model
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs');
-          const file = 'docs/security/audit/phase-2/threat-model.source.json';
-          const source = JSON.parse(fs.readFileSync(file, 'utf8'));
+      - name: Regenerate expected inventory for failed-run evidence
+        if: failure()
+        continue-on-error: true
+        run: npm run security:phase1:generate
 
-          const backgroundId = 'BACKGROUND-UPLOAD-LIFECYCLE-WORKER';
-          if (!source.entryPointGroups.some((group) => group.id === backgroundId)) {
-            const insertionIndex = source.entryPointGroups.findIndex((group) => (
-              group.id === 'BACKGROUND-SOCKET-TIMERS'
-            ));
-            const group = {
-              id: backgroundId,
-              kind: 'background-job',
-              boundaryId: 'BOUNDARY-DATABASE',
-              sourcePrefixes: [
-                'Backend/Chatify/Services/uploadLifecycleService.mjs',
-              ],
-              assetIds: [
-                'media-storage',
-                'operations-control-plane',
-              ],
-              dataClassIds: [
-                'media-attachments',
-                'operational-telemetry',
-              ],
-            };
-            source.entryPointGroups.splice(
-              insertionIndex >= 0 ? insertionIndex : source.entryPointGroups.length,
-              0,
-              group
-            );
-          }
-
-          const modelGroupId = 'MODELS-UPLOAD-SECURITY';
-          if (!source.modelGroups.some((group) => group.id === modelGroupId)) {
-            const insertionIndex = source.modelGroups.findIndex((group) => (
-              group.id === 'MODELS-SOCIAL-SPACES'
-            ));
-            const group = {
-              id: modelGroupId,
-              modelSources: [
-                'Backend/Chatify/Models/uploadBudgetModel.mjs',
-              ],
-              assetIds: [
-                'media-storage',
-                'operations-control-plane',
-              ],
-              dataClassIds: [
-                'account-pii',
-                'operational-telemetry',
-              ],
-            };
-            source.modelGroups.splice(
-              insertionIndex >= 0 ? insertionIndex : source.modelGroups.length,
-              0,
-              group
-            );
-          }
-
-          fs.writeFileSync(file, `${JSON.stringify(source, null, 2)}\n`);
-          NODE
-
-      - name: Regenerate deterministic Phase 1 through Phase 5 evidence
-        run: |
-          for pass in 1 2; do
-            npm run security:phase1:generate
-            npm run security:phase2:generate
-            npm run security:phase3:generate
-            npm run security:phase4:generate
-            npm run security:phase5:generate
-          done
-
-      - name: Validate regenerated evidence
-        run: |
-          npm run security:phase1:check
-          npm run security:phase2:check
-          npm run security:phase3:check
-          npm run security:phase4:check
-          npm run security:phase5:check
-
-      - name: Publish inherited evidence refresh
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add \
-            .github/workflows/security-phase-1-inventory.yml \
-            .github/workflows/security-phase-2-threat-model.yml \
-            .github/workflows/security-phase-3-secret-exposure.yml \
-            .github/workflows/security-phase-4-supply-chain.yml \
-            .github/workflows/security-phase-5-authentication-session.yml \
-            docs/security/audit/phase-1 \
-            docs/security/audit/phase-2 \
-            docs/security/audit/phase-3 \
-            docs/security/audit/phase-4 \
-            docs/security/audit/phase-5
-          git diff --cached --check
-          if git diff --cached --quiet; then
-            echo 'Inherited evidence is already current.'
-            exit 0
-          fi
-          git commit -m 'docs(security): refresh inherited evidence for Phase 11'
-          git push origin HEAD:security/phase-11-upload-attachments
+      - name: Upload Phase 1 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase-1-reproduction-evidence
+          path: |
+            .artifacts/security/phase-1/run-evidence.json
+            docs/security/audit/phase-1/inventory.json
+            docs/security/audit/phase-1/inventory.md
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30

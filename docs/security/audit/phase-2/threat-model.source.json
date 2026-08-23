@@ -1196,6 +1196,22 @@
       ]
     },
     {
+      "id": "BACKGROUND-UPLOAD-LIFECYCLE-WORKER",
+      "kind": "background-job",
+      "boundaryId": "BOUNDARY-DATABASE",
+      "sourcePrefixes": [
+        "Backend/Chatify/Services/uploadLifecycleService.mjs"
+      ],
+      "assetIds": [
+        "media-storage",
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "media-attachments",
+        "operational-telemetry"
+      ]
+    },
+    {
       "id": "BACKGROUND-SOCKET-TIMERS",
       "kind": "background-job",
       "boundaryId": "BOUNDARY-SOCKET",
@@ -1313,6 +1329,20 @@
         "encrypted-message-material",
         "media-attachments",
         "social-graph-presence"
+      ]
+    },
+    {
+      "id": "MODELS-UPLOAD-SECURITY",
+      "modelSources": [
+        "Backend/Chatify/Models/uploadBudgetModel.mjs"
+      ],
+      "assetIds": [
+        "media-storage",
+        "operations-control-plane"
+      ],
+      "dataClassIds": [
+        "account-pii",
+        "operational-telemetry"
       ]
     },
     {

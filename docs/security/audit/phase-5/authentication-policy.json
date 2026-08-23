@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "phase": 5,
+  "policy": "authentication-and-session-security",
+  "sources": [
+    {
+      "path": "Backend/Chatify/app.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Config/passport.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Controller/authController.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Controller/twoFactorController.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Models/oauthHandoffModel.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Models/twoFactorChallengeModel.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Models/userModel.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Routes/authRouter.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Utils/authIdentity.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Utils/authToken.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Utils/sessionMetadata.mjs",
+      "present": true
+    },
+    {
+      "path": "Backend/Chatify/Utils/tokenCookieGenerator.mjs",
+      "present": true
+    }
+  ],
+  "controls": [
+    {
+      "id": "access-claims",
+      "title": "Access tokens carry and require subject, type, JWT ID, and session ID",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Utils/authToken.mjs",
+        "Backend/Chatify/Utils/tokenCookieGenerator.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "access-cookie-duration",
+      "title": "Access-cookie lifetime derives from the configured access-token duration",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Utils/tokenCookieGenerator.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "access-verification",
+      "title": "Access token verification pins algorithm, issuer, and audience",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Utils/authToken.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "auth-csrf-boundary",
+      "title": "Unsafe authentication mutations remain behind signed CSRF validation",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Routes/authRouter.mjs",
+        "Backend/Chatify/app.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "auth-rate-limits",
+      "title": "Authentication mutation routes have explicit bounded rate limiting",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Routes/authRouter.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "canonical-identity",
+      "title": "Email identities share one canonical normalization boundary",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Config/passport.mjs",
+        "Backend/Chatify/Controller/authController.mjs",
+        "Backend/Chatify/Models/userModel.mjs",
+        "Backend/Chatify/Utils/authIdentity.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "logout-revocation",
+      "title": "Logout independently revokes access and refresh credentials",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Controller/authController.mjs",
+        "Backend/Chatify/Utils/tokenCookieGenerator.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "mfa-challenge-binding",
+      "title": "Second-factor challenges are bound to request metadata",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Controller/twoFactorController.mjs",
+        "Backend/Chatify/Models/twoFactorChallengeModel.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "mfa-session-containment",
+      "title": "Second-factor security changes revoke every other active session",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Controller/twoFactorController.mjs",
+        "Backend/Chatify/Utils/tokenCookieGenerator.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "oauth-atomic-consumption",
+      "title": "OAuth handoffs are state-bound, expiring, and atomically consumed",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Controller/authController.mjs",
+        "Backend/Chatify/Models/oauthHandoffModel.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "oauth-opaque-handoff",
+      "title": "OAuth uses an opaque, hashed, HttpOnly cookie handoff rather than URL credentials",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Controller/authController.mjs",
+        "Backend/Chatify/Models/oauthHandoffModel.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "oauth-verified-email",
+      "title": "OAuth requires a provider-verified canonical email and explicit linking",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Config/passport.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "password-policy",
+      "title": "Passwords preserve exact content and enforce a 12-128 code-point policy",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Models/userModel.mjs",
+        "Backend/Chatify/Utils/authIdentity.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "password-reset-atomic",
+      "title": "Password reset codes are atomically consumed before mutation",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Controller/authController.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "refresh-lifecycle",
+      "title": "Refresh tokens are opaque, hashed, rotating, and family-reuse aware",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Utils/tokenCookieGenerator.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "safe-auth-logging",
+      "title": "Authentication events use sanitized structured logging",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Controller/authController.mjs"
+      ],
+      "details": []
+    },
+    {
+      "id": "session-binding",
+      "title": "Every authenticated access token resolves to an active server-side session",
+      "passed": true,
+      "paths": [
+        "Backend/Chatify/Utils/sessionMetadata.mjs"
+      ],
+      "details": []
+    }
+  ],
+  "violations": [],
+  "exitGate": {
+    "requiredSourcesPresent": true,
+    "accessTokensStrictAndSessionBound": true,
+    "tokenLifecycleControlled": true,
+    "identitiesAndPasswordsCanonical": true,
+    "oauthExchangeControlled": true,
+    "recoveryAndMfaControlled": true,
+    "authenticationRoutesProtected": true,
+    "authenticationLoggingSanitized": true,
+    "noPolicyViolations": true
+  }
+}
