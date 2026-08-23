@@ -3,6 +3,7 @@ import { requestQueue, authQueue } from "../utils/requestQueue";
 import { resolveApiBaseUrl } from "./apiOrigin";
 import type { AxiosRequestConfig } from "axios";
 import { broadcastSessionEvent } from "../hooks/useSessionBroadcast";
+import { assertSafeApiRequestTarget } from '../security/browserSecurity';
 
 export const AUTH_EXPIRED_EVENT = 'chatify:auth-expired';
 
@@ -13,8 +14,15 @@ export const dispatchAuthExpired = () => {
   }
 };
 
+const configuredApiBaseUrl = resolveApiBaseUrl();
+const getRuntimeOrigin = () => (
+  typeof window !== 'undefined'
+    ? window.location.origin
+    : configuredApiBaseUrl
+);
+
 const axiosInstance = axios.create({
-  baseURL: resolveApiBaseUrl(),
+  baseURL: configuredApiBaseUrl,
   withCredentials: true,
 });
 
@@ -88,6 +96,12 @@ export const refreshAuthSession = async () => {
 };
 
 axiosInstance.interceptors.request.use((config) => {
+  assertSafeApiRequestTarget(config.url, {
+    baseURL: configuredApiBaseUrl,
+    runtimeOrigin: getRuntimeOrigin(),
+    requestBaseURL: config.baseURL,
+  });
+
   if (shouldAttachCsrf(config)) {
     const csrfToken = readCookie('XSRF-TOKEN');
 
