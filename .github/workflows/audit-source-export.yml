@@ -1,6 +1,7 @@
 name: Audit source export
 
 on:
+  pull_request:
   push:
     branches:
       - audit/security-plan-remediation
