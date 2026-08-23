@@ -1,6 +1,7 @@
 name: Audit cumulative source export
 
 on:
+  pull_request:
   push:
     branches:
       - security/phase-18-privacy-data-lifecycle
