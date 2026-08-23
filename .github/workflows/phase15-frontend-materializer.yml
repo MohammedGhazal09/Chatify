@@ -1,0 +1,53 @@
+name: Temporary Phase 15 Frontend Materializer
+
+on:
+  push:
+    branches:
+      - security/phase-15-webrtc-call-security
+    paths:
+      - .github/workflows/phase15-frontend-materializer.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Phase 15 branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-15-webrtc-call-security
+          fetch-depth: 2
+
+      - name: Prefer authorized active-call ICE configuration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('Frontend/Chatify/src/hooks/useCallController.ts')
+          text = path.read_text(encoding='utf-8')
+          old = 'iceConfig: callConfig ?? session.callConfig ?? null,'
+          new = 'iceConfig: session.callConfig ?? callConfig ?? null,'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one ICE priority expression, found {count}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Verify exact source change
+        run: |
+          grep -F 'iceConfig: session.callConfig ?? callConfig ?? null,' Frontend/Chatify/src/hooks/useCallController.ts
+          git diff --check
+          git diff --exit-code --quiet && exit 1 || true
+
+      - name: Commit source and remove materializer
+        run: |
+          git config user.name 'Chatify Security Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm .github/workflows/phase15-frontend-materializer.yml
+          git add Frontend/Chatify/src/hooks/useCallController.ts
+          git commit -m 'fix(security): prefer authorized call ICE configuration'
+          git push origin HEAD:security/phase-15-webrtc-call-security
