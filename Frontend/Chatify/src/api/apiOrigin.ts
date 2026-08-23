@@ -1,3 +1,5 @@
+import { resolveTrustedHttpOrigin } from '../security/browserSecurity';
+
 type RuntimeEnv = {
   PROD?: boolean;
   VITE_BACKEND_URL?: string;
@@ -19,39 +21,51 @@ const getRuntimeLocation = (): RuntimeLocation | undefined => {
   return window.location;
 };
 
-const cleanUrl = (value?: string) => {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed.replace(/\/+$/, '') : undefined;
-};
-
 const shouldUseSameOriginApi = (
   env: RuntimeEnv,
   location: RuntimeLocation | undefined
 ) => Boolean(env.PROD && location && env.VITE_USE_SAME_ORIGIN_API !== 'false');
 
+const getFallbackOrigin = (
+  env: RuntimeEnv,
+  location: RuntimeLocation | undefined
+) => location?.origin ?? (env.PROD ? 'https://localhost' : LOCAL_BACKEND_URL);
+
+const resolveConfiguredOrigin = (
+  value: unknown,
+  env: RuntimeEnv,
+  location: RuntimeLocation | undefined,
+  fallbackOrigin = getFallbackOrigin(env, location)
+) => resolveTrustedHttpOrigin(value, {
+  production: Boolean(env.PROD),
+  fallbackOrigin,
+});
+
 export const resolveApiBaseUrl = (
   env: RuntimeEnv = import.meta.env,
   location = getRuntimeLocation()
 ) => {
+  const fallbackOrigin = getFallbackOrigin(env, location);
+
   if (shouldUseSameOriginApi(env, location) && location) {
-    return location.origin;
+    return resolveConfiguredOrigin(location.origin, env, location, fallbackOrigin);
   }
 
-  return cleanUrl(env.VITE_BACKEND_URL) ?? LOCAL_BACKEND_URL;
+  return resolveConfiguredOrigin(env.VITE_BACKEND_URL, env, location, fallbackOrigin);
 };
 
 export const resolveSocketUrl = (
   env: RuntimeEnv = import.meta.env,
   location = getRuntimeLocation()
 ) => {
+  const fallbackOrigin = getFallbackOrigin(env, location);
+
   if (shouldUseSameOriginApi(env, location) && location) {
-    return location.origin;
+    return resolveConfiguredOrigin(location.origin, env, location, fallbackOrigin);
   }
 
-  const socketUrl = cleanUrl(env.VITE_SOCKET_URL);
-
-  if (socketUrl) {
-    return socketUrl;
+  if (typeof env.VITE_SOCKET_URL === 'string' && env.VITE_SOCKET_URL.trim()) {
+    return resolveConfiguredOrigin(env.VITE_SOCKET_URL, env, location, fallbackOrigin);
   }
 
   return resolveApiBaseUrl(env, location);
