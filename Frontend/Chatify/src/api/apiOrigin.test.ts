@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveApiBaseUrl, resolveOAuthUrl, resolveSocketUrl } from './apiOrigin';
 
 const vercelLocation = { origin: 'https://chatify-ten-rho.vercel.app' };
+const developmentLocation = { origin: 'http://localhost:5173' };
 
 describe('api origin resolution', () => {
   it('uses same-origin production traffic even when a stale backend URL env var exists', () => {
@@ -82,5 +83,10 @@ describe('api origin resolution', () => {
       PROD: true,
       VITE_BACKEND_URL: 'https://chatify-ckmn.onrender.com',
     }, vercelLocation)).toBe('https://chatify-ten-rho.vercel.app');
+  });
+
+  it('preserves the local backend fallback for development without env overrides', () => {
+    expect(resolveApiBaseUrl({ PROD: false }, developmentLocation)).toBe('http://localhost:3000');
+    expect(resolveSocketUrl({ PROD: false }, developmentLocation)).toBe('http://localhost:3000');
   });
 });
