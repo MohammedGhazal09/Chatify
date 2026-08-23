@@ -1,3 +1,4 @@
+import CallSession from '../Models/callSessionModel.mjs';
 import Chats from '../Models/chatModel.mjs';
 import InviteLink from '../Models/inviteLinkModel.mjs';
 import Message from '../Models/messageModel.mjs';
@@ -30,6 +31,10 @@ export const CRITICAL_DATABASE_INDEX_REQUIREMENTS = Object.freeze([
   }),
   requirement('messages.chat-pagination', Message, { chatId: 1, createdAt: -1, _id: -1 }),
   requirement('messages.client-id.unique-partial', Message, { chatId: 1, sender: 1, clientMessageId: 1 }, {
+    unique: true,
+    partialFilterExpression: true,
+  }),
+  requirement('call-sessions.active-participant.unique-partial', CallSession, { participantIds: 1 }, {
     unique: true,
     partialFilterExpression: true,
   }),
