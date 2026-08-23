@@ -1,10 +1,14 @@
-const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 const MAX_BROWSER_URL_LENGTH = 2_048;
 const AUTH_ENTRY_PATHS = new Set([
   '/login',
   '/signup',
   '/forgot-password',
 ]);
+
+const containsControlCharacters = (value: string) => Array.from(value).some((character) => {
+  const codePoint = character.codePointAt(0) ?? 0;
+  return codePoint <= 0x1f || codePoint === 0x7f;
+});
 
 const isLoopbackHostname = (hostname: string) => {
   const normalized = hostname.toLowerCase();
@@ -22,7 +26,7 @@ const normalizeFallbackPath = (value: string) => (
   && value.startsWith('/')
   && !value.startsWith('//')
   && !value.includes('\\')
-  && !CONTROL_CHARACTERS.test(value)
+  && !containsControlCharacters(value)
     ? value
     : '/'
 );
@@ -41,7 +45,7 @@ export const normalizeInternalAppPath = (
     || !value.startsWith('/')
     || value.startsWith('//')
     || value.includes('\\')
-    || CONTROL_CHARACTERS.test(value)
+    || containsControlCharacters(value)
   ) {
     return safeFallback;
   }
@@ -74,7 +78,7 @@ const parseOrigin = (
     || value.length === 0
     || value.length > MAX_BROWSER_URL_LENGTH
     || value !== value.trim()
-    || CONTROL_CHARACTERS.test(value)
+    || containsControlCharacters(value)
     || !/^https?:\/\//i.test(value)
   ) {
     return null;
@@ -141,7 +145,7 @@ export const assertSafeApiRequestTarget = (
     || target !== target.trim()
     || target.startsWith('//')
     || target.includes('\\')
-    || CONTROL_CHARACTERS.test(target)
+    || containsControlCharacters(target)
   ) {
     throw unsafeApiTarget();
   }
