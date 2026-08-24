@@ -5,7 +5,7 @@ on:
     branches:
       - security/audit-plan-20260824
     paths:
-      - .audit/pending.patch
+      - .audit/pending.patch.gz.b64
 
 permissions:
   contents: write
@@ -29,8 +29,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git apply --index --whitespace=error .audit/pending.patch
-          git rm .audit/pending.patch
+          base64 --decode .audit/pending.patch.gz.b64 | gzip --decompress > /tmp/security.patch
+          git apply --index --whitespace=error /tmp/security.patch
+          git rm .audit/pending.patch.gz.b64
           git config user.name "Chatify Security Audit"
           git config user.email "security-audit@users.noreply.github.com"
           git commit -m "test(security): reproduce validated audit findings"
