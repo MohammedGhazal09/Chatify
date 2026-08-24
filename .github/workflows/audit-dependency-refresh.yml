@@ -10,9 +10,9 @@ permissions:
 
 jobs:
   refresh:
-    name: Refresh vulnerable lockfile resolutions
+    name: Refresh dependencies for isolated verification
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout review branch
@@ -25,40 +25,39 @@ jobs:
         with:
           node-version: "24.19.0"
 
-      - name: Refresh backend lockfile
+      - name: Refresh and install backend dependencies
         working-directory: Backend/Chatify
         run: |
           npm install --package-lock-only --ignore-scripts
           npm audit fix --package-lock-only || true
+          npm ci
+          npm audit --omit=dev --audit-level=high
 
-      - name: Verify backend production audit
-        working-directory: Backend/Chatify
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Refresh frontend lockfile
+      - name: Refresh and install frontend dependencies
         working-directory: Frontend/Chatify
         run: |
           npm install --package-lock-only --ignore-scripts
           npm audit fix --package-lock-only || true
+          npm ci
+          npm audit --omit=dev --audit-level=high
 
-      - name: Verify frontend production audit
-        working-directory: Frontend/Chatify
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Package refreshed manifests
+      - name: Package refreshed manifests and installed dependencies
         if: always()
         run: |
-          tar -czf "$RUNNER_TEMP/refreshed-lockfiles.tgz" \
+          tar -czf "$RUNNER_TEMP/chatify-verification-dependencies.tgz" \
             Backend/Chatify/package.json \
             Backend/Chatify/package-lock.json \
+            Backend/Chatify/node_modules \
             Frontend/Chatify/package.json \
-            Frontend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json \
+            Frontend/Chatify/node_modules
 
-      - name: Upload refreshed manifests
+      - name: Upload verification dependencies
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: chatify-refreshed-lockfiles
-          path: ${{ runner.temp }}/refreshed-lockfiles.tgz
+          name: chatify-verification-dependencies
+          path: ${{ runner.temp }}/chatify-verification-dependencies.tgz
           if-no-files-found: error
+          compression-level: 0
           retention-days: 1
