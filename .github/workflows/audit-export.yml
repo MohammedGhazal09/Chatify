@@ -1,9 +1,6 @@
-name: Temporary dependency lockfile refresh
+name: Temporary frontend lockfile refresh
 
 on:
-  push:
-    branches:
-      - security/audit-plan-20260824
   pull_request:
     branches:
       - main
@@ -13,88 +10,37 @@ permissions:
   contents: read
 
 concurrency:
-  group: temporary-dependency-refresh-${{ github.ref }}
+  group: temporary-frontend-lockfile-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   refresh:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-
+    timeout-minutes: 20
     steps:
       - name: Checkout audit branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24.19.0"
-
-      - name: Restore exact cumulative manifests
+      - name: Refresh patched frontend lockfile
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' 'ewogICJuYW1lIjogImJhY2tlbmQiLAogICJ2ZXJzaW9uIjogIjEuMC4wIiwKICAiZGVzY3JpcHRpb24iOiAiY2hhdCBhcHAiLAogICJtYWluIjogInNlcnZlci5tanMiLAogICJzY3JpcHRzIjogewogICAgInRlc3QiOiAidml0ZXN0IHJ1biAtLWNvbmZpZyB2aXRlc3QuY29uZmlnLm1qcyIsCiAgICAidGVzdDp3YXRjaCI6ICJ2aXRlc3QgLS1jb25maWcgdml0ZXN0LmNvbmZpZy5tanMiLAogICAgImRiOmluZGV4ZXM6Y2hlY2siOiAibm9kZSBzY3JpcHRzL2RhdGFiYXNlLWluZGV4ZXMubWpzIiwKICAgICJkYjppbmRleGVzOmFwcGx5IjogIm5vZGUgc2NyaXB0cy9kYXRhYmFzZS1pbmRleGVzLm1qcyAtLWFwcGx5IiwKICAgICJzdGFydCI6ICJub2RlIHNlcnZlci5tanMiCiAgfSwKICAiYXV0aG9yIjogIk1vaGFtbWVkIEdoYXphbCIsCiAgImxpY2Vuc2UiOiAiSVNDIiwKICAiZGVwZW5kZW5jaWVzIjogewogICAgImFyZ29uMiI6ICJeMC40My4xIiwKICAgICJheGlvcyI6ICJeMS4xMy4yIiwKICAgICJjb29raWUtcGFyc2VyIjogIl4xLjQuNyIsCiAgICAiY29ycyI6ICJeMi44LjUiLAogICAgImRvdGVudiI6ICJeMTcuMi4wIiwKICAgICJleHByZXNzIjogIl41LjEuMCIsCiAgICAiZXhwcmVzcy1tb25nby1zYW5pdGl6ZSI6ICJeMi4yLjAiLAogICAgImV4cHJlc3MtcmF0ZS1saW1pdCI6ICJeOC4yLjEiLAogICAgImZpbGUtdHlwZSI6ICJeMjIuMC4xIiwKICAgICJoZWxtZXQiOiAiXjguMS4wIiwKICAgICJocHAiOiAiXjAuMi4zIiwKICAgICJqc29ud2VidG9rZW4iOiAiXjkuMC4yIiwKICAgICJtb25nb29zZSI6ICJeOC4xNi40IiwKICAgICJtdWx0ZXIiOiAiXjIuMS4xIiwKICAgICJwYXNzcG9ydCI6ICJeMC43LjAiLAogICAgInBhc3Nwb3J0LWdpdGh1YjIiOiAiXjAuMS4xMiIsCiAgICAicGFzc3BvcnQtZ29vZ2xlLW9hdXRoMjAiOiAiXjIuMC4wIiwKICAgICJwYXNzcG9ydC1vYXV0aDIiOiAiXjEuOC4wIiwKICAgICJzb2NrZXQuaW8iOiAiXjQuOC4xIiwKICAgICJ2YWxpZGF0b3IiOiAiXjEzLjE1LjE1IiwKICAgICJ3ZWItcHVzaCI6ICJeMy42LjciLAogICAgInhzcyI6ICJeMS4wLjE1IgogIH0sCiAgImRldkRlcGVuZGVuY2llcyI6IHsKICAgICJtb25nb2RiLW1lbW9yeS1zZXJ2ZXIiOiAiXjExLjIuMCIsCiAgICAibm9kZW1vbiI6ICJeMy4xLjEwIiwKICAgICJzb2NrZXQuaW8tY2xpZW50IjogIl40LjguMyIsCiAgICAic3VwZXJ0ZXN0IjogIl43LjIuMiIsCiAgICAidml0ZXN0IjogIl40LjEuOCIKICB9LAogICJhbGxvd1NjcmlwdHMiOiB7CiAgICAiYXJnb24yQDAuNDMuMSI6IHRydWUsCiAgICAiZnNldmVudHMiOiBmYWxzZSwKICAgICJtb25nb2RiLW1lbW9yeS1zZXJ2ZXIiOiBmYWxzZQogIH0sCiAgImVuZ2luZXMiOiB7CiAgICAibm9kZSI6ICI+PTI0LjE5LjAgPDI1IiwKICAgICJucG0iOiAiPj0xMS4xNy4wIDwxMiIKICB9LAogICJwYWNrYWdlTWFuYWdlciI6ICJucG1AMTEuMTcuMCIKfQo=' | base64 --decode > Backend/Chatify/package.json
-          printf '%s' 'ewogICJuYW1lIjogImNoYXRpZnkiLAogICJwcml2YXRlIjogdHJ1ZSwKICAidmVyc2lvbiI6ICIwLjAuMCIsCiAgInR5cGUiOiAibW9kdWxlIiwKICAic2NyaXB0cyI6IHsKICAgICJkZXYiOiAidml0ZSIsCiAgICAiYnVpbGQiOiAidHNjIC1iICYmIHZpdGUgYnVpbGQiLAogICAgImxpbnQiOiAiZXNsaW50IC4iLAogICAgInRlc3QiOiAidml0ZXN0IHJ1biIsCiAgICAidGVzdDp1aSI6ICJwbGF5d3JpZ2h0IHRlc3QiLAogICAgInRlc3Q6ZTJlOnByb2QiOiAicGxheXdyaWdodCB0ZXN0IC0tY29uZmlnIHBsYXl3cmlnaHQucHJvZHVjdGlvbi5jb25maWcudHMiLAogICAgInByZXZpZXciOiAidml0ZSBwcmV2aWV3IgogIH0sCiAgImRlcGVuZGVuY2llcyI6IHsKICAgICJAaG9va2Zvcm0vcmVzb2x2ZXJzIjogIl41LjIuMSIsCiAgICAiQHRhaWx3aW5kY3NzL3ZpdGUiOiAiXjQuMS4xMSIsCiAgICAiQHRhbnN0YWNrL3JlYWN0LXF1ZXJ5IjogIl41LjkwLjQiLAogICAgIkB0YW5zdGFjay9yZWFjdC1xdWVyeS1kZXZ0b29scyI6ICJeNS45MC4yIiwKICAgICJheGlvcyI6ICJeMS4xMS4wIiwKICAgICJlbW9qaS1waWNrZXItcmVhY3QiOiAiXjQuMTYuMSIsCiAgICAiZnVzZS5qcyI6ICJeNy4xLjAiLAogICAgImx1Y2lkZS1yZWFjdCI6ICJeMC41MzYuMCIsCiAgICAicmVhY3QiOiAiXjE5LjEuMCIsCiAgICAicmVhY3QtZG9tIjogIl4xOS4xLjAiLAogICAgInJlYWN0LWhvb2stZm9ybSI6ICJeNy42Mi4wIiwKICAgICJyZWFjdC1pY29ucyI6ICJeNS41LjAiLAogICAgInJlYWN0LXJvdXRlci1kb20iOiAiXjcuNy4xIiwKICAgICJzb2NrZXQuaW8tY2xpZW50IjogIl40LjguMSIsCiAgICAidGFpbHdpbmRjc3MiOiAiXjQuMS4xMSIsCiAgICAiem9kIjogIl40LjEuMSIsCiAgICAienVzdGFuZCI6ICJeNS4wLjgiCiAgfSwKICAiZGV2RGVwZW5kZW5jaWVzIjogewogICAgIkBheGUtY29yZS9wbGF5d3JpZ2h0IjogIl40LjExLjMiLAogICAgIkBlc2xpbnQvanMiOiAiXjkuMzAuMSIsCiAgICAiQHBsYXl3cmlnaHQvdGVzdCI6ICJeMS42MC4wIiwKICAgICJAdGVzdGluZy1saWJyYXJ5L2plc3QtZG9tIjogIl42LjkuMSIsCiAgICAiQHRlc3RpbmctbGlicmFyeS9yZWFjdCI6ICJeMTYuMy4yIiwKICAgICJAdGVzdGluZy1saWJyYXJ5L3VzZXItZXZlbnQiOiAiXjE0LjYuMSIsCiAgICAiQHR5cGVzL3JlYWN0IjogIl4xOS4xLjgiLAogICAgIkB0eXBlcy9yZWFjdC1kb20iOiAiXjE5LjEuNiIsCiAgICAiQHZpdGVqcy9wbHVnaW4tcmVhY3QiOiAiXjQuNi4wIiwKICAgICJlc2xpbnQiOiAiXjkuMzAuMSIsCiAgICAiZXNsaW50LXBsdWdpbi1yZWFjdC1ob29rcyI6ICJeNS4yLjAiLAogICAgImVzbGludC1wbHVnaW4tcmVhY3QtcmVmcmVzaCI6ICJeMC40LjIwIiwKICAgICJnbG9iYWxzIjogIl4xNi4zLjAiLAogICAgImpzZG9tIjogIl4yOS4xLjEiLAogICAgInR5cGVzY3JpcHQiOiAifjUuOC4zIiwKICAgICJ0eXBlc2NyaXB0LWVzbGludCI6ICJeOC4zNS4xIiwKICAgICJ2aXRlIjogIl43LjAuNCIsCiAgICAidml0ZXN0IjogIl40LjEuOCIKICB9LAogICJhbGxvd1NjcmlwdHMiOiB7CiAgICAiQHRhaWx3aW5kY3NzL294aWRlQDQuMS4xMSI6IHRydWUsCiAgICAiZXNidWlsZEAwLjI3LjciOiB0cnVlLAogICAgImZzZXZlbnRzIjogZmFsc2UKICB9LAogICJlbmdpbmVzIjogewogICAgIm5vZGUiOiAiPj0yNC4xOS4wIDwyNSIsCiAgICAibnBtIjogIj49MTEuMTcuMCA8MTIiCiAgfSwKICAicGFja2FnZU1hbmFnZXIiOiAibnBtQDExLjE3LjAiCn0K' | base64 --decode > Frontend/Chatify/package.json
-          node -e "for (const path of ['Backend/Chatify/package.json','Frontend/Chatify/package.json']) JSON.parse(require('node:fs').readFileSync(path,'utf8'))"
-          test "$(node --version)" = "v24.19.0"
-          test "$(npm --version)" = "11.17.0"
-
-      - name: Refresh backend lockfile
-        working-directory: Backend/Chatify
-        shell: bash
-        run: |
-          set -euo pipefail
+          printf '%s' 'ewogICJuYW1lIjogImNoYXRpZnkiLAogICJwcml2YXRlIjogdHJ1ZSwKICAidmVyc2lvbiI6ICIwLjAuMCIsCiAgInR5cGUiOiAibW9kdWxlIiwKICAic2NyaXB0cyI6IHsKICAgICJkZXYiOiAidml0ZSIsCiAgICAiYnVpbGQiOiAidHNjIC1iICYmIHZpdGUgYnVpbGQiLAogICAgImxpbnQiOiAiZXNsaW50IC4iLAogICAgInRlc3QiOiAidml0ZXN0IHJ1biIsCiAgICAidGVzdDp1aSI6ICJwbGF5d3JpZ2h0IHRlc3QiLAogICAgInRlc3Q6ZTJlOnByb2QiOiAicGxheXdyaWdodCB0ZXN0IC0tY29uZmlnIHBsYXl3cmlnaHQucHJvZHVjdGlvbi5jb25maWcudHMiLAogICAgInByZXZpZXciOiAidml0ZSBwcmV2aWV3IgogIH0sCiAgImRlcGVuZGVuY2llcyI6IHsKICAgICJAaG9va2Zvcm0vcmVzb2x2ZXJzIjogIl41LjIuMSIsCiAgICAiQHRhaWx3aW5kY3NzL3ZpdGUiOiAiXjQuMS4xMSIsCiAgICAiQHRhbnN0YWNrL3JlYWN0LXF1ZXJ5IjogIl41LjkwLjQiLAogICAgIkB0YW5zdGFjay9yZWFjdC1xdWVyeS1kZXZ0b29scyI6ICJeNS45MC4yIiwKICAgICJheGlvcyI6ICJeMS4xMS4wIiwKICAgICJlbW9qaS1waWNrZXItcmVhY3QiOiAiXjQuMTYuMSIsCiAgICAiZnVzZS5qcyI6ICJeNy4xLjAiLAogICAgImx1Y2lkZS1yZWFjdCI6ICJeMC41MzYuMCIsCiAgICAicmVhY3QiOiAiXjE5LjEuMCIsCiAgICAicmVhY3QtZG9tIjogIl4xOS4xLjAiLAogICAgInJlYWN0LWhvb2stZm9ybSI6ICJeNy42Mi4wIiwKICAgICJyZWFjdC1pY29ucyI6ICJeNS41LjAiLAogICAgInJlYWN0LXJvdXRlci1kb20iOiAiXjcuNy4xIiwKICAgICJzb2NrZXQuaW8tY2xpZW50IjogIl40LjguMSIsCiAgICAidGFpbHdpbmRjc3MiOiAiXjQuMS4xMSIsCiAgICAiem9kIjogIl40LjEuMSIsCiAgICAienVzdGFuZCI6ICJeNS4wLjgiCiAgfSwKICAiZGV2RGVwZW5kZW5jaWVzIjogewogICAgIkBheGUtY29yZS9wbGF5d3JpZ2h0IjogIl40LjExLjMiLAogICAgIkBlc2xpbnQvanMiOiAiXjkuMzAuMSIsCiAgICAiQHBsYXl3cmlnaHQvdGVzdCI6ICJeMS42MC4wIiwKICAgICJAdGVzdGluZy1saWJyYXJ5L2plc3QtZG9tIjogIl42LjkuMSIsCiAgICAiQHRlc3RpbmctbGlicmFyeS9yZWFjdCI6ICJeMTYuMy4yIiwKICAgICJAdGVzdGluZy1saWJyYXJ5L3VzZXItZXZlbnQiOiAiXjE0LjYuMSIsCiAgICAiQHR5cGVzL3JlYWN0IjogIl4xOS4xLjgiLAogICAgIkB0eXBlcy9yZWFjdC1kb20iOiAiXjE5LjEuNiIsCiAgICAiQHZpdGVqcy9wbHVnaW4tcmVhY3QiOiAiXjQuNi4wIiwKICAgICJlc2xpbnQiOiAiXjkuMzAuMSIsCiAgICAiZXNsaW50LXBsdWdpbi1yZWFjdC1ob29rcyI6ICJeNS4yLjAiLAogICAgImVzbGludC1wbHVnaW4tcmVhY3QtcmVmcmVzaCI6ICJeMC40LjIwIiwKICAgICJnbG9iYWxzIjogIl4xNi4zLjAiLAogICAgImpzZG9tIjogIl4yOS4xLjEiLAogICAgInR5cGVzY3JpcHQiOiAifjUuOC4zIiwKICAgICJ0eXBlc2NyaXB0LWVzbGludCI6ICJeOC4zNS4xIiwKICAgICJ2aXRlIjogIl43LjAuNCIsCiAgICAidml0ZXN0IjogIl40LjEuOCIKICB9LAogICJhbGxvd1NjcmlwdHMiOiB7CiAgICAiQHRhaWx3aW5kY3NzL294aWRlQDQuMS4xMSI6IHRydWUsCiAgICAiZnNldmVudHMiOiBmYWxzZSwKICAgICJlc2J1aWxkQDAuMjguMSI6IHRydWUKICB9LAogICJlbmdpbmVzIjogewogICAgIm5vZGUiOiAiPj0yNC4xOS4wIDwyNSIsCiAgICAibnBtIjogIj49MTEuMTcuMCA8MTIiCiAgfSwKICAicGFja2FnZU1hbmFnZXIiOiAibnBtQDExLjE3LjAiLAogICJvdmVycmlkZXMiOiB7CiAgICAiZXNidWlsZCI6ICIwLjI4LjEiCiAgfQp9Cg==' | base64 --decode > Frontend/Chatify/package.json
+          cd Frontend/Chatify
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
-
-      - name: Refresh frontend lockfile
-        working-directory: Frontend/Chatify
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
-
-      - name: Capture dependency evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dependency-results/Backend/Chatify dependency-results/Frontend/Chatify
-          cp Backend/Chatify/package.json Backend/Chatify/package-lock.json dependency-results/Backend/Chatify/
-          cp Frontend/Chatify/package.json Frontend/Chatify/package-lock.json dependency-results/Frontend/Chatify/
-          set +e
-          (cd Backend/Chatify && npm audit --omit=dev --audit-level=high --json) > dependency-results/backend-production-audit.json
-          backend_production=$?
-          (cd Frontend/Chatify && npm audit --omit=dev --audit-level=high --json) > dependency-results/frontend-production-audit.json
-          frontend_production=$?
-          (cd Backend/Chatify && npm audit --json) > dependency-results/backend-full-audit.json
-          backend_full=$?
-          (cd Frontend/Chatify && npm audit --json) > dependency-results/frontend-full-audit.json
-          frontend_full=$?
-          set -e
-          printf '%s\n' "$backend_production" > dependency-results/backend-production-audit-exit.txt
-          printf '%s\n' "$frontend_production" > dependency-results/frontend-production-audit-exit.txt
-          printf '%s\n' "$backend_full" > dependency-results/backend-full-audit-exit.txt
-          printf '%s\n' "$frontend_full" > dependency-results/frontend-full-audit-exit.txt
-          npm --prefix Backend/Chatify ls --all --json > dependency-results/backend-tree.json
-          npm --prefix Frontend/Chatify ls --all --json > dependency-results/frontend-tree.json
-
-      - name: Upload refreshed lockfiles and audit evidence
-        if: always()
+          npm audit --audit-level=low --json > ../../frontend-audit.json
+          mkdir -p ../../frontend-lockfile/Frontend/Chatify
+          cp package.json package-lock.json ../../frontend-lockfile/Frontend/Chatify/
+          cp ../../frontend-audit.json ../../frontend-lockfile/
+      - name: Upload patched frontend lockfile
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: chatify-refreshed-lockfiles
-          path: dependency-results/
+          name: chatify-frontend-lockfile-override
+          path: frontend-lockfile/
           if-no-files-found: error
-          compression-level: 0
           retention-days: 1
-
-      - name: Enforce production dependency gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(cat dependency-results/backend-production-audit-exit.txt)" -eq 0
-          test "$(cat dependency-results/frontend-production-audit-exit.txt)" -eq 0
