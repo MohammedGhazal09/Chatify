@@ -178,4 +178,38 @@ describe("admin delivery health diagnostics", () => {
     expect(serialized).not.toContain("private notification preview");
     expect(serialized).not.toContain(sender.user.email);
   });
+
+  it('keeps queue diagnostics behind administrator authorization', async () => {
+    await request(app)
+      .get('/api/queue-status')
+      .expect(404);
+
+    await request(app)
+      .get('/api/admin/queue-status')
+      .expect(401);
+
+    const normalUser = await signupWithAgent({
+      firstName: 'Queue',
+      lastName: 'User',
+      username: 'queue.normal',
+    });
+
+    await normalUser.agent
+      .get('/api/admin/queue-status')
+      .expect(403);
+
+    const { admin } = await setupDeliveryHealthScenario();
+    const response = await admin.agent
+      .get('/api/admin/queue-status')
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      status: 'ok',
+      queues: {
+        database: expect.objectContaining({ capacity: expect.any(Number) }),
+        messages: expect.objectContaining({ capacity: expect.any(Number) }),
+      },
+    });
+  });
+
 });

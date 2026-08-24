@@ -1,7 +1,12 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import User from '../../Models/userModel.mjs';
-import { generateTotpCode } from '../../Utils/twoFactor.mjs';
+import {
+  decryptTwoFactorSecret,
+  encryptTwoFactorSecret,
+  generateTotpCode,
+} from '../../Utils/twoFactor.mjs';
+import { CustomError } from '../../Utils/customError.mjs';
 import { TEST_PASSWORD } from '../fixtures/users.mjs';
 import { getCsrfForAgent, signupWithAgent } from '../helpers/authAgent.mjs';
 import { getTestApp } from '../setup/app.mjs';
@@ -173,4 +178,44 @@ describe('two-factor authentication', () => {
     expect(getAccessTokenCookie(freshLogin.response)).toBeTruthy();
     expect(getRefreshTokenCookie(freshLogin.response)).toBeTruthy();
   });
+
+  it('rejects malformed encrypted secret records with a generic application error', () => {
+    const encrypted = encryptTwoFactorSecret('JBSWY3DPEHPK3PXP');
+    const malformedRecords = [
+      { ...encrypted, algorithm: 'aes-128-gcm' },
+      { ...encrypted, iv: Buffer.alloc(11).toString('base64url') },
+      { ...encrypted, authTag: Buffer.alloc(15).toString('base64url') },
+      { ...encrypted, ciphertext: '*' },
+    ];
+
+    for (const record of malformedRecords) {
+      expect(() => decryptTwoFactorSecret(record)).toThrow(CustomError);
+      expect(() => decryptTwoFactorSecret(record)).toThrow('Two-factor secret is unavailable');
+    }
+  });
+
+  it('consumes a successful login challenge exactly once under concurrency', async () => {
+    const { agent, user } = await signupWithAgent({ firstName: 'Mfa', lastName: 'Concurrent' });
+    const csrfToken = await getCsrfForAgent(agent);
+    const { secret } = await setupAndConfirmTwoFactor(agent, csrfToken);
+    const login = await startTwoFactorLogin({ email: user.email });
+    const payload = {
+      challengeToken: login.response.body.data.challengeToken,
+      code: generateTotpCode(secret),
+    };
+
+    const responses = await Promise.all([
+      login.agent
+        .post('/api/auth/2fa/challenge')
+        .set('X-CSRF-Token', login.csrfToken)
+        .send(payload),
+      login.agent
+        .post('/api/auth/2fa/challenge')
+        .set('X-CSRF-Token', login.csrfToken)
+        .send(payload),
+    ]);
+
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 401]);
+  });
+
 });
