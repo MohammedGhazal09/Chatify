@@ -42,6 +42,9 @@ jobs:
           console.log(server.getUri());
           await server.stop();
           NODE
+          MONGOD_PATH="$(find "$HOME" "$GITHUB_WORKSPACE" -type f -name 'mongod*' -perm -u+x | head -1)"
+          test -n "$MONGOD_PATH"
+          cp "$MONGOD_PATH" "$RUNNER_TEMP/mongod"
 
       - name: Refresh and install frontend dependencies
         working-directory: Frontend/Chatify
@@ -52,7 +55,6 @@ jobs:
           npm audit --omit=dev --audit-level=high
 
       - name: Package refreshed manifests, dependencies, and test binary
-        if: always()
         run: |
           tar -czf "$RUNNER_TEMP/chatify-verification-runtime.tgz" \
             Backend/Chatify/package.json \
@@ -61,10 +63,9 @@ jobs:
             Frontend/Chatify/package.json \
             Frontend/Chatify/package-lock.json \
             Frontend/Chatify/node_modules \
-            -C "$HOME" .cache/mongodb-binaries
+            -C "$RUNNER_TEMP" mongod
 
       - name: Upload verification runtime
-        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: chatify-verification-runtime
