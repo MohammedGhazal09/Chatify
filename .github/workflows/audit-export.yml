@@ -26,17 +26,24 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: "24.19.0"
-      - name: Refresh patched frontend lockfile
+      - name: Refresh patched frontend lockfile from a clean graph
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' 'ewogICJuYW1lIjogImNoYXRpZnkiLAogICJwcml2YXRlIjogdHJ1ZSwKICAidmVyc2lvbiI6ICIwLjAuMCIsCiAgInR5cGUiOiAibW9kdWxlIiwKICAic2NyaXB0cyI6IHsKICAgICJkZXYiOiAidml0ZSIsCiAgICAiYnVpbGQiOiAidHNjIC1iICYmIHZpdGUgYnVpbGQiLAogICAgImxpbnQiOiAiZXNsaW50IC4iLAogICAgInRlc3QiOiAidml0ZXN0IHJ1biIsCiAgICAidGVzdDp1aSI6ICJwbGF5d3JpZ2h0IHRlc3QiLAogICAgInRlc3Q6ZTJlOnByb2QiOiAicGxheXdyaWdodCB0ZXN0IC0tY29uZmlnIHBsYXl3cmlnaHQucHJvZHVjdGlvbi5jb25maWcudHMiLAogICAgInByZXZpZXciOiAidml0ZSBwcmV2aWV3IgogIH0sCiAgImRlcGVuZGVuY2llcyI6IHsKICAgICJAaG9va2Zvcm0vcmVzb2x2ZXJzIjogIl41LjIuMSIsCiAgICAiQHRhaWx3aW5kY3NzL3ZpdGUiOiAiXjQuMS4xMSIsCiAgICAiQHRhbnN0YWNrL3JlYWN0LXF1ZXJ5IjogIl41LjkwLjQiLAogICAgIkB0YW5zdGFjay9yZWFjdC1xdWVyeS1kZXZ0b29scyI6ICJeNS45MC4yIiwKICAgICJheGlvcyI6ICJeMS4xMS4wIiwKICAgICJlbW9qaS1waWNrZXItcmVhY3QiOiAiXjQuMTYuMSIsCiAgICAiZnVzZS5qcyI6ICJeNy4xLjAiLAogICAgImx1Y2lkZS1yZWFjdCI6ICJeMC41MzYuMCIsCiAgICAicmVhY3QiOiAiXjE5LjEuMCIsCiAgICAicmVhY3QtZG9tIjogIl4xOS4xLjAiLAogICAgInJlYWN0LWhvb2stZm9ybSI6ICJeNy42Mi4wIiwKICAgICJyZWFjdC1pY29ucyI6ICJeNS41LjAiLAogICAgInJlYWN0LXJvdXRlci1kb20iOiAiXjcuNy4xIiwKICAgICJzb2NrZXQuaW8tY2xpZW50IjogIl40LjguMSIsCiAgICAidGFpbHdpbmRjc3MiOiAiXjQuMS4xMSIsCiAgICAiem9kIjogIl40LjEuMSIsCiAgICAienVzdGFuZCI6ICJeNS4wLjgiCiAgfSwKICAiZGV2RGVwZW5kZW5jaWVzIjogewogICAgIkBheGUtY29yZS9wbGF5d3JpZ2h0IjogIl40LjExLjMiLAogICAgIkBlc2xpbnQvanMiOiAiXjkuMzAuMSIsCiAgICAiQHBsYXl3cmlnaHQvdGVzdCI6ICJeMS42MC4wIiwKICAgICJAdGVzdGluZy1saWJyYXJ5L2plc3QtZG9tIjogIl42LjkuMSIsCiAgICAiQHRlc3RpbmctbGlicmFyeS9yZWFjdCI6ICJeMTYuMy4yIiwKICAgICJAdGVzdGluZy1saWJyYXJ5L3VzZXItZXZlbnQiOiAiXjE0LjYuMSIsCiAgICAiQHR5cGVzL3JlYWN0IjogIl4xOS4xLjgiLAogICAgIkB0eXBlcy9yZWFjdC1kb20iOiAiXjE5LjEuNiIsCiAgICAiQHZpdGVqcy9wbHVnaW4tcmVhY3QiOiAiXjQuNi4wIiwKICAgICJlc2xpbnQiOiAiXjkuMzAuMSIsCiAgICAiZXNsaW50LXBsdWdpbi1yZWFjdC1ob29rcyI6ICJeNS4yLjAiLAogICAgImVzbGludC1wbHVnaW4tcmVhY3QtcmVmcmVzaCI6ICJeMC40LjIwIiwKICAgICJnbG9iYWxzIjogIl4xNi4zLjAiLAogICAgImpzZG9tIjogIl4yOS4xLjEiLAogICAgInR5cGVzY3JpcHQiOiAifjUuOC4zIiwKICAgICJ0eXBlc2NyaXB0LWVzbGludCI6ICJeOC4zNS4xIiwKICAgICJ2aXRlIjogIl43LjAuNCIsCiAgICAidml0ZXN0IjogIl40LjEuOCIKICB9LAogICJhbGxvd1NjcmlwdHMiOiB7CiAgICAiQHRhaWx3aW5kY3NzL294aWRlQDQuMS4xMSI6IHRydWUsCiAgICAiZnNldmVudHMiOiBmYWxzZSwKICAgICJlc2J1aWxkQDAuMjguMSI6IHRydWUKICB9LAogICJlbmdpbmVzIjogewogICAgIm5vZGUiOiAiPj0yNC4xOS4wIDwyNSIsCiAgICAibnBtIjogIj49MTEuMTcuMCA8MTIiCiAgfSwKICAicGFja2FnZU1hbmFnZXIiOiAibnBtQDExLjE3LjAiLAogICJvdmVycmlkZXMiOiB7CiAgICAiZXNidWlsZCI6ICIwLjI4LjEiCiAgfQp9Cg==' | base64 --decode > Frontend/Chatify/package.json
+          printf '%s' 'ewogICJuYW1lIjogImNoYXRpZnkiLAogICJwcml2YXRlIjogdHJ1ZSwKICAidmVyc2lvbiI6ICIwLjAuMCIsCiAgInR5cGUiOiAibW9kdWxlIiwKICAic2NyaXB0cyI6IHsKICAgICJkZXYiOiAidml0ZSIsCiAgICAiYnVpbGQiOiAidHNjIC1iICYmIHZpdGUgYnVpbGQiLAogICAgImxpbnQiOiAiZXNsaW50IC4iLAogICAgInRlc3QiOiAidml0ZXN0IHJ1biIsCiAgICAidGVzdDp1aSI6ICJwbGF5d3JpZ2h0IHRlc3QiLAogICAgInRlc3Q6ZTJlOnByb2QiOiAicGxheXdyaWdodCB0ZXN0IC0tY29uZmlnIHBsYXl3cmlnaHQucHJvZHVjdGlvbi5jb25maWcudHMiLAogICAgInByZXZpZXciOiAidml0ZSBwcmV2aWV3IgogIH0sCiAgImRlcGVuZGVuY2llcyI6IHsKICAgICJAaG9va2Zvcm0vcmVzb2x2ZXJzIjogIl41LjIuMSIsCiAgICAiQHRhaWx3aW5kY3NzL3ZpdGUiOiAiXjQuMS4xMSIsCiAgICAiQHRhbnN0YWNrL3JlYWN0LXF1ZXJ5IjogIl41LjkwLjQiLAogICAgIkB0YW5zdGFjay9yZWFjdC1xdWVyeS1kZXZ0b29scyI6ICJeNS45MC4yIiwKICAgICJheGlvcyI6ICJeMS4xMS4wIiwKICAgICJlbW9qaS1waWNrZXItcmVhY3QiOiAiXjQuMTYuMSIsCiAgICAiZnVzZS5qcyI6ICJeNy4xLjAiLAogICAgImx1Y2lkZS1yZWFjdCI6ICJeMC41MzYuMCIsCiAgICAicmVhY3QiOiAiXjE5LjEuMCIsCiAgICAicmVhY3QtZG9tIjogIl4xOS4xLjAiLAogICAgInJlYWN0LWhvb2stZm9ybSI6ICJeNy42Mi4wIiwKICAgICJyZWFjdC1pY29ucyI6ICJeNS41LjAiLAogICAgInJlYWN0LXJvdXRlci1kb20iOiAiXjcuNy4xIiwKICAgICJzb2NrZXQuaW8tY2xpZW50IjogIl40LjguMSIsCiAgICAidGFpbHdpbmRjc3MiOiAiXjQuMS4xMSIsCiAgICAiem9kIjogIl40LjEuMSIsCiAgICAienVzdGFuZCI6ICJeNS4wLjgiCiAgfSwKICAiZGV2RGVwZW5jaWVzIjogewogICAgIkBheGUtY29yZS9wbGF5d3JpZ2h0IjogIl40LjExLjMiLAogICAgIkBlc2xpbnQvanMiOiAiXjkuMzAuMSIsCiAgICAiQHBsYXl3cmlnaHQvdGVzdCI6ICJeMS42MC4wIiwKICAgICJAdGVzdGluZy1saWJyYXJ5L2plc3QtZG9tIjogIl42LjkuMSIsCiAgICAiQHRlc3RpbmctbGlicmFyeS9yZWFjdCI6ICJeMTYuMy4yIiwKICAgICJAdGVzdGluZy1saWJyYXJ5L3VzZXItZXZlbnQiOiAiXjE0LjYuMSIsCiAgICAiQHR5cGVzL3JlYWN0IjogIl4xOS4xLjgiLAogICAgIkB0eXBlcy9yZWFjdC1kb20iOiAiXjE5LjEuNiIsCiAgICAiQHZpdGVqcy9wbHVnaW4tcmVhY3QiOiAiXjQuNi4wIiwKICAgICJlc2xpbnQiOiAiXjkuMzAuMSIsCiAgICAiZXNsaW50LXBsdWdpbi1yZWFjdC1ob29rcyI6ICJeNS4yLjAiLAogICAgImVzbGludC1wbHVnaW4tcmVhY3QtcmVmcmVzaCI6ICJeMC40LjIwIiwKICAgICJnbG9iYWxzIjogIl4xNi4zLjAiLAogICAgImpzZG9tIjogIl4yOS4xLjEiLAogICAgInR5cGVzY3JpcHQiOiAifjUuOC4zIiwKICAgICJ0eXBlc2NyaXB0LWVzbGludCI6ICJeOC4zNS4xIiwKICAgICJ2aXRlIjogIl43LjAuNCIsCiAgICAidml0ZXN0IjogIl40LjEuOCIKICB9LAogICJhbGxvd1NjcmlwdHMiOiB7CiAgICAiQHRhaWx3aW5kY3NzL294aWRlQDQuMS4xMSI6IHRydWUsCiAgICAiZnNldmVudHMiOiBmYWxzZSwKICAgICJlc2J1aWxkQDAuMjguMSI6IHRydWUKICB9LAogICJlbmdpbmVzIjogewogICAgIm5vZGUiOiAiPj0yNC4xOS4wIDwyNSIsCiAgICAibnBtIjogIj49MTEuMTcuMCA8MTIiCiAgfSwKICAicGFja2FnZU1hbmFnZXIiOiAibnBtQDExLjE3LjAiLAogICJvdmVycmlkZXMiOiB7CiAgICAiZXNidWlsZCI6ICIwLjI4LjEiCiAgfQp9Cg==' | base64 --decode > Frontend/Chatify/package.json
           cd Frontend/Chatify
+          rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          set +e
           npm audit --audit-level=low --json > ../../frontend-audit.json
+          audit_status=$?
+          set -e
+          node -e "const p=require('./package-lock.json'); const e=p.packages['node_modules/esbuild']; if (!e || e.version !== '0.28.1') throw new Error('esbuild override was not resolved')"
           mkdir -p ../../frontend-lockfile/Frontend/Chatify
           cp package.json package-lock.json ../../frontend-lockfile/Frontend/Chatify/
           cp ../../frontend-audit.json ../../frontend-lockfile/
+          printf '%s\n' "$audit_status" > ../../frontend-lockfile/frontend-audit-exit.txt
+          cat ../../frontend-audit.json
       - name: Upload patched frontend lockfile
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -44,3 +51,6 @@ jobs:
           path: frontend-lockfile/
           if-no-files-found: error
           retention-days: 1
+      - name: Enforce zero dependency advisories
+        shell: bash
+        run: test "$(cat frontend-lockfile/frontend-audit-exit.txt)" -eq 0
