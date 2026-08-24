@@ -12,7 +12,7 @@ jobs:
   refresh:
     name: Refresh dependencies for isolated verification
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout review branch
@@ -33,6 +33,16 @@ jobs:
           npm ci
           npm audit --omit=dev --audit-level=high
 
+      - name: Cache the MongoDB test binary
+        working-directory: Backend/Chatify
+        run: |
+          node --input-type=module - <<'NODE'
+          import { MongoMemoryServer } from 'mongodb-memory-server';
+          const server = await MongoMemoryServer.create();
+          console.log(server.getUri());
+          await server.stop();
+          NODE
+
       - name: Refresh and install frontend dependencies
         working-directory: Frontend/Chatify
         run: |
@@ -41,23 +51,24 @@ jobs:
           npm ci
           npm audit --omit=dev --audit-level=high
 
-      - name: Package refreshed manifests and installed dependencies
+      - name: Package refreshed manifests, dependencies, and test binary
         if: always()
         run: |
-          tar -czf "$RUNNER_TEMP/chatify-verification-dependencies.tgz" \
+          tar -czf "$RUNNER_TEMP/chatify-verification-runtime.tgz" \
             Backend/Chatify/package.json \
             Backend/Chatify/package-lock.json \
             Backend/Chatify/node_modules \
             Frontend/Chatify/package.json \
             Frontend/Chatify/package-lock.json \
-            Frontend/Chatify/node_modules
+            Frontend/Chatify/node_modules \
+            -C "$HOME" .cache/mongodb-binaries
 
-      - name: Upload verification dependencies
+      - name: Upload verification runtime
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: chatify-verification-dependencies
-          path: ${{ runner.temp }}/chatify-verification-dependencies.tgz
+          name: chatify-verification-runtime
+          path: ${{ runner.temp }}/chatify-verification-runtime.tgz
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
