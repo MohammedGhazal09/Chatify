@@ -1,0 +1,129 @@
+name: Temporary repository security audit
+
+on:
+  push:
+    branches:
+      - security/audit-plan-20260824
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare evidence directory and immutable inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p audit-results
+          git rev-parse HEAD > audit-results/commit-sha.txt
+          git status --porcelain=v1 > audit-results/git-status.txt
+          git ls-files -s > audit-results/tracked-files-with-modes.txt
+          git ls-files | sort > audit-results/tracked-files.txt
+          find . -path ./.git -prune -o -type f -printf '%P\t%s bytes\n' | sort > audit-results/filesystem-inventory.txt
+          git log --all --decorate --oneline > audit-results/git-history.txt
+          tar --exclude=.git --exclude=audit-results --exclude=node_modules -czf audit-results/repository-source.tar.gz .
+
+      - name: Install backend dependencies
+        working-directory: Backend/Chatify
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: Frontend/Chatify
+        run: npm ci
+
+      - name: Capture dependency audits
+        shell: bash
+        run: |
+          set +e
+          (cd Backend/Chatify && npm audit --json) > audit-results/backend-npm-audit.json
+          echo $? > audit-results/backend-npm-audit-exit-code.txt
+          (cd Frontend/Chatify && npm audit --json) > audit-results/frontend-npm-audit.json
+          echo $? > audit-results/frontend-npm-audit-exit-code.txt
+          set -e
+
+      - name: Run Semgrep
+        shell: bash
+        run: |
+          set +e
+          python -m pip install --disable-pip-version-check semgrep
+          semgrep scan --config auto --json --output audit-results/semgrep.json .
+          echo $? > audit-results/semgrep-exit-code.txt
+          set -e
+
+      - name: Scan Git history for secrets
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run backend tests
+        working-directory: Backend/Chatify
+        shell: bash
+        run: |
+          set +e
+          npm test -- --run 2>&1 | tee ../../audit-results/backend-tests.log
+          echo ${PIPESTATUS[0]} > ../../audit-results/backend-tests-exit-code.txt
+          set -e
+
+      - name: Run frontend tests
+        working-directory: Frontend/Chatify
+        shell: bash
+        run: |
+          set +e
+          npm test -- --run 2>&1 | tee ../../audit-results/frontend-tests.log
+          echo ${PIPESTATUS[0]} > ../../audit-results/frontend-tests-exit-code.txt
+          set -e
+
+      - name: Run frontend lint
+        working-directory: Frontend/Chatify
+        shell: bash
+        run: |
+          set +e
+          npm run lint 2>&1 | tee ../../audit-results/frontend-lint.log
+          echo ${PIPESTATUS[0]} > ../../audit-results/frontend-lint-exit-code.txt
+          set -e
+
+      - name: Build frontend
+        working-directory: Frontend/Chatify
+        shell: bash
+        run: |
+          set +e
+          npm run build 2>&1 | tee ../../audit-results/frontend-build.log
+          echo ${PIPESTATUS[0]} > ../../audit-results/frontend-build-exit-code.txt
+          set -e
+
+      - name: Upload complete audit bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatify-audit-bundle
+          path: audit-results/
+          if-no-files-found: error
+          retention-days: 7
