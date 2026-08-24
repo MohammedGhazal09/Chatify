@@ -12,7 +12,7 @@ jobs:
   refresh:
     name: Refresh vulnerable lockfile resolutions
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout review branch
@@ -27,7 +27,9 @@ jobs:
 
       - name: Refresh backend lockfile
         working-directory: Backend/Chatify
-        run: npm audit fix --package-lock-only || true
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm audit fix --package-lock-only || true
 
       - name: Verify backend production audit
         working-directory: Backend/Chatify
@@ -35,7 +37,9 @@ jobs:
 
       - name: Refresh frontend lockfile
         working-directory: Frontend/Chatify
-        run: npm audit fix --package-lock-only || true
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm audit fix --package-lock-only || true
 
       - name: Verify frontend production audit
         working-directory: Frontend/Chatify
