@@ -1,0 +1,75 @@
+name: Audit Dependency Refresh
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: Refresh dependencies for isolated verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+
+      - name: Refresh and install backend dependencies
+        working-directory: Backend/Chatify
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm audit fix --package-lock-only || true
+          npm ci
+          npm audit --omit=dev --audit-level=high
+
+      - name: Cache the MongoDB test binary
+        working-directory: Backend/Chatify
+        run: |
+          node --input-type=module - <<'NODE'
+          import { MongoMemoryServer } from 'mongodb-memory-server';
+          const server = await MongoMemoryServer.create();
+          console.log(server.getUri());
+          await server.stop();
+          NODE
+          MONGOD_PATH="$(find "$HOME" "$GITHUB_WORKSPACE" -type f -name 'mongod*' -perm -u+x | head -1)"
+          test -n "$MONGOD_PATH"
+          cp "$MONGOD_PATH" "$RUNNER_TEMP/mongod"
+
+      - name: Refresh and install frontend dependencies
+        working-directory: Frontend/Chatify
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm audit fix --package-lock-only || true
+          npm ci
+          npm audit --omit=dev --audit-level=high
+
+      - name: Package refreshed manifests, dependencies, and test binary
+        run: |
+          tar -czf "$RUNNER_TEMP/chatify-verification-runtime.tgz" \
+            Backend/Chatify/package.json \
+            Backend/Chatify/package-lock.json \
+            Backend/Chatify/node_modules \
+            Frontend/Chatify/package.json \
+            Frontend/Chatify/package-lock.json \
+            Frontend/Chatify/node_modules \
+            -C "$RUNNER_TEMP" mongod
+
+      - name: Upload verification runtime
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chatify-verification-runtime
+          path: ${{ runner.temp }}/chatify-verification-runtime.tgz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
