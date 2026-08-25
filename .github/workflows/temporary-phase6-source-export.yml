@@ -1,0 +1,41 @@
+name: Temporary Phase 6 contract export
+
+on:
+  push:
+    branches:
+      - security/phase-6-authorization-access-control
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    name: Export committed Phase 6 contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout publication branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-6-authorization-access-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Package committed review contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf "$RUNNER_TEMP/chatify-phase6-contract.tgz" \
+            Backend/Chatify/test/security/phase6-authorization-access-control.test.mjs \
+            docs/security/audit/phase-6/phase-6-authorization-access-control-spec.md \
+            docs/superpowers/plans/2026-08-21-phase-6-authorization-access-control.md
+
+      - name: Upload committed review contract
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chatify-phase6-contract
+          path: ${{ runner.temp }}/chatify-phase6-contract.tgz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
