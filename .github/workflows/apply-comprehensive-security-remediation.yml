@@ -1,0 +1,83 @@
+name: Apply comprehensive security remediation
+
+on:
+  push:
+    branches:
+      - security/audit-plan-20260824
+    paths:
+      - .audit/remediate-security-remaining-20260825.mjs
+
+permissions:
+  contents: write
+
+concurrency:
+  group: comprehensive-security-remediation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  remediate-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: security/audit-plan-20260824
+          fetch-depth: 0
+
+      - name: Setup pinned Node.js
+        uses: actions/setup-node@1e60f620b9541dca151540d0c3c4822f3d78ff
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Apply source transformations
+        run: node .audit/remediate-security-remaining-20260825.mjs
+
+      - name: Install root tooling
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: Backend/Chatify
+        run: npm ci
+
+      - name: Run backend tests and production audit
+        working-directory: Backend/Chatify
+        run: |
+          npm test -- --run
+          npm audit --omit=dev --audit-level=high
+
+      - name: Install frontend dependencies
+        working-directory: Frontend/Chatify
+        run: npm ci
+
+      - name: Run frontend tests, lint, build, and production audit
+        working-directory: Frontend/Chatify
+        run: |
+          npm test -- --run
+          npm run lint
+          npm run build
+          npm audit --omit=dev --audit-level=high
+
+      - name: Run operations and authentication security gates
+        run: |
+          npm run ops:check
+          npm run security:phase5:reproduce
+          npm run security:log-assert
+
+      - name: Commit verified remediation
+        run: |
+          rm -f .audit/remediate-security-remaining-20260825.mjs
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No source changes were required."
+            exit 0
+          fi
+          git commit -m "fix(security): close remaining validated audit findings"
+          git push origin HEAD:security/audit-plan-20260824
