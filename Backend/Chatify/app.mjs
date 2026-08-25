@@ -19,11 +19,11 @@ import protect from './Middlewares/protectRoutes.mjs';
 import { CustomError } from './Utils/customError.mjs';
 import sanitization from './Middlewares/sanitization.mjs';
 import { requestLogger, errorRequestLogger } from './Middlewares/requestLogger.mjs';
-import { queueStatus, queueHeavyRequests, addQueueHeaders } from './Middlewares/queueMiddleware.mjs';
+import { queueHeavyRequests, addQueueHeaders } from './Middlewares/queueMiddleware.mjs';
 import csrfProtection, { createCsrfToken, getCsrfCookieOptions } from './Middlewares/csrfProtection.mjs';
 import { integrationRuntimeLimiter } from './Middlewares/rateLimiters.mjs';
 import passport from 'passport';
-import './Config/passport.mjs'; // Import passport configuration
+import './Config/passport.mjs';
 import { buildHealthPayload, buildReadinessPayload, getReadinessHttpStatus } from './Utils/operationalReadiness.mjs';
 import {googleAuth,
   googleCallback,
@@ -39,26 +39,21 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.use(requestLogger);
-
 app.use(helmet());
-
 app.disable('x-powered-by');
 
-// Rate limiting for security
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Limit each IP to 500 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 500,
   skip: () => process.env.NODE_ENV === 'test',
   message: { status: 'error', message: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-
-
 const messageLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 60, // 60 messages per minute
+  windowMs: 60 * 1000,
+  max: 60,
   skip: () => process.env.NODE_ENV === 'test',
   message: { status: 'error', message: 'Sending messages too fast, slow down!' },
   standardHeaders: true,
@@ -66,61 +61,43 @@ const messageLimiter = rateLimit({
 });
 
 app.use(globalLimiter);
-
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 const isProd = process.env.NODE_ENV === 'production';
-
 const FRONTEND_ORIGIN = isProd
   ? process.env.FRONTEND_ORIGIN
   : process.env.FRONTEND_ORIGIN_DEV || 'http://localhost:5173';
 
-app.use(
-  cors({
-    origin: FRONTEND_ORIGIN,
-    credentials: true,
-  })
-);
-
+app.use(cors({
+  origin: FRONTEND_ORIGIN,
+  credentials: true,
+}));
 app.use(cookieParser());
-
 app.use(hpp());
-
-
 app.use(sanitization);
-
 app.use(passport.initialize());
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.status(200).json(buildHealthPayload());
 });
 
-app.get('/api/ready', (req, res) => {
+app.get('/api/ready', (_req, res) => {
   const payload = buildReadinessPayload();
   res.status(getReadinessHttpStatus(payload)).json(payload);
 });
 
-// Queue status endpoint (for monitoring)
-app.get('/api/queue-status', queueStatus);
-
-// Apply queue middleware for heavy requests
 app.use(queueHeavyRequests);
 app.use(addQueueHeaders);
 
-// Google  routes
 app.get("/api/auth/google", googleAuth);
 app.get("/api/auth/google/callback", googleCallback);
-
-// GitHub routes
 app.get("/api/auth/github", githubAuth);
 app.get("/api/auth/github/callback", githubCallback);
-
-// Discord routes
 app.get("/api/auth/discord", discordAuth);
 app.get("/api/auth/discord/callback", discordCallback);
 
-app.get('/api/csrf-token', (req, res) => {
+app.get('/api/csrf-token', (_req, res) => {
   const token = createCsrfToken();
   res.cookie('XSRF-TOKEN', token, getCsrfCookieOptions());
   res.status(204).end();
@@ -137,9 +114,8 @@ app.use('/api/invite', protect, csrfProtection, inviteLinkRouter);
 app.use('/api/integrations/runtime', integrationRuntimeLimiter, integrationRuntimeRouter);
 app.use('/api/integrations', protect, csrfProtection, integrationRouter);
 
-app.use((req, res, next) => {
-  const error = new CustomError(`Can't find ${req.originalUrl} on this server`, 404);
-  next(error);
+app.use((req, _res, next) => {
+  next(new CustomError(`Can't find ${req.originalUrl} on this server`, 404));
 });
 
 app.use(errorRequestLogger);

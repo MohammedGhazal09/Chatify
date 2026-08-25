@@ -12,6 +12,7 @@ const ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '15m';
 const ACCESS_TOKEN_MAX_AGE_MS = 15 * 60 * 1000;
 const REFRESH_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const REMEMBER_ME_REFRESH_TOKEN_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_USED_REFRESH_TOKEN_HASHES = 50;
 
 const getCookieOptions = (maxAge) => {
   const isProd = process.env.NODE_ENV === 'production';
@@ -123,8 +124,11 @@ export const rotateSessionCookies = async ({ refreshToken, res, req = null }) =>
   }
 
   const tokenHash = hashRefreshToken(refreshToken);
+  const nextRefreshToken = createOpaqueRefreshToken();
+  const nextRefreshTokenHash = hashRefreshToken(nextRefreshToken);
   const now = new Date();
-  const claimedSession = await Session.findOneAndUpdate(
+  const metadata = buildSessionMetadataFromRequest(req);
+  const rotatedSession = await Session.findOneAndUpdate(
     {
       refreshTokenHash: tokenHash,
       revokedAt: null,
@@ -132,37 +136,42 @@ export const rotateSessionCookies = async ({ refreshToken, res, req = null }) =>
     },
     {
       $set: {
-        revokedAt: now,
+        refreshTokenHash: nextRefreshTokenHash,
+        expiresAt: new Date(now.getTime() + REMEMBER_ME_REFRESH_TOKEN_MAX_AGE_MS),
         lastUsedAt: now,
+        deviceLabel: metadata.deviceLabel,
+        userAgentHash: metadata.userAgentHash,
+        ipHash: metadata.ipHash,
+        replacedByTokenHash: nextRefreshTokenHash,
+      },
+      $push: {
+        usedRefreshTokenHashes: {
+          $each: [{ hash: tokenHash, usedAt: now }],
+          $slice: -MAX_USED_REFRESH_TOKEN_HASHES,
+        },
       },
     },
-    { new: false }
+    { new: true }
   );
 
-  if (!claimedSession) {
-    const existingSession = await Session.findOne({ refreshTokenHash: tokenHash });
+  if (!rotatedSession) {
+    const replayedSession = await Session.findOne({
+      'usedRefreshTokenHashes.hash': tokenHash,
+    }).select('+usedRefreshTokenHashes');
 
-    if (!existingSession) {
-      throw new CustomError('Invalid refresh token', 401);
-    }
-
-    if (existingSession.revokedAt) {
-      await Session.updateMany(
-        { familyId: existingSession.familyId, revokedAt: null },
-        { $set: { revokedAt: new Date() } }
+    if (replayedSession) {
+      await Session.updateOne(
+        { _id: replayedSession._id, revokedAt: null },
+        { $set: { revokedAt: now, lastUsedAt: now } }
       );
       throw new CustomError('Refresh token already used', 401);
     }
 
-    if (existingSession.expiresAt <= now) {
+    const existingSession = await Session.findOne({ refreshTokenHash: tokenHash });
+    if (existingSession?.expiresAt <= now) {
       await Session.updateOne(
         { _id: existingSession._id, revokedAt: null },
-        {
-          $set: {
-            revokedAt: new Date(),
-            lastUsedAt: new Date(),
-          },
-        }
+        { $set: { revokedAt: now, lastUsedAt: now } }
       );
       throw new CustomError('Refresh token expired', 401);
     }
@@ -170,52 +179,39 @@ export const rotateSessionCookies = async ({ refreshToken, res, req = null }) =>
     throw new CustomError('Invalid refresh token', 401);
   }
 
-  const user = await User.findById(claimedSession.userId);
+  const user = await User.findById(rotatedSession.userId);
 
   if (!user) {
-    await Session.updateMany(
-      { familyId: claimedSession.familyId, revokedAt: null },
-      { $set: { revokedAt: new Date() } }
+    await Session.updateOne(
+      { _id: rotatedSession._id },
+      { $set: { revokedAt: new Date(), lastUsedAt: new Date() } }
     );
     throw new CustomError('User not found', 404);
   }
 
-  const {
-    refreshToken: nextRefreshToken,
-    refreshTokenHash: nextRefreshTokenHash,
-    session: nextSession,
-  } = await createRefreshSession({
-    user,
-    rememberMe: claimedSession.rememberMe,
-    familyId: claimedSession.familyId,
-    metadata: {
-      deviceLabel: claimedSession.deviceLabel || buildSessionMetadataFromRequest(req).deviceLabel,
-      userAgentHash: claimedSession.userAgentHash ?? buildSessionMetadataFromRequest(req).userAgentHash,
-      ipHash: claimedSession.ipHash ?? buildSessionMetadataFromRequest(req).ipHash,
-    },
-  });
-  const accessToken = createAccessToken(user, nextSession);
+  const refreshMaxAge = getRefreshMaxAge(rotatedSession.rememberMe);
+  if (rotatedSession.expiresAt.getTime() !== now.getTime() + refreshMaxAge) {
+    rotatedSession.expiresAt = new Date(now.getTime() + refreshMaxAge);
+    await rotatedSession.save();
+  }
 
-  await Session.updateOne(
-    { _id: claimedSession._id },
-    { $set: { replacedByTokenHash: nextRefreshTokenHash } }
-  );
+  const accessToken = createAccessToken(user, rotatedSession);
 
   setSessionCookies(res, {
     accessToken,
     refreshToken: nextRefreshToken,
-    rememberMe: claimedSession.rememberMe,
+    rememberMe: rotatedSession.rememberMe,
   });
 
-  return { accessToken, refreshToken: nextRefreshToken, session: nextSession, user };
+  return { accessToken, refreshToken: nextRefreshToken, session: rotatedSession, user };
 };
 
 export const revokeRefreshSession = async (refreshToken) => {
   if (!refreshToken) {
-    return;
+    return null;
   }
 
-  await Session.findOneAndUpdate(
+  return Session.findOneAndUpdate(
     {
       refreshTokenHash: hashRefreshToken(refreshToken),
       revokedAt: null,
@@ -225,16 +221,17 @@ export const revokeRefreshSession = async (refreshToken) => {
         revokedAt: new Date(),
         lastUsedAt: new Date(),
       },
-    }
+    },
+    { new: true }
   );
 };
 
 export const revokeRefreshSessionsForUser = async (userId) => {
   if (!userId) {
-    return;
+    return { modifiedCount: 0 };
   }
 
-  await Session.updateMany(
+  return Session.updateMany(
     {
       userId,
       revokedAt: null,

@@ -91,7 +91,7 @@ export const findActiveSession = async ({ sessionId, userId = null, now = new Da
 
 export const assertActiveSessionClaim = async ({ sessionId, userId }) => {
   if (!sessionId) {
-    return { legacy: true, session: null };
+    throw new CustomError('Session expired, please login again', 401);
   }
 
   const session = await findActiveSession({ sessionId, userId });
