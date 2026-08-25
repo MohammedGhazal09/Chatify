@@ -15,11 +15,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Checkout publication branch
+      - name: Checkout publication branch and reviewed prerequisite history
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: security/phase-6-authorization-access-control
-          fetch-depth: 1
+          fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
 
       - name: Import and verify bundled commit without modifying the branch
@@ -27,8 +28,10 @@ jobs:
         run: |
           set -euo pipefail
           test -f .security-transfer/phase6-commits.bundle
+          test "$(git cat-file -t e927785ab14ba1d8c6067b9bb3c589980c8b97e7)" = commit
           git fetch .security-transfer/phase6-commits.bundle HEAD:refs/remotes/phase6/reviewed
           test "$(git rev-parse refs/remotes/phase6/reviewed)" = 'faf772e98eeb925456d2e4702d76f33ed0ddd89f'
+          git merge-base --is-ancestor e927785ab14ba1d8c6067b9bb3c589980c8b97e7 refs/remotes/phase6/reviewed
           git archive --format=tar.gz --output="$RUNNER_TEMP/chatify-phase6-source.tgz" refs/remotes/phase6/reviewed
 
       - name: Upload reviewed source
