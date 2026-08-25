@@ -134,6 +134,16 @@ const notificationOutboxSchema = new mongoose.Schema({
   lastAttemptAt: {
     type: Date,
   },
+  processingToken: {
+    type: String,
+    select: false,
+  },
+  processingStartedAt: {
+    type: Date,
+  },
+  processingLeaseExpiresAt: {
+    type: Date,
+  },
   sentAt: {
     type: Date,
   },
@@ -155,7 +165,7 @@ const notificationOutboxSchema = new mongoose.Schema({
   versionKey: false,
 });
 
-notificationOutboxSchema.index({ status: 1, nextAttemptAt: 1, createdAt: 1 });
+notificationOutboxSchema.index({ status: 1, nextAttemptAt: 1, processingLeaseExpiresAt: 1, createdAt: 1 });
 notificationOutboxSchema.index({ recipient: 1, chatId: 1, createdAt: -1 });
 notificationOutboxSchema.index({ messageId: 1, channel: 1 });
 

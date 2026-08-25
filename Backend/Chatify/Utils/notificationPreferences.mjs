@@ -5,6 +5,13 @@ export const MESSAGE_PREVIEW_MODES = Object.freeze({
   NONE: 'none',
 });
 
+const DEFAULT_PUSH_ENDPOINT_HOSTS = Object.freeze([
+  'fcm.googleapis.com',
+  'push.services.mozilla.com',
+  'updates.push.services.mozilla.com',
+  'web.push.apple.com',
+]);
+
 export const getDefaultNotificationPreferences = () => ({
   pushEnabled: false,
   emailNotificationsEnabled: false,
@@ -145,6 +152,61 @@ export const hashPushEndpoint = (endpoint) => createHash('sha256')
   .update(endpoint)
   .digest('base64url');
 
+const getAllowedPushHosts = () => new Set([
+  ...DEFAULT_PUSH_ENDPOINT_HOSTS,
+  ...String(process.env.PUSH_ENDPOINT_ALLOWED_HOSTS ?? '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
+]);
+
+const isAllowedPushHostname = (hostname) => {
+  const normalizedHostname = hostname.toLowerCase();
+  const allowedHosts = getAllowedPushHosts();
+
+  if (allowedHosts.has(normalizedHostname)) {
+    return true;
+  }
+
+  return normalizedHostname.endsWith('.notify.windows.com');
+};
+
+const decodeBase64Url = (value) => {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+    return null;
+  }
+
+  try {
+    return Buffer.from(value, 'base64url');
+  } catch {
+    return null;
+  }
+};
+
+const normalizePushEndpoint = (value) => {
+  let endpointUrl;
+
+  try {
+    endpointUrl = new URL(value);
+  } catch {
+    return null;
+  }
+
+  if (
+    endpointUrl.protocol !== 'https:' ||
+    endpointUrl.username ||
+    endpointUrl.password ||
+    endpointUrl.hash ||
+    (endpointUrl.port && endpointUrl.port !== '443') ||
+    !isAllowedPushHostname(endpointUrl.hostname)
+  ) {
+    return null;
+  }
+
+  endpointUrl.port = '';
+  return endpointUrl.toString();
+};
+
 export const normalizePushSubscriptionPayload = (payload) => {
   if (!isPlainObject(payload)) {
     return {
@@ -154,12 +216,15 @@ export const normalizePushSubscriptionPayload = (payload) => {
     };
   }
 
-  const endpoint = typeof payload.endpoint === 'string' ? payload.endpoint.trim() : '';
+  const rawEndpoint = typeof payload.endpoint === 'string' ? payload.endpoint.trim() : '';
+  const endpoint = normalizePushEndpoint(rawEndpoint);
   const keys = isPlainObject(payload.keys) ? payload.keys : {};
   const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh.trim() : '';
   const auth = typeof keys.auth === 'string' ? keys.auth.trim() : '';
+  const decodedP256dh = decodeBase64Url(p256dh);
+  const decodedAuth = decodeBase64Url(auth);
 
-  if (!/^https:\/\/.+/i.test(endpoint)) {
+  if (!endpoint) {
     return {
       ok: false,
       statusCode: 400,
@@ -167,7 +232,7 @@ export const normalizePushSubscriptionPayload = (payload) => {
     };
   }
 
-  if (!p256dh || !auth || p256dh.length > 512 || auth.length > 256) {
+  if (decodedP256dh?.length !== 65 || decodedAuth?.length !== 16) {
     return {
       ok: false,
       statusCode: 400,
