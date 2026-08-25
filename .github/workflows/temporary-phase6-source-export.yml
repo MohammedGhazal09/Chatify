@@ -1,0 +1,41 @@
+name: Temporary Phase 6 source export
+
+on:
+  push:
+    branches:
+      - security/phase-6-authorization-access-control
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    name: Export reviewed Phase 6 commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout publication branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/phase-6-authorization-access-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Import and verify bundled commit without modifying the branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .security-transfer/phase6-commits.bundle
+          git fetch .security-transfer/phase6-commits.bundle HEAD:refs/remotes/phase6/reviewed
+          test "$(git rev-parse refs/remotes/phase6/reviewed)" = 'faf772e98eeb925456d2e4702d76f33ed0ddd89f'
+          git archive --format=tar.gz --output="$RUNNER_TEMP/chatify-phase6-source.tgz" refs/remotes/phase6/reviewed
+
+      - name: Upload reviewed source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chatify-phase6-source
+          path: ${{ runner.temp }}/chatify-phase6-source.tgz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
