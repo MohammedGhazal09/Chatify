@@ -1,19 +1,33 @@
-import 'dotenv/config' 
-import app from './app.mjs'
-import DBConfig from './Config/DBConfig.mjs'
-import {createServer} from 'http'
-import { initSocket } from './Config/socket.mjs'
-import { startNotificationOutboxWorker } from './Services/notificationService.mjs'
-import { startPrivacyOperationsWorker } from './Services/privacyOperationsService.mjs'
+import 'dotenv/config';
+import { createServer } from 'node:http';
+import { configureMongooseSecurity } from './Utils/databaseSecurity.mjs';
+import { validateSecretConfiguration } from './Utils/secretConfiguration.mjs';
+
+validateSecretConfiguration(process.env);
+configureMongooseSecurity();
+
+const { default: app } = await import('./app.mjs');
+const { connectionPromise } = await import('./Config/DBConfig.mjs');
+await connectionPromise;
+const { initSocket } = await import('./Config/socket.mjs');
+const { installSocketPresencePrivacy } = await import('./Services/socketPresencePrivacyService.mjs');
+const { installSocketSessionLifecycle } = await import('./Services/socketSessionLifecycleService.mjs');
+const { startNotificationOutboxWorker } = await import('./Services/notificationService.mjs');
+const { startPrivacyOperationsWorker } = await import('./Services/privacyOperationsService.mjs');
+const { startUploadLifecycleWorker } = await import('./Services/uploadLifecycleService.mjs');
 
 const PORT = process.env.PORT || process.env.PORT_NUMBER || 5000;
-  const httpServer = createServer(app)
-  const io = initSocket(httpServer)
+const httpServer = createServer(app);
+const io = initSocket(httpServer);
+installSocketPresencePrivacy(io);
+installSocketSessionLifecycle(io);
 
-  httpServer.listen(PORT, () => {
-    console.log(`Socket.io server running on port ${PORT}`);
-  })
-  startNotificationOutboxWorker()
-  startPrivacyOperationsWorker()
+httpServer.listen(PORT, () => {
+  console.log(`Socket.io server running on port ${PORT}`);
+});
 
-  export {io, httpServer as server}
+startNotificationOutboxWorker();
+startPrivacyOperationsWorker();
+startUploadLifecycleWorker();
+
+export { io, httpServer as server };

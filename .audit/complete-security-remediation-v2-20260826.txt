@@ -1,0 +1,1 @@
+This marker triggers the final consolidated source, atomicity, dependency, verification, cleanup, governance, and PR-readiness run. It is deleted only after all steps succeed.

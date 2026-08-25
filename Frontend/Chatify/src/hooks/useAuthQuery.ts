@@ -3,6 +3,7 @@ import { authApi } from '../api/authApi'
 import { userApi } from '../api/userApi'
 import { useAuthStore } from '../store/authstore'
 import { usePresenceStore } from '../store/presenceStore'
+import { revokeChatifyPushNotifications } from '../utils/pushNotifications'
 import { broadcastSessionEvent } from './useSessionBroadcast'
 import type { LoginData, SignupData, TwoFactorProtectedActionData, VerifyTwoFactorLoginData } from '../types/auth'
 import { useEffect } from 'react'
@@ -15,6 +16,13 @@ const publicAuthRoutes = new Set(['/login', '/signup', '/forgot-password'])
 const isPublicAuthRoute = () => (
   typeof window !== 'undefined' && publicAuthRoutes.has(window.location.pathname)
 )
+
+const removeCurrentBrowserPushState = () => revokeChatifyPushNotifications(
+  (endpoint) => userApi.removePushSubscription(endpoint).then(() => undefined)
+).catch(() => undefined)
+
+const clearAnonymousBrowserPushState = () => revokeChatifyPushNotifications()
+  .catch(() => undefined)
 
 // Initialize auth check on app load
 export const useAuthInit = () => {
@@ -57,6 +65,12 @@ export const useAuthInit = () => {
   useEffect(() => {
     setLoading(isLoading)
   }, [isLoading, setLoading])
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      void clearAnonymousBrowserPushState()
+    }
+  }, [isLoading, user])
 }
 
 export const useSignup = () => {
@@ -143,7 +157,10 @@ export const useLogout = () => {
   const clearPresenceState = () => usePresenceStore.getState().clearPresenceState()
 
   return useMutation({
-    mutationFn: () => authApi.logout(),
+    mutationFn: async () => {
+      await removeCurrentBrowserPushState()
+      return authApi.logout()
+    },
     onSuccess: () => {
       clearPresenceState()
       logout()
@@ -191,7 +208,10 @@ export const useRevokeAllSessions = () => {
   const clearPresenceState = () => usePresenceStore.getState().clearPresenceState()
 
   return useMutation({
-    mutationFn: () => authApi.revokeAllSessions(),
+    mutationFn: async () => {
+      await removeCurrentBrowserPushState()
+      return authApi.revokeAllSessions()
+    },
     onSuccess: () => {
       clearPresenceState()
       logout()

@@ -1,0 +1,65 @@
+name: Security Phase 2 Threat Model
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase-2-threat-model:
+    name: Phase 2 threat model and trust-boundary evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Reproduce and validate Phase 2
+        run: npm run security:phase2:reproduce
+
+      - name: Verify generated Phase 1 and Phase 2 evidence has no drift
+        run: git diff --exit-code -- docs/security/audit/phase-1 docs/security/audit/phase-2
+
+      - name: Regenerate expected evidence for failed-run review
+        if: failure()
+        continue-on-error: true
+        run: |
+          npm run security:phase1:generate
+          npm run security:phase2:generate
+
+      - name: Upload Phase 2 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase-2-threat-model-evidence
+          path: |
+            .artifacts/security/phase-2/run-evidence.json
+            docs/security/audit/phase-1/inventory.json
+            docs/security/audit/phase-1/inventory.md
+            docs/security/audit/phase-2/threat-model.source.json
+            docs/security/audit/phase-2/threat-model.json
+            docs/security/audit/phase-2/threat-model.md
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30

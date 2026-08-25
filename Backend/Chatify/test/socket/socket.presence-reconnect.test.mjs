@@ -173,20 +173,19 @@ describe('Socket.IO presence and reconnect contract', () => {
     expect(storedUser.isOnline).toBe(true);
   });
 
-  it('broadcasts redacted offline presence when showOnlineStatus is disabled', async () => {
+  it('suppresses connection timing when showOnlineStatus is disabled', async () => {
     const { server, memberOne, memberTwo } = await setupPresenceScenario({ hideMemberOne: true });
     const memberTwoSocket = await connectTrackedSignup(server.url, memberTwo);
-    const hiddenPresencePromise = waitForSocketEvent(memberTwoSocket.socket, 'user:status-change', 1000);
+    const noHiddenPresence = waitForNoMatchingSocketEvent(
+      memberTwoSocket.socket,
+      'user:status-change',
+      (payload) => payload?.userId === memberOne.user._id.toString(),
+      700
+    );
 
     await connectTrackedSignup(server.url, memberOne);
-    const hiddenPresence = await hiddenPresencePromise;
 
-    expect(hiddenPresence).toMatchObject({
-      userId: memberOne.user._id.toString(),
-      userName: 'Presence One',
-      isOnline: false,
-      isCallReachable: false,
-    });
+    expect(await noHiddenPresence).toBeUndefined();
   });
 
   it('clears stale online and profile status state when privacy settings are hidden', async () => {

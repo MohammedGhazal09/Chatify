@@ -23,6 +23,7 @@ export const callSocketErrorMessages = Object.freeze({
   call_busy: 'A participant is already in a call',
   callee_unavailable: 'This person is not available for a call right now',
   invalid_call_signal: 'Invalid call signal',
+  call_not_connected: 'Call must be connected before signaling',
   stale_call: 'This call is no longer active',
   rate_limited: 'Too many socket events',
   server_error: 'Call action failed',

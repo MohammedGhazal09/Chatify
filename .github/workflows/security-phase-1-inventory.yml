@@ -1,0 +1,60 @@
+name: Security Phase 1 Inventory
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase-1-repository-inventory:
+    name: Phase 1 inventory and clean reproduction
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Reproduce and validate Phase 1
+        run: npm run security:phase1:reproduce
+
+      - name: Verify generated inventory has no drift
+        run: git diff --exit-code -- docs/security/audit/phase-1
+
+      - name: Regenerate expected inventory for failed-run evidence
+        if: failure()
+        continue-on-error: true
+        run: npm run security:phase1:generate
+
+      - name: Upload Phase 1 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase-1-reproduction-evidence
+          path: |
+            .artifacts/security/phase-1/run-evidence.json
+            docs/security/audit/phase-1/inventory.json
+            docs/security/audit/phase-1/inventory.md
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
