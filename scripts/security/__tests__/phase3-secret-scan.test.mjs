@@ -231,6 +231,23 @@ test('history scan detects a credential removed from the current tree', async ()
   assert.equal(JSON.stringify(report).includes(secret), false)
 })
 
+test('candidate ids bind suppressions to the exact source content', () => {
+  const first = scanTextForSecrets({
+    text: `TOKEN=${tokenFixture()}\n`,
+    filePath: 'fixture.env',
+    scope: 'current-tree',
+  })[0]
+  const replacement = scanTextForSecrets({
+    text: `TOKEN=${['ghp_', 'Z9yX8wV7'.repeat(5)].join('').slice(0, 40)}\n`,
+    filePath: 'fixture.env',
+    scope: 'current-tree',
+  })[0]
+
+  assert.ok(first)
+  assert.ok(replacement)
+  assert.notEqual(replacement.candidateId, first.candidateId)
+})
+
 test('allowlist requires exact candidate ids, ownership, rationale, and future expiry', () => {
   const [finding] = scanTextForSecrets({
     text: `TOKEN=${tokenFixture()}\n`,

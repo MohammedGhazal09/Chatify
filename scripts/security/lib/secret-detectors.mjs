@@ -158,19 +158,19 @@ const entropyBand = (value) => {
   return 'low'
 }
 
-const makeCandidateId = ({ detectorId, scope, filePath, line, column }) => {
+const makeCandidateId = ({ detectorId, scope, filePath, line, column, sourceDigest }) => {
   const digest = createHash('sha256')
-    .update([detectorId, scope, filePath, line, column].join('\0'))
+    .update([detectorId, scope, filePath, line, column, sourceDigest].join('\0'))
     .digest('hex')
     .slice(0, 24)
   return `sec_${digest}`
 }
 
-const createFinding = ({ detector, value, matchIndex, valueIndex, text, filePath, scope }) => {
+const createFinding = ({ detector, value, matchIndex, valueIndex, text, filePath, scope, sourceDigest }) => {
   const absoluteIndex = matchIndex + valueIndex
   const { line, column } = lineAndColumnAt(text, absoluteIndex)
   return {
-    candidateId: makeCandidateId({ detectorId: detector.id, scope, filePath, line, column }),
+    candidateId: makeCandidateId({ detectorId: detector.id, scope, filePath, line, column, sourceDigest }),
     detectorId: detector.id,
     title: detector.title,
     severity: detector.severity,
@@ -214,7 +214,7 @@ const shouldIgnoreMediumConfidenceFixture = ({ detector, value, filePath }) => (
   detector.confidence !== 'high' && isSyntheticFixtureValue({ value, filePath })
 )
 
-const specificMatches = ({ text, filePath, scope }) => {
+const specificMatches = ({ text, filePath, scope, sourceDigest }) => {
   const accepted = []
   const spans = []
   for (const detector of DETECTORS) {
@@ -232,14 +232,14 @@ const specificMatches = ({ text, filePath, scope }) => {
       const span = { start: match.index + valueIndex, end: match.index + valueIndex + value.length }
       if (spans.some((existing) => overlaps(existing, span))) continue
       spans.push(span)
-      accepted.push(createFinding({ detector, value, matchIndex: match.index, valueIndex, text, filePath, scope }))
+      accepted.push(createFinding({ detector, value, matchIndex: match.index, valueIndex, text, filePath, scope, sourceDigest }))
       if (match[0].length === 0) detector.pattern.lastIndex += 1
     }
   }
   return { accepted, spans }
 }
 
-const genericMatchesForPattern = ({ text, filePath, scope, occupied, pattern, valueGroup }) => {
+const genericMatchesForPattern = ({ text, filePath, scope, sourceDigest, occupied, pattern, valueGroup }) => {
   const findings = []
   pattern.lastIndex = 0
   let match
@@ -264,7 +264,7 @@ const genericMatchesForPattern = ({ text, filePath, scope, occupied, pattern, va
       confidence: 'medium',
       validation: `Confirm whether ${name} is a live credential using the owning provider inventory; do not replay it.`,
     }
-    findings.push(createFinding({ detector, value, matchIndex: match.index, valueIndex, text, filePath, scope }))
+    findings.push(createFinding({ detector, value, matchIndex: match.index, valueIndex, text, filePath, scope, sourceDigest }))
   }
   return findings
 }
@@ -276,8 +276,9 @@ const genericMatches = (options) => [
 
 export const scanTextForSecrets = ({ text, filePath, scope }) => {
   if (typeof text !== 'string' || !filePath || !scope) return []
-  const { accepted, spans } = specificMatches({ text, filePath, scope })
-  const generic = genericMatches({ text, filePath, scope, occupied: spans })
+  const sourceDigest = createHash('sha256').update(text).digest('hex')
+  const { accepted, spans } = specificMatches({ text, filePath, scope, sourceDigest })
+  const generic = genericMatches({ text, filePath, scope, sourceDigest, occupied: spans })
   return [...accepted, ...generic].sort((a, b) => (
     `${a.filePath}:${a.line}:${a.column}:${a.detectorId}`.localeCompare(`${b.filePath}:${b.line}:${b.column}:${b.detectorId}`)
   ))
