@@ -6,7 +6,7 @@ import Chats from '../Models/chatModel.mjs'
 import { readAccessTokenFromCookieHeader, verifyAccessToken } from '../Utils/authToken.mjs'
 import { assertActiveSessionClaim } from '../Utils/sessionMetadata.mjs'
 import { assertChatMember, assertMessageChatMember, normalizeObjectId } from '../Utils/chatAccess.mjs'
-import { getCallIceConfig } from '../Utils/callIceConfig.mjs'
+import { getCallIceConfig, getCallIceReadinessConfig } from '../Utils/callIceConfig.mjs'
 import { logger } from '../Utils/observabilityLogger.mjs'
 import {
   CALL_SOCKET_EVENTS,
@@ -108,6 +108,16 @@ const socketEventLimits = {
 }
 
 const socketEventWindows = new Map()
+const userScopedSocketRateLimitEvents = new Set([
+  CALL_SOCKET_EVENTS.START,
+  CALL_SOCKET_EVENTS.ACCEPT,
+  CALL_SOCKET_EVENTS.REJECT,
+  CALL_SOCKET_EVENTS.END,
+  CALL_SOCKET_EVENTS.OFFER,
+  CALL_SOCKET_EVENTS.ANSWER,
+  CALL_SOCKET_EVENTS.ICE_CANDIDATE,
+  CALL_SOCKET_EVENTS.SYNC,
+])
 
 const logDeliveryLifecycle = (stage, metadata = {}) => {
   if (process.env.CHATIFY_DELIVERY_DIAGNOSTICS !== '1') {
@@ -190,10 +200,14 @@ const allowSocketRequest = (request, callback) => {
   callback('Socket origin not allowed', false)
 }
 
-const getSocketEventWindowKey = (socket, event) => `${socket.id}:${event}`
+const getSocketEventWindowKey = (socket, event) => (
+  userScopedSocketRateLimitEvents.has(event) && socket.data?.userId
+    ? `user:${socket.data.userId}:${event}`
+    : `socket:${socket.id}:${event}`
+)
 
 const clearSocketEventWindows = (socket) => {
-  const prefix = `${socket.id}:`
+  const prefix = `socket:${socket.id}:`
 
   for (const key of socketEventWindows.keys()) {
     if (key.startsWith(prefix)) {
@@ -694,7 +708,7 @@ export const initSocket = (server) => {
       socketId: socket.id,
       joinedChats: userChats.length,
       presence: await getAuthorizedPresenceSnapshot(userId),
-      callConfig: getCallIceConfig(),
+      callConfig: getCallIceReadinessConfig(),
     }
     socket.emit('socket:ready', readyPayload)
     socket.emit('user:connected', readyPayload)
@@ -922,7 +936,7 @@ export const initSocket = (server) => {
         emitCallAck(ack, event, {
           chatId: chat._id.toString(),
           call: session ? buildCallSessionPayload(session) : null,
-          callConfig: getCallIceConfig(),
+          callConfig: session ? getCallIceConfig() : getCallIceReadinessConfig(),
         })
       } catch (err) {
         emitCallError(socket, event, toCallSocketError(err), ack)

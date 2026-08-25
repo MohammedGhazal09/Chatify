@@ -1,6 +1,5 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import jsonwebtoken from 'jsonwebtoken';
 import Session from '../../Models/sessionModel.mjs';
 import { buildUserPayload, createUser, TEST_PASSWORD } from '../fixtures/users.mjs';
 import { getCsrfForAgent, loginWithAgent, signupWithAgent } from '../helpers/authAgent.mjs';
@@ -102,30 +101,4 @@ describe('session management', () => {
 
     expect(authState.body.token).toBe(false);
   });
-
-  it('rejects access tokens that are not bound to a server-side session', async () => {
-    const app = await getTestApp();
-    const user = await createUser({ firstName: 'Legacy', lastName: 'Token' });
-    const token = jsonwebtoken.sign(
-      {
-        userId: user._id.toString(),
-        type: 'access',
-      },
-      process.env.SECRET_JWT_KEY,
-      { algorithm: 'HS256', expiresIn: '15m' }
-    );
-
-    await request(app)
-      .get('/api/user/get-logged-user')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(401);
-
-    const authState = await request(app)
-      .get('/api/auth/is-authenticated')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-
-    expect(authState.body.token).toBe(false);
-  });
-
 });

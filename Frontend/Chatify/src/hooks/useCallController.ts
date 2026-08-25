@@ -395,7 +395,7 @@ export const useCallController = ({
 
   const createPeerSession = useCallback((session: CallSessionPayload, stream: MediaStream) => {
     const peerSession = peerSessionRef.current ?? new WebRtcCallSession({
-      iceConfig: callConfig ?? session.callConfig ?? null,
+      iceConfig: session.callConfig ?? callConfig ?? null,
       localStream: stream,
       onRemoteStream: (remoteStream) => {
         remoteStreamRef.current = remoteStream;

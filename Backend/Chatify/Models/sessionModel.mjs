@@ -1,19 +1,5 @@
 import mongoose from 'mongoose';
 
-const usedRefreshTokenSchema = new mongoose.Schema({
-  hash: {
-    type: String,
-    required: true,
-  },
-  usedAt: {
-    type: Date,
-    required: true,
-  },
-}, {
-  _id: false,
-  versionKey: false,
-});
-
 const sessionSchema = new mongoose.Schema(
   {
     userId: {
@@ -52,11 +38,6 @@ const sessionSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
-    usedRefreshTokenHashes: {
-      type: [usedRefreshTokenSchema],
-      default: [],
-      select: false,
-    },
     expiresAt: {
       type: Date,
       required: true,
@@ -73,7 +54,6 @@ const sessionSchema = new mongoose.Schema(
     replacedByTokenHash: {
       type: String,
       default: null,
-      select: false,
     },
   },
   {
@@ -85,7 +65,6 @@ const sessionSchema = new mongoose.Schema(
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 sessionSchema.index({ userId: 1, revokedAt: 1, expiresAt: 1 });
 sessionSchema.index({ userId: 1, lastUsedAt: -1 });
-sessionSchema.index({ 'usedRefreshTokenHashes.hash': 1 });
 
 const Session = mongoose.model('Sessions', sessionSchema);
 

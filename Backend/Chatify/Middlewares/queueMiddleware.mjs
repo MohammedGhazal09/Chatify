@@ -1,7 +1,10 @@
-import { dbQueue, messageQueue, QueueCapacityError } from '../Utils/requestQueue.mjs';
+import { dbQueue, messageQueue } from '../Utils/requestQueue.mjs';
 import { logger } from '../Utils/observabilityLogger.mjs';
 
-export const queueStatus = (_req, res) => {
+/**
+ * Get queue status endpoint
+ */
+export const queueStatus = (req, res) => {
   res.json({
     status: 'ok',
     queues: {
@@ -12,76 +15,53 @@ export const queueStatus = (_req, res) => {
   });
 };
 
-const isHeavyRequest = (req) => {
+/**
+ * Middleware to queue heavy database requests
+ * This prevents database overload during high traffic
+ */
+export const queueHeavyRequests = (req, res, next) => {
+  // Routes that involve heavy database operations
   const heavyRoutes = [
     { path: '/api/message/get-all-messages', method: 'GET' },
     { path: '/api/chat/get-all-chats', method: 'GET' },
     { path: '/api/user/search', method: 'GET' },
   ];
 
-  return heavyRoutes.some((route) => (
+  const isHeavyRoute = heavyRoutes.some(route => 
     req.path.includes(route.path) && req.method === route.method
-  ));
-};
+  );
 
-const runRequestInsideQueueSlot = (req, res, next) => new Promise((resolve, reject) => {
-  let settled = false;
-
-  const complete = () => {
-    if (settled) {
-      return;
-    }
-
-    settled = true;
-    res.off('finish', complete);
-    res.off('close', complete);
-    resolve();
-  };
-
-  res.once('finish', complete);
-  res.once('close', complete);
-  req.isQueued = true;
-
-  try {
-    next();
-  } catch (error) {
-    complete();
-    reject(error);
-  }
-});
-
-export const queueHeavyRequests = (req, res, next) => {
-  if (!isHeavyRequest(req)) {
-    next();
-    return;
-  }
-
-  req.queuedAt = Date.now();
-
-  dbQueue
-    .add(() => runRequestInsideQueueSlot(req, res, next))
-    .catch((error) => {
+  if (isHeavyRoute) {
+    // Add to queue
+    req.queuedAt = Date.now();
+    
+    dbQueue.add(async () => {
+      return new Promise((resolve) => {
+        req.isQueued = true;
+        resolve();
+      });
+    }).then(() => {
+      next();
+    }).catch((error) => {
       logger.error('queue.heavy_route_failed', {
         requestId: req.requestId,
         method: req.method,
         path: req.path,
         error,
       });
-
-      if (res.headersSent) {
-        res.destroy(error);
-        return;
-      }
-
-      res.status(error instanceof QueueCapacityError ? 503 : 500).json({
+      res.status(503).json({
         status: 'error',
-        message: error instanceof QueueCapacityError
-          ? 'Server is busy. Please try again.'
-          : 'Request processing failed.',
+        message: 'Server is busy. Please try again.',
       });
     });
+  } else {
+    next();
+  }
 };
 
+/**
+ * Add queue timing headers to response
+ */
 export const addQueueHeaders = (req, res, next) => {
   if (req.isQueued && req.queuedAt) {
     const waitTime = Date.now() - req.queuedAt;
@@ -90,7 +70,12 @@ export const addQueueHeaders = (req, res, next) => {
   next();
 };
 
-export const queueMessageOperations = async (operation) => messageQueue.add(operation);
+/**
+ * Queue message operations to prevent flooding
+ */
+export const queueMessageOperations = async (operation) => {
+  return messageQueue.add(operation);
+};
 
 export default {
   queueStatus,

@@ -1,35 +1,18 @@
 import { logger } from './observabilityLogger.mjs';
 
-export class QueueCapacityError extends Error {
-  constructor(message = 'Request queue capacity exceeded') {
-    super(message);
-    this.name = 'QueueCapacityError';
-    this.code = 'QUEUE_CAPACITY_EXCEEDED';
-  }
-}
-
 class RequestQueue {
-  constructor(maxConcurrent = 10, requestDelay = 10, maxQueueSize = 100) {
+  constructor(maxConcurrent = 10, requestDelay = 10) {
     this.queue = [];
     this.activeRequests = 0;
     this.maxConcurrent = maxConcurrent;
     this.requestDelay = requestDelay;
-    this.maxQueueSize = maxQueueSize;
     this.isPaused = false;
   }
 
   async add(execute, priority = 0) {
-    if (typeof execute !== 'function') {
-      throw new TypeError('Queued request must be a function');
-    }
-
-    if (this.queue.length >= this.maxQueueSize) {
-      throw new QueueCapacityError();
-    }
-
     return new Promise((resolve, reject) => {
       const request = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         execute,
         resolve,
         reject,
@@ -37,7 +20,8 @@ class RequestQueue {
         timestamp: Date.now(),
       };
 
-      const insertIndex = this.queue.findIndex((queuedRequest) => queuedRequest.priority < priority);
+      // Insert based on priority (higher priority first)
+      const insertIndex = this.queue.findIndex(r => r.priority < priority);
       if (insertIndex === -1) {
         this.queue.push(request);
       } else {
@@ -48,33 +32,27 @@ class RequestQueue {
     });
   }
 
-  processQueue() {
-    if (this.isPaused) {
-      return;
-    }
+  async processQueue() {
+    if (this.isPaused) return;
+    if (this.activeRequests >= this.maxConcurrent) return;
+    if (this.queue.length === 0) return;
 
-    while (this.activeRequests < this.maxConcurrent && this.queue.length > 0) {
-      const request = this.queue.shift();
-      if (!request) {
-        return;
-      }
+    const request = this.queue.shift();
+    if (!request) return;
 
-      this.activeRequests += 1;
-      void this.executeRequest(request);
-    }
-  }
+    this.activeRequests++;
 
-  async executeRequest(request) {
     try {
       if (this.requestDelay > 0) {
-        await new Promise((resolve) => setTimeout(resolve, this.requestDelay));
+        await new Promise(resolve => setTimeout(resolve, this.requestDelay));
       }
 
-      request.resolve(await request.execute());
+      const result = await request.execute();
+      request.resolve(result);
     } catch (error) {
       request.reject(error);
     } finally {
-      this.activeRequests -= 1;
+      this.activeRequests--;
       this.processQueue();
     }
   }
@@ -92,7 +70,7 @@ class RequestQueue {
 
   clear() {
     const count = this.queue.length;
-    this.queue.forEach((request) => {
+    this.queue.forEach(request => {
       request.reject(new Error('Queue cleared'));
     });
     this.queue = [];
@@ -106,16 +84,21 @@ class RequestQueue {
     return {
       queued: this.queue.length,
       active: this.activeRequests,
-      capacity: this.maxQueueSize,
-      maxConcurrent: this.maxConcurrent,
       isPaused: this.isPaused,
     };
   }
 }
 
-export const dbQueue = new RequestQueue(20, 5, 200);
-export const emailQueue = new RequestQueue(3, 100, 100);
-export const socketQueue = new RequestQueue(50, 0, 500);
-export const messageQueue = new RequestQueue(15, 10, 250);
+// Database operations queue (20 concurrent, 5ms delay)
+export const dbQueue = new RequestQueue(20, 5);
+
+// Email sending queue (3 concurrent, 100ms delay)
+export const emailQueue = new RequestQueue(3, 100);
+
+// Socket broadcast queue (50 concurrent, no delay)
+export const socketQueue = new RequestQueue(50, 0);
+
+// Message processing queue (15 concurrent, 10ms delay)
+export const messageQueue = new RequestQueue(15, 10);
 
 export default RequestQueue;

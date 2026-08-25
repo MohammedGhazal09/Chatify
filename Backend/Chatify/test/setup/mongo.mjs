@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
+import {
+  buildMongoConnectionOptions,
+  configureMongooseSecurity,
+} from '../../Utils/databaseSecurity.mjs';
+
+configureMongooseSecurity();
 
 let mongoServer;
 
@@ -10,10 +16,18 @@ export const clearDatabase = async () => {
 };
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
+  mongoServer = await MongoMemoryReplSet.create({
+    replSet: {
+      count: 1,
+      storageEngine: 'wiredTiger',
+    },
+  });
   process.env.MONGODB_URL = mongoServer.getUri();
-  await mongoose.connect(process.env.MONGODB_URL);
-}, 30000);
+  await mongoose.connect(
+    process.env.MONGODB_URL,
+    buildMongoConnectionOptions(process.env)
+  );
+}, 60000);
 
 beforeEach(async () => {
   await clearDatabase();
@@ -22,4 +36,4 @@ beforeEach(async () => {
 afterAll(async () => {
   await mongoose.disconnect();
   await mongoServer?.stop();
-}, 30000);
+}, 60000);

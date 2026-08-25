@@ -48,20 +48,20 @@ describe('Socket.IO call auth and config contract', () => {
     expect(error.data).toEqual({ code: 'socket_auth_required' });
   });
 
-  it('includes backend-controlled call config in socket readiness without private application secrets', async () => {
+  it('includes credential-free call readiness without distributing reusable ICE credentials', async () => {
     const server = await startServer();
     const caller = await connectSocketAsUser(server.url, { firstName: 'Ready', lastName: 'Caller' });
 
     trackSocket(caller.socket);
 
     expect(caller.ready.callConfig).toMatchObject({
-      iceServers: expect.arrayContaining([
-        expect.objectContaining({ urls: expect.any(String) }),
-      ]),
+      iceServers: [],
       turnReady: expect.any(Boolean),
       productionReady: expect.any(Boolean),
       warnings: expect.any(Array),
     });
+    expect(JSON.stringify(caller.ready.callConfig)).not.toContain('credential');
+    expect(JSON.stringify(caller.ready.callConfig)).not.toContain('username');
     expect(JSON.stringify(caller.ready.callConfig)).not.toContain('SECRET_JWT_KEY');
     expect(JSON.stringify(caller.ready.callConfig)).not.toContain('cookie');
   });

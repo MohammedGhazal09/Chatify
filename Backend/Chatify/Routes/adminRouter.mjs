@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { getDeliveryHealth, getIntegrationDiagnostics, getPrivacyOperations } from "../Controller/adminController.mjs";
 import requireAdmin from "../Middlewares/requireAdmin.mjs";
-import { queueStatus } from "../Middlewares/queueMiddleware.mjs";
 import { moderationReviewLimiter } from "../Middlewares/rateLimiters.mjs";
 
 const router = Router();
@@ -17,9 +16,5 @@ router
 router
   .route("/integrations")
   .get(moderationReviewLimiter, requireAdmin, getIntegrationDiagnostics);
-
-router
-  .route("/queue-status")
-  .get(moderationReviewLimiter, requireAdmin, queueStatus);
 
 export default router;

@@ -9,6 +9,7 @@ const renderProtectedRoute = (initialPath = '/') => render(
   <MemoryRouter initialEntries={[initialPath]}>
     <Routes>
       <Route path="/" element={<ProtectedRoute><div>Chat view</div></ProtectedRoute>} />
+      <Route path="/admin" element={<ProtectedRoute requireAdmin><div>Admin view</div></ProtectedRoute>} />
       <Route path="/setup-username" element={<ProtectedRoute requireUsername={false}><div>Setup username</div></ProtectedRoute>} />
       <Route path="/login" element={<div>Login view</div>} />
     </Routes>
@@ -64,5 +65,30 @@ describe('ProtectedRoute', () => {
     renderProtectedRoute('/setup-username');
 
     expect(screen.getByText('Setup username')).toBeInTheDocument();
+  });
+
+  it('redirects authenticated non-admin users away from admin routes', () => {
+    useAuthStore.setState({
+      user: makeUser({ username: 'regular.user', role: 'user' }),
+      isAuthenticated: true,
+      isLoading: false,
+    });
+
+    renderProtectedRoute('/admin');
+
+    expect(screen.getByText('Chat view')).toBeInTheDocument();
+    expect(screen.queryByText('Admin view')).not.toBeInTheDocument();
+  });
+
+  it('renders admin routes only for authenticated administrators', () => {
+    useAuthStore.setState({
+      user: makeUser({ username: 'admin.user', role: 'admin' }),
+      isAuthenticated: true,
+      isLoading: false,
+    });
+
+    renderProtectedRoute('/admin');
+
+    expect(screen.getByText('Admin view')).toBeInTheDocument();
   });
 });
