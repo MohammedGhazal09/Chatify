@@ -1,3 +1,8 @@
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import { promises as fsPromises } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import multer from 'multer';
 
 import {
@@ -16,62 +21,80 @@ import {
   reserveUploadBudget,
 } from '../Services/uploadBudgetService.mjs';
 
-const AGGREGATE_STATE = Symbol('chatify.aggregateUploadState');
 const MULTIPART_OVERHEAD_ALLOWANCE_BYTES = 256 * 1024;
+const DEFAULT_UPLOAD_BUFFER_BUDGET_BYTES = 64 * 1024 * 1024;
+const MAX_UPLOAD_BUFFER_BUDGET_BYTES = 512 * 1024 * 1024;
+const UPLOAD_TEMP_MAX_AGE_MS = 60 * 60 * 1000;
+const UPLOAD_TEMP_SWEEP_MS = 15 * 60 * 1000;
+const UPLOAD_TEMP_DIR = path.join(os.tmpdir(), 'chatify-secure-uploads');
+const BUFFER_RESERVATION = Symbol('chatify.uploadBufferReservation');
+const RESOURCE_CLEANUP_REGISTERED = Symbol('chatify.uploadResourceCleanupRegistered');
+const COMPLEX_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.xlsx']);
 
-const buildAggregateMemoryStorage = (maxAggregateSize) => ({
-  _handleFile(req, file, callback) {
-    req[AGGREGATE_STATE] ??= { bytes: 0, failed: false };
-    const state = req[AGGREGATE_STATE];
-    const chunks = [];
-    let size = 0;
-    let completed = false;
+let activeUploadBufferBytes = 0;
+let tempSweepTimer = null;
 
-    const finish = (error, value) => {
-      if (completed) return;
-      completed = true;
-      callback(error, value);
-    };
+fs.mkdirSync(UPLOAD_TEMP_DIR, { recursive: true, mode: 0o700 });
 
-    file.stream.on('data', (chunk) => {
-      if (state.failed) {
-        const error = new multer.MulterError('LIMIT_FILE_SIZE', file.fieldname);
-        error.code = 'LIMIT_AGGREGATE_SIZE';
-        finish(error);
-        return;
-      }
+const normalizeBufferBudget = (value) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isSafeInteger(parsed) || parsed < MAX_ATTACHMENT_AGGREGATE_SIZE_BYTES) {
+    return DEFAULT_UPLOAD_BUFFER_BUDGET_BYTES;
+  }
+  return Math.min(parsed, MAX_UPLOAD_BUFFER_BUDGET_BYTES);
+};
 
-      const normalizedChunk = Buffer.from(chunk);
-      state.bytes += normalizedChunk.length;
-      size += normalizedChunk.length;
+const getUploadBufferBudgetBytes = () => normalizeBufferBudget(
+  process.env.UPLOAD_BUFFER_MEMORY_BUDGET_BYTES
+);
 
-      if (state.bytes > maxAggregateSize) {
-        state.failed = true;
-        chunks.length = 0;
-        const error = new multer.MulterError('LIMIT_FILE_SIZE', file.fieldname);
-        error.code = 'LIMIT_AGGREGATE_SIZE';
-        finish(error);
-        return;
-      }
+const sweepStaleTempFiles = async () => {
+  const cutoff = Date.now() - UPLOAD_TEMP_MAX_AGE_MS;
+  let entries = [];
+  try {
+    entries = await fsPromises.readdir(UPLOAD_TEMP_DIR, { withFileTypes: true });
+  } catch {
+    return;
+  }
 
-      chunks.push(normalizedChunk);
-    });
-    file.stream.on('error', (error) => finish(error));
-    file.stream.on('end', () => {
-      if (state.failed) {
-        const error = new multer.MulterError('LIMIT_FILE_SIZE', file.fieldname);
-        error.code = 'LIMIT_AGGREGATE_SIZE';
-        finish(error);
-        return;
-      }
-      finish(null, { buffer: Buffer.concat(chunks, size), size });
-    });
+  await Promise.allSettled(entries
+    .filter((entry) => entry.isFile())
+    .map(async (entry) => {
+      const filePath = path.join(UPLOAD_TEMP_DIR, entry.name);
+      const stat = await fsPromises.stat(filePath);
+      if (stat.mtimeMs <= cutoff) await fsPromises.unlink(filePath);
+    }));
+};
+
+const startTempSweep = () => {
+  if (tempSweepTimer) return;
+  tempSweepTimer = setInterval(() => {
+    void sweepStaleTempFiles();
+  }, UPLOAD_TEMP_SWEEP_MS);
+  tempSweepTimer.unref?.();
+};
+
+startTempSweep();
+
+const uploadDiskStorage = multer.diskStorage({
+  destination(_req, _file, callback) {
+    callback(null, UPLOAD_TEMP_DIR);
   },
-  _removeFile(_req, file, callback) {
-    delete file.buffer;
-    callback(null);
+  filename(_req, _file, callback) {
+    callback(null, `${Date.now()}-${randomUUID()}.upload`);
   },
 });
+
+const rejectComplexDocument = (_req, file, callback) => {
+  const extension = path.extname(String(file.originalname ?? '')).toLowerCase();
+  if (COMPLEX_DOCUMENT_EXTENSIONS.has(extension)) {
+    const error = new Error('Complex document containers are not accepted');
+    error.code = 'UNSUPPORTED_COMPLEX_DOCUMENT';
+    callback(error);
+    return;
+  }
+  callback(null, true);
+};
 
 const exceedsDeclaredRequestSize = (req, maxBytes) => {
   const declared = Number.parseInt(req.headers['content-length'] ?? '', 10);
@@ -80,7 +103,8 @@ const exceedsDeclaredRequestSize = (req, maxBytes) => {
 };
 
 const attachmentUpload = multer({
-  storage: buildAggregateMemoryStorage(MAX_ATTACHMENT_AGGREGATE_SIZE_BYTES),
+  storage: uploadDiskStorage,
+  fileFilter: rejectComplexDocument,
   limits: {
     fileSize: MAX_ATTACHMENT_SIZE_BYTES,
     files: MAX_ATTACHMENTS_PER_MESSAGE,
@@ -92,7 +116,7 @@ const attachmentUpload = multer({
 });
 
 const profileImageUpload = multer({
-  storage: buildAggregateMemoryStorage(MAX_PROFILE_IMAGE_SIZE_BYTES),
+  storage: uploadDiskStorage,
   limits: {
     fileSize: MAX_PROFILE_IMAGE_SIZE_BYTES,
     files: 1,
@@ -104,14 +128,16 @@ const profileImageUpload = multer({
 });
 
 const respondUploadFailure = (res, { code, message, statusCode = 400 }) => {
-  res.status(statusCode).json({
-    status: 'fail',
-    code,
-    message,
-  });
+  res.status(statusCode).json({ status: 'fail', code, message });
 };
 
 const mapAttachmentMulterError = (error) => {
+  if (error?.code === 'UNSUPPORTED_COMPLEX_DOCUMENT') {
+    return {
+      code: ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
+      message: 'PDF, DOCX, and XLSX attachments are not accepted',
+    };
+  }
   if (error?.code === 'LIMIT_AGGREGATE_SIZE') {
     return {
       code: ATTACHMENT_ERROR_CODES.AGGREGATE_SIZE_EXCEEDED,
@@ -164,6 +190,80 @@ const mapProfileMulterError = (error) => {
   };
 };
 
+const getRequestFiles = (req) => {
+  if (Array.isArray(req.files)) return req.files;
+  return req.file ? [req.file] : [];
+};
+
+const deleteTempFiles = async (files) => {
+  await Promise.allSettled(files.map(async (file) => {
+    if (file?.path) await fsPromises.unlink(file.path);
+  }));
+};
+
+const releaseUploadResources = async (req) => {
+  const files = getRequestFiles(req);
+  const reservedBytes = Number(req[BUFFER_RESERVATION] ?? 0);
+  if (reservedBytes > 0) {
+    activeUploadBufferBytes = Math.max(0, activeUploadBufferBytes - reservedBytes);
+    req[BUFFER_RESERVATION] = 0;
+  }
+  files.forEach((file) => {
+    delete file.buffer;
+  });
+  await deleteTempFiles(files);
+};
+
+const registerResponseCleanup = (req, res) => {
+  if (req[RESOURCE_CLEANUP_REGISTERED]) return;
+  req[RESOURCE_CLEANUP_REGISTERED] = true;
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    void releaseUploadResources(req);
+  };
+  res.once('finish', cleanup);
+  res.once('close', cleanup);
+};
+
+class UploadMemoryBudgetExceededError extends Error {
+  constructor() {
+    super('The server is currently processing other uploads. Try again shortly.');
+    this.code = 'UPLOAD_MEMORY_BUDGET_EXCEEDED';
+    this.statusCode = 503;
+  }
+}
+
+const materializeFileBuffers = async (req, files) => {
+  if (files.length === 0) return;
+  const totalBytes = files.reduce((total, file) => total + Number(file.size ?? 0), 0);
+  const memoryBudget = getUploadBufferBudgetBytes();
+
+  if (
+    !Number.isSafeInteger(totalBytes)
+    || totalBytes < 0
+    || activeUploadBufferBytes + totalBytes > memoryBudget
+  ) {
+    throw new UploadMemoryBudgetExceededError();
+  }
+
+  activeUploadBufferBytes += totalBytes;
+  req[BUFFER_RESERVATION] = totalBytes;
+
+  try {
+    for (const file of files) {
+      file.buffer = await fsPromises.readFile(file.path);
+      if (file.buffer.length !== Number(file.size)) {
+        throw new Error('Temporary upload size changed while reading');
+      }
+    }
+  } catch (error) {
+    await releaseUploadResources(req);
+    throw error;
+  }
+};
+
 const reserveParsedUpload = async ({ req, purpose, files }) => {
   if (!Array.isArray(files) || files.length === 0) return null;
   return reserveUploadBudget({
@@ -172,6 +272,17 @@ const reserveParsedUpload = async ({ req, purpose, files }) => {
     bytes: files.reduce((total, file) => total + Number(file.size ?? 0), 0),
     files: files.length,
   });
+};
+
+const uploadChatMatchesAuthorizedHeader = (req) => {
+  const authorized = req.uploadAuthorizedChatId?.toString?.();
+  if (!authorized) return true;
+  return authorized === req.body?.chatId?.toString?.();
+};
+
+const failAndCleanup = async (req, res, failure) => {
+  await releaseUploadResources(req);
+  respondUploadFailure(res, failure);
 };
 
 export const secureMessageAttachmentUpload = (req, res, next) => {
@@ -186,13 +297,22 @@ export const secureMessageAttachmentUpload = (req, res, next) => {
 
   attachmentUpload.array('attachments', MAX_ATTACHMENTS_PER_MESSAGE)(req, res, async (error) => {
     if (error) {
-      respondUploadFailure(res, mapAttachmentMulterError(error));
+      await failAndCleanup(req, res, mapAttachmentMulterError(error));
       return;
     }
 
-    const aggregateResult = validateAggregateUploadSize(req.files ?? []);
+    const files = req.files ?? [];
+    const aggregateResult = validateAggregateUploadSize(files);
     if (!aggregateResult.ok) {
-      respondUploadFailure(res, aggregateResult);
+      await failAndCleanup(req, res, aggregateResult);
+      return;
+    }
+    if (!uploadChatMatchesAuthorizedHeader(req)) {
+      await failAndCleanup(req, res, {
+        code: 'UPLOAD_CHAT_MISMATCH',
+        message: 'Multipart upload chat does not match the authorized chat header',
+        statusCode: 403,
+      });
       return;
     }
 
@@ -200,19 +320,30 @@ export const secureMessageAttachmentUpload = (req, res, next) => {
       req.uploadBudget = await reserveParsedUpload({
         req,
         purpose: 'attachment',
-        files: req.files ?? [],
+        files,
       });
+      await materializeFileBuffers(req, files);
+      registerResponseCleanup(req, res);
       next();
-    } catch (budgetError) {
-      if (budgetError instanceof UploadBudgetExceededError) {
-        respondUploadFailure(res, {
-          code: budgetError.code,
-          message: budgetError.message,
-          statusCode: budgetError.statusCode,
+    } catch (uploadError) {
+      if (uploadError instanceof UploadBudgetExceededError) {
+        await failAndCleanup(req, res, {
+          code: uploadError.code,
+          message: uploadError.message,
+          statusCode: uploadError.statusCode,
         });
         return;
       }
-      next(budgetError);
+      if (uploadError instanceof UploadMemoryBudgetExceededError) {
+        await failAndCleanup(req, res, {
+          code: uploadError.code,
+          message: uploadError.message,
+          statusCode: uploadError.statusCode,
+        });
+        return;
+      }
+      await releaseUploadResources(req);
+      next(uploadError);
     }
   });
 };
@@ -229,27 +360,45 @@ export const secureProfileImageUpload = (req, res, next) => {
 
   profileImageUpload.single('profileImage')(req, res, async (error) => {
     if (error) {
-      respondUploadFailure(res, mapProfileMulterError(error));
+      await failAndCleanup(req, res, mapProfileMulterError(error));
       return;
     }
 
+    const files = req.file ? [req.file] : [];
     try {
       req.uploadBudget = await reserveParsedUpload({
         req,
         purpose: 'profile-image',
-        files: req.file ? [req.file] : [],
+        files,
       });
+      await materializeFileBuffers(req, files);
+      registerResponseCleanup(req, res);
       next();
-    } catch (budgetError) {
-      if (budgetError instanceof UploadBudgetExceededError) {
-        respondUploadFailure(res, {
-          code: budgetError.code,
-          message: budgetError.message,
-          statusCode: budgetError.statusCode,
+    } catch (uploadError) {
+      if (uploadError instanceof UploadBudgetExceededError) {
+        await failAndCleanup(req, res, {
+          code: uploadError.code,
+          message: uploadError.message,
+          statusCode: uploadError.statusCode,
         });
         return;
       }
-      next(budgetError);
+      if (uploadError instanceof UploadMemoryBudgetExceededError) {
+        await failAndCleanup(req, res, {
+          code: uploadError.code,
+          message: uploadError.message,
+          statusCode: uploadError.statusCode,
+        });
+        return;
+      }
+      await releaseUploadResources(req);
+      next(uploadError);
     }
   });
 };
+
+export const getUploadMemoryStatus = () => ({
+  activeBytes: activeUploadBufferBytes,
+  budgetBytes: getUploadBufferBudgetBytes(),
+  tempDirectory: UPLOAD_TEMP_DIR,
+});
