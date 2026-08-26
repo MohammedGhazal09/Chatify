@@ -20,9 +20,10 @@ export const safeMetadataHashEqual = (left, right) => {
 };
 
 const getRequestIp = (req) => {
-  const forwardedFor = req?.headers?.['x-forwarded-for'];
-  if (typeof forwardedFor === 'string' && forwardedFor.trim()) return forwardedFor.split(',')[0].trim();
-  return req?.ip || req?.socket?.remoteAddress || '';
+  if (typeof req?.ip === 'string' && req.ip.trim()) return req.ip.trim();
+  return typeof req?.socket?.remoteAddress === 'string'
+    ? req.socket.remoteAddress.trim()
+    : '';
 };
 
 const detectBrowser = (userAgent) => {
