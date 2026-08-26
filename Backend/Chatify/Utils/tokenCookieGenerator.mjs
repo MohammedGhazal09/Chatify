@@ -2,9 +2,11 @@ import jsonwebtoken from 'jsonwebtoken';
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import mongoose from 'mongoose';
 import Session from '../Models/sessionModel.mjs';
+import SessionFamily from '../Models/sessionFamilyModel.mjs';
 import User from '../Models/userModel.mjs';
 import { CustomError } from './customError.mjs';
 import { ACCESS_TOKEN_AUDIENCE, ACCESS_TOKEN_ISSUER } from './authToken.mjs';
+import { withDatabaseTransaction } from './databaseSecurity.mjs';
 import { buildSessionMetadataFromRequest } from './sessionMetadata.mjs';
 
 export const ACCESS_TOKEN_COOKIE = 'accessToken';
@@ -74,11 +76,47 @@ export const clearSessionCookies = (res) => {
 
 export const readRefreshTokenFromRequest = (req) => req.cookies?.[REFRESH_TOKEN_COOKIE] ?? null;
 
-const createRefreshSession = async ({ user, rememberMe = false, familyId = randomUUID(), metadata = {} }) => {
+const ensureSessionFamily = ({ familyId, userId, expiresAt, session = null }) => (
+  SessionFamily.findOneAndUpdate(
+    { familyId },
+    {
+      $setOnInsert: {
+        userId,
+        compromisedAt: null,
+      },
+      $max: { expiresAt },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+      ...(session ? { session } : {}),
+    }
+  )
+);
+
+const createRefreshSession = async ({
+  user,
+  rememberMe = false,
+  familyId = randomUUID(),
+  metadata = {},
+  session = null,
+  ensureFamily = true,
+}) => {
   const refreshToken = createOpaqueRefreshToken();
   const refreshTokenHash = hashRefreshToken(refreshToken);
   const expiresAt = new Date(Date.now() + getRefreshMaxAge(rememberMe));
-  const session = await Session.create({
+
+  if (ensureFamily) {
+    await ensureSessionFamily({
+      familyId,
+      userId: user._id,
+      expiresAt,
+      session,
+    });
+  }
+
+  const [createdSession] = await Session.create([{
     userId: user._id,
     refreshTokenHash,
     familyId,
@@ -88,8 +126,9 @@ const createRefreshSession = async ({ user, rememberMe = false, familyId = rando
     ipHash: metadata.ipHash,
     expiresAt,
     lastUsedAt: new Date(),
-  });
-  return { refreshToken, refreshTokenHash, session };
+  }], session ? { session } : {});
+
+  return { refreshToken, refreshTokenHash, session: createdSession };
 };
 
 export const issueSessionCookies = async ({ user, res, rememberMe = false, req = null }) => {
@@ -103,62 +142,146 @@ export const issueSessionCookies = async ({ user, res, rememberMe = false, req =
   return { accessToken, refreshToken, session };
 };
 
+const revokeActiveFamilySessions = ({ familyId, now, session }) => Session.updateMany(
+  { familyId, revokedAt: null },
+  { $set: { revokedAt: now, lastUsedAt: now } },
+  { session }
+);
+
+const compromiseSessionFamily = async ({ family, familyId, now, session }) => {
+  await SessionFamily.updateOne(
+    { _id: family._id, compromisedAt: null },
+    { $set: { compromisedAt: now } },
+    { session }
+  );
+  await revokeActiveFamilySessions({ familyId, now, session });
+};
+
+const buildRotationFailure = (kind) => {
+  if (kind === 'invalid') return new CustomError('Invalid refresh token', 401);
+  if (kind === 'expired') return new CustomError('Refresh token expired', 401);
+  if (kind === 'user-missing') return new CustomError('User not found', 404);
+  if (kind === 'family-compromised') return new CustomError('Refresh token family compromised', 401);
+  return new CustomError('Refresh token already used', 401);
+};
+
 export const rotateSessionCookies = async ({ refreshToken, res, req = null }) => {
   if (!refreshToken) throw new CustomError('Refresh token required', 401);
 
   const tokenHash = hashRefreshToken(refreshToken);
-  const now = new Date();
-  const claimedSession = await Session.findOneAndUpdate(
-    { refreshTokenHash: tokenHash, revokedAt: null, expiresAt: { $gt: now } },
-    { $set: { revokedAt: now, lastUsedAt: now } },
-    { new: false },
-  );
+  const requestMetadata = buildSessionMetadataFromRequest(req);
+  const rotation = await withDatabaseTransaction(async (databaseSession) => {
+    const now = new Date();
+    const existingSession = await Session.findOne({ refreshTokenHash: tokenHash })
+      .session(databaseSession);
 
-  if (!claimedSession) {
-    const existingSession = await Session.findOne({ refreshTokenHash: tokenHash });
-    if (!existingSession) throw new CustomError('Invalid refresh token', 401);
-    if (existingSession.revokedAt) {
-      await Session.updateMany(
-        { familyId: existingSession.familyId, revokedAt: null },
-        { $set: { revokedAt: new Date(), lastUsedAt: new Date() } },
-      );
-      throw new CustomError('Refresh token already used', 401);
+    if (!existingSession) return { kind: 'invalid' };
+
+    const family = await ensureSessionFamily({
+      familyId: existingSession.familyId,
+      userId: existingSession.userId,
+      expiresAt: existingSession.expiresAt,
+      session: databaseSession,
+    });
+
+    if (family.compromisedAt) {
+      await revokeActiveFamilySessions({
+        familyId: existingSession.familyId,
+        now,
+        session: databaseSession,
+      });
+      return { kind: 'family-compromised' };
     }
+
+    if (existingSession.revokedAt) {
+      await compromiseSessionFamily({
+        family,
+        familyId: existingSession.familyId,
+        now,
+        session: databaseSession,
+      });
+      return { kind: 'replay' };
+    }
+
     if (existingSession.expiresAt <= now) {
       await Session.updateOne(
         { _id: existingSession._id, revokedAt: null },
         { $set: { revokedAt: now, lastUsedAt: now } },
+        { session: databaseSession }
       );
-      throw new CustomError('Refresh token expired', 401);
+      return { kind: 'expired' };
     }
-    throw new CustomError('Invalid refresh token', 401);
-  }
 
-  const user = await User.findById(claimedSession.userId);
-  if (!user) {
-    await Session.updateMany(
-      { familyId: claimedSession.familyId, revokedAt: null },
-      { $set: { revokedAt: new Date(), lastUsedAt: new Date() } },
+    const claimedSession = await Session.findOneAndUpdate(
+      {
+        _id: existingSession._id,
+        revokedAt: null,
+        expiresAt: { $gt: now },
+      },
+      { $set: { revokedAt: now, lastUsedAt: now } },
+      { new: false, session: databaseSession }
     );
-    throw new CustomError('User not found', 404);
+    if (!claimedSession) return { kind: 'invalid' };
+
+    const user = await User.findById(claimedSession.userId).session(databaseSession);
+    if (!user) {
+      await revokeActiveFamilySessions({
+        familyId: claimedSession.familyId,
+        now,
+        session: databaseSession,
+      });
+      return { kind: 'user-missing' };
+    }
+
+    const next = await createRefreshSession({
+      user,
+      rememberMe: claimedSession.rememberMe,
+      familyId: claimedSession.familyId,
+      metadata: {
+        deviceLabel: claimedSession.deviceLabel || requestMetadata.deviceLabel,
+        userAgentHash: claimedSession.userAgentHash ?? requestMetadata.userAgentHash,
+        ipHash: claimedSession.ipHash ?? requestMetadata.ipHash,
+      },
+      session: databaseSession,
+      ensureFamily: false,
+    });
+
+    await Session.updateOne(
+      { _id: claimedSession._id },
+      { $set: { replacedByTokenHash: next.refreshTokenHash } },
+      { session: databaseSession }
+    );
+    await SessionFamily.updateOne(
+      { _id: family._id, compromisedAt: null },
+      { $max: { expiresAt: next.session.expiresAt } },
+      { session: databaseSession }
+    );
+
+    return {
+      kind: 'success',
+      user,
+      rememberMe: claimedSession.rememberMe,
+      refreshToken: next.refreshToken,
+      session: next.session,
+    };
+  });
+
+  if (rotation.kind !== 'success') {
+    throw buildRotationFailure(rotation.kind);
   }
 
-  const requestMetadata = buildSessionMetadataFromRequest(req);
-  const { refreshToken: nextRefreshToken, refreshTokenHash: nextRefreshTokenHash, session: nextSession } = await createRefreshSession({
-    user,
-    rememberMe: claimedSession.rememberMe,
-    familyId: claimedSession.familyId,
-    metadata: {
-      deviceLabel: claimedSession.deviceLabel || requestMetadata.deviceLabel,
-      userAgentHash: claimedSession.userAgentHash ?? requestMetadata.userAgentHash,
-      ipHash: claimedSession.ipHash ?? requestMetadata.ipHash,
-    },
+  const accessToken = createAccessToken(rotation.user, rotation.session);
+  setSessionCookies(res, {
+    accessToken,
+    refreshToken: rotation.refreshToken,
+    rememberMe: rotation.rememberMe,
   });
-  const accessToken = createAccessToken(user, nextSession);
-
-  await Session.updateOne({ _id: claimedSession._id }, { $set: { replacedByTokenHash: nextRefreshTokenHash } });
-  setSessionCookies(res, { accessToken, refreshToken: nextRefreshToken, rememberMe: claimedSession.rememberMe });
-  return { accessToken, refreshToken: nextRefreshToken, session: nextSession, user };
+  return {
+    accessToken,
+    refreshToken: rotation.refreshToken,
+    session: rotation.session,
+    user: rotation.user,
+  };
 };
 
 export const revokeRefreshSession = async (refreshToken) => {
