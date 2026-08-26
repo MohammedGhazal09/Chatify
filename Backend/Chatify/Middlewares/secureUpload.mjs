@@ -20,6 +20,7 @@ import {
   UploadBudgetExceededError,
   reserveUploadBudget,
 } from '../Services/uploadBudgetService.mjs';
+import { authorizeUploadChatId } from './uploadAuthorization.mjs';
 
 const MULTIPART_OVERHEAD_ALLOWANCE_BYTES = 256 * 1024;
 const DEFAULT_UPLOAD_BUFFER_BUDGET_BYTES = 64 * 1024 * 1024;
@@ -85,7 +86,7 @@ const uploadDiskStorage = multer.diskStorage({
   },
 });
 
-const rejectComplexDocument = (_req, file, callback) => {
+const authorizeAttachmentFile = (req, file, callback) => {
   const extension = path.extname(String(file.originalname ?? '')).toLowerCase();
   if (COMPLEX_DOCUMENT_EXTENSIONS.has(extension)) {
     const error = new Error('Complex document containers are not accepted');
@@ -93,7 +94,21 @@ const rejectComplexDocument = (_req, file, callback) => {
     callback(error);
     return;
   }
-  callback(null, true);
+
+  if (req.uploadAuthorizedChatId) {
+    callback(null, true);
+    return;
+  }
+
+  void authorizeUploadChatId({
+    req,
+    chatId: req.body?.chatId,
+  })
+    .then((chatId) => {
+      req.uploadAuthorizedChatId = chatId;
+      callback(null, true);
+    })
+    .catch(callback);
 };
 
 const exceedsDeclaredRequestSize = (req, maxBytes) => {
@@ -104,7 +119,7 @@ const exceedsDeclaredRequestSize = (req, maxBytes) => {
 
 const attachmentUpload = multer({
   storage: uploadDiskStorage,
-  fileFilter: rejectComplexDocument,
+  fileFilter: authorizeAttachmentFile,
   limits: {
     fileSize: MAX_ATTACHMENT_SIZE_BYTES,
     files: MAX_ATTACHMENTS_PER_MESSAGE,
@@ -132,6 +147,13 @@ const respondUploadFailure = (res, { code, message, statusCode = 400 }) => {
 };
 
 const mapAttachmentMulterError = (error) => {
+  if (error?.statusCode && error?.code) {
+    return {
+      code: error.code,
+      message: error.message,
+      statusCode: error.statusCode,
+    };
+  }
   if (error?.code === 'UNSUPPORTED_COMPLEX_DOCUMENT') {
     return {
       code: ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
