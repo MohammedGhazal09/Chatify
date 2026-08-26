@@ -1,0 +1,43 @@
+name: Materialize final clean remediation
+
+on:
+  push:
+    branches:
+      - security/remediation-builder-tokenfix2-20260826
+    paths:
+      - .audit/run-clean-remediation-tokenfix2-20260826.txt
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+
+concurrency:
+  group: clean-remediation-builder-tokenfix2
+  cancel-in-progress: false
+
+jobs:
+  materialize-verify-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: security/remediation-builder-tokenfix2-20260826
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+      - run: npm install --global npm@11.17.0
+      - name: Materialize, verify, and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHATIFY_ADMIN_TOKEN: ${{ secrets.CHATIFY_ADMIN_TOKEN }}
+        run: bash .audit/run-clean-builder-tokenfix2.sh
