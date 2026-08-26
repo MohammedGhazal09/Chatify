@@ -12,14 +12,27 @@ const wrapJsonResponse = (res, next, sanitizer) => {
   const originalJson = res.json.bind(res);
   let responseStarted = false;
 
+  const restoreJson = () => {
+    res.json = originalJson;
+  };
+
   res.json = (body) => {
     if (responseStarted) return res;
     responseStarted = true;
 
     void Promise.resolve()
       .then(() => sanitizer(body))
-      .then((safeBody) => originalJson(safeBody))
-      .catch(next);
+      .then((safeBody) => {
+        restoreJson();
+        return originalJson(safeBody);
+      })
+      .catch((error) => {
+        // The global error handler must receive the real response writer. Leaving the
+        // wrapper installed here makes its second res.json call a no-op and can leave
+        // the HTTP request open indefinitely.
+        restoreJson();
+        next(error);
+      });
 
     return res;
   };
