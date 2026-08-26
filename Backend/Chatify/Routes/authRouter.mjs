@@ -8,11 +8,13 @@ import {
   listActiveSessions,
   revokeSession,
   revokeAllSessions,
+  finalizeOAuth
+} from "../Controller/authController.mjs";
+import {
   forgotPassword,
   resetPassword,
   verifyResetCode,
-  finalizeOAuth
-} from "../Controller/authController.mjs";
+} from "../Controller/passwordResetController.mjs";
 import {
   confirmTwoFactor,
   disableTwoFactor,
