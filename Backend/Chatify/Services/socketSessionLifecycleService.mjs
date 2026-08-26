@@ -1,39 +1,47 @@
+import Session from '../Models/sessionModel.mjs';
 import {
   readAccessTokenFromCookieHeader,
   verifyAccessToken,
 } from '../Utils/authToken.mjs';
 import { logger } from '../Utils/observabilityLogger.mjs';
 
+const DEFAULT_SESSION_REVALIDATION_MS = 15_000;
+const MIN_SESSION_REVALIDATION_MS = 1_000;
+const MAX_SESSION_REVALIDATION_MS = 60_000;
+
 let installedServers = new WeakSet();
 const sessionSockets = new Map();
 const userSockets = new Map();
 const socketMetadata = new Map();
 const accessTokenExpiryTimers = new Map();
+let sessionRevalidationTimer = null;
+let sessionRevalidationPromise = null;
 
 const normalizeId = (value) => value?.toString?.() ?? '';
 
-const addSocket = (index, key, socket) => {
-  if (!index.has(key)) {
-    index.set(key, new Set());
+const getSessionRevalidationMs = (env = process.env) => {
+  const configured = Number.parseInt(env.SOCKET_SESSION_REVALIDATION_MS ?? '', 10);
+  if (!Number.isSafeInteger(configured) || configured < MIN_SESSION_REVALIDATION_MS) {
+    return DEFAULT_SESSION_REVALIDATION_MS;
   }
+  return Math.min(configured, MAX_SESSION_REVALIDATION_MS);
+};
 
+const addSocket = (index, key, socket) => {
+  if (!index.has(key)) index.set(key, new Set());
   index.get(key).add(socket);
 };
 
 const removeSocket = (index, key, socket) => {
   const sockets = index.get(key);
   if (!sockets) return;
-
   sockets.delete(socket);
-  if (sockets.size === 0) {
-    index.delete(key);
-  }
+  if (sockets.size === 0) index.delete(key);
 };
 
 const clearAccessTokenExpiryTimer = (socketId) => {
   const timer = accessTokenExpiryTimers.get(socketId);
   if (!timer) return;
-
   clearTimeout(timer);
   accessTokenExpiryTimers.delete(socketId);
 };
@@ -41,7 +49,6 @@ const clearAccessTokenExpiryTimer = (socketId) => {
 const unregisterAuthenticatedSocket = (socket) => {
   const metadata = socketMetadata.get(socket.id);
   clearAccessTokenExpiryTimer(socket.id);
-
   if (!metadata) return;
 
   socketMetadata.delete(socket.id);
@@ -88,16 +95,17 @@ const registerAuthenticatedSocket = (socket) => {
     const socketSessionId = normalizeId(socket.data.sessionId);
 
     if (
-      !normalizedUserId ||
-      !normalizedSessionId ||
-      normalizedUserId !== socketUserId ||
-      normalizedSessionId !== socketSessionId
+      !normalizedUserId
+      || !normalizedSessionId
+      || normalizedUserId !== socketUserId
+      || normalizedSessionId !== socketSessionId
     ) {
       revokeSocket(socket, 'session_identity_mismatch');
       return;
     }
 
     const metadata = {
+      socket,
       userId: normalizedUserId,
       sessionId: normalizedSessionId,
       expiresAtMs: Number(decoded.exp) * 1000,
@@ -117,13 +125,64 @@ const registerAuthenticatedSocket = (socket) => {
   }
 };
 
-export const installSocketSessionLifecycle = (io) => {
-  if (!io || installedServers.has(io)) {
-    return io;
+const performSessionRevalidation = async () => {
+  const metadataRows = [...socketMetadata.values()];
+  if (metadataRows.length === 0) return 0;
+
+  const sessionIds = [...new Set(metadataRows.map((metadata) => metadata.sessionId))];
+  const now = new Date();
+  const activeSessions = await Session.find({
+    _id: { $in: sessionIds },
+    revokedAt: null,
+    expiresAt: { $gt: now },
+  }).select('_id userId').lean();
+  const activeById = new Map(activeSessions.map((session) => [
+    normalizeId(session._id),
+    normalizeId(session.userId),
+  ]));
+  let disconnected = 0;
+
+  for (const metadata of metadataRows) {
+    const activeUserId = activeById.get(metadata.sessionId);
+    if (activeUserId === metadata.userId) continue;
+    disconnected += revokeSocket(metadata.socket, 'session_revoked_remote') ? 1 : 0;
   }
+
+  return disconnected;
+};
+
+export const revalidateSocketSessions = async () => {
+  if (sessionRevalidationPromise) return sessionRevalidationPromise;
+
+  sessionRevalidationPromise = performSessionRevalidation()
+    .catch((error) => {
+      logger.error('socket.session_revalidation_failed', {
+        connectedSockets: socketMetadata.size,
+        error,
+      });
+      return 0;
+    })
+    .finally(() => {
+      sessionRevalidationPromise = null;
+    });
+
+  return sessionRevalidationPromise;
+};
+
+const startSessionRevalidation = () => {
+  if (sessionRevalidationTimer) return;
+  sessionRevalidationTimer = setInterval(() => {
+    void revalidateSocketSessions();
+  }, getSessionRevalidationMs());
+  sessionRevalidationTimer.unref?.();
+};
+
+export const installSocketSessionLifecycle = (io) => {
+  if (!io || installedServers.has(io)) return io;
 
   installedServers.add(io);
   io.on('connection', registerAuthenticatedSocket);
+  startSessionRevalidation();
   return io;
 };
 
@@ -152,11 +211,19 @@ export const getSocketSessionLifecycleStatus = () => ({
   connectedSessions: sessionSockets.size,
   connectedSockets: socketMetadata.size,
   pendingAccessTokenExpiryTimers: accessTokenExpiryTimers.size,
+  databaseRevalidation: {
+    enabled: Boolean(sessionRevalidationTimer),
+    intervalMs: getSessionRevalidationMs(),
+    inProgress: Boolean(sessionRevalidationPromise),
+  },
 });
 
 export const resetSocketSessionLifecycleForTests = () => {
   accessTokenExpiryTimers.forEach((timer) => clearTimeout(timer));
   accessTokenExpiryTimers.clear();
+  if (sessionRevalidationTimer) clearInterval(sessionRevalidationTimer);
+  sessionRevalidationTimer = null;
+  sessionRevalidationPromise = null;
   sessionSockets.clear();
   userSockets.clear();
   socketMetadata.clear();
