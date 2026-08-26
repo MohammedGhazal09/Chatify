@@ -5,12 +5,17 @@ import { CustomError } from '../Utils/customError.mjs';
 import { issueSessionCookies, revokeOtherSessionsForUser } from '../Utils/tokenCookieGenerator.mjs';
 import { buildSessionMetadataFromRequest, safeMetadataHashEqual } from '../Utils/sessionMetadata.mjs';
 import {
+  claimTotpCounter,
+  clearTotpCounterState,
+} from '../Services/twoFactorCounterService.mjs';
+import {
   buildOtpAuthUrl,
   createBackupCodeSet,
   createTwoFactorChallengeToken,
   decryptTwoFactorSecret,
   encryptTwoFactorSecret,
   findMatchingBackupCodeIndex,
+  findMatchingTotpCounter,
   generateTwoFactorSecret,
   hashTwoFactorChallengeToken,
   normalizeTotpCode,
@@ -18,6 +23,7 @@ import {
 } from '../Utils/twoFactor.mjs';
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const CHALLENGE_CLAIM_TTL_MS = 30 * 1000;
 const MAX_CHALLENGE_ATTEMPTS = 5;
 const PENDING_SETUP_TTL_MS = 10 * 60 * 1000;
 const GENERIC_CHALLENGE_ERROR = 'Invalid or expired two-factor challenge';
@@ -93,9 +99,10 @@ const verifySecondFactorCode = async (user, code, { allowBackupCode = true } = {
   }
 
   const secret = decryptTwoFactorSecret(user.twoFactor.secretEncrypted);
+  const totpCounter = findMatchingTotpCounter(secret, normalizeTotpCode(code));
 
-  if (verifyTotpCode(secret, normalizeTotpCode(code))) {
-    return { ok: true, method: 'totp' };
+  if (totpCounter !== null) {
+    return { ok: true, method: 'totp', totpCounter };
   }
 
   if (!allowBackupCode) {
@@ -111,13 +118,120 @@ const verifySecondFactorCode = async (user, code, { allowBackupCode = true } = {
   return { ok: false };
 };
 
-const consumeBackupCode = (user, backupCodeIndex) => {
-  if (backupCodeIndex === undefined || backupCodeIndex < 0) {
-    return;
+const claimLoginChallenge = async ({ challengeToken, now }) => {
+  const verificationClaimToken = createTwoFactorChallengeToken();
+  const verificationClaimTokenHash = hashTwoFactorChallengeToken(verificationClaimToken);
+  const challenge = await TwoFactorChallenge.findOneAndUpdate(
+    {
+      challengeTokenHash: hashTwoFactorChallengeToken(challengeToken),
+      consumedAt: null,
+      expiresAt: { $gt: now },
+      attemptCount: { $lt: MAX_CHALLENGE_ATTEMPTS },
+      $or: [
+        { verificationClaimExpiresAt: null },
+        { verificationClaimExpiresAt: { $lte: now } },
+      ],
+    },
+    {
+      $set: {
+        verificationClaimTokenHash,
+        verificationClaimExpiresAt: new Date(now.getTime() + CHALLENGE_CLAIM_TTL_MS),
+      },
+    },
+    { new: true }
+  ).select('+userAgentHash +ipHash');
+
+  return { challenge, verificationClaimTokenHash };
+};
+
+const consumeChallengeClaim = ({ challengeId, verificationClaimTokenHash, now }) => (
+  TwoFactorChallenge.findOneAndUpdate(
+    {
+      _id: challengeId,
+      consumedAt: null,
+      verificationClaimTokenHash,
+      verificationClaimExpiresAt: { $gt: now },
+    },
+    {
+      $set: {
+        consumedAt: now,
+        verificationClaimTokenHash: null,
+        verificationClaimExpiresAt: null,
+      },
+    },
+    { new: true }
+  )
+);
+
+const recordInvalidChallengeClaim = async ({ challengeId, verificationClaimTokenHash, now }) => {
+  const challenge = await TwoFactorChallenge.findOneAndUpdate(
+    {
+      _id: challengeId,
+      consumedAt: null,
+      verificationClaimTokenHash,
+      verificationClaimExpiresAt: { $gt: now },
+    },
+    {
+      $inc: { attemptCount: 1 },
+      $set: {
+        verificationClaimTokenHash: null,
+        verificationClaimExpiresAt: null,
+      },
+    },
+    { new: true }
+  );
+
+  if (challenge?.attemptCount >= MAX_CHALLENGE_ATTEMPTS) {
+    await TwoFactorChallenge.updateOne(
+      { _id: challenge._id, consumedAt: null },
+      { $set: { consumedAt: now } }
+    );
+  }
+};
+
+const currentSecretFilter = (user) => ({
+  _id: user._id,
+  'twoFactor.enabled': true,
+  'twoFactor.secretEncrypted.ciphertext': user.twoFactor.secretEncrypted.ciphertext,
+});
+
+const consumeLoginFactor = async ({ user, verification, now }) => {
+  if (verification.method === 'totp') {
+    const counterClaimed = await claimTotpCounter({
+      userId: user._id,
+      counter: verification.totpCounter,
+    });
+
+    if (!counterClaimed) return null;
+
+    return User.findOneAndUpdate(
+      currentSecretFilter(user),
+      { $set: { 'twoFactor.lastVerifiedAt': now } },
+      { new: true }
+    ).select(SENSITIVE_TWO_FACTOR_SELECT);
   }
 
-  user.twoFactor.backupCodes[backupCodeIndex].usedAt = new Date();
-  user.markModified('twoFactor.backupCodes');
+  const index = verification.backupCodeIndex;
+  const backupCode = user.twoFactor.backupCodes?.[index];
+  if (!backupCode?.codeHash || backupCode.usedAt) return null;
+
+  const usedAtPath = `twoFactor.backupCodes.${index}.usedAt`;
+  const codeHashPath = `twoFactor.backupCodes.${index}.codeHash`;
+
+  return User.findOneAndUpdate(
+    {
+      ...currentSecretFilter(user),
+      [usedAtPath]: null,
+      [codeHashPath]: backupCode.codeHash,
+    },
+    {
+      $set: {
+        [usedAtPath]: now,
+        'twoFactor.lastVerifiedAt': now,
+      },
+    },
+    { new: true }
+  ).select(SENSITIVE_TWO_FACTOR_SELECT);
 };
 
 export const createTwoFactorLoginChallenge = async ({ user, rememberMe = false, req = null }) => {
@@ -135,6 +249,8 @@ export const createTwoFactorLoginChallenge = async ({ user, rememberMe = false, 
     {
       $set: {
         consumedAt: now,
+        verificationClaimTokenHash: null,
+        verificationClaimExpiresAt: null,
       },
     }
   );
@@ -163,13 +279,12 @@ export const verifyTwoFactorLogin = asyncErrHandler(async (req, res, next) => {
   }
 
   const now = new Date();
-  const challenge = await TwoFactorChallenge.findOne({
-    challengeTokenHash: hashTwoFactorChallengeToken(challengeToken),
-    consumedAt: null,
-    expiresAt: { $gt: now },
-  }).select('+userAgentHash +ipHash');
+  const {
+    challenge,
+    verificationClaimTokenHash,
+  } = await claimLoginChallenge({ challengeToken, now });
 
-  if (!challenge || challenge.attemptCount >= MAX_CHALLENGE_ATTEMPTS) {
+  if (!challenge) {
     return next(new CustomError(GENERIC_CHALLENGE_ERROR, 401));
   }
 
@@ -178,39 +293,59 @@ export const verifyTwoFactorLogin = asyncErrHandler(async (req, res, next) => {
     !safeMetadataHashEqual(challenge.userAgentHash, requestMetadata.userAgentHash) ||
     !safeMetadataHashEqual(challenge.ipHash, requestMetadata.ipHash)
   ) {
-    challenge.consumedAt = now;
-    await challenge.save();
+    await consumeChallengeClaim({
+      challengeId: challenge._id,
+      verificationClaimTokenHash,
+      now,
+    });
     return next(new CustomError(GENERIC_CHALLENGE_ERROR, 401));
   }
 
   const user = await loadTwoFactorUser(challenge.userId);
 
   if (!user || !isTwoFactorEnabled(user)) {
-    challenge.consumedAt = now;
-    await challenge.save();
+    await consumeChallengeClaim({
+      challengeId: challenge._id,
+      verificationClaimTokenHash,
+      now,
+    });
     return next(new CustomError(GENERIC_CHALLENGE_ERROR, 401));
   }
 
   const verification = await verifySecondFactorCode(user, code, { allowBackupCode: true });
 
   if (!verification.ok) {
-    challenge.attemptCount += 1;
-
-    if (challenge.attemptCount >= MAX_CHALLENGE_ATTEMPTS) {
-      challenge.consumedAt = now;
-    }
-
-    await challenge.save();
+    await recordInvalidChallengeClaim({
+      challengeId: challenge._id,
+      verificationClaimTokenHash,
+      now,
+    });
     return next(new CustomError('Invalid two-factor code', 401));
   }
 
-  consumeBackupCode(user, verification.backupCodeIndex);
-  user.set('twoFactor.lastVerifiedAt', now);
-  challenge.consumedAt = now;
+  // Claim the one-time challenge before consuming the factor or issuing a session. A
+  // parallel request may verify the same code in memory, but only one can cross this
+  // atomic database boundary.
+  const consumedChallenge = await consumeChallengeClaim({
+    challengeId: challenge._id,
+    verificationClaimTokenHash,
+    now,
+  });
+  if (!consumedChallenge) {
+    return next(new CustomError(GENERIC_CHALLENGE_ERROR, 401));
+  }
 
-  await user.save();
-  await challenge.save();
-  await issueSessionCookies({ user, res, rememberMe: challenge.rememberMe, req });
+  const updatedUser = await consumeLoginFactor({ user, verification, now });
+  if (!updatedUser) {
+    return next(new CustomError(GENERIC_CHALLENGE_ERROR, 401));
+  }
+
+  await issueSessionCookies({
+    user: updatedUser,
+    res,
+    rememberMe: consumedChallenge.rememberMe,
+    req,
+  });
 
   return res.status(200).json({
     status: 'success',
@@ -301,6 +436,7 @@ export const confirmTwoFactor = asyncErrHandler(async (req, res, next) => {
   user.set('twoFactor.lastVerifiedAt', now);
   clearPendingSetup(user);
   await user.save();
+  await clearTotpCounterState(user._id);
 
   await revokeOtherSessionsForUser({ userId: user._id, currentSessionId: req.sessionId });
 
@@ -333,8 +469,16 @@ export const disableTwoFactor = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError('Invalid two-factor code', 401));
   }
 
+  if (
+    verification.method === 'totp' &&
+    !(await claimTotpCounter({ userId: user._id, counter: verification.totpCounter }))
+  ) {
+    return next(new CustomError('Invalid two-factor code', 401));
+  }
+
   clearTwoFactor(user);
   await user.save();
+  await clearTotpCounterState(user._id);
 
   await revokeOtherSessionsForUser({ userId: user._id, currentSessionId: req.sessionId });
 
@@ -362,7 +506,10 @@ export const regenerateBackupCodes = asyncErrHandler(async (req, res, next) => {
 
   const verification = await verifySecondFactorCode(user, code, { allowBackupCode: false });
 
-  if (!verification.ok) {
+  if (
+    !verification.ok ||
+    !(await claimTotpCounter({ userId: user._id, counter: verification.totpCounter }))
+  ) {
     return next(new CustomError('Invalid two-factor code', 401));
   }
 
