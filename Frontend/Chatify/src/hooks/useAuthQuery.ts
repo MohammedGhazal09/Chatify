@@ -1,12 +1,16 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '../api/authApi'
 import { userApi } from '../api/userApi'
 import { useAuthStore } from '../store/authstore'
 import { usePresenceStore } from '../store/presenceStore'
+import {
+  clearEncryptionAccountContext,
+  setEncryptionAccountContext,
+} from '../utils/encryptedMessages'
 import { revokeChatifyPushNotifications } from '../utils/pushNotifications'
 import { broadcastSessionEvent } from './useSessionBroadcast'
 import type { LoginData, SignupData, TwoFactorProtectedActionData, VerifyTwoFactorLoginData } from '../types/auth'
-import { useEffect } from 'react'
 
 export const activeSessionsQueryKey = ['activeSessions'] as const
 export const twoFactorStatusQueryKey = ['twoFactorStatus'] as const
@@ -23,6 +27,15 @@ const removeCurrentBrowserPushState = () => revokeChatifyPushNotifications(
 
 const clearAnonymousBrowserPushState = () => revokeChatifyPushNotifications()
   .catch(() => undefined)
+
+const bindEncryptionContext = (user: { _id?: string } | null | undefined) => {
+  const userId = user?._id?.toString?.() ?? ''
+  if (userId) {
+    setEncryptionAccountContext(userId)
+  } else {
+    clearEncryptionAccountContext()
+  }
+}
 
 // Initialize auth check on app load
 export const useAuthInit = () => {
@@ -59,6 +72,7 @@ export const useAuthInit = () => {
   })
 
   useEffect(() => {
+    bindEncryptionContext(user)
     setUser(user || null)
   }, [user, setUser])
 
@@ -68,6 +82,7 @@ export const useAuthInit = () => {
 
   useEffect(() => {
     if (!isLoading && !user) {
+      clearEncryptionAccountContext()
       void clearAnonymousBrowserPushState()
     }
   }, [isLoading, user])
@@ -81,9 +96,11 @@ export const useSignup = () => {
     onSuccess: async () => {
       try {
         const userResponse = await authApi.getLoggedUser()
+        bindEncryptionContext(userResponse.data.user)
         setUser(userResponse.data.user)
         queryClient.invalidateQueries({ queryKey: ['auth'] })
       } catch (error) {
+        clearEncryptionAccountContext()
         console.error('Failed to fetch user after signup:', error)
         throw new Error('Signup succeeded but failed to fetch user data')
       }
@@ -103,9 +120,11 @@ export const useLogin = () => {
 
       try {
         const userResponse = await authApi.getLoggedUser()
+        bindEncryptionContext(userResponse.data.user)
         setUser(userResponse.data.user)
         queryClient.invalidateQueries({ queryKey: ['auth'] })
       } catch (error) {
+        clearEncryptionAccountContext()
         console.error('Failed to fetch user after login:', error)
         throw new Error('Login succeeded but failed to fetch user data')
       }
@@ -121,6 +140,7 @@ export const useSetUsername = () => {
     mutationFn: (username: string) => userApi.setUsername({ username }),
     onSuccess: (response) => {
       const user = response.data.data.user
+      bindEncryptionContext(user)
       setUser(user)
       queryClient.setQueryData(['auth'], user)
       queryClient.invalidateQueries({ queryKey: ['auth'] })
@@ -141,9 +161,11 @@ export const useVerifyTwoFactorLogin = () => {
 
       try {
         const userResponse = await authApi.getLoggedUser()
+        bindEncryptionContext(userResponse.data.user)
         setUser(userResponse.data.user)
         queryClient.invalidateQueries({ queryKey: ['auth'] })
       } catch (error) {
+        clearEncryptionAccountContext()
         console.error('Failed to fetch user after two-factor login:', error)
         throw new Error('Two-factor login succeeded but failed to fetch user data')
       }
@@ -155,6 +177,12 @@ export const useLogout = () => {
   const logout = useAuthStore((state) => state.logout)
   const queryClient = useQueryClient()
   const clearPresenceState = () => usePresenceStore.getState().clearPresenceState()
+  const clearSensitiveState = () => {
+    clearEncryptionAccountContext()
+    clearPresenceState()
+    logout()
+    queryClient.clear()
+  }
 
   return useMutation({
     mutationFn: async () => {
@@ -162,17 +190,13 @@ export const useLogout = () => {
       return authApi.logout()
     },
     onSuccess: () => {
-      clearPresenceState()
-      logout()
-      queryClient.clear() // Clear all cached queries
+      clearSensitiveState()
       queryClient.invalidateQueries({ queryKey: ['auth'] })
       broadcastSessionEvent('logout', 'user')
     },
     onError: (error) => {
       console.error('Logout failed:', error)
-      clearPresenceState()
-      logout()
-      queryClient.clear()
+      clearSensitiveState()
       broadcastSessionEvent('logout', 'user')
     }
   })
@@ -213,6 +237,7 @@ export const useRevokeAllSessions = () => {
       return authApi.revokeAllSessions()
     },
     onSuccess: () => {
+      clearEncryptionAccountContext()
       clearPresenceState()
       logout()
       queryClient.clear()
