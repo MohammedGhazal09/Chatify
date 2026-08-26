@@ -33,7 +33,21 @@ export const deleteChatWithUploads = asyncErrHandler(async (req, res) => {
       throw new CustomError('Chat not found', 404);
     }
 
-    if (chat.isGroupChat && chat.groupAdmin?.toString() !== requesterId) {
+    // A direct conversation is shared history. One participant must never be able to
+    // physically erase the other participant's messages or attachments. A future
+    // per-user archive/hide operation must use separate user-scoped state.
+    if (!chat.isGroupChat) {
+      throw new CustomError(
+        'Direct conversations cannot be deleted for all participants',
+        409
+      );
+    }
+
+    if (chat.isSpaceChannel) {
+      throw new CustomError('Space channels must be managed through their space', 409);
+    }
+
+    if (chat.groupAdmin?.toString() !== requesterId) {
       throw new CustomError('Only the group admin can delete this chat', 403);
     }
 
