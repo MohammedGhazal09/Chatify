@@ -1,5 +1,6 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
+import TwoFactorReplay from '../../Models/twoFactorReplayModel.mjs';
 import User from '../../Models/userModel.mjs';
 import { generateTotpCode } from '../../Utils/twoFactor.mjs';
 import { TEST_PASSWORD } from '../fixtures/users.mjs';
@@ -17,6 +18,7 @@ const getRefreshTokenCookie = (response) => {
 };
 
 const setupAndConfirmTwoFactor = async (agent, csrfToken) => {
+  await TwoFactorReplay.init();
   const setupResponse = await agent
     .post('/api/auth/2fa/setup')
     .set('X-CSRF-Token', csrfToken)
@@ -80,6 +82,36 @@ describe('two-factor authentication', () => {
       .expect(200);
   });
 
+  it('rejects reuse of a TOTP code through a later login challenge', async () => {
+    const { agent, user } = await signupWithAgent();
+    const csrfToken = await getCsrfForAgent(agent);
+    const { secret } = await setupAndConfirmTwoFactor(agent, csrfToken);
+    const code = generateTotpCode(secret);
+
+    const firstLogin = await startTwoFactorLogin({ email: user.email });
+    await firstLogin.agent
+      .post('/api/auth/2fa/challenge')
+      .set('X-CSRF-Token', firstLogin.csrfToken)
+      .send({
+        challengeToken: firstLogin.response.body.data.challengeToken,
+        code,
+      })
+      .expect(200);
+
+    const replayLogin = await startTwoFactorLogin({ email: user.email });
+    const replay = await replayLogin.agent
+      .post('/api/auth/2fa/challenge')
+      .set('X-CSRF-Token', replayLogin.csrfToken)
+      .send({
+        challengeToken: replayLogin.response.body.data.challengeToken,
+        code,
+      })
+      .expect(401);
+
+    expect(replay.body.message).toMatch(/already used|invalid/i);
+    expect(await TwoFactorReplay.countDocuments({ userId: user._id })).toBe(1);
+  });
+
   it('stores backup codes as hashes and rejects backup-code reuse', async () => {
     const { agent, user } = await signupWithAgent();
     const csrfToken = await getCsrfForAgent(agent);
@@ -121,7 +153,7 @@ describe('two-factor authentication', () => {
       .expect(401);
   });
 
-  it('supports status, backup-code regeneration, and disabling with password plus TOTP', async () => {
+  it('supports status, backup-code regeneration, and disabling with protected factors', async () => {
     const { agent, user } = await signupWithAgent();
     const csrfToken = await getCsrfForAgent(agent);
     const { secret, backupCodes } = await setupAndConfirmTwoFactor(agent, csrfToken);
@@ -163,7 +195,7 @@ describe('two-factor authentication', () => {
       .set('X-CSRF-Token', csrfToken)
       .send({
         currentPassword: TEST_PASSWORD,
-        code: generateTotpCode(secret),
+        code: regenerateResponse.body.data.backupCodes[0],
       })
       .expect(200);
 
@@ -172,5 +204,6 @@ describe('two-factor authentication', () => {
     expect(freshLogin.response.body.status).toBe('success');
     expect(getAccessTokenCookie(freshLogin.response)).toBeTruthy();
     expect(getRefreshTokenCookie(freshLogin.response)).toBeTruthy();
+    expect(await TwoFactorReplay.countDocuments({ userId: user._id })).toBe(0);
   });
 });
