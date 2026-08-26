@@ -12,10 +12,10 @@ import { issueSessionCookies } from '../Utils/tokenCookieGenerator.mjs';
 import {
   decryptTwoFactorSecret,
   findMatchingBackupCodeIndex,
+  findMatchingTotpCounter,
   hashTwoFactorChallengeToken,
-  normalizeTotpCode,
-  verifyTotpCode,
 } from '../Utils/twoFactor.mjs';
+import { consumeTotpCounter } from '../Services/twoFactorReplayService.mjs';
 import { isTwoFactorEnabled } from './twoFactorController.mjs';
 
 const MAX_CHALLENGE_ATTEMPTS = 5;
@@ -34,12 +34,16 @@ const hashClaimToken = (token) => createHash('sha256')
 const loadTwoFactorUser = (userId) => User.findById(userId)
   .select(SENSITIVE_TWO_FACTOR_SELECT);
 
-const verifySecondFactorCode = async (user, code) => {
+const verifySecondFactorCode = async (user, code, now) => {
   if (!isTwoFactorEnabled(user)) return { ok: false };
 
   const secret = decryptTwoFactorSecret(user.twoFactor.secretEncrypted);
-  if (verifyTotpCode(secret, normalizeTotpCode(code))) {
-    return { ok: true, method: 'totp' };
+  const totpCounter = findMatchingTotpCounter(secret, code, {
+    now: now.getTime(),
+  });
+
+  if (totpCounter !== null) {
+    return { ok: true, method: 'totp', totpCounter };
   }
 
   const backupCodeIndex = await findMatchingBackupCodeIndex(
@@ -180,6 +184,11 @@ const consumeSuccessfulVerification = async ({
       { session }
     );
   } else {
+    await consumeTotpCounter({
+      userId: challenge.userId,
+      counter: verification.totpCounter,
+      session,
+    });
     userUpdate = await User.updateOne(
       {
         _id: challenge.userId,
@@ -235,7 +244,7 @@ export const verifyTwoFactorLogin = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError(GENERIC_CHALLENGE_ERROR, 401));
   }
 
-  const verification = await verifySecondFactorCode(user, code);
+  const verification = await verifySecondFactorCode(user, code, now);
   if (!verification.ok) {
     await recordFailedClaim({
       challengeId: challenge._id,
