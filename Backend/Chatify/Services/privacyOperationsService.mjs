@@ -128,7 +128,9 @@ const normalizeBatchLimit = (value) => {
 
 const sanitizeCleanupError = (error) => String(error?.message ?? error?.code ?? 'cleanup_failed')
   .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
-  .replace(/\b(?:Bearer\s+)?[A-Za-z0-9._~+/=-]{32,}\b/g, '[redacted-token]')
+  .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+\b/gi, 'Bearer [redacted-token]')
+  .replace(/\b(token|secret|password|cookie)\b(?:\s*[:=]\s*\S+)?/gi, '[redacted]')
+  .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted-token]')
   .slice(0, SANITIZED_CLEANUP_ERROR_LENGTH);
 
 const anonymizeUserAccount = async ({ user, now, session }) => {
@@ -357,35 +359,32 @@ const revokeInviteLinks = async ({
 };
 
 const deleteAuthenticationArtifacts = async ({ userId, session }) => {
-  const [
-    sessions,
-    sessionFamilies,
-    passwordResets,
-    oauthHandoffs,
-    twoFactorChallenges,
-    outbox,
-  ] = await Promise.all([
-    Session.deleteMany({ userId }, { session }),
-    SessionFamily.deleteMany({ userId }, { session }),
-    PasswordReset.deleteMany({ userId }, { session }),
-    OAuthHandoff.deleteMany({ userId }, { session }),
-    TwoFactorChallenge.deleteMany({ userId }, { session }),
-    NotificationOutbox.deleteMany({
-      $or: [
-        { recipient: userId },
-        { sender: userId },
-      ],
-    }, { session }),
-  ]);
+  const counts = createEmptyCounts();
 
-  return {
-    sessionsRemoved: sessions.deletedCount ?? 0,
-    sessionFamiliesRemoved: sessionFamilies.deletedCount ?? 0,
-    passwordResetsDeleted: passwordResets.deletedCount ?? 0,
-    oauthHandoffsDeleted: oauthHandoffs.deletedCount ?? 0,
-    twoFactorChallengesDeleted: twoFactorChallenges.deletedCount ?? 0,
-    notificationOutboxDeleted: outbox.deletedCount ?? 0,
-  };
+  const sessions = await Session.deleteMany({ userId }, { session });
+  counts.sessionsRemoved = sessions.deletedCount ?? 0;
+
+  const sessionFamilies = await SessionFamily.deleteMany({ userId }, { session });
+  counts.sessionFamiliesRemoved = sessionFamilies.deletedCount ?? 0;
+
+  const passwordResets = await PasswordReset.deleteMany({ userId }, { session });
+  counts.passwordResetsDeleted = passwordResets.deletedCount ?? 0;
+
+  const oauthHandoffs = await OAuthHandoff.deleteMany({ userId }, { session });
+  counts.oauthHandoffsDeleted = oauthHandoffs.deletedCount ?? 0;
+
+  const twoFactorChallenges = await TwoFactorChallenge.deleteMany({ userId }, { session });
+  counts.twoFactorChallengesDeleted = twoFactorChallenges.deletedCount ?? 0;
+
+  const outbox = await NotificationOutbox.deleteMany({
+    $or: [
+      { recipient: userId },
+      { sender: userId },
+    ],
+  }, { session });
+  counts.notificationOutboxDeleted = outbox.deletedCount ?? 0;
+
+  return counts;
 };
 
 const processDeletionRequestTransaction = async ({ requestId, now }) => withDatabaseTransaction(
@@ -414,21 +413,21 @@ const processDeletionRequestTransaction = async ({ requestId, now }) => withData
     const profileImageStorageId = user?.uploadedProfileImage?.storageFileId ?? null;
 
     counts.deletionRequestsProcessed = 1;
+    addCounts(counts, await revokeIntegrationAuthority({ userId, now, session }));
+    const spaceResult = await reconcileSpaceAuthority({ userId, session });
+    addCounts(counts, spaceResult.counts);
+    const groupResult = await reconcileGroupAuthority({ userId, session });
+    addCounts(counts, groupResult.counts);
+    counts.inviteLinksRevoked = await revokeInviteLinks({
+      userId,
+      deletedSpaceIds: spaceResult.deletedSpaceIds,
+      deletedGroupIds: groupResult.deletedGroupIds,
+      now,
+      session,
+    });
+    addCounts(counts, await deleteAuthenticationArtifacts({ userId, session }));
 
     if (user) {
-      addCounts(counts, await revokeIntegrationAuthority({ userId, now, session }));
-      const spaceResult = await reconcileSpaceAuthority({ userId, session });
-      addCounts(counts, spaceResult.counts);
-      const groupResult = await reconcileGroupAuthority({ userId, session });
-      addCounts(counts, groupResult.counts);
-      counts.inviteLinksRevoked = await revokeInviteLinks({
-        userId,
-        deletedSpaceIds: spaceResult.deletedSpaceIds,
-        deletedGroupIds: groupResult.deletedGroupIds,
-        now,
-        session,
-      });
-      addCounts(counts, await deleteAuthenticationArtifacts({ userId, session }));
       await anonymizeUserAccount({ user, now, session });
       counts.accountsAnonymized = 1;
     }
@@ -467,7 +466,6 @@ const processDeletionRequestTransaction = async ({ requestId, now }) => withData
         actor: request.user,
         metadata: { kind: 'profile_image' },
       });
-      counts.cleanupPending = 1;
       request.recordCounts.cleanupPending = 1;
     } else {
       request.cleanup = undefined;
@@ -535,6 +533,7 @@ const attemptDeletionCleanup = async ({ requestId, now = new Date() }) => {
           status: PRIVACY_REQUEST_STATUSES.COMPLETED,
           completedAt,
           'recordCounts.profileImagesDeleted': 1,
+          'recordCounts.cleanupPending': 0,
           'recordCounts.cleanupCompleted': 1,
           'retentionSummary.physicalCleanup': 'Uploaded profile image deletion completed.',
         },
