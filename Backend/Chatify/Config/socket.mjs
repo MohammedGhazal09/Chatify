@@ -46,6 +46,7 @@ import {
   MESSAGE_STATUS,
   serializeMessage,
 } from '../Utils/messageState.mjs'
+import { SocketEventRateLimiter } from '../Utils/socketEventRateLimiter.mjs'
 
 let io
 const isProductionRuntime = () => process.env.NODE_ENV === 'production'
@@ -61,6 +62,8 @@ const DEFAULT_CALL_DISCONNECT_GRACE_MS = 15_000
 const MAX_SIGNAL_SDP_LENGTH = 128_000
 const MAX_ICE_CANDIDATE_LENGTH = 8_000
 const MAX_ICE_TOKEN_LENGTH = 256
+const MAX_SOCKET_EVENT_WINDOWS = 10_000
+const SOCKET_EVENT_WINDOW_SWEEP_MS = 60_000
 
 const debugLog = (event, metadata = {}) => {
   if (!isProductionRuntime()) {
@@ -107,7 +110,10 @@ const socketEventLimits = {
   'call:sync': { max: 30, windowMs: 60_000 },
 }
 
-const socketEventWindows = new Map()
+const socketEventWindows = new SocketEventRateLimiter({
+  maxEntries: MAX_SOCKET_EVENT_WINDOWS,
+  sweepIntervalMs: SOCKET_EVENT_WINDOW_SWEEP_MS,
+})
 const userScopedSocketRateLimitEvents = new Set([
   CALL_SOCKET_EVENTS.START,
   CALL_SOCKET_EVENTS.ACCEPT,
@@ -207,13 +213,7 @@ const getSocketEventWindowKey = (socket, event) => (
 )
 
 const clearSocketEventWindows = (socket) => {
-  const prefix = `socket:${socket.id}:`
-
-  for (const key of socketEventWindows.keys()) {
-    if (key.startsWith(prefix)) {
-      socketEventWindows.delete(key)
-    }
-  }
+  socketEventWindows.deletePrefix(`socket:${socket.id}:`)
 }
 
 const guardSocketEventRateLimit = (socket, event, ack) => {
@@ -223,24 +223,17 @@ const guardSocketEventRateLimit = (socket, event, ack) => {
     return true
   }
 
-  const now = Date.now()
-  const key = getSocketEventWindowKey(socket, event)
-  const currentWindow = socketEventWindows.get(key)
+  const allowed = socketEventWindows.consume({
+    key: getSocketEventWindowKey(socket, event),
+    max: limit.max,
+    windowMs: limit.windowMs,
+  })
 
-  if (!currentWindow || now >= currentWindow.resetAt) {
-    socketEventWindows.set(key, {
-      count: 1,
-      resetAt: now + limit.windowMs,
-    })
-    return true
-  }
-
-  if (currentWindow.count >= limit.max) {
+  if (!allowed) {
     respondSocketError(socket, event, { code: 'rate_limited' }, ack)
     return false
   }
 
-  currentWindow.count += 1
   return true
 }
 
@@ -664,6 +657,7 @@ export const initSocket = (server) => {
     return io
   }
 
+  socketEventWindows.startSweep()
   io = new Server(server, {
     allowRequest: allowSocketRequest,
     cors: {
@@ -1200,6 +1194,8 @@ export const getSocketOperationalStatus = () => ({
   connectedSockets: socketToUser.size,
   pendingCallTimeouts: callTimeoutTimers.size,
   pendingCallDisconnectCleanups: callDisconnectTimers.size,
+  activeRateLimitWindows: socketEventWindows.size,
+  rateLimitSweepActive: socketEventWindows.sweepActive,
 })
 
 // Get all sockets for a specific user
@@ -1304,6 +1300,7 @@ export const closeSocketServer = async () => {
     callDisconnectTimers.clear()
     socketToUser.clear()
     userToSockets.clear()
+    socketEventWindows.stopSweep()
     socketEventWindows.clear()
     return
   }
@@ -1316,6 +1313,7 @@ export const closeSocketServer = async () => {
   callDisconnectTimers.clear()
   socketToUser.clear()
   userToSockets.clear()
+  socketEventWindows.stopSweep()
   socketEventWindows.clear()
 
   await new Promise((resolve) => {
