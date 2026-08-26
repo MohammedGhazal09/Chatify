@@ -7,6 +7,7 @@ export const PRIVACY_REQUEST_TYPES = Object.freeze({
 
 export const PRIVACY_REQUEST_STATUSES = Object.freeze({
   PENDING: 'pending',
+  CLEANUP_PENDING: 'cleanup_pending',
   COMPLETED: 'completed',
   CANCELED: 'canceled',
 });
@@ -15,6 +16,8 @@ export const PRIVACY_REQUEST_ACTIONS = Object.freeze({
   EXPORT_CREATED: 'export_created',
   DELETION_REQUESTED: 'deletion_requested',
   DELETION_CANCELED: 'deletion_canceled',
+  DELETION_CORE_PROCESSED: 'deletion_core_processed',
+  DELETION_CLEANUP_RETRY: 'deletion_cleanup_retry',
   DELETION_PROCESSED: 'deletion_processed',
 });
 
@@ -36,6 +39,36 @@ const privacyRequestEventSchema = new mongoose.Schema({
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {},
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
+const deletionCleanupSchema = new mongoose.Schema({
+  profileImageStorageId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+    select: false,
+  },
+  attempts: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  nextAttemptAt: {
+    type: Date,
+    default: null,
+  },
+  lastAttemptAt: {
+    type: Date,
+    default: null,
+  },
+  lastErrorCode: {
+    type: String,
+    trim: true,
+    maxlength: 120,
+    default: null,
   },
 }, {
   _id: false,
@@ -77,6 +110,10 @@ const privacyRequestSchema = new mongoose.Schema({
   expiresAt: {
     type: Date,
   },
+  cleanup: {
+    type: deletionCleanupSchema,
+    default: undefined,
+  },
   recordCounts: {
     type: mongoose.Schema.Types.Mixed,
     default: {},
@@ -100,10 +137,21 @@ privacyRequestSchema.index(
     unique: true,
     partialFilterExpression: {
       type: PRIVACY_REQUEST_TYPES.ACCOUNT_DELETION,
-      status: PRIVACY_REQUEST_STATUSES.PENDING,
+      status: {
+        $in: [
+          PRIVACY_REQUEST_STATUSES.PENDING,
+          PRIVACY_REQUEST_STATUSES.CLEANUP_PENDING,
+        ],
+      },
     },
   }
 );
+privacyRequestSchema.index({
+  type: 1,
+  status: 1,
+  'cleanup.nextAttemptAt': 1,
+  scheduledFor: 1,
+});
 
 const PrivacyRequest = mongoose.model('PrivacyRequests', privacyRequestSchema);
 
