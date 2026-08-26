@@ -35,14 +35,21 @@ import {
 } from './twoFactorController.mjs';
 
 const isProd = process.env.NODE_ENV === 'production';
-const FRONTEND_URL = isProd 
-  ? process.env.FRONTEND_ORIGIN || 'https://chatify-ten-rho.vercel.app'
+const FRONTEND_URL = isProd
+  ? process.env.FRONTEND_ORIGIN
   : 'http://localhost:5173';
 const OAUTH_STATE_COOKIE = 'chatify_oauth_state';
 const OAUTH_HANDOFF_COOKIE = 'chatify_oauth_handoff';
 const OAUTH_HANDOFF_TTL_MS = 60 * 1000;
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 const LOGIN_FAILURE_MESSAGE = 'Email or password is incorrect';
+
+const getFrontendUrl = () => {
+  if (!FRONTEND_URL) {
+    throw new CustomError('Frontend origin is not configured', 500);
+  }
+  return FRONTEND_URL;
+};
 
 const hashOAuthState = (state) => createHash('sha256').update(String(state)).digest('base64url');
 const hashOAuthHandoffToken = (token) => createHash('sha256').update(String(token)).digest('base64url');
@@ -69,7 +76,7 @@ const clearOAuthCookies = (res) => {
 };
 
 const buildFrontendUrl = (pathname, params = {}) => {
-  const url = new URL(pathname, FRONTEND_URL);
+  const url = new URL(pathname, getFrontendUrl());
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) url.searchParams.set(key, value);
   });
@@ -146,12 +153,12 @@ export const login = asyncErrHandler(async (req, res, next) => {
   }
   const user = await User.findOne({email:email}).select("+password +authProvider +twoFactor.secretEncrypted")
   if (!user) return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401))
-  
+
   // Check if user signed up via OAuth (no password set)
   if (user.authProvider && user.authProvider !== 'local') {
     return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401));
   }
-  
+
   const credentials = await user.checkPassword(password)
   if (!credentials) {
     return next(new CustomError(LOGIN_FAILURE_MESSAGE, 401))
@@ -458,15 +465,23 @@ const safeHashEqual = (left, right) => {
 };
 
 const recordFailedResetAttempt = async (resetToken) => {
-  const nextAttempts = (resetToken.attempts ?? 0) + 1;
+  const updated = await PasswordReset.findOneAndUpdate(
+    {
+      _id: resetToken._id,
+      attempts: { $lt: PASSWORD_RESET_MAX_ATTEMPTS - 1 },
+    },
+    { $inc: { attempts: 1 } },
+    { new: true }
+  );
 
-  if (nextAttempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
-    await PasswordReset.deleteOne({ _id: resetToken._id });
-    return;
+  if (updated) {
+    return updated.attempts;
   }
 
-  resetToken.attempts = nextAttempts;
-  await resetToken.save();
+  // The conditional increment losing a race means this request is the attempt that
+  // reaches or exceeds the cap. Delete by id so no parallel verifier can keep using it.
+  await PasswordReset.deleteOne({ _id: resetToken._id });
+  return PASSWORD_RESET_MAX_ATTEMPTS;
 };
 
 const findValidPasswordReset = async ({ email, code }) => {
@@ -493,7 +508,7 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
     return next(new CustomError('Please provide your email', 400));
   }
   const user = await User.findOne({ email })
-  
+
   if (!user) {
     return res.status(200).json({
       status: 'success',
@@ -510,7 +525,7 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
       tokenHash: hashPasswordResetCode(resetCode),
       attempts: 0,
     })
-    
+
     try {
       await sendPasswordResetEmail(user.email, resetCode);
     } catch (err) {
@@ -520,7 +535,7 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
         status: err?.response?.status,
         error: err,
       });
-      
+
       return next(new CustomError('Failed to send reset email. Please try again.', 500));
     }
 
@@ -537,7 +552,7 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
       return next(new CustomError('Please provide email and reset code', 400));
     }
     const resetToken = await findValidPasswordReset({ email, code });
-    
+
     if (!resetToken) {
       return next(new CustomError('Invalid or expired reset code', 400));
     }
@@ -554,7 +569,7 @@ export const forgotPassword = asyncErrHandler(async (req, res, next) => {
     if (!email || !code || !newPassword) {
       return next(new CustomError('Please provide email, reset code and new password', 400));
     }
-    
+
     assertPasswordPolicy(newPassword);
     const matchedResetToken = await findValidPasswordReset({ email, code });
     if (!matchedResetToken) {
