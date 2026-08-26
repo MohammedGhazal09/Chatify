@@ -1,12 +1,16 @@
+import { createHmac, randomBytes } from 'node:crypto';
 import net from 'node:net';
 
 import { isPublicIpAddress } from './outboundRequestSecurity.mjs';
 
 const DEFAULT_STUN_URLS = ['stun:stun.l.google.com:19302'];
+const DEFAULT_TURN_CREDENTIAL_TTL_SECONDS = 600;
+const MIN_TURN_CREDENTIAL_TTL_SECONDS = 60;
+const MAX_TURN_CREDENTIAL_TTL_SECONDS = 3_600;
 const MAX_ICE_SERVER_URLS = 16;
 const MAX_ICE_URL_LENGTH = 512;
 const MAX_TURN_USERNAME_LENGTH = 256;
-const MAX_TURN_CREDENTIAL_LENGTH = 512;
+const MAX_TURN_SHARED_SECRET_LENGTH = 512;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 const ICE_URL_PATTERN = /^(stun|stuns|turn|turns):(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::([0-9]{1,5}))?(?:\?transport=(udp|tcp))?$/i;
 const BLOCKED_ICE_HOSTS = new Set([
@@ -21,6 +25,13 @@ const BLOCKED_ICE_HOST_SUFFIXES = [
   '.home',
   '.lan',
 ];
+const ENV_HINT_KEYS = new Set([
+  'NODE_ENV',
+  'CALL_STUN_URLS',
+  'CALL_TURN_URLS',
+  'CALL_TURN_SHARED_SECRET',
+  'CALL_TURN_CREDENTIAL_TTL_SECONDS',
+]);
 
 const splitEnvList = (value) => (typeof value === 'string'
   ? value
@@ -58,47 +69,31 @@ const isAllowedIceHostname = (hostToken) => {
   const hostname = stripIpv6Brackets(hostToken).toLowerCase();
   const family = net.isIP(hostname);
 
-  if (family > 0) {
-    return isPublicIpAddress(hostname);
-  }
-
+  if (family > 0) return isPublicIpAddress(hostname);
   return isValidDnsHostname(hostname);
 };
 
 const normalizeIceUrl = (value, allowedSchemes) => {
   const candidate = typeof value === 'string' ? value.trim() : '';
 
-  if (
-    !candidate
-    || candidate.length > MAX_ICE_URL_LENGTH
-    || CONTROL_CHARACTERS.test(candidate)
-  ) {
+  if (!candidate || candidate.length > MAX_ICE_URL_LENGTH || CONTROL_CHARACTERS.test(candidate)) {
     return null;
   }
 
   const match = candidate.match(ICE_URL_PATTERN);
-  if (!match) {
-    return null;
-  }
+  if (!match) return null;
 
   const scheme = match[1].toLowerCase();
   const hostToken = match[2].toLowerCase();
   const portToken = match[3] ?? '';
   const transport = match[4]?.toLowerCase() ?? '';
 
-  if (!allowedSchemes.has(scheme) || !isAllowedIceHostname(hostToken)) {
-    return null;
-  }
-
-  if ((scheme === 'stun' || scheme === 'stuns') && transport) {
-    return null;
-  }
+  if (!allowedSchemes.has(scheme) || !isAllowedIceHostname(hostToken)) return null;
+  if ((scheme === 'stun' || scheme === 'stuns') && transport) return null;
 
   if (portToken) {
     const port = Number.parseInt(portToken, 10);
-    if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-      return null;
-    }
+    if (!Number.isInteger(port) || port < 1 || port > 65_535) return null;
   }
 
   return `${scheme}:${hostToken}${portToken ? `:${portToken}` : ''}${transport ? `?transport=${transport}` : ''}`;
@@ -130,11 +125,8 @@ const normalizeIceUrlList = (values, allowedSchemes) => {
   return { urls, rejected };
 };
 
-const normalizeTurnSecret = (value, maxLength) => {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
+const normalizeSecret = (value, maxLength) => {
+  if (typeof value !== 'string') return '';
   const normalized = value.trim();
   return normalized
     && normalized.length <= maxLength
@@ -154,32 +146,95 @@ const parseStunServers = (env = process.env) => {
   };
 };
 
-const parseTurnServers = (env = process.env) => {
-  const candidates = splitEnvList(env.CALL_TURN_URLS);
-  const username = normalizeTurnSecret(env.CALL_TURN_USERNAME, MAX_TURN_USERNAME_LENGTH);
-  const credential = normalizeTurnSecret(env.CALL_TURN_CREDENTIAL, MAX_TURN_CREDENTIAL_LENGTH);
-  const normalized = normalizeIceUrlList(candidates, new Set(['turn', 'turns']));
+const parseCredentialTtlSeconds = (value) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isSafeInteger(parsed) || parsed < MIN_TURN_CREDENTIAL_TTL_SECONDS) {
+    return DEFAULT_TURN_CREDENTIAL_TTL_SECONDS;
+  }
+  return Math.min(parsed, MAX_TURN_CREDENTIAL_TTL_SECONDS);
+};
 
-  if (normalized.urls.length === 0 || !username || !credential) {
+const normalizeCredentialSubject = (value) => String(value ?? '')
+  .trim()
+  .replace(/[^a-z0-9._-]+/gi, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 96);
+
+const buildTurnRestCredential = ({ env, context = {} }) => {
+  const sharedSecret = normalizeSecret(
+    env.CALL_TURN_SHARED_SECRET,
+    MAX_TURN_SHARED_SECRET_LENGTH
+  );
+  if (!sharedSecret) return null;
+
+  const ttlSeconds = parseCredentialTtlSeconds(env.CALL_TURN_CREDENTIAL_TTL_SECONDS);
+  const suppliedNow = Number(context.nowMs);
+  const nowMs = Number.isFinite(suppliedNow) && suppliedNow > 0 ? suppliedNow : Date.now();
+  const expiresAt = Math.floor(nowMs / 1000) + ttlSeconds;
+  const userId = normalizeCredentialSubject(context.userId);
+  const callId = normalizeCredentialSubject(context.callId);
+  const subject = [userId, callId].filter(Boolean).join(':')
+    || randomBytes(12).toString('base64url');
+  const availableSubjectLength = Math.max(
+    1,
+    MAX_TURN_USERNAME_LENGTH - String(expiresAt).length - 1
+  );
+  const username = `${expiresAt}:${subject.slice(0, availableSubjectLength)}`;
+  const credential = createHmac('sha1', sharedSecret)
+    .update(username)
+    .digest('base64');
+
+  return {
+    username,
+    credential,
+    expiresAt: new Date(expiresAt * 1000).toISOString(),
+    ttlSeconds,
+  };
+};
+
+const parseTurnServers = (env = process.env, context = {}) => {
+  const candidates = splitEnvList(env.CALL_TURN_URLS);
+  const normalized = normalizeIceUrlList(candidates, new Set(['turn', 'turns']));
+  const credential = buildTurnRestCredential({ env, context });
+
+  if (normalized.urls.length === 0 || !credential) {
     return {
       servers: [],
       rejected: normalized.rejected,
+      credentialExpiresAt: null,
+      credentialTtlSeconds: null,
     };
   }
 
   return {
     servers: normalized.urls.map((url) => ({
       urls: url,
-      username,
-      credential,
+      username: credential.username,
+      credential: credential.credential,
     })),
     rejected: normalized.rejected,
+    credentialExpiresAt: credential.expiresAt,
+    credentialTtlSeconds: credential.ttlSeconds,
   };
 };
 
-export const getCallIceConfig = (env = process.env) => {
+const isEnvironmentObject = (value) => (
+  Boolean(value)
+  && typeof value === 'object'
+  && !Array.isArray(value)
+  && Object.keys(value).some((key) => ENV_HINT_KEYS.has(key))
+);
+
+const resolveArguments = (envOrContext, explicitContext) => (
+  isEnvironmentObject(envOrContext)
+    ? { env: envOrContext, context: explicitContext ?? {} }
+    : { env: process.env, context: envOrContext ?? {} }
+);
+
+export const getCallIceConfig = (envOrContext = process.env, explicitContext = {}) => {
+  const { env, context } = resolveArguments(envOrContext, explicitContext);
   const stun = parseStunServers(env);
-  const turn = parseTurnServers(env);
+  const turn = parseTurnServers(env, context);
   const turnReady = turn.servers.length > 0;
   const productionReady = env.NODE_ENV !== 'production' || turnReady;
   const warnings = [];
@@ -190,22 +245,25 @@ export const getCallIceConfig = (env = process.env) => {
   }
 
   if (!turnReady) {
-    warnings.push('TURN server is not configured. Development STUN fallback is available, but production calling is not fully ready.');
+    warnings.push('TURN server or shared secret is not configured. Development STUN fallback is available, but production calling is not fully ready.');
   }
 
   return {
     iceServers: [...stun.servers, ...turn.servers],
     turnReady,
     productionReady,
+    credentialExpiresAt: turn.credentialExpiresAt,
+    credentialTtlSeconds: turn.credentialTtlSeconds,
     warnings,
   };
 };
 
 export const getCallIceReadinessConfig = (env = process.env) => {
-  const config = getCallIceConfig(env);
+  const config = getCallIceConfig(env, { readinessOnly: true });
 
   return {
     ...config,
     iceServers: [],
+    credentialExpiresAt: null,
   };
 };
