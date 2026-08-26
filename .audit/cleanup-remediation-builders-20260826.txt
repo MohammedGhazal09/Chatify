@@ -1,0 +1,1 @@
+Delete temporary remediation branches only after the clean branch and replacement PR exist.
