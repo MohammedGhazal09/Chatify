@@ -1,0 +1,44 @@
+name: Resolve all findings verification
+
+on:
+  push:
+    branches:
+      - security/resolve-all-findings-20260826
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resolve-all-findings-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-red-baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541dca151540d0c3c4822f3d78ff
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: Backend/Chatify/package-lock.json
+      - name: Pin npm
+        run: npm install --global npm@11.17.0
+      - name: Install backend
+        working-directory: Backend/Chatify
+        run: npm ci
+      - name: Run focused security regressions
+        working-directory: Backend/Chatify
+        run: |
+          npm test -- --run \
+            test/auth/reset.concurrent-attempts.test.mjs \
+            test/auth/two-factor.concurrent-challenge.test.mjs \
+            test/space/space.privilege-boundary.test.mjs \
+            test/integration/integration-authority-lifecycle.test.mjs \
+            test/privacy/privacy-operations.test.mjs \
+            test/notification/notification.delivery.test.mjs \
+            test/security/phase11-chat-deletion-lifecycle.test.mjs
