@@ -3,6 +3,10 @@ import { authApi } from '../api/authApi'
 import { userApi } from '../api/userApi'
 import { useAuthStore } from '../store/authstore'
 import { usePresenceStore } from '../store/presenceStore'
+import {
+  lockConversationKeyVault,
+  setConversationKeyAccount,
+} from '../utils/encryptedMessages'
 import { revokeChatifyPushNotifications } from '../utils/pushNotifications'
 import { broadcastSessionEvent } from './useSessionBroadcast'
 import type { LoginData, SignupData, TwoFactorProtectedActionData, VerifyTwoFactorLoginData } from '../types/auth'
@@ -24,6 +28,11 @@ const removeCurrentBrowserPushState = () => revokeChatifyPushNotifications(
 const clearAnonymousBrowserPushState = () => revokeChatifyPushNotifications()
   .catch(() => undefined)
 
+const activateAuthenticatedUser = async <T extends { _id: string }>(user: T) => {
+  await setConversationKeyAccount(user._id)
+  return user
+}
+
 // Initialize auth check on app load
 export const useAuthInit = () => {
   const setUser = useAuthStore((state) => state.setUser)
@@ -37,20 +46,23 @@ export const useAuthInit = () => {
 
       if (!authStatus.data.token) {
         if (isPublicAuthRoute()) {
+          lockConversationKeyVault()
           return null
         }
 
         try {
           await authApi.refreshToken()
         } catch {
+          lockConversationKeyVault()
           return null
         }
       }
 
       try {
         const userResponse = await authApi.getLoggedUser()
-        return userResponse.data.user
+        return activateAuthenticatedUser(userResponse.data.user)
       } catch {
+        lockConversationKeyVault()
         return null
       }
     },
@@ -81,7 +93,8 @@ export const useSignup = () => {
     onSuccess: async () => {
       try {
         const userResponse = await authApi.getLoggedUser()
-        setUser(userResponse.data.user)
+        const user = await activateAuthenticatedUser(userResponse.data.user)
+        setUser(user)
         queryClient.invalidateQueries({ queryKey: ['auth'] })
       } catch (error) {
         console.error('Failed to fetch user after signup:', error)
@@ -103,7 +116,8 @@ export const useLogin = () => {
 
       try {
         const userResponse = await authApi.getLoggedUser()
-        setUser(userResponse.data.user)
+        const user = await activateAuthenticatedUser(userResponse.data.user)
+        setUser(user)
         queryClient.invalidateQueries({ queryKey: ['auth'] })
       } catch (error) {
         console.error('Failed to fetch user after login:', error)
@@ -141,7 +155,8 @@ export const useVerifyTwoFactorLogin = () => {
 
       try {
         const userResponse = await authApi.getLoggedUser()
-        setUser(userResponse.data.user)
+        const user = await activateAuthenticatedUser(userResponse.data.user)
+        setUser(user)
         queryClient.invalidateQueries({ queryKey: ['auth'] })
       } catch (error) {
         console.error('Failed to fetch user after two-factor login:', error)
@@ -164,7 +179,7 @@ export const useLogout = () => {
     onSuccess: () => {
       clearPresenceState()
       logout()
-      queryClient.clear() // Clear all cached queries
+      queryClient.clear()
       queryClient.invalidateQueries({ queryKey: ['auth'] })
       broadcastSessionEvent('logout', 'user')
     },
