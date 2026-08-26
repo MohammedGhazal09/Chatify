@@ -24,7 +24,7 @@ const getRuntimeLocation = (): RuntimeLocation | undefined => {
 const shouldUseSameOriginApi = (
   env: RuntimeEnv,
   location: RuntimeLocation | undefined
-) => Boolean(env.PROD && location && env.VITE_USE_SAME_ORIGIN_API !== 'false');
+) => Boolean(env.PROD && location && env.VITE_USE_SAME_ORIGIN_API === 'true');
 
 const getFallbackOrigin = (
   env: RuntimeEnv,
@@ -53,6 +53,9 @@ export const resolveApiBaseUrl = (
     return resolveConfiguredOrigin(location.origin, env, location, fallbackOrigin);
   }
 
+  // Production deployments select their backend through VITE_BACKEND_URL. When it is
+  // omitted, the validated same-origin fallback remains available without committing a
+  // repository-wide destination that can silently receive traffic from forks or staging.
   return resolveConfiguredOrigin(env.VITE_BACKEND_URL, env, location, fallbackOrigin);
 };
 
