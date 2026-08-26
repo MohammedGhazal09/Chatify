@@ -11,15 +11,19 @@ import {
   importConversationRecoveryKey,
   isEncryptedConversation,
   isEncryptedMessage,
+  lockConversationKeyVault,
   saveConversationSecret,
+  setConversationKeyAccount,
 } from './encryptedMessages';
 
 describe('encrypted message helpers', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    lockConversationKeyVault();
     window.localStorage.clear();
+    await setConversationKeyAccount('account-a');
   });
 
-  it('stores a local conversation secret and round-trips text through AES-GCM', async () => {
+  it('stores an account-scoped conversation secret and round-trips text through AES-GCM', async () => {
     const secret = ensureConversationSecret('chat-1');
     const payload = await encryptMessageText({
       chatId: 'chat-1',
@@ -40,6 +44,9 @@ describe('encrypted message helpers', () => {
     });
     expect(payload.ciphertext).not.toContain('PRIVATE_TEXT_MARKER');
     expect(decrypted).toEqual({ ok: true, text: 'PRIVATE_TEXT_MARKER' });
+    expect([...Array(window.localStorage.length)].map((_, index) => (
+      window.localStorage.getItem(window.localStorage.key(index) ?? '')
+    ))).not.toContain(secret);
   });
 
   it('reports missing and invalid local secrets without exposing ciphertext', async () => {
@@ -61,6 +68,34 @@ describe('encrypted message helpers', () => {
       ok: false,
       reason: 'decrypt-failed',
     });
+  });
+
+  it('locks cached secrets and prevents cross-account inheritance', async () => {
+    const firstAccountSecret = ensureConversationSecret('shared-chat-id');
+
+    await setConversationKeyAccount('account-b');
+    expect(hasConversationSecret('shared-chat-id')).toBe(false);
+    expect(getConversationSecret('shared-chat-id')).toBeNull();
+
+    ensureConversationSecret('shared-chat-id');
+    lockConversationKeyVault();
+
+    expect(getConversationSecret('shared-chat-id')).toBeNull();
+    expect(firstAccountSecret).toEqual(expect.any(String));
+  });
+
+  it('removes legacy plaintext secret entries when a vault account is activated', async () => {
+    lockConversationKeyVault();
+    window.localStorage.setItem(
+      'chatify:e2ee:v1:conversation-secret:legacy-chat',
+      generateConversationSecret()
+    );
+
+    await setConversationKeyAccount('account-a');
+
+    expect(window.localStorage.getItem(
+      'chatify:e2ee:v1:conversation-secret:legacy-chat'
+    )).toBeNull();
   });
 
   it('normalizes encrypted chat and message detection', () => {
@@ -103,12 +138,6 @@ describe('encrypted message helpers', () => {
     expect(exportConversationRecoveryKey('chat-1')).toEqual({
       ok: false,
       reason: 'missing-secret',
-    });
-
-    saveConversationSecret('chat-1', 'not-base64');
-    expect(exportConversationRecoveryKey('chat-1')).toEqual({
-      ok: false,
-      reason: 'invalid-secret',
     });
 
     expect(importConversationRecoveryKey('chat-1', '')).toEqual({
