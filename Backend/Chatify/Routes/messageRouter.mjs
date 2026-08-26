@@ -7,6 +7,10 @@ import {
   requireMessageMembership,
 } from '../Middlewares/databaseAuthorization.mjs';
 import { secureMessageAttachmentUpload } from '../Middlewares/secureUpload.mjs';
+import {
+  requireUploadBodyChatMatch,
+  requireUploadChatMembership,
+} from '../Middlewares/uploadAuthorization.mjs';
 import { enforceSecureUploadDelivery } from '../Middlewares/uploadDeliverySecurity.mjs';
 import {
   newMessage,
@@ -36,7 +40,9 @@ const router = Router();
 // Static routes first
 router.route('/new-message').post(
   attachmentUploadLimiter,
+  requireUploadChatMembership,
   secureMessageAttachmentUpload,
+  requireUploadBodyChatMatch,
   requireBodyChatMembership('chatId', { statusCode: 403 }),
   newMessage
 );
