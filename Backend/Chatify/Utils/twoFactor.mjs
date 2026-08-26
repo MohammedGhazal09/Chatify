@@ -102,32 +102,6 @@ export const generateTotpCode = (secret, now = Date.now()) => (
   generateTotpForCounter(secret, getTotpCounter(now))
 );
 
-export const verifyTotpCode = (secret, code, { now = Date.now(), window = TOTP_WINDOW } = {}) => {
-  const normalized = normalizeTotpCode(code);
-
-  if (!/^\d{6}$/.test(normalized)) {
-    return false;
-  }
-
-  const currentCounter = getTotpCounter(now);
-  const expectedBuffer = Buffer.from(normalized);
-
-  for (let offset = -window; offset <= window; offset += 1) {
-    const candidate = generateTotpForCounter(secret, currentCounter + offset);
-    const candidateBuffer = Buffer.from(candidate);
-
-    if (
-      expectedBuffer.length === candidateBuffer.length &&
-      expectedBuffer.length > 0 &&
-      cryptoSafeEqual(expectedBuffer, candidateBuffer)
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-};
-
 const cryptoSafeEqual = (left, right) => {
   if (left.length !== right.length) {
     return false;
@@ -135,6 +109,40 @@ const cryptoSafeEqual = (left, right) => {
 
   return timingSafeEqual(left, right);
 };
+
+export const findMatchingTotpCounter = (
+  secret,
+  code,
+  { now = Date.now(), window = TOTP_WINDOW } = {}
+) => {
+  const normalized = normalizeTotpCode(code);
+
+  if (!/^\d{6}$/.test(normalized)) {
+    return null;
+  }
+
+  const currentCounter = getTotpCounter(now);
+  const expectedBuffer = Buffer.from(normalized);
+
+  for (let offset = -window; offset <= window; offset += 1) {
+    const counter = currentCounter + offset;
+    const candidateBuffer = Buffer.from(generateTotpForCounter(secret, counter));
+
+    if (
+      expectedBuffer.length === candidateBuffer.length &&
+      expectedBuffer.length > 0 &&
+      cryptoSafeEqual(expectedBuffer, candidateBuffer)
+    ) {
+      return counter;
+    }
+  }
+
+  return null;
+};
+
+export const verifyTotpCode = (secret, code, options = {}) => (
+  findMatchingTotpCounter(secret, code, options) !== null
+);
 
 const decodeConfiguredEncryptionKey = (value) => {
   const trimmed = String(value ?? '').trim();
