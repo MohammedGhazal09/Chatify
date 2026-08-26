@@ -12,43 +12,53 @@ const createUploadError = (message, statusCode, code) => {
   return error;
 };
 
+export const authorizeUploadChatId = async ({ req, chatId }) => {
+  const userId = req.userId;
+
+  if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    throw createUploadError('Authentication required', 401, 'UPLOAD_AUTH_REQUIRED');
+  }
+  if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
+    throw createUploadError(
+      'Multipart uploads require chatId before the first attachment',
+      400,
+      'UPLOAD_CHAT_ID_REQUIRED'
+    );
+  }
+
+  const normalizedChatId = new mongoose.Types.ObjectId(chatId);
+  const authorized = await Chats.exists({
+    _id: normalizedChatId,
+    members: userId,
+  });
+  if (!authorized) {
+    throw createUploadError(
+      'You are not authorized to upload to this chat',
+      403,
+      'UPLOAD_CHAT_FORBIDDEN'
+    );
+  }
+
+  return normalizedChatId;
+};
+
 export const requireUploadChatMembership = async (req, res, next) => {
   if (!isMultipartRequest(req)) {
     next();
     return;
   }
 
+  const headerChatId = req.get('x-chat-id');
+  if (!headerChatId) {
+    next();
+    return;
+  }
+
   try {
-    const userId = req.userId;
-    const chatId = req.get('x-chat-id');
-
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-      next(createUploadError('Authentication required', 401, 'UPLOAD_AUTH_REQUIRED'));
-      return;
-    }
-    if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
-      next(createUploadError(
-        'Multipart message uploads require a valid X-Chat-Id header',
-        400,
-        'UPLOAD_CHAT_HEADER_REQUIRED'
-      ));
-      return;
-    }
-
-    const authorized = await Chats.exists({
-      _id: chatId,
-      members: userId,
+    req.uploadAuthorizedChatId = await authorizeUploadChatId({
+      req,
+      chatId: headerChatId,
     });
-    if (!authorized) {
-      next(createUploadError(
-        'You are not authorized to upload to this chat',
-        403,
-        'UPLOAD_CHAT_FORBIDDEN'
-      ));
-      return;
-    }
-
-    req.uploadAuthorizedChatId = new mongoose.Types.ObjectId(chatId);
     next();
   } catch (error) {
     next(error);
@@ -66,7 +76,7 @@ export const requireUploadBodyChatMatch = (req, res, next) => {
 
   if (!authorizedChatId || authorizedChatId !== bodyChatId) {
     next(createUploadError(
-      'Multipart upload chat does not match the authorized chat header',
+      'Multipart upload chat does not match the authorized chat',
       403,
       'UPLOAD_CHAT_MISMATCH'
     ));
