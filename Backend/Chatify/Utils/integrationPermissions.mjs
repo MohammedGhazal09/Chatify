@@ -9,6 +9,10 @@ import IntegrationInstallation, {
   INTEGRATION_INSTALLATION_STATUSES,
   INTEGRATION_INSTALLATION_TARGETS,
 } from '../Models/integrationInstallationModel.mjs';
+import PrivacyRequest, {
+  PRIVACY_REQUEST_STATUSES,
+  PRIVACY_REQUEST_TYPES,
+} from '../Models/privacyRequestModel.mjs';
 import Spaces, { SPACE_ROLES } from '../Models/spaceModel.mjs';
 import { CustomError } from './customError.mjs';
 
@@ -58,7 +62,26 @@ export const assertScopesAllowed = ({ requestedScopes, allowedScopes }) => {
   }
 };
 
+const hasProcessedAccountDeletion = async (userId) => Boolean(await PrivacyRequest.exists({
+  user: userId,
+  type: PRIVACY_REQUEST_TYPES.ACCOUNT_DELETION,
+  status: {
+    $in: [
+      PRIVACY_REQUEST_STATUSES.CLEANUP_PENDING,
+      PRIVACY_REQUEST_STATUSES.COMPLETED,
+    ],
+  },
+}));
+
+const assertInstallerAccountActive = async (userId) => {
+  if (!userId || await hasProcessedAccountDeletion(userId)) {
+    throw new CustomError('Integration installer account is no longer active', 403);
+  }
+};
+
 export const assertIntegrationTargetInstallAllowed = async ({ targetType, targetId, userId }) => {
+  await assertInstallerAccountActive(userId);
+
   if (!mongoose.Types.ObjectId.isValid(targetId)) {
     throw new CustomError('Invalid integration target', 400);
   }
@@ -138,7 +161,9 @@ const revokeInstallationForAuthorityLoss = async (installation) => {
 export const hasCurrentIntegrationTargetAuthority = async (installation) => {
   const installedBy = installation?.installedBy;
   const targetId = installation?.targetId;
-  if (!installedBy || !targetId) return false;
+  if (!installedBy || !targetId || await hasProcessedAccountDeletion(installedBy)) {
+    return false;
+  }
 
   if (installation.targetType === INTEGRATION_INSTALLATION_TARGETS.SPACE) {
     return Boolean(await Spaces.exists({
