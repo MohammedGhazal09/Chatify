@@ -1,0 +1,58 @@
+name: Cleanup remediation builders
+
+on:
+  push:
+    branches:
+      - security/remediation-builder-tokenfix2-20260826
+    paths:
+      - .audit/cleanup-remediation-builders-20260826.txt
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require published clean branch and replacement PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/$GITHUB_REPOSITORY/branches/security%2Fcomplete-remediation-20260826" >/dev/null
+          count="$(gh pr list --head security/complete-remediation-20260826 --base main --state open --json number --jq 'length')"
+          test "$count" -ge 1
+      - name: Delete every temporary remediation branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          for branch in \
+            security/materialize-clean-remediation-20260826 \
+            security/remediation-builder-20260826 \
+            security/remediation-builder-20260826-v2 \
+            security/remediation-builder-20260826-v3 \
+            security/remediation-builder-20260826-v4 \
+            security/remediation-builder-final-20260826 \
+            security/remediation-builder-final2-20260826 \
+            security/remediation-builder-final3-20260826 \
+            security/remediation-builder-publish-20260826 \
+            security/remediation-builder-publish2-20260826 \
+            security/remediation-builder-publish3-20260826 \
+            security/remediation-builder-publish4-20260826 \
+            security/remediation-builder-publish5-20260826 \
+            security/remediation-builder-active-20260826 \
+            security/remediation-builder-active2-20260826 \
+            security/remediation-builder-active3-20260826 \
+            security/remediation-builder-active4-20260826 \
+            security/remediation-builder-active5-20260826 \
+            security/remediation-builder-active6-20260826 \
+            security/remediation-builder-retry-20260826 \
+            security/remediation-builder-tokenfix-20260826 \
+            security/remediation-builder-tokenfix2-20260826
+          do
+            encoded="${branch//\//%2F}"
+            gh api --method DELETE "/repos/$GITHUB_REPOSITORY/git/refs/heads/$encoded" >/dev/null 2>&1
+          done
+          exit 0
