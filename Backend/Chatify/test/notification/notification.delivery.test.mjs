@@ -1,9 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import NotificationOutbox, { NOTIFICATION_CHANNELS } from '../../Models/notificationOutboxModel.mjs';
+import NotificationOutbox, {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_OUTBOX_STATUS,
+} from '../../Models/notificationOutboxModel.mjs';
 import Message from '../../Models/messageModel.mjs';
 import User from '../../Models/userModel.mjs';
-import { processNotificationOutbox, resetNotificationOutboxWorkerForTests } from '../../Services/notificationService.mjs';
-import { buildMessageNotificationTemplate, serializeOutboxPayload } from '../../Utils/notificationTemplates.mjs';
+import {
+  processNotificationOutbox,
+  resetNotificationOutboxWorkerForTests,
+} from '../../Services/notificationService.mjs';
+import {
+  buildMessageNotificationTemplate,
+  serializeOutboxPayload,
+} from '../../Utils/notificationTemplates.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 
@@ -13,15 +22,18 @@ const originalEnv = {
   BREVO_API_KEY: process.env.BREVO_API_KEY,
 };
 
-const createEmailOutboxJob = async ({ maxAttempts = 3 } = {}) => {
+let jobSequence = 0;
+
+const createEmailOutboxJob = async ({ maxAttempts = 3, ...overrides } = {}) => {
   await NotificationOutbox.init();
-  const sender = await signupWithAgent({ firstName: 'Delivery', lastName: 'Sender' });
-  const recipient = await signupWithAgent({ firstName: 'Delivery', lastName: 'Recipient' });
+  jobSequence += 1;
+  const sender = await signupWithAgent({ firstName: 'Delivery', lastName: `Sender${jobSequence}` });
+  const recipient = await signupWithAgent({ firstName: 'Delivery', lastName: `Recipient${jobSequence}` });
   const chat = await createDirectChat([sender.user, recipient.user]);
   const message = await Message.create({
     chatId: chat._id,
     sender: sender.user._id,
-    clientMessageId: 'delivery-message-1',
+    clientMessageId: `delivery-message-${jobSequence}`,
     text: 'Delivery private marker',
     status: 'sent',
   });
@@ -36,6 +48,7 @@ const createEmailOutboxJob = async ({ maxAttempts = 3 } = {}) => {
     channel: NOTIFICATION_CHANNELS.EMAIL,
     payload: serializeOutboxPayload(template),
     maxAttempts,
+    ...overrides,
   });
 };
 
@@ -60,6 +73,43 @@ describe('notification outbox delivery', () => {
       providerStatus: 'dry-run-sent',
       attempts: 1,
     });
+    expect(delivered.leaseExpiresAt).toBeUndefined();
+  });
+
+  it('allows only one concurrent worker to own and deliver a job', async () => {
+    const job = await createEmailOutboxJob();
+
+    const results = await Promise.all([
+      processNotificationOutbox({ limit: 1 }),
+      processNotificationOutbox({ limit: 1 }),
+    ]);
+    const delivered = await NotificationOutbox.findById(job._id).lean();
+
+    expect(results.reduce((total, result) => total + result.processed, 0)).toBe(1);
+    expect(results.reduce((total, result) => total + result.sent, 0)).toBe(1);
+    expect(delivered).toMatchObject({
+      status: NOTIFICATION_OUTBOX_STATUS.SENT,
+      attempts: 1,
+    });
+  });
+
+  it('reclaims an expired processing lease after a worker crash', async () => {
+    const job = await createEmailOutboxJob({
+      status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+      processingToken: 'abandoned-worker-token',
+      leaseExpiresAt: new Date(Date.now() - 60_000),
+      lastAttemptAt: new Date(Date.now() - 120_000),
+    });
+
+    const result = await processNotificationOutbox({ limit: 1 });
+    const delivered = await NotificationOutbox.findById(job._id).lean();
+
+    expect(result).toEqual({ processed: 1, sent: 1, failed: 0 });
+    expect(delivered).toMatchObject({
+      status: NOTIFICATION_OUTBOX_STATUS.SENT,
+      attempts: 1,
+    });
+    expect(delivered.leaseExpiresAt).toBeUndefined();
   });
 
   it('fails closed with a sanitized provider error when production email config is missing', async () => {
@@ -82,5 +132,6 @@ describe('notification outbox delivery', () => {
     });
     expect(failed.sanitizedError).toContain('email_provider_not_configured');
     expect(serialized).not.toContain(recipient.email);
+    expect(failed.leaseExpiresAt).toBeUndefined();
   });
 });
