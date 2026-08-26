@@ -21,8 +21,8 @@ import {
   getTwoFactorStatus,
   regenerateBackupCodes,
   setupTwoFactor,
-  verifyTwoFactorLogin,
 } from "../Controller/twoFactorController.mjs";
+import { verifyTwoFactorLogin } from "../Controller/twoFactorLoginController.mjs";
 import { authLimiter, sessionCheckLimiter, refreshTokenLimiter } from "../Middlewares/rateLimiters.mjs";
 import {
   captureAllSessionSocketInvalidation,
