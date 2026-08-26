@@ -1,7 +1,5 @@
 import type { Chat, EncryptedPayload, EncryptionMode, Message } from '../types/chat';
 
-const CONVERSATION_SECRET_PREFIX = 'chatify:e2ee:v1:conversation-secret:';
-const DEVICE_ID_STORAGE_KEY = 'chatify:e2ee:v1:device-id';
 const RECOVERY_KEY_PREFIX = 'chatify-e2ee-v1:';
 const ENCRYPTION_ALGORITHM = 'AES-GCM';
 const ENCRYPTION_KEY_VERSION = 1;
@@ -39,6 +37,10 @@ interface RecoveryKeyEnvelope {
   secret: string;
 }
 
+let activeAccountId: string | null = null;
+let activeDeviceId: string | null = null;
+const accountConversationSecrets = new Map<string, string>();
+
 export const isEncryptedConversation = (chat?: Pick<Chat, 'encryptionMode'> | null) => (
   chat?.encryptionMode === 'e2ee_v1'
 );
@@ -47,9 +49,40 @@ export const isEncryptedMessage = (message?: Pick<Message, 'messageType' | 'encr
   message?.messageType === 'encrypted' || message?.encryptionMode === 'e2ee_v1'
 );
 
-const hasStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage);
+const normalizeAccountId = (value: unknown) => String(value ?? '').trim();
 
-const getSecretStorageKey = (chatId: string) => `${CONVERSATION_SECRET_PREFIX}${chatId}`;
+export const clearEncryptionAccountContext = () => {
+  accountConversationSecrets.clear();
+  activeAccountId = null;
+  activeDeviceId = null;
+};
+
+export const setEncryptionAccountContext = (accountId: string) => {
+  const normalizedAccountId = normalizeAccountId(accountId);
+
+  if (!normalizedAccountId) {
+    clearEncryptionAccountContext();
+    return false;
+  }
+
+  if (activeAccountId !== normalizedAccountId) {
+    // Never carry key material across account transitions in the same browser process.
+    accountConversationSecrets.clear();
+    activeDeviceId = null;
+    activeAccountId = normalizedAccountId;
+  }
+
+  return true;
+};
+
+export const hasEncryptionAccountContext = () => Boolean(activeAccountId);
+
+const getScopedSecretKey = (chatId: string) => {
+  const normalizedChatId = String(chatId ?? '').trim();
+  return activeAccountId && normalizedChatId
+    ? `${activeAccountId}:${normalizedChatId}`
+    : null;
+};
 
 const bytesToBase64 = (bytes: Uint8Array) => {
   let binary = '';
@@ -96,31 +129,35 @@ export const generateConversationSecret = () => {
 };
 
 export const saveConversationSecret = (chatId: string, secret: string) => {
-  if (!chatId || !secret || !hasStorage()) {
-    return;
+  const scopedKey = getScopedSecretKey(chatId);
+  if (!scopedKey || !secret) {
+    return false;
   }
 
-  window.localStorage.setItem(getSecretStorageKey(chatId), secret);
+  accountConversationSecrets.set(scopedKey, secret);
+  return true;
 };
 
 export const ensureConversationSecret = (chatId: string) => {
-  const existingSecret = getConversationSecret(chatId);
+  const scopedKey = getScopedSecretKey(chatId);
+  if (!scopedKey) {
+    throw new Error('An authenticated account context is required for encrypted conversations.');
+  }
+
+  const existingSecret = accountConversationSecrets.get(scopedKey);
 
   if (existingSecret) {
     return existingSecret;
   }
 
   const secret = generateConversationSecret();
-  saveConversationSecret(chatId, secret);
+  accountConversationSecrets.set(scopedKey, secret);
   return secret;
 };
 
 export const getConversationSecret = (chatId: string) => {
-  if (!chatId || !hasStorage()) {
-    return null;
-  }
-
-  return window.localStorage.getItem(getSecretStorageKey(chatId));
+  const scopedKey = getScopedSecretKey(chatId);
+  return scopedKey ? accountConversationSecrets.get(scopedKey) ?? null : null;
 };
 
 export const hasConversationSecret = (chatId?: string | null) => (
@@ -128,11 +165,10 @@ export const hasConversationSecret = (chatId?: string | null) => (
 );
 
 export const clearConversationSecret = (chatId: string) => {
-  if (!chatId || !hasStorage()) {
-    return;
+  const scopedKey = getScopedSecretKey(chatId);
+  if (scopedKey) {
+    accountConversationSecrets.delete(scopedKey);
   }
-
-  window.localStorage.removeItem(getSecretStorageKey(chatId));
 };
 
 const isValidConversationSecret = (secret: string) => {
@@ -194,7 +230,7 @@ export const importConversationRecoveryKey = (
     return { ok: false, reason: 'empty' };
   }
 
-  if (!hasStorage()) {
+  if (!hasEncryptionAccountContext()) {
     return { ok: false, reason: 'storage-unavailable' };
   }
 
@@ -225,25 +261,23 @@ export const importConversationRecoveryKey = (
     return { ok: false, reason: 'secret-invalid' };
   }
 
-  saveConversationSecret(chatId, envelope.secret);
-  return { ok: true };
+  return saveConversationSecret(chatId, envelope.secret)
+    ? { ok: true }
+    : { ok: false, reason: 'storage-unavailable' };
 };
 
 export const getLocalEncryptionDeviceId = () => {
-  if (!hasStorage()) {
-    return 'browser-device';
+  if (!activeAccountId) {
+    return 'unbound-browser-device';
   }
 
-  const existingDeviceId = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY);
-  if (existingDeviceId) {
-    return existingDeviceId;
+  if (!activeDeviceId) {
+    activeDeviceId = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
-  const deviceId = typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, deviceId);
-  return deviceId;
+  return activeDeviceId;
 };
 
 const importConversationKey = async (secret: string) => {
