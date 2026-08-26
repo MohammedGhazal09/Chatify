@@ -18,8 +18,18 @@ const wrapJsonResponse = (res, next, sanitizer) => {
 
     void Promise.resolve()
       .then(() => sanitizer(body))
-      .then((safeBody) => originalJson(safeBody))
-      .catch(next);
+      .then((safeBody) => {
+        // Restore the real writer before sending so any later error path cannot be
+        // trapped behind this one-shot wrapper.
+        res.json = originalJson;
+        return originalJson(safeBody);
+      })
+      .catch((error) => {
+        // The global error handler also writes through res.json. Restore it before
+        // forwarding the failure, otherwise the response remains open forever.
+        res.json = originalJson;
+        next(error);
+      });
 
     return res;
   };
