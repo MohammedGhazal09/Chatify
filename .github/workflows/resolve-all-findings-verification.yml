@@ -14,6 +14,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  source-export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Build source archive
+        run: tar --exclude=.git -czf /tmp/chatify-review-source.tar.gz .
+      - name: Upload source archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chatify-review-source
+          path: /tmp/chatify-review-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
   focused-red-baseline:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
