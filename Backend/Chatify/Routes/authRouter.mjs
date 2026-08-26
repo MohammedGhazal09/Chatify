@@ -1,27 +1,36 @@
 import { Router } from "express";
 import {
-  signup, 
-  login, 
-  logout, 
-  refreshToken, 
+  signup,
+  login,
+  logout,
+  refreshToken,
   isAuthenticated,
   listActiveSessions,
   revokeSession,
   revokeAllSessions,
+  finalizeOAuth
+} from "../Controller/authController.mjs";
+import {
   forgotPassword,
   resetPassword,
   verifyResetCode,
-  finalizeOAuth
-} from "../Controller/authController.mjs";
+} from "../Controller/passwordResetController.mjs";
 import {
   confirmTwoFactor,
   disableTwoFactor,
   getTwoFactorStatus,
   regenerateBackupCodes,
   setupTwoFactor,
-  verifyTwoFactorLogin,
 } from "../Controller/twoFactorController.mjs";
+import { verifyTwoFactorLogin } from "../Controller/twoFactorLoginController.mjs";
 import { authLimiter, sessionCheckLimiter, refreshTokenLimiter } from "../Middlewares/rateLimiters.mjs";
+import {
+  captureAllSessionSocketInvalidation,
+  captureLogoutSocketInvalidation,
+  capturePasswordResetSocketInvalidation,
+  captureRefreshSocketInvalidation,
+  captureTargetSessionSocketInvalidation,
+} from "../Middlewares/socketSessionInvalidation.mjs";
 import protect from "../Middlewares/protectRoutes.mjs";
 
 const router = Router();
@@ -32,7 +41,11 @@ router.route("/login").post(authLimiter, login);
 router.route("/2fa/challenge").post(authLimiter, verifyTwoFactorLogin);
 router.route('/forgot-password').post(authLimiter, forgotPassword);
 router.route("/verify-reset-code").post(authLimiter, verifyResetCode);
-router.route("/reset-password").post(authLimiter, resetPassword);
+router.route("/reset-password").post(
+  authLimiter,
+  capturePasswordResetSocketInvalidation,
+  resetPassword
+);
 
 // Session check - lenient rate limiting (60 req/min)
 router.route("/is-authenticated").get(sessionCheckLimiter, isAuthenticated);
@@ -41,12 +54,26 @@ router.route("/is-authenticated").get(sessionCheckLimiter, isAuthenticated);
 router.route("/oauth/finalize").get(authLimiter, finalizeOAuth);
 
 // Token refresh - moderate rate limiting (30 req/15 min)
-router.route("/refresh-token").post(refreshTokenLimiter, refreshToken);
+router.route("/refresh-token").post(
+  refreshTokenLimiter,
+  captureRefreshSocketInvalidation,
+  refreshToken
+);
 
-// Session management - protected by active session auth
+// Session management - protected by active session auth and bounded mutation rates.
 router.route("/sessions").get(protect, listActiveSessions);
-router.route("/sessions/revoke-all").post(protect, revokeAllSessions);
-router.route("/sessions/:sessionId").delete(protect, revokeSession);
+router.route("/sessions/revoke-all").post(
+  protect,
+  authLimiter,
+  captureAllSessionSocketInvalidation,
+  revokeAllSessions
+);
+router.route("/sessions/:sessionId").delete(
+  protect,
+  authLimiter,
+  captureTargetSessionSocketInvalidation,
+  revokeSession
+);
 
 // Two-factor management - protected by active session auth and the /api/auth CSRF boundary.
 router.route("/2fa/status").get(protect, getTwoFactorStatus);
@@ -55,7 +82,11 @@ router.route("/2fa/confirm").post(protect, authLimiter, confirmTwoFactor);
 router.route("/2fa/disable").post(protect, authLimiter, disableTwoFactor);
 router.route("/2fa/backup-codes/regenerate").post(protect, authLimiter, regenerateBackupCodes);
 
-// Logout - no rate limiting
-router.route("/logout").post(logout);
+// Logout remains mutation-rate-limited and is also covered by the mounted CSRF boundary.
+router.route("/logout").post(
+  authLimiter,
+  captureLogoutSocketInvalidation,
+  logout
+);
 
 export default router;

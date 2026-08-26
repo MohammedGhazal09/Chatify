@@ -1,14 +1,16 @@
 import { Router } from 'express';
 import {
-  addSpaceMember,
   createSpace,
   createSpaceChannel,
   getSpace,
   getSpaceChannels,
   getSpaces,
   joinSpace,
-  removeSpaceMember,
 } from '../Controller/spaceController.mjs';
+import {
+  addSpaceMember,
+  removeSpaceMember,
+} from '../Controller/spaceMembershipController.mjs';
 import { spaceJoinLimiter } from '../Middlewares/rateLimiters.mjs';
 
 const router = Router();

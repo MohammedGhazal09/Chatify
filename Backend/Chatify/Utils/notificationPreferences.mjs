@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
+import { normalizeOutboundHttpsUrl } from './outboundRequestSecurity.mjs';
 
 export const MESSAGE_PREVIEW_MODES = Object.freeze({
   NONE: 'none',
@@ -141,8 +142,15 @@ export const normalizeNotificationPreferencePatch = (payload) => {
   };
 };
 
+const canonicalizePushEndpointForHash = (endpoint) => {
+  const validation = normalizeOutboundHttpsUrl(endpoint);
+  return validation.ok
+    ? validation.url
+    : String(endpoint ?? '').trim();
+};
+
 export const hashPushEndpoint = (endpoint) => createHash('sha256')
-  .update(endpoint)
+  .update(canonicalizePushEndpointForHash(endpoint))
   .digest('base64url');
 
 export const normalizePushSubscriptionPayload = (payload) => {
@@ -154,12 +162,12 @@ export const normalizePushSubscriptionPayload = (payload) => {
     };
   }
 
-  const endpoint = typeof payload.endpoint === 'string' ? payload.endpoint.trim() : '';
+  const endpointValidation = normalizeOutboundHttpsUrl(payload.endpoint);
   const keys = isPlainObject(payload.keys) ? payload.keys : {};
   const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh.trim() : '';
   const auth = typeof keys.auth === 'string' ? keys.auth.trim() : '';
 
-  if (!/^https:\/\/.+/i.test(endpoint)) {
+  if (!endpointValidation.ok) {
     return {
       ok: false,
       statusCode: 400,
@@ -167,13 +175,22 @@ export const normalizePushSubscriptionPayload = (payload) => {
     };
   }
 
-  if (!p256dh || !auth || p256dh.length > 512 || auth.length > 256) {
+  if (
+    !p256dh ||
+    !auth ||
+    p256dh.length > 512 ||
+    auth.length > 256 ||
+    /[\u0000-\u0020\u007f]/.test(p256dh) ||
+    /[\u0000-\u0020\u007f]/.test(auth)
+  ) {
     return {
       ok: false,
       statusCode: 400,
       message: 'Push subscription keys are invalid',
     };
   }
+
+  const endpoint = endpointValidation.url;
 
   return {
     ok: true,

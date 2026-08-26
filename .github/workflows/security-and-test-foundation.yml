@@ -17,7 +17,7 @@ concurrency:
 jobs:
   backend:
     name: Backend tests and audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     defaults:
@@ -26,27 +26,27 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: "lts/*"
+          node-version: "24.19.0"
           cache: npm
           cache-dependency-path: Backend/Chatify/package-lock.json
 
       - name: Install backend dependencies
         run: npm ci
 
-      - name: Audit backend dependencies
-        run: npm audit --omit=dev --audit-level=high
-
       - name: Run backend tests
         run: npm test -- --run
 
+      - name: Audit backend dependencies
+        run: npm audit --omit=dev --audit-level=high
+
   frontend:
     name: Frontend tests, lint, build, and audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     defaults:
@@ -55,20 +55,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: "lts/*"
+          node-version: "24.19.0"
           cache: npm
           cache-dependency-path: Frontend/Chatify/package-lock.json
 
       - name: Install frontend dependencies
         run: npm ci
-
-      - name: Audit frontend dependencies
-        run: npm audit --omit=dev --audit-level=high
 
       - name: Run frontend tests
         run: npm test -- --run
@@ -79,19 +76,23 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Audit frontend dependencies
+        run: npm audit --omit=dev --audit-level=high
+
   operations:
     name: Operations and release evidence
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: "lts/*"
+          node-version: "24.19.0"
+          package-manager-cache: false
 
       - name: Run operations guard
         run: npm run ops:check
@@ -118,7 +119,7 @@ jobs:
 
       - name: Upload production evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: phase-25-production-evidence
           path: .planning/phases/25-production-evidence-closure-and-live-smoke-execution/25-PRODUCTION-EVIDENCE.md
@@ -126,7 +127,7 @@ jobs:
 
   browser-smoke-config:
     name: Browser smoke config and accessibility guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     defaults:
@@ -135,12 +136,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: "lts/*"
+          node-version: "24.19.0"
           cache: npm
           cache-dependency-path: Frontend/Chatify/package-lock.json
 
@@ -155,7 +156,7 @@ jobs:
 
       - name: Upload production Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: production-smoke-config-report
           path: Frontend/Chatify/playwright-report-production/
@@ -163,7 +164,7 @@ jobs:
 
   quality-gate:
     name: Required quality gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: always()
     needs:
       - backend

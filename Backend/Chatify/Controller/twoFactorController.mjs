@@ -2,7 +2,8 @@ import User from '../Models/userModel.mjs';
 import TwoFactorChallenge from '../Models/twoFactorChallengeModel.mjs';
 import asyncErrHandler from '../Utils/asyncErrHandler.mjs';
 import { CustomError } from '../Utils/customError.mjs';
-import { issueSessionCookies } from '../Utils/tokenCookieGenerator.mjs';
+import { issueSessionCookies, revokeOtherSessionsForUser } from '../Utils/tokenCookieGenerator.mjs';
+import { buildSessionMetadataFromRequest, safeMetadataHashEqual } from '../Utils/sessionMetadata.mjs';
 import {
   buildOtpAuthUrl,
   createBackupCodeSet,
@@ -119,10 +120,11 @@ const consumeBackupCode = (user, backupCodeIndex) => {
   user.markModified('twoFactor.backupCodes');
 };
 
-export const createTwoFactorLoginChallenge = async ({ user, rememberMe = false }) => {
+export const createTwoFactorLoginChallenge = async ({ user, rememberMe = false, req = null }) => {
   const now = new Date();
   const challengeToken = createTwoFactorChallengeToken();
   const expiresAt = new Date(now.getTime() + CHALLENGE_TTL_MS);
+  const metadata = buildSessionMetadataFromRequest(req);
 
   await TwoFactorChallenge.updateMany(
     {
@@ -141,6 +143,8 @@ export const createTwoFactorLoginChallenge = async ({ user, rememberMe = false }
     userId: user._id,
     challengeTokenHash: hashTwoFactorChallengeToken(challengeToken),
     rememberMe: Boolean(rememberMe),
+    userAgentHash: metadata.userAgentHash,
+    ipHash: metadata.ipHash,
     attemptCount: 0,
     expiresAt,
   });
@@ -163,9 +167,19 @@ export const verifyTwoFactorLogin = asyncErrHandler(async (req, res, next) => {
     challengeTokenHash: hashTwoFactorChallengeToken(challengeToken),
     consumedAt: null,
     expiresAt: { $gt: now },
-  });
+  }).select('+userAgentHash +ipHash');
 
   if (!challenge || challenge.attemptCount >= MAX_CHALLENGE_ATTEMPTS) {
+    return next(new CustomError(GENERIC_CHALLENGE_ERROR, 401));
+  }
+
+  const requestMetadata = buildSessionMetadataFromRequest(req);
+  if (
+    !safeMetadataHashEqual(challenge.userAgentHash, requestMetadata.userAgentHash) ||
+    !safeMetadataHashEqual(challenge.ipHash, requestMetadata.ipHash)
+  ) {
+    challenge.consumedAt = now;
+    await challenge.save();
     return next(new CustomError(GENERIC_CHALLENGE_ERROR, 401));
   }
 
@@ -288,6 +302,8 @@ export const confirmTwoFactor = asyncErrHandler(async (req, res, next) => {
   clearPendingSetup(user);
   await user.save();
 
+  await revokeOtherSessionsForUser({ userId: user._id, currentSessionId: req.sessionId });
+
   return res.status(200).json({
     status: 'success',
     data: {
@@ -319,6 +335,8 @@ export const disableTwoFactor = asyncErrHandler(async (req, res, next) => {
 
   clearTwoFactor(user);
   await user.save();
+
+  await revokeOtherSessionsForUser({ userId: user._id, currentSessionId: req.sessionId });
 
   return res.status(200).json({
     status: 'success',
@@ -353,6 +371,8 @@ export const regenerateBackupCodes = asyncErrHandler(async (req, res, next) => {
   user.set('twoFactor.backupCodes', backupCodeSet.records);
   user.set('twoFactor.lastVerifiedAt', new Date());
   await user.save();
+
+  await revokeOtherSessionsForUser({ userId: user._id, currentSessionId: req.sessionId });
 
   return res.status(200).json({
     status: 'success',

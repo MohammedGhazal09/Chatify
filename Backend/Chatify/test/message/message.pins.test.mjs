@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import Message from '../../Models/messageModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
 import { createMessage } from '../fixtures/messages.mjs';
-import { attachPdf } from '../fixtures/attachments.mjs';
+import { attachText } from '../fixtures/attachments.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 
 const setupPinScenario = async () => {
@@ -63,11 +63,13 @@ describe('pinned messages', () => {
     const memberOne = await signupWithAgent({ firstName: 'PinAttach', lastName: 'One' });
     const memberTwo = await signupWithAgent({ firstName: 'PinAttach', lastName: 'Two' });
     const chat = await createDirectChat([memberOne.user, memberTwo.user]);
-    const created = await attachPdf(
+    const created = await attachText(
       memberOne.agent
         .post('/api/message/new-message')
         .field('chatId', chat._id.toString())
-        .field('clientMessageId', 'pin-attachment-only')
+        .field('clientMessageId', 'pin-attachment-only'),
+      'pin-details.txt',
+      'pinned attachment details'
     ).expect(201);
 
     await memberTwo.agent
@@ -79,7 +81,7 @@ describe('pinned messages', () => {
 
     expect(listResponse.body.data.pinnedMessages[0].text).toBe('');
     expect(listResponse.body.data.pinnedMessages[0].attachments).toHaveLength(1);
-    expect(listResponse.body.data.pinnedMessages[0].attachments[0].displayName).toBe('message-states-spec.pdf');
+    expect(listResponse.body.data.pinnedMessages[0].attachments[0].displayName).toBe('pin-details.txt');
   });
 
   it('enforces the per-chat pinned message cap', async () => {

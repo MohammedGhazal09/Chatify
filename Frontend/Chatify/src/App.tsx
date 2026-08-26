@@ -38,11 +38,11 @@ function App() {
             <Routes>
               <Route path='/' element={<ProtectedRoute><Chat/></ProtectedRoute>}></Route>
               <Route path='/invite/:token' element={<ProtectedRoute><InviteJoin/></ProtectedRoute>}></Route>
-              <Route path='/admin' element={<ProtectedRoute><AdminHub/></ProtectedRoute>}></Route>
-              <Route path='/admin/moderation' element={<ProtectedRoute><AdminModeration/></ProtectedRoute>}></Route>
-              <Route path='/admin/delivery-health' element={<ProtectedRoute><AdminDeliveryHealth/></ProtectedRoute>}></Route>
-              <Route path='/admin/privacy-operations' element={<ProtectedRoute><AdminPrivacyOperations/></ProtectedRoute>}></Route>
-              <Route path='/admin/integrations' element={<ProtectedRoute><AdminIntegrations/></ProtectedRoute>}></Route>
+              <Route path='/admin' element={<ProtectedRoute requireAdmin><AdminHub/></ProtectedRoute>}></Route>
+              <Route path='/admin/moderation' element={<ProtectedRoute requireAdmin><AdminModeration/></ProtectedRoute>}></Route>
+              <Route path='/admin/delivery-health' element={<ProtectedRoute requireAdmin><AdminDeliveryHealth/></ProtectedRoute>}></Route>
+              <Route path='/admin/privacy-operations' element={<ProtectedRoute requireAdmin><AdminPrivacyOperations/></ProtectedRoute>}></Route>
+              <Route path='/admin/integrations' element={<ProtectedRoute requireAdmin><AdminIntegrations/></ProtectedRoute>}></Route>
               <Route path='/setup-username' element={<ProtectedRoute requireUsername={false}><SetupUsername/></ProtectedRoute>}></Route>
               <Route path='/signup' element={<PublicRoute><Signup/></PublicRoute>}></Route>
               <Route path='/login' element={<PublicRoute><Login/></PublicRoute>}></Route>

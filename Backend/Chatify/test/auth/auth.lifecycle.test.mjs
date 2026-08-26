@@ -1,7 +1,6 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import jsonwebtoken from 'jsonwebtoken';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { createUser, buildUserPayload, TEST_PASSWORD } from '../fixtures/users.mjs';
 import { getCsrfForAgent, loginWithAgent, signupWithAgent } from '../helpers/authAgent.mjs';
 import { getTestApp } from '../setup/app.mjs';
@@ -35,27 +34,15 @@ const hashOAuthState = (state) => createHash('sha256').update(state).digest('bas
 
 const createOAuthHandoff = async ({ user, state = 'oauth-state' } = {}) => {
   const targetUser = user ?? await createUser();
-  const stateHash = hashOAuthState(state);
-  const jti = randomUUID();
+  const token = randomBytes(32).toString('base64url');
 
   await OAuthHandoff.create({
-    jti,
+    tokenHash: createHash('sha256').update(token).digest('base64url'),
     userId: targetUser._id,
-    stateHash,
+    provider: 'google',
+    stateHash: hashOAuthState(state),
     expiresAt: new Date(Date.now() + 60 * 1000),
   });
-
-  const token = jsonwebtoken.sign(
-    {
-      userId: targetUser._id,
-      type: 'oauth_handoff',
-      purpose: 'oauth_handoff',
-      jti,
-      stateHash,
-    },
-    process.env.SECRET_JWT_KEY,
-    { expiresIn: '60s' }
-  );
 
   return { state, targetUser, token };
 };
@@ -204,8 +191,7 @@ describe('auth lifecycle routes', () => {
 
     const response = await request(app)
       .get('/api/auth/oauth/finalize')
-      .set('Cookie', [`chatify_oauth_state=${state}`])
-      .query({ token })
+      .set('Cookie', [`chatify_oauth_state=${state}`, `chatify_oauth_handoff=${token}`])
       .expect(302);
 
     expect(response.headers.location).toBe('http://localhost:5173/?auth=success');
@@ -216,10 +202,10 @@ describe('auth lifecycle routes', () => {
 
   it('rejects invalid OAuth handoff tokens without setting a cookie', async () => {
     const app = await getTestApp();
-
+    const state = 'invalid-handoff-state';
     const response = await request(app)
       .get('/api/auth/oauth/finalize')
-      .query({ token: 'invalid-token' })
+      .set('Cookie', [`chatify_oauth_state=${state}`, 'chatify_oauth_handoff=invalid-token'])
       .expect(302);
 
     expect(response.headers.location).toBe('http://localhost:5173/login?error=auth_failed');
@@ -232,8 +218,7 @@ describe('auth lifecycle routes', () => {
 
     const response = await request(app)
       .get('/api/auth/oauth/finalize')
-      .set('Cookie', ['chatify_oauth_state=wrong-state'])
-      .query({ token })
+      .set('Cookie', ['chatify_oauth_state=wrong-state', `chatify_oauth_handoff=${token}`])
       .expect(302);
 
     expect(response.headers.location).toBe('http://localhost:5173/login?error=auth_failed');
@@ -246,14 +231,12 @@ describe('auth lifecycle routes', () => {
 
     await request(app)
       .get('/api/auth/oauth/finalize')
-      .set('Cookie', [`chatify_oauth_state=${state}`])
-      .query({ token })
+      .set('Cookie', [`chatify_oauth_state=${state}`, `chatify_oauth_handoff=${token}`])
       .expect(302);
 
     const replayResponse = await request(app)
       .get('/api/auth/oauth/finalize')
-      .set('Cookie', [`chatify_oauth_state=${state}`])
-      .query({ token })
+      .set('Cookie', [`chatify_oauth_state=${state}`, `chatify_oauth_handoff=${token}`])
       .expect(302);
 
     expect(replayResponse.headers.location).toBe('http://localhost:5173/login?error=auth_failed');

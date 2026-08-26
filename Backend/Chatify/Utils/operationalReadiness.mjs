@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { dbQueue, emailQueue, messageQueue, socketQueue } from './requestQueue.mjs';
 import { getCallIceConfig } from './callIceConfig.mjs';
+import { getDatabaseIndexState } from './databaseIndexState.mjs';
 import { getSocketOperationalStatus } from '../Config/socket.mjs';
 
 const READY_STATE_LABELS = {
@@ -69,12 +70,14 @@ export const buildReadinessPayload = ({
   env = process.env,
   now = new Date(),
   databaseReadyState = mongoose.connection.readyState,
+  databaseIndexState = getDatabaseIndexState(),
   socketStatus = getSocketOperationalStatus(),
 } = {}) => {
   const runtime = getRuntime(env);
   const isProduction = isProductionRuntime(env);
   const missingEnv = getMissingEnvKeys(env);
   const databaseReady = databaseReadyState === 1;
+  const databaseIndexesBlocked = databaseIndexState.status === 'blocked';
   const callConfig = getCallIceConfig(env);
   const socketInitialized = socketStatus.initialized === true;
   const frontendOrigin = isProduction
@@ -87,8 +90,15 @@ export const buildReadinessPayload = ({
 
   const components = {
     database: {
-      status: componentStatus(!databaseReady),
+      status: componentStatus(!databaseReady || databaseIndexesBlocked),
       readyState: READY_STATE_LABELS[databaseReadyState] ?? 'unknown',
+      indexes: {
+        status: databaseIndexState.status,
+        checkedAt: databaseIndexState.checkedAt,
+        checked: databaseIndexState.checked,
+        missing: databaseIndexState.missing,
+        mismatched: databaseIndexState.mismatched,
+      },
     },
     environment: {
       status: componentStatus(missingEnv.length > 0),

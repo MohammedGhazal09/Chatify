@@ -1,9 +1,12 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileTypeFromBuffer } from 'file-type';
+import { validateAndSanitizeUploadContent } from './uploadContentSecurity.mjs';
+import { validateOfficeDocumentContainer } from './officeDocumentSecurity.mjs';
 
 export const MAX_ATTACHMENTS_PER_MESSAGE = 5;
 export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_ATTACHMENT_AGGREGATE_SIZE_BYTES = 25 * 1024 * 1024;
 export const MIN_VOICE_DURATION_SECONDS = 1;
 export const MAX_VOICE_DURATION_SECONDS = 120;
 export const DEFAULT_SHARED_ASSET_LIMIT = 12;
@@ -13,8 +16,15 @@ export const ATTACHMENT_ERROR_CODES = Object.freeze({
   COUNT_EXCEEDED: 'ATTACHMENT_COUNT_EXCEEDED',
   EMPTY_FILE: 'ATTACHMENT_EMPTY',
   SIZE_EXCEEDED: 'ATTACHMENT_SIZE_EXCEEDED',
+  AGGREGATE_SIZE_EXCEEDED: 'ATTACHMENT_AGGREGATE_SIZE_EXCEEDED',
   UNSUPPORTED_TYPE: 'ATTACHMENT_TYPE_UNSUPPORTED',
   INVALID_FILENAME: 'ATTACHMENT_FILENAME_INVALID',
+  ACTIVE_CONTENT_REJECTED: 'ATTACHMENT_ACTIVE_CONTENT_REJECTED',
+  POLYGLOT_REJECTED: 'ATTACHMENT_POLYGLOT_REJECTED',
+  IMAGE_DIMENSIONS_EXCEEDED: 'ATTACHMENT_IMAGE_DIMENSIONS_EXCEEDED',
+  ARCHIVE_BOMB_REJECTED: 'ATTACHMENT_ARCHIVE_BOMB_REJECTED',
+  ARCHIVE_PATH_REJECTED: 'ATTACHMENT_ARCHIVE_PATH_REJECTED',
+  MALFORMED_CONTENT: 'ATTACHMENT_CONTENT_MALFORMED',
   VOICE_DURATION_INVALID: 'VOICE_DURATION_INVALID',
   VOICE_DURATION_EXCEEDED: 'VOICE_DURATION_EXCEEDED',
 });
@@ -44,6 +54,8 @@ const ALLOWED_ATTACHMENT_TYPES = Object.freeze({
 });
 
 const CONTROL_CHARS_REGEX = /[\u0000-\u001f\u007f]/g;
+const OFFICE_EXTENSIONS = new Set(['.docx', '.xlsx']);
+const ZIP_MIME_TYPES = new Set(['application/zip', 'application/x-zip-compressed']);
 
 export const buildAttachmentError = (code, message, statusCode = 400) => ({
   ok: false,
@@ -124,6 +136,30 @@ const isAllowedWebmVoiceContainer = ({ extension, allowedType, detectedMimeType,
   && matchesAllowedMime(declaredMimeType, allowedType)
 );
 
+const normalizeOfficeMime = ({
+  extension,
+  allowedType,
+  detectedMimeType,
+  declaredMimeType,
+}) => {
+  if (!OFFICE_EXTENSIONS.has(extension)) {
+    return null;
+  }
+
+  if (matchesAllowedMime(detectedMimeType, allowedType)) {
+    return detectedMimeType;
+  }
+
+  if (
+    ZIP_MIME_TYPES.has(detectedMimeType)
+    && matchesAllowedMime(declaredMimeType, allowedType)
+  ) {
+    return declaredMimeType;
+  }
+
+  return null;
+};
+
 export const buildAttachmentFingerprint = (attachments = []) => hashBuffer(Buffer.from(JSON.stringify(
   attachments.map((attachment) => ({
     displayName: attachment.displayName,
@@ -159,6 +195,45 @@ const normalizeVoiceDurationSeconds = (metadata = {}) => {
   };
 };
 
+export const validateAggregateUploadSize = (files = []) => {
+  const totalBytes = Array.isArray(files)
+    ? files.reduce((total, file) => total + Number(file?.size ?? 0), 0)
+    : 0;
+
+  if (!Number.isSafeInteger(totalBytes) || totalBytes < 0) {
+    return buildAttachmentError(
+      ATTACHMENT_ERROR_CODES.AGGREGATE_SIZE_EXCEEDED,
+      'Combined attachment size is invalid'
+    );
+  }
+
+  if (totalBytes > MAX_ATTACHMENT_AGGREGATE_SIZE_BYTES) {
+    return buildAttachmentError(
+      ATTACHMENT_ERROR_CODES.AGGREGATE_SIZE_EXCEEDED,
+      'Combined attachments exceed the 25 MB request limit',
+      413
+    );
+  }
+
+  return { ok: true, totalBytes };
+};
+
+const mapContentSecurityError = (result, displayName) => {
+  const mappings = {
+    UPLOAD_ACTIVE_CONTENT_REJECTED: ATTACHMENT_ERROR_CODES.ACTIVE_CONTENT_REJECTED,
+    UPLOAD_POLYGLOT_REJECTED: ATTACHMENT_ERROR_CODES.POLYGLOT_REJECTED,
+    UPLOAD_IMAGE_DIMENSIONS_EXCEEDED: ATTACHMENT_ERROR_CODES.IMAGE_DIMENSIONS_EXCEEDED,
+    UPLOAD_ARCHIVE_BOMB_REJECTED: ATTACHMENT_ERROR_CODES.ARCHIVE_BOMB_REJECTED,
+    UPLOAD_ARCHIVE_PATH_REJECTED: ATTACHMENT_ERROR_CODES.ARCHIVE_PATH_REJECTED,
+  };
+  const code = mappings[result.code] ?? ATTACHMENT_ERROR_CODES.MALFORMED_CONTENT;
+  return buildAttachmentError(
+    code,
+    `${displayName} was rejected: ${result.message}`,
+    result.statusCode ?? 400
+  );
+};
+
 export const validateIncomingAttachments = async (files = [], options = {}) => {
   if (!Array.isArray(files) || files.length === 0) {
     return { ok: true, attachments: [], fingerprint: '' };
@@ -169,6 +244,11 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
       ATTACHMENT_ERROR_CODES.COUNT_EXCEEDED,
       `Maximum ${MAX_ATTACHMENTS_PER_MESSAGE} attachments allowed per message`
     );
+  }
+
+  const aggregateResult = validateAggregateUploadSize(files);
+  if (!aggregateResult.ok) {
+    return aggregateResult;
   }
 
   const attachments = [];
@@ -215,13 +295,27 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
     }
     const detectedMimeType = normalizeMimeType(detectedType?.mime ?? '');
     const declaredMimeType = normalizeMimeType(file.mimetype ?? '');
-    let mimeType = normalizeTextLikeMime(detectedMimeType || declaredMimeType, extension);
+    const officeMimeType = normalizeOfficeMime({
+      extension,
+      allowedType,
+      detectedMimeType,
+      declaredMimeType,
+    });
+    let mimeType = officeMimeType
+      ?? normalizeTextLikeMime(detectedMimeType || declaredMimeType, extension);
     const hasWebmVoiceContainer = isAllowedWebmVoiceContainer({
       extension,
       allowedType,
       detectedMimeType,
       declaredMimeType,
     });
+
+    if (allowedType.kind === 'voice' && !detectedType) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.UNSUPPORTED_TYPE,
+        `${displayName} does not contain a recognized voice container`
+      );
+    }
 
     if (allowedType.signatureRequired) {
       if (!detectedType || !matchesAllowedMime(detectedType.mime, allowedType)) {
@@ -241,14 +335,48 @@ export const validateIncomingAttachments = async (files = [], options = {}) => {
       }
     }
 
+    let contentResult;
+    if (OFFICE_EXTENSIONS.has(extension)) {
+      const officeResult = validateOfficeDocumentContainer({
+        buffer: file.buffer,
+        extension: extension.slice(1),
+      });
+      contentResult = officeResult.ok
+        ? {
+            ...officeResult,
+            size: officeResult.buffer.length,
+            dimensions: null,
+            metadataStripped: false,
+          }
+        : officeResult;
+    } else {
+      contentResult = await validateAndSanitizeUploadContent({
+        buffer: file.buffer,
+        mimeType,
+        extension: extension.slice(1),
+        purpose: 'attachment',
+      });
+    }
+
+    if (!contentResult.ok) {
+      return mapContentSecurityError(contentResult, displayName);
+    }
+
+    if (contentResult.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      return buildAttachmentError(
+        ATTACHMENT_ERROR_CODES.SIZE_EXCEEDED,
+        `${displayName} exceeds the 10 MB attachment limit`
+      );
+    }
+
     const attachment = {
       displayName,
       originalExtension: extension.slice(1),
       mimeType,
-      size: file.size,
+      size: contentResult.size,
       kind: allowedType.kind,
-      hash: hashBuffer(file.buffer),
-      buffer: file.buffer,
+      hash: hashBuffer(contentResult.buffer),
+      buffer: contentResult.buffer,
     };
 
     if (allowedType.kind === 'voice') {

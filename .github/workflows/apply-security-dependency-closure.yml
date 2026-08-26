@@ -1,0 +1,134 @@
+name: Apply security dependency closure
+
+on:
+  push:
+    branches:
+      - security/audit-plan-20260824
+    paths:
+      - .audit/security-dependency-closure-20260826.txt
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: comprehensive-security-remediation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update-verify-and-finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: security/audit-plan-20260824
+          fetch-depth: 0
+
+      - name: Setup pinned Node.js
+        uses: actions/setup-node@1e60f620b9541dca151540d0c3c4822f3d78ff
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@11.17.0
+
+      - name: Apply any queued source remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f .audit/remediate-security-remaining-20260825.mjs ]; then
+            node .audit/remediate-security-remaining-20260825.mjs
+          fi
+          if [ -f .audit/remediate-security-compatibility-20260826.mjs ]; then
+            node .audit/remediate-security-compatibility-20260826.mjs
+          fi
+
+      - name: Refresh root lockfile safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          npm ci
+
+      - name: Refresh backend lockfile safely
+        working-directory: Backend/Chatify
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          npm ci
+
+      - name: Adopt the validated Vite 8 security line and refresh frontend lockfile
+        working-directory: Frontend/Chatify
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs')
+          const path = 'package.json'
+          const pkg = JSON.parse(fs.readFileSync(path, 'utf8'))
+          pkg.devDependencies ??= {}
+          pkg.devDependencies.vite = '^8.2.1'
+          pkg.devDependencies['@vitejs/plugin-react'] = '^6.1.0'
+          pkg.engines = { node: '>=24.19.0 <25', npm: '>=11.17.0 <12' }
+          pkg.packageManager = 'npm@11.17.0'
+          pkg.allowScripts = { ...(pkg.allowScripts ?? {}), '@tailwindcss/oxide@4.1.11': true, fsevents: false }
+          fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`)
+          NODE
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          npm ci
+
+      - name: Verify backend and dependency graph
+        working-directory: Backend/Chatify
+        run: |
+          npm test -- --run
+          npm audit --audit-level=high
+          npm audit --omit=dev --audit-level=high
+
+      - name: Verify frontend and dependency graph
+        working-directory: Frontend/Chatify
+        run: |
+          npm test -- --run
+          npm run lint
+          npm run build
+          npm audit --audit-level=high
+          npm audit --omit=dev --audit-level=high
+
+      - name: Verify repository security and operations gates
+        run: |
+          npm run ops:check
+          npm run security:phase5:reproduce
+          npm run security:log-assert
+
+      - name: Commit verified closure
+        shell: bash
+        run: |
+          rm -f \
+            .audit/security-dependency-closure-20260826.txt \
+            .audit/remediate-security-remaining-20260825.mjs \
+            .audit/remediate-security-compatibility-20260826.mjs \
+            .github/workflows/apply-security-dependency-closure.yml \
+            .github/workflows/apply-comprehensive-security-remediation.yml \
+            .github/workflows/apply-comprehensive-security-remediation-v2.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(security): verify remediation and close dependency advisories"
+            git push origin HEAD:security/audit-plan-20260824
+          fi
+
+      - name: Mark remediation PR ready
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr ready 21 --repo "$GITHUB_REPOSITORY"

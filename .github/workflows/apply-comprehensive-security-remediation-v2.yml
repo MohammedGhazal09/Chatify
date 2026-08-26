@@ -1,0 +1,98 @@
+name: Apply comprehensive security remediation v2
+
+on:
+  push:
+    branches:
+      - security/audit-plan-20260824
+    paths:
+      - .audit/remediate-security-compatibility-20260826.mjs
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: comprehensive-security-remediation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  remediate-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: security/audit-plan-20260824
+          fetch-depth: 0
+
+      - name: Setup pinned Node.js
+        uses: actions/setup-node@1e60f620b9541dca151540d0c3c4822f3d78ff
+        with:
+          node-version: 24.19.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Apply comprehensive source transformations
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f .audit/remediate-security-remaining-20260825.mjs ]; then
+            node .audit/remediate-security-remaining-20260825.mjs
+          fi
+          node .audit/remediate-security-compatibility-20260826.mjs
+
+      - name: Install root tooling
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: Backend/Chatify
+        run: npm ci
+
+      - name: Verify backend
+        working-directory: Backend/Chatify
+        run: |
+          npm test -- --run
+          npm audit --omit=dev --audit-level=high
+
+      - name: Install frontend dependencies
+        working-directory: Frontend/Chatify
+        run: npm ci
+
+      - name: Verify frontend
+        working-directory: Frontend/Chatify
+        run: |
+          npm test -- --run
+          npm run lint
+          npm run build
+          npm audit --omit=dev --audit-level=high
+
+      - name: Verify repository security and operations gates
+        run: |
+          npm run ops:check
+          npm run security:phase5:reproduce
+          npm run security:log-assert
+
+      - name: Commit verified remediation
+        shell: bash
+        run: |
+          rm -f \
+            .audit/remediate-security-remaining-20260825.mjs \
+            .audit/remediate-security-compatibility-20260826.mjs \
+            .github/workflows/apply-comprehensive-security-remediation.yml \
+            .github/workflows/apply-comprehensive-security-remediation-v2.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(security): close remaining validated audit findings"
+            git push origin HEAD:security/audit-plan-20260824
+          fi
+
+      - name: Mark remediation PR ready
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr ready 21 --repo "$GITHUB_REPOSITORY"

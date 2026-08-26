@@ -1,0 +1,1 @@
+Queued after the source and dependency remediation gates. This marker is removed only after the complete suite passes and strict main-branch protection is successfully applied.
