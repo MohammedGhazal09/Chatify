@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDirectChat } from '../fixtures/chats.mjs';
-import { attachPdf } from '../fixtures/attachments.mjs';
+import { attachText } from '../fixtures/attachments.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 
 const setupAttachmentAccessScenario = async () => {
@@ -8,12 +8,14 @@ const setupAttachmentAccessScenario = async () => {
   const memberTwo = await signupWithAgent({ firstName: 'Access', lastName: 'Two' });
   const outsider = await signupWithAgent({ firstName: 'Access', lastName: 'Outsider' });
   const chat = await createDirectChat([memberOne.user, memberTwo.user]);
-  const response = await attachPdf(
+  const response = await attachText(
     memberOne.agent
       .post('/api/message/new-message')
       .field('chatId', chat._id.toString())
       .field('text', 'private attachment')
-      .field('clientMessageId', 'attachment-access')
+      .field('clientMessageId', 'attachment-access'),
+    'private-notes.txt',
+    'private attachment body'
   ).expect(201);
   const message = response.body.data.message;
   const attachmentId = message.attachments[0].attachmentId;
@@ -32,7 +34,7 @@ describe('attachment authorization', () => {
       .get(`/api/message/attachments/${attachmentId}/download`)
       .expect(200);
 
-    expect(preview.headers['content-type']).toMatch(/application\/pdf/);
+    expect(preview.headers['content-type']).toMatch(/text\/plain/);
     expect(preview.headers['content-disposition']).toMatch(/^attachment/);
     expect(preview.headers['x-content-type-options']).toBe('nosniff');
     expect(preview.headers['content-security-policy']).toBe("sandbox; default-src 'none'");
