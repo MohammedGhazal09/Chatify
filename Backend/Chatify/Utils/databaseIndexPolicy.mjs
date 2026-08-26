@@ -8,6 +8,7 @@ import PasswordReset from '../Models/passwordResetModel.mjs';
 import Session from '../Models/sessionModel.mjs';
 import SessionFamily from '../Models/sessionFamilyModel.mjs';
 import TwoFactorChallenge from '../Models/twoFactorChallengeModel.mjs';
+import TwoFactorReplay from '../Models/twoFactorReplayModel.mjs';
 import UploadBudget from '../Models/uploadBudgetModel.mjs';
 import User from '../Models/userModel.mjs';
 import { setDatabaseIndexState } from './databaseIndexState.mjs';
@@ -60,6 +61,7 @@ export const CRITICAL_DATABASE_INDEX_REQUIREMENTS = Object.freeze([
   requirement('password-reset.expiry.ttl', PasswordReset, { expiresAt: 1 }, { expireAfterSeconds: 0 }),
   requirement('oauth-handoff.expiry.ttl', OAuthHandoff, { expiresAt: 1 }, { expireAfterSeconds: 0 }),
   requirement('two-factor-challenge.expiry.ttl', TwoFactorChallenge, { expiresAt: 1 }, { expireAfterSeconds: 0 }),
+  requirement('two-factor-replay.user.unique', TwoFactorReplay, { userId: 1 }, { unique: true }),
   requirement('invite-link.token.unique', InviteLink, { tokenHash: 1 }, { unique: true }),
   requirement('invite-link.expiry.ttl', InviteLink, { expiresAt: 1 }, { expireAfterSeconds: 0 }),
   requirement('notification-outbox.dedupe.unique', NotificationOutbox, { dedupeKey: 1 }, { unique: true }),
