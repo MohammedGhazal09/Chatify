@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import webPush from 'web-push';
 import User from '../Models/userModel.mjs';
 import NotificationOutbox, {
@@ -27,6 +28,7 @@ import { sendNotificationEmail } from './emailService.mjs';
 
 const DEFAULT_OUTBOX_BATCH_SIZE = 25;
 const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_PROCESSING_LEASE_MS = 5 * 60 * 1000;
 const RETRY_BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000];
 const PUSH_REQUEST_TIMEOUT_MS = 10_000;
 const PUSH_TTL_SECONDS = 60;
@@ -51,9 +53,9 @@ class NotificationDeliveryError extends Error {
 const toIdString = (value) => value?._id?.toString?.() ?? value?.toString?.() ?? null;
 
 const shouldDryRunNotifications = () => (
-  process.env.CHATIFY_NOTIFICATION_DRY_RUN === '1' ||
-  process.env.NODE_ENV === 'test' ||
-  process.env.NODE_ENV !== 'production'
+  process.env.CHATIFY_NOTIFICATION_DRY_RUN === '1'
+  || process.env.NODE_ENV === 'test'
+  || process.env.NODE_ENV !== 'production'
 );
 
 const sanitizeProviderError = (error) => {
@@ -76,12 +78,7 @@ const logSkip = ({ reason, chatId, recipientId, channel }) => {
 };
 
 const buildDedupeKey = ({ recipientId, messageId, channel, endpointHash = 'default' }) => (
-  [
-    toIdString(recipientId),
-    toIdString(messageId),
-    channel,
-    endpointHash,
-  ].join(':')
+  [toIdString(recipientId), toIdString(messageId), channel, endpointHash].join(':')
 );
 
 const createOutboxJob = async ({
@@ -161,9 +158,13 @@ export const enqueueMessageNotifications = async ({ chat, message, senderId }) =
     return { created: 0, skipped: 0 };
   }
 
-  const eligibleRecipientIds = await getEligibleRecipientIds({ chat, senderId: senderObjectId });
+  const eligibleRecipientIds = await getEligibleRecipientIds({
+    chat,
+    senderId: senderObjectId,
+  });
   const users = await loadNotificationUsers(eligibleRecipientIds);
-  const encryptedNotification = isEncryptedConversation(chat?.encryptionMode) || message?.messageType === 'encrypted';
+  const encryptedNotification = isEncryptedConversation(chat?.encryptionMode)
+    || message?.messageType === 'encrypted';
   const template = encryptedNotification
     ? buildEncryptedMessageNotificationTemplate()
     : chat?.isSpaceChannel === true
@@ -276,21 +277,25 @@ const loadRecipientForDelivery = (recipientId) => User.findById(recipientId)
 
 const assertEmailProviderConfigured = () => {
   if (!process.env.BREVO_API_KEY || !process.env.EMAIL_USER_SENDER) {
-    throw new NotificationDeliveryError('Email notification provider is not configured', 'email_provider_not_configured');
+    throw new NotificationDeliveryError(
+      'Email notification provider is not configured',
+      'email_provider_not_configured'
+    );
   }
 };
 
 const configureWebPush = () => {
-  if (webPushConfigured) {
-    return;
-  }
+  if (webPushConfigured) return;
 
   const subject = process.env.VAPID_SUBJECT;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
 
   if (!subject || !publicKey || !privateKey) {
-    throw new NotificationDeliveryError('Push notification provider is not configured', 'push_provider_not_configured');
+    throw new NotificationDeliveryError(
+      'Push notification provider is not configured',
+      'push_provider_not_configured'
+    );
   }
 
   webPush.setVapidDetails(subject, publicKey, privateKey);
@@ -301,7 +306,6 @@ const getWebPushAgent = () => {
   if (!webPushAgent) {
     webPushAgent = createRestrictedHttpsAgent();
   }
-
   return webPushAgent;
 };
 
@@ -311,7 +315,6 @@ const deliverEmailNotification = async (job) => {
   }
 
   assertEmailProviderConfigured();
-
   const user = await loadRecipientForDelivery(job.recipient);
 
   if (!user?.email) {
@@ -334,17 +337,13 @@ const findPushSubscription = (user, endpointHash) => (
 );
 
 const removePushSubscriptionForUser = async (user, endpointHash) => {
-  if (!user?.notificationPreferences) {
-    return;
-  }
+  if (!user?.notificationPreferences) return;
 
   const currentSubscriptions = user.notificationPreferences.pushSubscriptions ?? [];
   const remainingSubscriptions = currentSubscriptions
     .filter((subscription) => subscription.endpointHash !== endpointHash);
 
-  if (remainingSubscriptions.length === currentSubscriptions.length) {
-    return;
-  }
+  if (remainingSubscriptions.length === currentSubscriptions.length) return;
 
   user.notificationPreferences.pushSubscriptions = remainingSubscriptions;
   if (remainingSubscriptions.length === 0) {
@@ -359,7 +358,6 @@ const deliverPushNotification = async (job) => {
   }
 
   configureWebPush();
-
   const user = await loadRecipientForDelivery(job.recipient);
   const subscription = findPushSubscription(user, job.pushSubscriptionEndpointHash);
 
@@ -411,7 +409,6 @@ const deliverPushNotification = async (job) => {
         { terminal: true }
       );
     }
-
     throw error;
   }
 
@@ -422,11 +419,9 @@ const deliverNotificationJob = (job) => {
   if (job.channel === NOTIFICATION_CHANNELS.EMAIL) {
     return deliverEmailNotification(job);
   }
-
   if (job.channel === NOTIFICATION_CHANNELS.PUSH) {
     return deliverPushNotification(job);
   }
-
   throw new NotificationDeliveryError('Notification channel is unsupported', 'unsupported_channel');
 };
 
@@ -435,96 +430,199 @@ const getNextAttemptAt = (attempts) => {
   return new Date(Date.now() + delayMs);
 };
 
+const normalizeBatchLimit = (value) => {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? Math.min(parsed, 100)
+    : DEFAULT_OUTBOX_BATCH_SIZE;
+};
+
+const claimNotificationJob = async ({
+  now = new Date(),
+  leaseMs = DEFAULT_PROCESSING_LEASE_MS,
+} = {}) => {
+  const processingToken = randomUUID();
+  const leaseExpiresAt = new Date(now.getTime() + leaseMs);
+
+  return NotificationOutbox.findOneAndUpdate(
+    {
+      $expr: { $lt: ['$attempts', '$maxAttempts'] },
+      $or: [
+        {
+          status: NOTIFICATION_OUTBOX_STATUS.PENDING,
+          nextAttemptAt: { $lte: now },
+        },
+        {
+          status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+          $or: [
+            { leaseExpiresAt: { $lte: now } },
+            { leaseExpiresAt: null },
+            { leaseExpiresAt: { $exists: false } },
+          ],
+        },
+      ],
+    },
+    {
+      $set: {
+        status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+        processingToken,
+        leaseExpiresAt,
+        lastAttemptAt: now,
+      },
+    },
+    {
+      new: true,
+      sort: { nextAttemptAt: 1, createdAt: 1, _id: 1 },
+    }
+  ).select('+processingToken');
+};
+
+const completeNotificationJob = async ({ job, attempts, result, now = new Date() }) => (
+  NotificationOutbox.updateOne(
+    {
+      _id: job._id,
+      status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+      processingToken: job.processingToken,
+    },
+    {
+      $set: {
+        status: NOTIFICATION_OUTBOX_STATUS.SENT,
+        attempts,
+        provider: result.provider,
+        providerStatus: result.providerStatus,
+        sentAt: now,
+      },
+      $unset: {
+        processingToken: '',
+        leaseExpiresAt: '',
+        nextAttemptAt: '',
+        failedAt: '',
+        sanitizedError: '',
+      },
+    }
+  )
+);
+
+const failNotificationJob = async ({ job, attempts, error, now = new Date() }) => {
+  const terminal = error?.terminal === true || attempts >= job.maxAttempts;
+  const sanitizedError = sanitizeProviderError(error);
+  const provider = job.channel === NOTIFICATION_CHANNELS.EMAIL
+    ? PROVIDER_BREVO
+    : PROVIDER_WEB_PUSH;
+  const update = terminal
+    ? {
+        $set: {
+          status: NOTIFICATION_OUTBOX_STATUS.FAILED,
+          attempts,
+          provider,
+          providerStatus: 'failed',
+          failedAt: now,
+          sanitizedError,
+        },
+        $unset: {
+          processingToken: '',
+          leaseExpiresAt: '',
+          nextAttemptAt: '',
+        },
+      }
+    : {
+        $set: {
+          status: NOTIFICATION_OUTBOX_STATUS.PENDING,
+          attempts,
+          provider,
+          providerStatus: 'retry_scheduled',
+          nextAttemptAt: getNextAttemptAt(attempts),
+          sanitizedError,
+        },
+        $unset: {
+          processingToken: '',
+          leaseExpiresAt: '',
+          failedAt: '',
+        },
+      };
+
+  const ownership = await NotificationOutbox.updateOne(
+    {
+      _id: job._id,
+      status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+      processingToken: job.processingToken,
+    },
+    update
+  );
+
+  return {
+    terminal,
+    sanitizedError,
+    owned: ownership.modifiedCount === 1,
+  };
+};
+
 export const processNotificationOutbox = async ({ limit = DEFAULT_OUTBOX_BATCH_SIZE } = {}) => {
-  const now = new Date();
-  const jobs = await NotificationOutbox.find({
-    status: NOTIFICATION_OUTBOX_STATUS.PENDING,
-    nextAttemptAt: { $lte: now },
-    attempts: { $lt: DEFAULT_MAX_ATTEMPTS },
-  })
-    .sort({ nextAttemptAt: 1, createdAt: 1 })
-    .limit(limit);
+  const safeLimit = normalizeBatchLimit(limit);
+  let processed = 0;
   let sent = 0;
   let failed = 0;
 
-  for (const job of jobs) {
-    const attempts = job.attempts + 1;
+  for (let index = 0; index < safeLimit; index += 1) {
+    const job = await claimNotificationJob();
+    if (!job) break;
 
-    await NotificationOutbox.updateOne(
-      { _id: job._id, status: NOTIFICATION_OUTBOX_STATUS.PENDING },
-      {
-        $set: {
-          status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
-          lastAttemptAt: new Date(),
-        },
-      }
-    );
+    processed += 1;
+    const attempts = job.attempts + 1;
 
     try {
       const result = await deliverNotificationJob(job);
+      const ownership = await completeNotificationJob({ job, attempts, result });
 
-      await NotificationOutbox.updateOne(
-        { _id: job._id },
-        {
-          $set: {
-            status: NOTIFICATION_OUTBOX_STATUS.SENT,
-            attempts,
-            provider: result.provider,
-            providerStatus: result.providerStatus,
-            sentAt: new Date(),
-            sanitizedError: undefined,
-          },
-        }
-      );
-      sent += 1;
-      logger.info('notification.delivery_succeeded', {
-        jobId: job._id.toString(),
-        channel: job.channel,
-        provider: result.provider,
-      });
+      if (ownership.modifiedCount === 1) {
+        sent += 1;
+        logger.info('notification.delivery_succeeded', {
+          jobId: job._id.toString(),
+          channel: job.channel,
+          provider: result.provider,
+        });
+      } else {
+        logger.warn('notification.delivery_lease_lost', {
+          jobId: job._id.toString(),
+          channel: job.channel,
+        });
+      }
     } catch (error) {
-      const terminal = error?.terminal === true || attempts >= job.maxAttempts;
-      const sanitizedError = sanitizeProviderError(error);
+      const failure = await failNotificationJob({ job, attempts, error });
 
-      await NotificationOutbox.updateOne(
-        { _id: job._id },
-        {
-          $set: {
-            status: terminal
-              ? NOTIFICATION_OUTBOX_STATUS.FAILED
-              : NOTIFICATION_OUTBOX_STATUS.PENDING,
-            attempts,
-            provider: job.channel === NOTIFICATION_CHANNELS.EMAIL ? PROVIDER_BREVO : PROVIDER_WEB_PUSH,
-            providerStatus: terminal ? 'failed' : 'retry_scheduled',
-            nextAttemptAt: terminal ? undefined : getNextAttemptAt(attempts),
-            failedAt: terminal ? new Date() : undefined,
-            sanitizedError,
-          },
-        }
-      );
-      failed += 1;
-      logger.warn('notification.delivery_failed', {
-        jobId: job._id.toString(),
-        channel: job.channel,
-        terminal,
-        errorCode: error?.code,
-      });
+      if (failure.owned) {
+        failed += 1;
+        logger.warn('notification.delivery_failed', {
+          jobId: job._id.toString(),
+          channel: job.channel,
+          terminal: failure.terminal,
+          errorCode: error?.code,
+        });
+      } else {
+        logger.warn('notification.delivery_lease_lost', {
+          jobId: job._id.toString(),
+          channel: job.channel,
+        });
+      }
     }
   }
 
-  return { processed: jobs.length, sent, failed };
+  return { processed, sent, failed };
 };
 
 export const startNotificationOutboxWorker = () => {
   if (
-    process.env.NODE_ENV === 'test' ||
-    process.env.NOTIFICATION_WORKER_ENABLED === '0' ||
-    workerTimer
+    process.env.NODE_ENV === 'test'
+    || process.env.NOTIFICATION_WORKER_ENABLED === '0'
+    || workerTimer
   ) {
     return null;
   }
 
-  const intervalMs = Number.parseInt(process.env.NOTIFICATION_WORKER_INTERVAL_MS ?? '30000', 10);
+  const intervalMs = Number.parseInt(
+    process.env.NOTIFICATION_WORKER_INTERVAL_MS ?? '30000',
+    10
+  );
   const safeIntervalMs = Number.isFinite(intervalMs) && intervalMs >= 5000
     ? intervalMs
     : 30000;
@@ -534,15 +632,13 @@ export const startNotificationOutboxWorker = () => {
       logger.error('notification.worker_failed', { error });
     });
   }, safeIntervalMs);
+  workerTimer.unref?.();
 
   return workerTimer;
 };
 
 export const stopNotificationOutboxWorker = () => {
-  if (!workerTimer) {
-    return;
-  }
-
+  if (!workerTimer) return;
   clearInterval(workerTimer);
   workerTimer = null;
 };
