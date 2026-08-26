@@ -61,6 +61,13 @@ const deletionCleanupSchema = new mongoose.Schema({
     type: String,
     maxlength: 500,
   },
+  processingToken: {
+    type: String,
+    select: false,
+  },
+  leaseExpiresAt: {
+    type: Date,
+  },
 }, {
   _id: false,
   versionKey: false,
@@ -137,6 +144,7 @@ privacyRequestSchema.index(
     },
   }
 );
+privacyRequestSchema.index({ status: 1, 'cleanup.leaseExpiresAt': 1, scheduledFor: 1 });
 
 const PrivacyRequest = mongoose.model('PrivacyRequests', privacyRequestSchema);
 
