@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import webPush from 'web-push';
 import User from '../Models/userModel.mjs';
 import NotificationOutbox, {
@@ -27,6 +28,9 @@ import { sendNotificationEmail } from './emailService.mjs';
 
 const DEFAULT_OUTBOX_BATCH_SIZE = 25;
 const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_PROCESSING_LEASE_MS = 2 * 60 * 1000;
+const MIN_PROCESSING_LEASE_MS = 30 * 1000;
+const MAX_PROCESSING_LEASE_MS = 15 * 60 * 1000;
 const RETRY_BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000];
 const PUSH_REQUEST_TIMEOUT_MS = 10_000;
 const PUSH_TTL_SECONDS = 60;
@@ -55,6 +59,14 @@ const shouldDryRunNotifications = () => (
   process.env.NODE_ENV === 'test' ||
   process.env.NODE_ENV !== 'production'
 );
+
+const getProcessingLeaseMs = () => {
+  const configured = Number.parseInt(process.env.NOTIFICATION_PROCESSING_LEASE_MS ?? '', 10);
+  if (!Number.isSafeInteger(configured) || configured < MIN_PROCESSING_LEASE_MS) {
+    return DEFAULT_PROCESSING_LEASE_MS;
+  }
+  return Math.min(configured, MAX_PROCESSING_LEASE_MS);
+};
 
 const sanitizeProviderError = (error) => {
   const code = error?.code ?? error?.name ?? 'provider_error';
@@ -435,84 +447,144 @@ const getNextAttemptAt = (attempts) => {
   return new Date(Date.now() + delayMs);
 };
 
+const claimNextNotificationJob = async (now = new Date()) => {
+  const processingToken = randomUUID();
+  const processingLeaseExpiresAt = new Date(now.getTime() + getProcessingLeaseMs());
+
+  return NotificationOutbox.findOneAndUpdate(
+    {
+      $expr: { $lt: ['$attempts', '$maxAttempts'] },
+      $or: [
+        {
+          status: NOTIFICATION_OUTBOX_STATUS.PENDING,
+          nextAttemptAt: { $lte: now },
+        },
+        {
+          status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+          processingLeaseExpiresAt: { $lte: now },
+        },
+      ],
+    },
+    {
+      $set: {
+        status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+        processingToken,
+        processingLeaseExpiresAt,
+        lastAttemptAt: now,
+      },
+      $inc: { attempts: 1 },
+    },
+    {
+      new: true,
+      sort: { nextAttemptAt: 1, createdAt: 1, _id: 1 },
+    }
+  ).select('+processingToken');
+};
+
+const markNotificationSent = async ({ job, result }) => NotificationOutbox.updateOne(
+  {
+    _id: job._id,
+    status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+    processingToken: job.processingToken,
+  },
+  {
+    $set: {
+      status: NOTIFICATION_OUTBOX_STATUS.SENT,
+      provider: result.provider,
+      providerStatus: result.providerStatus,
+      sentAt: new Date(),
+    },
+    $unset: {
+      processingToken: '',
+      processingLeaseExpiresAt: '',
+      nextAttemptAt: '',
+      failedAt: '',
+      sanitizedError: '',
+    },
+  }
+);
+
+const markNotificationFailed = async ({ job, error }) => {
+  const terminal = error?.terminal === true || job.attempts >= job.maxAttempts;
+  const sanitizedError = sanitizeProviderError(error);
+  const provider = job.channel === NOTIFICATION_CHANNELS.EMAIL
+    ? PROVIDER_BREVO
+    : PROVIDER_WEB_PUSH;
+  const update = {
+    $set: {
+      status: terminal
+        ? NOTIFICATION_OUTBOX_STATUS.FAILED
+        : NOTIFICATION_OUTBOX_STATUS.PENDING,
+      provider,
+      providerStatus: terminal ? 'failed' : 'retry_scheduled',
+      sanitizedError,
+      ...(terminal
+        ? { failedAt: new Date() }
+        : { nextAttemptAt: getNextAttemptAt(job.attempts) }),
+    },
+    $unset: {
+      processingToken: '',
+      processingLeaseExpiresAt: '',
+      ...(terminal ? { nextAttemptAt: '' } : { failedAt: '' }),
+    },
+  };
+
+  const result = await NotificationOutbox.updateOne(
+    {
+      _id: job._id,
+      status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
+      processingToken: job.processingToken,
+    },
+    update
+  );
+
+  return { terminal, updated: (result.modifiedCount ?? 0) === 1 };
+};
+
 export const processNotificationOutbox = async ({ limit = DEFAULT_OUTBOX_BATCH_SIZE } = {}) => {
-  const now = new Date();
-  const jobs = await NotificationOutbox.find({
-    status: NOTIFICATION_OUTBOX_STATUS.PENDING,
-    nextAttemptAt: { $lte: now },
-    attempts: { $lt: DEFAULT_MAX_ATTEMPTS },
-  })
-    .sort({ nextAttemptAt: 1, createdAt: 1 })
-    .limit(limit);
+  const safeLimit = Number.isSafeInteger(limit) && limit > 0
+    ? Math.min(limit, 100)
+    : DEFAULT_OUTBOX_BATCH_SIZE;
+  let processed = 0;
   let sent = 0;
   let failed = 0;
 
-  for (const job of jobs) {
-    const attempts = job.attempts + 1;
-
-    await NotificationOutbox.updateOne(
-      { _id: job._id, status: NOTIFICATION_OUTBOX_STATUS.PENDING },
-      {
-        $set: {
-          status: NOTIFICATION_OUTBOX_STATUS.PROCESSING,
-          lastAttemptAt: new Date(),
-        },
-      }
-    );
+  while (processed < safeLimit) {
+    const job = await claimNextNotificationJob(new Date());
+    if (!job) break;
+    processed += 1;
 
     try {
       const result = await deliverNotificationJob(job);
+      const update = await markNotificationSent({ job, result });
 
-      await NotificationOutbox.updateOne(
-        { _id: job._id },
-        {
-          $set: {
-            status: NOTIFICATION_OUTBOX_STATUS.SENT,
-            attempts,
-            provider: result.provider,
-            providerStatus: result.providerStatus,
-            sentAt: new Date(),
-            sanitizedError: undefined,
-          },
-        }
-      );
-      sent += 1;
-      logger.info('notification.delivery_succeeded', {
-        jobId: job._id.toString(),
-        channel: job.channel,
-        provider: result.provider,
-      });
+      if ((update.modifiedCount ?? 0) === 1) {
+        sent += 1;
+        logger.info('notification.delivery_succeeded', {
+          jobId: job._id.toString(),
+          channel: job.channel,
+          provider: result.provider,
+        });
+      } else {
+        logger.warn('notification.delivery_lease_lost', {
+          jobId: job._id.toString(),
+          channel: job.channel,
+        });
+      }
     } catch (error) {
-      const terminal = error?.terminal === true || attempts >= job.maxAttempts;
-      const sanitizedError = sanitizeProviderError(error);
-
-      await NotificationOutbox.updateOne(
-        { _id: job._id },
-        {
-          $set: {
-            status: terminal
-              ? NOTIFICATION_OUTBOX_STATUS.FAILED
-              : NOTIFICATION_OUTBOX_STATUS.PENDING,
-            attempts,
-            provider: job.channel === NOTIFICATION_CHANNELS.EMAIL ? PROVIDER_BREVO : PROVIDER_WEB_PUSH,
-            providerStatus: terminal ? 'failed' : 'retry_scheduled',
-            nextAttemptAt: terminal ? undefined : getNextAttemptAt(attempts),
-            failedAt: terminal ? new Date() : undefined,
-            sanitizedError,
-          },
-        }
-      );
+      const outcome = await markNotificationFailed({ job, error });
       failed += 1;
       logger.warn('notification.delivery_failed', {
         jobId: job._id.toString(),
         channel: job.channel,
-        terminal,
+        terminal: outcome.terminal,
+        leaseOwned: outcome.updated,
         errorCode: error?.code,
       });
     }
   }
 
-  return { processed: jobs.length, sent, failed };
+  return { processed, sent, failed };
 };
 
 export const startNotificationOutboxWorker = () => {
@@ -534,6 +606,7 @@ export const startNotificationOutboxWorker = () => {
       logger.error('notification.worker_failed', { error });
     });
   }, safeIntervalMs);
+  workerTimer.unref?.();
 
   return workerTimer;
 };
