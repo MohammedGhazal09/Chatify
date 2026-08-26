@@ -7,6 +7,7 @@ export const PRIVACY_REQUEST_TYPES = Object.freeze({
 
 export const PRIVACY_REQUEST_STATUSES = Object.freeze({
   PENDING: 'pending',
+  CLEANUP_PENDING: 'cleanup_pending',
   COMPLETED: 'completed',
   CANCELED: 'canceled',
 });
@@ -16,6 +17,8 @@ export const PRIVACY_REQUEST_ACTIONS = Object.freeze({
   DELETION_REQUESTED: 'deletion_requested',
   DELETION_CANCELED: 'deletion_canceled',
   DELETION_PROCESSED: 'deletion_processed',
+  DELETION_CLEANUP_PENDING: 'deletion_cleanup_pending',
+  DELETION_CLEANUP_COMPLETED: 'deletion_cleanup_completed',
 });
 
 const privacyRequestEventSchema = new mongoose.Schema({
@@ -36,6 +39,27 @@ const privacyRequestEventSchema = new mongoose.Schema({
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {},
+  },
+}, {
+  _id: false,
+  versionKey: false,
+});
+
+const deletionCleanupSchema = new mongoose.Schema({
+  profileImageStorageId: {
+    type: mongoose.Schema.Types.ObjectId,
+  },
+  attempts: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  lastAttemptAt: {
+    type: Date,
+  },
+  lastError: {
+    type: String,
+    maxlength: 500,
   },
 }, {
   _id: false,
@@ -85,6 +109,10 @@ const privacyRequestSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {},
   },
+  cleanup: {
+    type: deletionCleanupSchema,
+    default: undefined,
+  },
   events: {
     type: [privacyRequestEventSchema],
     default: [],
@@ -95,12 +123,17 @@ const privacyRequestSchema = new mongoose.Schema({
 });
 
 privacyRequestSchema.index(
-  { user: 1, type: 1, status: 1 },
+  { user: 1, type: 1 },
   {
     unique: true,
     partialFilterExpression: {
       type: PRIVACY_REQUEST_TYPES.ACCOUNT_DELETION,
-      status: PRIVACY_REQUEST_STATUSES.PENDING,
+      status: {
+        $in: [
+          PRIVACY_REQUEST_STATUSES.PENDING,
+          PRIVACY_REQUEST_STATUSES.CLEANUP_PENDING,
+        ],
+      },
     },
   }
 );
