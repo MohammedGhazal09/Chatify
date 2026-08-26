@@ -63,6 +63,23 @@ const attachmentSummarySchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+const normalizeAttachmentSummaries = (attachments) => {
+  if (!Array.isArray(attachments)) {
+    return attachments;
+  }
+
+  return attachments.map((attachment) => {
+    const plainAttachment = attachment?.toObject?.() ?? attachment;
+
+    if (!plainAttachment || typeof plainAttachment !== "object") {
+      return plainAttachment;
+    }
+
+    const { _id: _serializedAlias, ...storedSummary } = plainAttachment;
+    return storedSummary;
+  });
+};
+
 const callActivitySchema = new mongoose.Schema({
   callId: {
     type: String,
@@ -256,6 +273,7 @@ const messageSchema = new mongoose.Schema({
   attachments: {
     type: [attachmentSummarySchema],
     default: [],
+    set: normalizeAttachmentSummaries,
   },
   attachmentFingerprint: {
     type: String,

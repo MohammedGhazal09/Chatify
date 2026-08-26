@@ -8,7 +8,7 @@ vi.mock('../../../api/apiOrigin', () => ({
 }));
 
 describe('UserAvatar', () => {
-  it('renders an uploaded profile image from an app-relative backend URL', () => {
+  it('renders an uploaded profile image from an app-relative backend URL with credentialed CORS', () => {
     render(
       <UserAvatar
         user={makeUser({ profilePic: '/api/user/user-1/profile-image?v=2' })}
@@ -17,10 +17,12 @@ describe('UserAvatar', () => {
       />
     );
 
-    expect(screen.getByRole('img', { name: 'Ada Lovelace profile picture' })).toHaveAttribute(
+    const image = screen.getByRole('img', { name: 'Ada Lovelace profile picture' });
+    expect(image).toHaveAttribute(
       'src',
       'https://backend.test/api/user/user-1/profile-image?v=2'
     );
+    expect(image).toHaveAttribute('crossorigin', 'use-credentials');
     expect(screen.getByTestId('user-avatar')).toHaveClass('h-11', 'w-11');
   });
 
@@ -94,7 +96,7 @@ describe('UserAvatar', () => {
     expect(document.querySelector('img')).not.toBeInTheDocument();
   });
 
-  it('leaves trusted absolute and local preview URLs unchanged', () => {
+  it('leaves trusted absolute and local preview URLs unchanged without forcing CORS', () => {
     const { rerender } = render(
       <UserAvatar
         user={makeUser({ profilePic: 'https://cdn.example.test/avatar.webp' })}
@@ -102,10 +104,9 @@ describe('UserAvatar', () => {
       />
     );
 
-    expect(screen.getByRole('img', { name: 'Ada Lovelace profile picture' })).toHaveAttribute(
-      'src',
-      'https://cdn.example.test/avatar.webp'
-    );
+    const remoteImage = screen.getByRole('img', { name: 'Ada Lovelace profile picture' });
+    expect(remoteImage).toHaveAttribute('src', 'https://cdn.example.test/avatar.webp');
+    expect(remoteImage).not.toHaveAttribute('crossorigin');
 
     rerender(
       <UserAvatar
@@ -114,9 +115,8 @@ describe('UserAvatar', () => {
       />
     );
 
-    expect(screen.getByRole('img', { name: 'Ada Lovelace profile picture' })).toHaveAttribute(
-      'src',
-      'blob:local-preview'
-    );
+    const localImage = screen.getByRole('img', { name: 'Ada Lovelace profile picture' });
+    expect(localImage).toHaveAttribute('src', 'blob:local-preview');
+    expect(localImage).not.toHaveAttribute('crossorigin');
   });
 });

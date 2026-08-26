@@ -37,22 +37,25 @@ const getUserAvatarLabel = (user?: UserAvatarIdentity | null, fallback = 'Chatif
   return displayName || user?.username || fallback;
 };
 
-const resolveAvatarImageSrc = (src?: string | null) => {
+const normalizeAvatarImageSrc = (src?: string | null) => {
   const trimmed = src?.trim();
 
   if (!trimmed) {
-    return null;
+    return { src: null, requiresCredentials: false };
   }
 
   if (/^(blob:|data:|https?:\/\/)/i.test(trimmed)) {
-    return trimmed;
+    return { src: trimmed, requiresCredentials: false };
   }
 
   if (trimmed.startsWith('/')) {
-    return `${resolveApiBaseUrl()}${trimmed}`;
+    return {
+      src: `${resolveApiBaseUrl()}${trimmed}`,
+      requiresCredentials: true,
+    };
   }
 
-  return trimmed;
+  return { src: trimmed, requiresCredentials: false };
 };
 
 const UserAvatar = ({
@@ -66,7 +69,10 @@ const UserAvatar = ({
 }: UserAvatarProps) => {
   const displayLabel = label || getUserAvatarLabel(user);
   const hasCustomIdentityMark = user?.identityMark?.source === 'custom';
-  const imageSrc = hasCustomIdentityMark ? null : resolveAvatarImageSrc(user?.profilePic);
+  const resolvedImage = hasCustomIdentityMark
+    ? { src: null, requiresCredentials: false }
+    : normalizeAvatarImageSrc(user?.profilePic);
+  const imageSrc = resolvedImage.src;
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
   const shouldShowImage = Boolean(imageSrc && failedImageSrc !== imageSrc);
 
@@ -83,6 +89,7 @@ const UserAvatar = ({
         <img
           src={imageSrc}
           alt={imageAlt ?? `${displayLabel} profile picture`}
+          crossOrigin={resolvedImage.requiresCredentials ? 'use-credentials' : undefined}
           className="h-full w-full object-cover"
           onError={() => setFailedImageSrc(imageSrc)}
         />

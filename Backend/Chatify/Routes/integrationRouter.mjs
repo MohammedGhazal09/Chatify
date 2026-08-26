@@ -5,8 +5,8 @@ import {
   listIntegrationApps,
   listIntegrationInstallations,
   revokeIntegrationInstallation,
-  rotateIntegrationToken,
 } from '../Controller/integrationController.mjs';
+import { rotateIntegrationToken } from '../Controller/integrationInstallationController.mjs';
 
 const router = Router();
 

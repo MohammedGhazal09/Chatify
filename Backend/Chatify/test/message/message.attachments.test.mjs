@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import Attachment from '../../Models/attachmentModel.mjs';
 import Message from '../../Models/messageModel.mjs';
 import { createDirectChat } from '../fixtures/chats.mjs';
-import { attachPdf, attachText, tinyTextBuffer } from '../fixtures/attachments.mjs';
+import { attachText, tinyTextBuffer } from '../fixtures/attachments.mjs';
 import { signupWithAgent } from '../helpers/authAgent.mjs';
 import { getAttachmentBucket } from '../../Services/attachmentStorageService.mjs';
 
@@ -42,12 +42,14 @@ describe('message attachments', () => {
   it('creates attachment-only messages with safe summaries and private metadata', async () => {
     const { memberOne, chat } = await setupAttachmentScenario();
 
-    const response = await attachPdf(
+    const response = await attachText(
       memberOne.agent
         .post('/api/message/new-message')
         .field('chatId', chat._id.toString())
         .field('text', '')
-        .field('clientMessageId', 'attachment-only-send')
+        .field('clientMessageId', 'attachment-only-send'),
+      'message-states-spec.txt',
+      'message state details'
     ).expect(201);
     const storedAttachment = await Attachment.findOne({ messageId: response.body.data.message._id })
       .select('+hash');
@@ -55,8 +57,8 @@ describe('message attachments', () => {
     expect(response.body.data.message.text).toBe('');
     expect(response.body.data.message.attachments).toHaveLength(1);
     expect(response.body.data.message.attachments[0]).toMatchObject({
-      displayName: 'message-states-spec.pdf',
-      mimeType: 'application/pdf',
+      displayName: 'message-states-spec.txt',
+      mimeType: 'text/plain',
       kind: 'file',
       status: 'active',
     });

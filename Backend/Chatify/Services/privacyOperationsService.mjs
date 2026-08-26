@@ -15,6 +15,10 @@ import NotificationOutbox, {
 import User from '../Models/userModel.mjs';
 import { disconnectUserSockets } from '../Config/socket.mjs';
 import { deleteProfileImageFile } from './profileImageStorageService.mjs';
+import {
+  markTrustedDatabaseUpdate,
+  withDatabaseTransaction,
+} from '../Utils/databaseSecurity.mjs';
 import { logger } from '../Utils/observabilityLogger.mjs';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -83,9 +87,7 @@ const isPrivacyWorkerEnabled = () => (
   process.env.PRIVACY_WORKER_ENABLED !== '0'
 );
 
-const deleteUploadedProfileImage = async (user) => {
-  const storageFileId = user?.uploadedProfileImage?.storageFileId;
-
+const deleteUploadedProfileImage = async (storageFileId) => {
   if (!storageFileId) {
     return 0;
   }
@@ -94,10 +96,9 @@ const deleteUploadedProfileImage = async (user) => {
   return 1;
 };
 
-const anonymizeUserAccount = async ({ user, now }) => {
+const anonymizeUserAccount = async ({ user, now, session }) => {
   const tombstone = getTombstoneIdentity(user._id);
-
-  await User.updateOne(
+  const update = User.updateOne(
     { _id: user._id },
     {
       $set: {
@@ -137,73 +138,133 @@ const anonymizeUserAccount = async ({ user, now }) => {
         twoFactor: '',
         moderation: '',
       },
-    }
+    },
+    { session }
+  );
+
+  await markTrustedDatabaseUpdate(
+    update,
+    'Privacy deletion applies a fixed server-owned tombstone update.'
   );
 };
 
-const processDeletionRequest = async ({ request, now }) => {
-  const counts = createEmptyCounts();
-  const user = await User.findById(request.user)
-    .select('+uploadedProfileImage +providerProfilePic +password +googleId +discordId +githubId +role +twoFactor +moderation');
+const processDeletionRequestTransaction = async ({ requestId, now }) => withDatabaseTransaction(
+  async (session) => {
+    const counts = createEmptyCounts();
+    const request = await PrivacyRequest.findOne({
+      _id: requestId,
+      type: PRIVACY_REQUEST_TYPES.ACCOUNT_DELETION,
+      status: PRIVACY_REQUEST_STATUSES.PENDING,
+      scheduledFor: { $lte: now },
+    }).session(session);
 
-  counts.deletionRequestsProcessed = 1;
-
-  if (user) {
-    try {
-      counts.profileImagesDeleted = await deleteUploadedProfileImage(user);
-    } catch (error) {
-      logger.warn('privacy.profile_image_delete_failed', {
-        userId: user._id.toString(),
-        error,
-      });
+    if (!request) {
+      return {
+        processed: false,
+        counts,
+        userId: null,
+        profileImageStorageId: null,
+      };
     }
 
-    await anonymizeUserAccount({ user, now });
-    counts.accountsAnonymized = 1;
-    counts.socketsDisconnected = disconnectUserSockets(user._id);
+    const user = await User.findById(request.user)
+      .select('+uploadedProfileImage +providerProfilePic +password +googleId +discordId +githubId +role +twoFactor +moderation')
+      .session(session);
 
-    const [sessions, passwordResets, outbox] = await Promise.all([
-      Session.deleteMany({ userId: user._id }),
-      PasswordReset.deleteMany({ userId: user._id }),
-      NotificationOutbox.deleteMany({
+    counts.deletionRequestsProcessed = 1;
+
+    if (user) {
+      await anonymizeUserAccount({ user, now, session });
+      counts.accountsAnonymized = 1;
+
+      const sessions = await Session.deleteMany({ userId: user._id }, { session });
+      const passwordResets = await PasswordReset.deleteMany({ userId: user._id }, { session });
+      const outbox = await NotificationOutbox.deleteMany({
         $or: [
           { recipient: user._id },
           { sender: user._id },
         ],
-      }),
-    ]);
+      }, { session });
 
-    counts.sessionsRemoved = sessions.deletedCount ?? 0;
-    counts.passwordResetsDeleted = passwordResets.deletedCount ?? 0;
-    counts.notificationOutboxDeleted = outbox.deletedCount ?? 0;
+      counts.sessionsRemoved = sessions.deletedCount ?? 0;
+      counts.passwordResetsDeleted = passwordResets.deletedCount ?? 0;
+      counts.notificationOutboxDeleted = outbox.deletedCount ?? 0;
+    }
+
+    request.status = PRIVACY_REQUEST_STATUSES.COMPLETED;
+    request.completedAt = now;
+    request.recordCounts = {
+      deletionRequestsProcessed: counts.deletionRequestsProcessed,
+      accountsAnonymized: counts.accountsAnonymized,
+      profileImagesDeleted: 0,
+      sessionsRemoved: counts.sessionsRemoved,
+      passwordResetsDeleted: counts.passwordResetsDeleted,
+      notificationOutboxDeleted: counts.notificationOutboxDeleted,
+      socketsDisconnected: 0,
+    };
+    request.retentionSummary = {
+      ...(request.retentionSummary ?? {}),
+      processedAt: serializeDate(now),
+      accountProfile: user
+        ? 'Account profile and login identifiers were anonymized by the privacy operations worker.'
+        : 'Account record was already unavailable when the privacy operations worker ran.',
+      authentication: 'Sessions, password reset records, provider identifiers, and notification endpoints were removed or revoked.',
+      conversations: 'Conversation records remain as redacted participant references where required for other participants.',
+    };
+    request.events.push({
+      action: PRIVACY_REQUEST_ACTIONS.DELETION_PROCESSED,
+      actor: request.user,
+      metadata: request.recordCounts,
+    });
+    await request.save({ session });
+
+    return {
+      processed: true,
+      counts,
+      userId: user?._id ?? null,
+      profileImageStorageId: user?.uploadedProfileImage?.storageFileId ?? null,
+    };
+  }
+);
+
+const processDeletionRequest = async ({ requestId, now }) => {
+  const result = await processDeletionRequestTransaction({ requestId, now });
+
+  if (!result.processed) {
+    return result.counts;
   }
 
-  request.status = PRIVACY_REQUEST_STATUSES.COMPLETED;
-  request.completedAt = now;
-  request.recordCounts = {
-    deletionRequestsProcessed: counts.deletionRequestsProcessed,
-    accountsAnonymized: counts.accountsAnonymized,
-    profileImagesDeleted: counts.profileImagesDeleted,
-    sessionsRemoved: counts.sessionsRemoved,
-    passwordResetsDeleted: counts.passwordResetsDeleted,
-    notificationOutboxDeleted: counts.notificationOutboxDeleted,
-    socketsDisconnected: counts.socketsDisconnected,
-  };
-  request.retentionSummary = {
-    ...(request.retentionSummary ?? {}),
-    processedAt: serializeDate(now),
-    accountProfile: user
-      ? 'Account profile and login identifiers were anonymized by the privacy operations worker.'
-      : 'Account record was already unavailable when the privacy operations worker ran.',
-    authentication: 'Sessions, password reset records, provider identifiers, and notification endpoints were removed or revoked.',
-    conversations: 'Conversation records remain as redacted participant references where required for other participants.',
-  };
-  request.events.push({
-    action: PRIVACY_REQUEST_ACTIONS.DELETION_PROCESSED,
-    actor: request.user,
-    metadata: request.recordCounts,
-  });
-  await request.save();
+  const counts = result.counts;
+
+  if (result.userId) {
+    counts.socketsDisconnected = disconnectUserSockets(result.userId);
+  }
+
+  try {
+    counts.profileImagesDeleted = await deleteUploadedProfileImage(result.profileImageStorageId);
+  } catch (error) {
+    logger.warn('privacy.profile_image_delete_failed', {
+      userId: result.userId?.toString?.() ?? null,
+      error,
+    });
+  }
+
+  try {
+    await PrivacyRequest.updateOne(
+      { _id: requestId, status: PRIVACY_REQUEST_STATUSES.COMPLETED },
+      {
+        $set: {
+          'recordCounts.profileImagesDeleted': counts.profileImagesDeleted,
+          'recordCounts.socketsDisconnected': counts.socketsDisconnected,
+        },
+      }
+    );
+  } catch (error) {
+    logger.warn('privacy.side_effect_counts_update_failed', {
+      requestId: requestId.toString(),
+      error,
+    });
+  }
 
   return counts;
 };
@@ -279,8 +340,10 @@ const getDueDeletionRequests = ({ now, limit }) => PrivacyRequest.find({
   status: PRIVACY_REQUEST_STATUSES.PENDING,
   scheduledFor: { $lte: now },
 })
+  .select('_id')
   .sort({ scheduledFor: 1, requestedAt: 1, _id: 1 })
-  .limit(limit);
+  .limit(limit)
+  .lean();
 
 const getTotalCount = (counts) => Object.entries(counts)
   .filter(([key]) => key !== 'errors')
@@ -298,7 +361,7 @@ export const processPrivacyOperations = async ({
 
   for (const request of dueRequests) {
     try {
-      addCounts(counts, await processDeletionRequest({ request, now }));
+      addCounts(counts, await processDeletionRequest({ requestId: request._id, now }));
     } catch (error) {
       counts.errors += 1;
       logger.error('privacy.deletion_process_failed', {

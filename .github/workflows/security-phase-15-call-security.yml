@@ -1,0 +1,81 @@
+name: Security Phase 15 WebRTC and Call Signaling
+
+on:
+  push:
+    branches:
+      - security/phase-15-webrtc-call-security
+  pull_request:
+    branches:
+      - security/phase-14-presence-metadata-privacy
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase-15-call-security:
+    name: Call authorization, signaling, races, and abuse controls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+
+      - name: Setup exact Node.js toolchain
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Verify exact toolchain
+        run: |
+          test "$(node --version)" = 'v24.19.0'
+          test "$(npm --version)" = '11.17.0'
+
+      - name: Install controlled dependencies
+        run: |
+          npm --prefix Backend/Chatify ci --strict-allow-scripts
+          npm --prefix Frontend/Chatify ci --strict-allow-scripts
+
+      - name: Check Phase 15 source syntax
+        run: |
+          node --check Backend/Chatify/Config/socket.mjs
+          node --check Backend/Chatify/Models/callSessionModel.mjs
+          node --check Backend/Chatify/Utils/callIceConfig.mjs
+          node --check Backend/Chatify/Utils/callSessionState.mjs
+          node --check Backend/Chatify/Utils/callSocketContract.mjs
+          node --check Backend/Chatify/Utils/databaseIndexPolicy.mjs
+
+      - name: Run Phase 15 and adjacent backend regressions
+        run: |
+          npm --prefix Backend/Chatify test -- --run \
+            test/security/phase15-call-signaling-security.test.mjs \
+            test/socket/socket.calls.test.mjs \
+            test/socket/socket.call-auth.test.mjs \
+            test/socket/socket.call-blocking.test.mjs \
+            test/socket/socket.authorization.test.mjs \
+            test/security/phase13-socket-session-lifecycle.test.mjs
+
+      - name: Run browser call-controller regressions
+        run: |
+          npm --prefix Frontend/Chatify test -- --run \
+            src/hooks/useCallController.test.tsx \
+            src/hooks/useCallController.ice-config-security.test.tsx
+
+      - name: Audit production dependencies
+        run: |
+          npm --prefix Backend/Chatify audit --omit=dev --audit-level=high
+          npm --prefix Frontend/Chatify audit --omit=dev --audit-level=high
+
+      - name: Verify patch hygiene
+        run: git diff --check HEAD^ HEAD

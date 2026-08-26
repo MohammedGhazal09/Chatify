@@ -1,26 +1,29 @@
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import mongoose from 'mongoose';
 import Session from '../Models/sessionModel.mjs';
 import { CustomError } from './customError.mjs';
 
 const UNKNOWN_DEVICE = 'Unknown device';
 
-const hashValue = (value) => {
-  if (!value || typeof value !== 'string') {
-    return null;
-  }
-
+export const hashSessionMetadataValue = (value) => {
+  if (!value || typeof value !== 'string') return null;
   return createHash('sha256').update(value).digest('base64url');
 };
 
-const getRequestIp = (req) => {
-  const forwardedFor = req?.headers?.['x-forwarded-for'];
-
-  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
-    return forwardedFor.split(',')[0].trim();
+export const safeMetadataHashEqual = (left, right) => {
+  if (left === null || left === undefined || right === null || right === undefined) {
+    return (left === null || left === undefined) && (right === null || right === undefined);
   }
+  const leftBuffer = Buffer.from(String(left));
+  const rightBuffer = Buffer.from(String(right));
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+};
 
-  return req?.ip || req?.socket?.remoteAddress || '';
+const getRequestIp = (req) => {
+  if (typeof req?.ip === 'string' && req.ip.trim()) return req.ip.trim();
+  return typeof req?.socket?.remoteAddress === 'string'
+    ? req.socket.remoteAddress.trim()
+    : '';
 };
 
 const detectBrowser = (userAgent) => {
@@ -42,29 +45,22 @@ const detectPlatform = (userAgent) => {
 };
 
 export const buildSafeDeviceLabel = (userAgent = '') => {
-  if (!userAgent || typeof userAgent !== 'string') {
-    return UNKNOWN_DEVICE;
-  }
-
+  if (!userAgent || typeof userAgent !== 'string') return UNKNOWN_DEVICE;
   return `${detectBrowser(userAgent)} on ${detectPlatform(userAgent)}`;
 };
 
 export const buildSessionMetadataFromRequest = (req) => {
-  const userAgent = typeof req?.headers?.['user-agent'] === 'string'
-    ? req.headers['user-agent']
-    : '';
+  const userAgent = typeof req?.headers?.['user-agent'] === 'string' ? req.headers['user-agent'] : '';
   const ip = getRequestIp(req);
-
   return {
     deviceLabel: buildSafeDeviceLabel(userAgent),
-    userAgentHash: hashValue(userAgent),
-    ipHash: hashValue(ip),
+    userAgentHash: hashSessionMetadataValue(userAgent),
+    ipHash: hashSessionMetadataValue(ip),
   };
 };
 
 export const serializeSessionForUser = (session, currentSessionId = null) => {
   const sessionId = session?._id?.toString?.() ?? null;
-
   return {
     id: sessionId,
     current: Boolean(currentSessionId && sessionId === currentSessionId),
@@ -77,10 +73,7 @@ export const serializeSessionForUser = (session, currentSessionId = null) => {
 };
 
 export const findActiveSession = async ({ sessionId, userId = null, now = new Date() }) => {
-  if (!sessionId || !mongoose.Types.ObjectId.isValid(sessionId)) {
-    return null;
-  }
-
+  if (!sessionId || !mongoose.Types.ObjectId.isValid(sessionId)) return null;
   return Session.findOne({
     _id: sessionId,
     ...(userId ? { userId } : {}),
@@ -90,15 +83,8 @@ export const findActiveSession = async ({ sessionId, userId = null, now = new Da
 };
 
 export const assertActiveSessionClaim = async ({ sessionId, userId }) => {
-  if (!sessionId) {
-    return { legacy: true, session: null };
-  }
-
+  if (!sessionId || !userId) throw new CustomError('Session expired, please login again', 401);
   const session = await findActiveSession({ sessionId, userId });
-
-  if (!session) {
-    throw new CustomError('Session expired, please login again', 401);
-  }
-
-  return { legacy: false, session };
+  if (!session) throw new CustomError('Session expired, please login again', 401);
+  return { session };
 };

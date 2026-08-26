@@ -1,0 +1,71 @@
+name: Security Phase 4 Supply Chain
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase-4-supply-chain:
+    name: Dependency audit, signatures, SBOM, and policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch repository branches, tags, and current pull request
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git fetch --force --prune origin \
+            '+refs/heads/*:refs/remotes/origin/*' \
+            '+refs/tags/*:refs/tags/*'
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git fetch --force origin \
+              "+refs/pull/${PR_NUMBER}/head:refs/remotes/pull/${PR_NUMBER}/head"
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: |
+            Backend/Chatify/package-lock.json
+            Frontend/Chatify/package-lock.json
+
+      - name: Reproduce and validate Phase 4
+        run: npm run security:phase4:reproduce
+
+      - name: Upload Phase 4 supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: phase-4-supply-chain-evidence
+          path: |
+            .artifacts/security/phase-4/
+            docs/security/audit/phase-4/dependency-policy.json
+            docs/security/audit/phase-4/dependency-policy.md
+            docs/security/audit/phase-4/dependency-exceptions.json
+            docs/security/audit/phase-4/install-script-policy.json
+            docs/security/audit/phase-4/README.md
+            docs/security/audit/phase-4/dependency-update-procedure.md
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30

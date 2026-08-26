@@ -85,6 +85,16 @@ const callSessionSchema = new mongoose.Schema(
 callSessionSchema.index({ chatId: 1, createdAt: -1 });
 callSessionSchema.index({ callerId: 1, status: 1, createdAt: -1 });
 callSessionSchema.index({ calleeId: 1, status: 1, createdAt: -1 });
+callSessionSchema.index(
+  { participantIds: 1 },
+  {
+    name: 'call_sessions_active_participant_unique',
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ['ringing', 'connected'] },
+    },
+  }
+);
 callSessionSchema.index({ participantIds: 1, status: 1, createdAt: -1 });
 callSessionSchema.index({ chatId: 1, status: 1, createdAt: -1 });
 

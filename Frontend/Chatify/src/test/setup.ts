@@ -64,6 +64,7 @@ class MockRTCPeerConnection {
   ontrack: RTCPeerConnection['ontrack'] = null;
   onicecandidate: RTCPeerConnection['onicecandidate'] = null;
   onconnectionstatechange: RTCPeerConnection['onconnectionstatechange'] = null;
+  configuration: RTCConfiguration;
 
   private remoteDescription: RTCSessionDescriptionInit | null = null;
 
@@ -83,7 +84,8 @@ class MockRTCPeerConnection {
     this.connectionState = 'closed';
   });
 
-  constructor() {
+  constructor(configuration: RTCConfiguration = {}) {
+    this.configuration = configuration;
     const connections = (globalThis as typeof globalThis & { __mockRTCPeerConnections?: MockRTCPeerConnection[] }).__mockRTCPeerConnections ?? [];
     connections.push(this);
     (globalThis as typeof globalThis & { __mockRTCPeerConnections?: MockRTCPeerConnection[] }).__mockRTCPeerConnections = connections;

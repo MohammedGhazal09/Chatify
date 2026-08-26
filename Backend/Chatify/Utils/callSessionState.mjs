@@ -246,6 +246,15 @@ const assertNoActiveParticipantCall = async (participantIds) => {
   }
 };
 
+const isActiveParticipantIndexCollision = (error) => (
+  error?.code === 11000
+  && (
+    error?.keyPattern?.participantIds === 1
+    || Object.prototype.hasOwnProperty.call(error?.keyValue ?? {}, 'participantIds')
+    || String(error?.message ?? '').includes('call_sessions_active_participant_unique')
+  )
+);
+
 export const startCallSession = async ({
   chat,
   callerId,
@@ -268,20 +277,28 @@ export const startCallSession = async ({
 
   await assertNoActiveParticipantCall([callerObjectId, ...normalizedRecipientIds]);
 
-  return CallSession.create({
-    callId: randomUUID(),
-    chatId: chat._id,
-    callerId: callerObjectId,
-    calleeId,
-    recipientIds: normalizedRecipientIds,
-    participantIds: uniqueObjectIds([callerObjectId, ...normalizedRecipientIds]),
-    isGroupCall,
-    mode: normalizedMode,
-    status: CALL_STATUS.RINGING,
-    startedAt: now,
-    ringingAt: now,
-    deliveredTo: deliveredTo.map((userId) => normalizeParticipantId(userId)),
-  });
+  try {
+    return await CallSession.create({
+      callId: randomUUID(),
+      chatId: chat._id,
+      callerId: callerObjectId,
+      calleeId,
+      recipientIds: normalizedRecipientIds,
+      participantIds: uniqueObjectIds([callerObjectId, ...normalizedRecipientIds]),
+      isGroupCall,
+      mode: normalizedMode,
+      status: CALL_STATUS.RINGING,
+      startedAt: now,
+      ringingAt: now,
+      deliveredTo: deliveredTo.map((userId) => normalizeParticipantId(userId)),
+    });
+  } catch (error) {
+    if (isActiveParticipantIndexCollision(error)) {
+      throw new CallSessionError('call_busy', 'A participant is already in a call', 409);
+    }
+
+    throw error;
+  }
 };
 
 export const loadCallSessionForAction = async ({ callId, chatId, actorId }) => {
@@ -507,6 +524,10 @@ export const assertCallCanSignal = (session, actorId) => {
 
   if (isCallTerminal(session)) {
     throw new CallSessionError('stale_call', 'Call is already closed', 409);
+  }
+
+  if (session.status !== CALL_STATUS.CONNECTED) {
+    throw new CallSessionError('call_not_connected', 'Call must be connected before signaling', 409);
   }
 
   return true;
