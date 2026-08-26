@@ -33,7 +33,14 @@ export const deleteChatWithUploads = asyncErrHandler(async (req, res) => {
       throw new CustomError('Chat not found', 404);
     }
 
-    if (chat.isGroupChat && chat.groupAdmin?.toString() !== requesterId) {
+    // Direct conversations are shared history. One participant must never be able to
+    // physically delete the peer's copy. A future per-user hide/archive endpoint can
+    // provide local removal without destroying shared records.
+    if (!chat.isGroupChat) {
+      throw new CustomError('Direct conversations cannot be deleted for every participant', 403);
+    }
+
+    if (chat.groupAdmin?.toString() !== requesterId) {
       throw new CustomError('Only the group admin can delete this chat', 403);
     }
 
