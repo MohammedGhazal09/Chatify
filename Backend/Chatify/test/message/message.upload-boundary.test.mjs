@@ -16,31 +16,30 @@ const setupScenario = async () => {
 
 const multipartMessage = ({ actor, chatId, clientMessageId }) => actor.agent
   .post('/api/message/new-message')
-  .set('X-Chat-Id', chatId)
   .field('chatId', chatId)
   .field('text', 'bounded upload')
   .field('clientMessageId', clientMessageId);
 
 describe('message multipart upload boundary', () => {
-  it('requires an authorized chat header before multipart bytes are accepted', async () => {
+  it('authorizes the leading chat field before any attachment is stored', async () => {
     const { memberOne, outsider, chat } = await setupScenario();
     const chatId = chat._id.toString();
 
-    await memberOne.agent
-      .post('/api/message/new-message')
-      .field('chatId', chatId)
-      .field('text', 'missing header')
-      .field('clientMessageId', 'missing-upload-chat-header')
+    await multipartMessage({
+      actor: memberOne,
+      chatId,
+      clientMessageId: 'authorized-leading-chat-field',
+    })
       .attach('attachments', tinyTextBuffer(), {
         filename: 'notes.txt',
         contentType: 'text/plain',
       })
-      .expect(400);
+      .expect(201);
 
     await multipartMessage({
       actor: outsider,
       chatId,
-      clientMessageId: 'unauthorized-upload-chat-header',
+      clientMessageId: 'unauthorized-leading-chat-field',
     })
       .attach('attachments', tinyTextBuffer(), {
         filename: 'notes.txt',
@@ -48,16 +47,18 @@ describe('message multipart upload boundary', () => {
       })
       .expect(403);
 
-    await multipartMessage({
-      actor: memberOne,
-      chatId,
-      clientMessageId: 'authorized-upload-chat-header',
-    })
+    const outOfOrder = await memberOne.agent
+      .post('/api/message/new-message')
       .attach('attachments', tinyTextBuffer(), {
         filename: 'notes.txt',
         contentType: 'text/plain',
       })
-      .expect(201);
+      .field('chatId', chatId)
+      .field('text', 'chat id arrived too late')
+      .field('clientMessageId', 'out-of-order-chat-field')
+      .expect(400);
+
+    expect(outOfOrder.body.code).toBe('UPLOAD_CHAT_ID_REQUIRED');
   });
 
   it('rejects PDF and OOXML containers instead of relying on incomplete active-content scanning', async () => {
