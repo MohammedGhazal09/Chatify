@@ -1,32 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { resolveApiBaseUrl, resolveOAuthUrl, resolveSocketUrl } from './apiOrigin';
 
-const vercelLocation = { origin: 'https://chatify-ten-rho.vercel.app' };
+const productionLocation = { origin: 'https://frontend.chatify.example.com' };
 const developmentLocation = { origin: 'http://localhost:5173' };
 
 describe('api origin resolution', () => {
-  it('uses same-origin production traffic even when a stale backend URL env var exists', () => {
-    const baseUrl = resolveApiBaseUrl({
-      PROD: true,
-      VITE_BACKEND_URL: 'https://chatify-ckmn.onrender.com',
-    }, vercelLocation);
-
-    expect(baseUrl).toBe('https://chatify-ten-rho.vercel.app');
-  });
-
-  it('builds OAuth URLs through the same-origin proxy in production', () => {
-    expect(resolveOAuthUrl('google', {
-      PROD: true,
-      VITE_BACKEND_URL: 'https://chatify-ckmn.onrender.com/',
-    }, vercelLocation)).toBe('https://chatify-ten-rho.vercel.app/api/auth/google');
-  });
-
-  it('allows an explicit secure cross-origin API opt-out', () => {
+  it('uses the configured production API origin by default', () => {
     expect(resolveApiBaseUrl({
       PROD: true,
       VITE_BACKEND_URL: 'https://api.chatify.example.com/',
-      VITE_USE_SAME_ORIGIN_API: 'false',
-    }, vercelLocation)).toBe('https://api.chatify.example.com');
+    }, productionLocation)).toBe('https://api.chatify.example.com');
+  });
+
+  it('uses same-origin production traffic only when explicitly enabled', () => {
+    expect(resolveApiBaseUrl({
+      PROD: true,
+      VITE_BACKEND_URL: 'https://api.chatify.example.com',
+      VITE_USE_SAME_ORIGIN_API: 'true',
+    }, productionLocation)).toBe(productionLocation.origin);
+  });
+
+  it('builds OAuth URLs from the selected deployment origin', () => {
+    expect(resolveOAuthUrl('google', {
+      PROD: true,
+      VITE_BACKEND_URL: 'https://api.chatify.example.com/',
+    }, productionLocation)).toBe('https://api.chatify.example.com/api/auth/google');
   });
 
   it('rejects insecure, credentialed, and path-bearing production API overrides', () => {
@@ -40,26 +38,35 @@ describe('api origin resolution', () => {
       expect(resolveApiBaseUrl({
         PROD: true,
         VITE_BACKEND_URL: backendUrl,
-        VITE_USE_SAME_ORIGIN_API: 'false',
-      }, vercelLocation)).toBe(vercelLocation.origin);
+      }, productionLocation)).toBe(productionLocation.origin);
     }
   });
 
-  it('keeps production sockets on the same origin even when a stale socket URL env var exists', () => {
-    expect(resolveSocketUrl({
-      PROD: true,
-      VITE_SOCKET_URL: 'https://chatify-ckmn.onrender.com/',
-      VITE_BACKEND_URL: 'https://chatify-ckmn.onrender.com',
-    }, vercelLocation)).toBe('https://chatify-ten-rho.vercel.app');
-  });
-
-  it('allows an explicit secure cross-origin socket opt-out', () => {
+  it('uses an explicit secure socket origin when configured', () => {
     expect(resolveSocketUrl({
       PROD: true,
       VITE_SOCKET_URL: 'https://socket.chatify.example.com/',
       VITE_BACKEND_URL: 'https://api.chatify.example.com',
-      VITE_USE_SAME_ORIGIN_API: 'false',
-    }, vercelLocation)).toBe('https://socket.chatify.example.com');
+    }, productionLocation)).toBe('https://socket.chatify.example.com');
+  });
+
+  it('falls back to the configured API origin for sockets', () => {
+    expect(resolveSocketUrl({
+      PROD: true,
+      VITE_BACKEND_URL: 'https://api.chatify.example.com',
+    }, productionLocation)).toBe('https://api.chatify.example.com');
+  });
+
+  it('keeps both API and sockets same-origin when explicitly enabled', () => {
+    const env = {
+      PROD: true,
+      VITE_BACKEND_URL: 'https://api.chatify.example.com',
+      VITE_SOCKET_URL: 'https://socket.chatify.example.com',
+      VITE_USE_SAME_ORIGIN_API: 'true',
+    };
+
+    expect(resolveApiBaseUrl(env, productionLocation)).toBe(productionLocation.origin);
+    expect(resolveSocketUrl(env, productionLocation)).toBe(productionLocation.origin);
   });
 
   it('rejects insecure and credentialed socket overrides', () => {
@@ -73,16 +80,8 @@ describe('api origin resolution', () => {
         PROD: true,
         VITE_SOCKET_URL: socketUrl,
         VITE_BACKEND_URL: 'https://api.chatify.example.com',
-        VITE_USE_SAME_ORIGIN_API: 'false',
-      }, vercelLocation)).toBe(vercelLocation.origin);
+      }, productionLocation)).toBe(productionLocation.origin);
     }
-  });
-
-  it('uses the same-origin socket endpoint by default in production', () => {
-    expect(resolveSocketUrl({
-      PROD: true,
-      VITE_BACKEND_URL: 'https://chatify-ckmn.onrender.com',
-    }, vercelLocation)).toBe('https://chatify-ten-rho.vercel.app');
   });
 
   it('preserves the local backend fallback for development without env overrides', () => {
