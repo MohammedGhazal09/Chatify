@@ -24,7 +24,7 @@ const getRuntimeLocation = (): RuntimeLocation | undefined => {
 const shouldUseSameOriginApi = (
   env: RuntimeEnv,
   location: RuntimeLocation | undefined
-) => Boolean(env.PROD && location && env.VITE_USE_SAME_ORIGIN_API !== 'false');
+) => Boolean(env.PROD && location && env.VITE_USE_SAME_ORIGIN_API === 'true');
 
 const getFallbackOrigin = (
   env: RuntimeEnv,
