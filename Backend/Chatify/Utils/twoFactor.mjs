@@ -78,7 +78,7 @@ export const buildOtpAuthUrl = ({ email, secret }) => {
   return url.toString();
 };
 
-const getTotpCounter = (now = Date.now()) => Math.floor(now / 1000 / TOTP_PERIOD_SECONDS);
+export const getTotpCounter = (now = Date.now()) => Math.floor(now / 1000 / TOTP_PERIOD_SECONDS);
 
 const generateTotpForCounter = (secret, counter) => {
   const key = decodeBase32(secret);
@@ -89,10 +89,10 @@ const generateTotpForCounter = (secret, counter) => {
   const digest = createHmac('sha1', key).update(counterBuffer).digest();
   const offset = digest[digest.length - 1] & 0xf;
   const binary = (
-    ((digest[offset] & 0x7f) << 24) |
-    ((digest[offset + 1] & 0xff) << 16) |
-    ((digest[offset + 2] & 0xff) << 8) |
-    (digest[offset + 3] & 0xff)
+    ((digest[offset] & 0x7f) << 24)
+    | ((digest[offset + 1] & 0xff) << 16)
+    | ((digest[offset + 2] & 0xff) << 8)
+    | (digest[offset + 3] & 0xff)
   );
 
   return String(binary % (10 ** TOTP_DIGITS)).padStart(TOTP_DIGITS, '0');
@@ -102,57 +102,57 @@ export const generateTotpCode = (secret, now = Date.now()) => (
   generateTotpForCounter(secret, getTotpCounter(now))
 );
 
-export const verifyTotpCode = (secret, code, { now = Date.now(), window = TOTP_WINDOW } = {}) => {
-  const normalized = normalizeTotpCode(code);
+const cryptoSafeEqual = (left, right) => {
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+};
 
-  if (!/^\d{6}$/.test(normalized)) {
-    return false;
-  }
+export const findMatchingTotpCounter = (
+  secret,
+  code,
+  { now = Date.now(), window = TOTP_WINDOW } = {}
+) => {
+  const normalized = normalizeTotpCode(code);
+  if (!/^\d{6}$/.test(normalized)) return null;
 
   const currentCounter = getTotpCounter(now);
   const expectedBuffer = Buffer.from(normalized);
+  let matchedCounter = null;
 
   for (let offset = -window; offset <= window; offset += 1) {
-    const candidate = generateTotpForCounter(secret, currentCounter + offset);
-    const candidateBuffer = Buffer.from(candidate);
+    const counter = currentCounter + offset;
+    if (counter < 0) continue;
 
+    const candidateBuffer = Buffer.from(generateTotpForCounter(secret, counter));
     if (
-      expectedBuffer.length === candidateBuffer.length &&
-      expectedBuffer.length > 0 &&
-      cryptoSafeEqual(expectedBuffer, candidateBuffer)
+      expectedBuffer.length === candidateBuffer.length
+      && expectedBuffer.length > 0
+      && cryptoSafeEqual(expectedBuffer, candidateBuffer)
     ) {
-      return true;
+      matchedCounter = matchedCounter === null
+        ? counter
+        : Math.max(matchedCounter, counter);
     }
   }
 
-  return false;
+  return matchedCounter;
 };
 
-const cryptoSafeEqual = (left, right) => {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  return timingSafeEqual(left, right);
-};
+export const verifyTotpCode = (secret, code, options = {}) => (
+  findMatchingTotpCounter(secret, code, options) !== null
+);
 
 const decodeConfiguredEncryptionKey = (value) => {
   const trimmed = String(value ?? '').trim();
 
-  if (!trimmed) {
-    return null;
-  }
+  if (!trimmed) return null;
 
   const base64Key = Buffer.from(trimmed, 'base64');
-  if (base64Key.length === 32) {
-    return base64Key;
-  }
+  if (base64Key.length === 32) return base64Key;
 
   if (/^[a-f0-9]{64}$/i.test(trimmed)) {
     const hexKey = Buffer.from(trimmed, 'hex');
-    if (hexKey.length === 32) {
-      return hexKey;
-    }
+    if (hexKey.length === 32) return hexKey;
   }
 
   return null;
@@ -161,9 +161,7 @@ const decodeConfiguredEncryptionKey = (value) => {
 const getTwoFactorEncryptionKey = () => {
   const configuredKey = decodeConfiguredEncryptionKey(process.env.TWO_FACTOR_ENCRYPTION_KEY);
 
-  if (configuredKey) {
-    return configuredKey;
-  }
+  if (configuredKey) return configuredKey;
 
   if (process.env.TWO_FACTOR_ENCRYPTION_KEY) {
     throw new CustomError('Two-factor encryption key is invalid', 500);
@@ -233,21 +231,15 @@ export const createBackupCodeSet = async (count = BACKUP_CODE_COUNT) => {
 export const findMatchingBackupCodeIndex = async (backupCodes = [], code) => {
   const normalized = normalizeBackupCode(code);
 
-  if (!/^[A-Z2-7]{8,20}$/.test(normalized)) {
-    return -1;
-  }
+  if (!/^[A-Z2-7]{8,20}$/.test(normalized)) return -1;
 
   for (let index = 0; index < backupCodes.length; index += 1) {
     const backupCode = backupCodes[index];
 
-    if (!backupCode?.codeHash || backupCode.usedAt) {
-      continue;
-    }
+    if (!backupCode?.codeHash || backupCode.usedAt) continue;
 
     try {
-      if (await verifyArgon2(backupCode.codeHash, normalized)) {
-        return index;
-      }
+      if (await verifyArgon2(backupCode.codeHash, normalized)) return index;
     } catch {
       continue;
     }
