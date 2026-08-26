@@ -66,6 +66,7 @@ export const CRITICAL_DATABASE_INDEX_REQUIREMENTS = Object.freeze([
   requirement('notification-outbox.delivery-queue', NotificationOutbox, {
     status: 1,
     nextAttemptAt: 1,
+    leaseExpiresAt: 1,
     createdAt: 1,
   }),
   requirement('upload-budget.daily.unique', UploadBudget, {
